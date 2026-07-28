@@ -1,0 +1,6 @@
+@WhatsBiz.Api_HostAddress = http://localhost:5116
+
+GET {{WhatsBiz.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

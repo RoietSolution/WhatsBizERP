@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.Build.Sql/1.0.0">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework><SqlServerVersion>Sql160</SqlServerVersion></PropertyGroup>
+</Project>

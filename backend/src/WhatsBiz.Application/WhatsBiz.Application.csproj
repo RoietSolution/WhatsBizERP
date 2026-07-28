@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="MediatR" />
+    <ProjectReference Include="..\WhatsBiz.Contracts\WhatsBiz.Contracts.csproj" />
+    <ProjectReference Include="..\WhatsBiz.Domain\WhatsBiz.Domain.csproj" />
+    <ProjectReference Include="..\WhatsBiz.SharedKernel\WhatsBiz.SharedKernel.csproj" />
+  </ItemGroup>
+</Project>

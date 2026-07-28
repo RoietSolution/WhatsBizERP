@@ -1,0 +1,2 @@
+import { Routes } from '@angular/router';
+export const routes: Routes = [{ path: 'login', loadComponent: () => import('./features/authentication/login/login.component').then(m => m.LoginComponent) }, { path: '', loadComponent: () => import('./layout/main-layout/main-layout.component').then(m => m.MainLayoutComponent), children: [{ path: '', loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent) }] }, { path: '**', loadComponent: () => import('./features/not-found/not-found.component').then(m => m.NotFoundComponent) }];

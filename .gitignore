@@ -1,0 +1,10 @@
+.dotnet-cli/
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+.vs/
+.vscode/*.user
+*.user
+*.suo
+appsettings.Development.json

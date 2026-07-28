@@ -1,0 +1,3 @@
+import { ChangeDetectionStrategy, Component } from '@angular/core'; import { MatButtonModule } from '@angular/material/button'; import { MatCardModule } from '@angular/material/card';
+@Component({ imports: [MatButtonModule, MatCardModule], template: '<mat-card><mat-card-header><mat-card-title>WhatsBiz ERP</mat-card-title></mat-card-header><mat-card-content>Sign-in is configured by the identity service.</mat-card-content><mat-card-actions><button mat-button disabled>Sign in</button></mat-card-actions></mat-card>', changeDetection: ChangeDetectionStrategy.OnPush })
+export class LoginComponent {}

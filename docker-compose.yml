@@ -1,0 +1,25 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: Y
+      MSSQL_SA_PASSWORD: ${SQL_SA_PASSWORD}
+    ports: ["1433:1433"]
+    volumes: [sql-data:/var/opt/mssql]
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: Server=sqlserver;Database=WhatsBizERP;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True
+    ports: ["8080:8080"]
+    depends_on: [sqlserver]
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    ports: ["4200:80"]
+    depends_on: [api]
+volumes:
+  sql-data:

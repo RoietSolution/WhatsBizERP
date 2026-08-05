@@ -1,0 +1,1 @@
+import { ChangeDetectionStrategy, Component } from '@angular/core'; @Component({ template: '<h1>Authentication required</h1>', changeDetection: ChangeDetectionStrategy.OnPush }) export class UnauthorizedComponent {}

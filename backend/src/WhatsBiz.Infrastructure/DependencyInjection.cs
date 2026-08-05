@@ -1,16 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using WhatsBiz.Infrastructure.Persistence;
-
+using Microsoft.AspNetCore.Identity; using Microsoft.EntityFrameworkCore; using Microsoft.Extensions.Configuration; using Microsoft.Extensions.DependencyInjection; using WhatsBiz.Application.Common.Interfaces; using WhatsBiz.Infrastructure.Identity; using WhatsBiz.Infrastructure.Persistence;
 namespace WhatsBiz.Infrastructure;
-
-public static class DependencyInjection
-{
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
-    {
-        var connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
-        services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(connectionString));
-        return services;
-    }
-}
+public static class DependencyInjection { public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration) { var connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured."); services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(connectionString)); services.AddIdentity<ApplicationUser, ApplicationRole>(options => { options.Password.RequiredLength = 10; options.Password.RequireDigit = true; options.Password.RequireUppercase = true; options.Password.RequireNonAlphanumeric = true; options.User.RequireUniqueEmail = true; }).AddEntityFrameworkStores<ApplicationDbContext>().AddDefaultTokenProviders(); services.AddOptions<JwtOptions>().Bind(configuration.GetRequiredSection(JwtOptions.SectionName)).Validate(x => !string.IsNullOrWhiteSpace(x.Issuer), "JWT issuer is required.").Validate(x => !string.IsNullOrWhiteSpace(x.Audience), "JWT audience is required.").Validate(x => x.SigningKey.Length >= 32, "JWT signing key must contain at least 32 characters.").Validate(x => x.ExpiryMinutes > 0 && x.RefreshTokenExpiryDays > 0, "JWT expiry values must be positive.").ValidateOnStart(); services.AddHttpContextAccessor(); services.AddScoped<ICurrentUserService, CurrentUserService>(); services.AddScoped<IAuthenticationService, AuthenticationService>(); services.AddSingleton<JwtTokenGenerator>(); services.AddHostedService<IdentitySeeder>(); return services; } }

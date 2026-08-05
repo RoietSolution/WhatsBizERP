@@ -1,0 +1,17 @@
+namespace WhatsBiz.SharedKernel;
+
+public static class Permissions
+{
+    public static readonly IReadOnlyCollection<string> All = [Product.View, Product.Create, Product.Edit, Product.Delete, Supplier.View, Supplier.Create, Supplier.Edit, Supplier.Delete, Customer.View, Customer.Create, Customer.Edit, Customer.Delete, Purchase.View, Purchase.Create, Purchase.Approve, Inventory.View, Inventory.Adjust, Sales.View, Sales.Create, Sales.Approve, Reports.View, Settings.Manage, Users.Manage, Roles.Manage, PermissionsManagement.Manage];
+    public static class Product { public const string View = "product.view"; public const string Create = "product.create"; public const string Edit = "product.edit"; public const string Delete = "product.delete"; }
+    public static class Supplier { public const string View = "supplier.view"; public const string Create = "supplier.create"; public const string Edit = "supplier.edit"; public const string Delete = "supplier.delete"; }
+    public static class Customer { public const string View = "customer.view"; public const string Create = "customer.create"; public const string Edit = "customer.edit"; public const string Delete = "customer.delete"; }
+    public static class Purchase { public const string View = "purchase.view"; public const string Create = "purchase.create"; public const string Approve = "purchase.approve"; }
+    public static class Inventory { public const string View = "inventory.view"; public const string Adjust = "inventory.adjust"; }
+    public static class Sales { public const string View = "sales.view"; public const string Create = "sales.create"; public const string Approve = "sales.approve"; }
+    public static class Reports { public const string View = "reports.view"; }
+    public static class Settings { public const string Manage = "settings.manage"; }
+    public static class Users { public const string Manage = "user.manage"; }
+    public static class Roles { public const string Manage = "role.manage"; }
+    public static class PermissionsManagement { public const string Manage = "permission.manage"; }
+}

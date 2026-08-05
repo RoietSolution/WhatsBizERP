@@ -1,8 +1,1 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools"><PrivateAssets>all</PrivateAssets></PackageReference>
-    <ProjectReference Include="..\WhatsBiz.Application\WhatsBiz.Application.csproj" />
-    <ProjectReference Include="..\WhatsBiz.Domain\WhatsBiz.Domain.csproj" />
-  </ItemGroup>
-</Project>
+<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /><PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" /><PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" /><PackageReference Include="Microsoft.EntityFrameworkCore.Tools"><PrivateAssets>all</PrivateAssets></PackageReference><ProjectReference Include="..\WhatsBiz.Application\WhatsBiz.Application.csproj" /><ProjectReference Include="..\WhatsBiz.Domain\WhatsBiz.Domain.csproj" /><ProjectReference Include="..\WhatsBiz.SharedKernel\WhatsBiz.SharedKernel.csproj" /></ItemGroup></Project>

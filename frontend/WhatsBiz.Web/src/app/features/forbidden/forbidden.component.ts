@@ -1,0 +1,1 @@
+import { ChangeDetectionStrategy, Component } from '@angular/core'; @Component({ template: '<h1>Access forbidden</h1>', changeDetection: ChangeDetectionStrategy.OnPush }) export class ForbiddenComponent {}

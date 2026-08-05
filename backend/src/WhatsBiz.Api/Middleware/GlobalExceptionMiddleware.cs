@@ -16,6 +16,10 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
             ValidationFailed(logger, context.Request.Path, exception);
             await WriteProblemAsync(context, StatusCodes.Status400BadRequest, "Validation failed", exception.Errors.Select(error => error.ErrorMessage));
         }
+        catch (UnauthorizedAccessException exception)
+        {
+            await WriteProblemAsync(context, StatusCodes.Status401Unauthorized, "Authentication failed", [exception.Message]);
+        }
         catch (Exception exception)
         {
             UnhandledException(logger, context.Request.Path, exception);

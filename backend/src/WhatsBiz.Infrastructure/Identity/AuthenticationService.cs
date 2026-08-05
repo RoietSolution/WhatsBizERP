@@ -1,0 +1,18 @@
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using WhatsBiz.Application.Common.Interfaces;
+using WhatsBiz.Application.Features.Authentication.DTOs;
+using WhatsBiz.Infrastructure.Persistence;
+namespace WhatsBiz.Infrastructure.Identity;
+public sealed class AuthenticationService(UserManager<ApplicationUser> userManager, RoleManager<ApplicationRole> roleManager, ApplicationDbContext dbContext, IOptions<JwtOptions> options, JwtTokenGenerator jwtTokenGenerator) : IAuthenticationService
+{
+    private readonly JwtOptions _options = options.Value;
+    public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken) { var user = await userManager.FindByNameAsync(request.Username) ?? throw new UnauthorizedAccessException("Invalid username or password."); if (!user.IsActive || user.IsDeleted || !await userManager.CheckPasswordAsync(user, request.Password)) throw new UnauthorizedAccessException("Invalid username or password."); return await IssueAsync(user, null, cancellationToken); }
+    public async Task<AuthResponse> RefreshAsync(string refreshToken, CancellationToken cancellationToken) { var token = await dbContext.RefreshTokens.SingleOrDefaultAsync(x => x.TokenHash == Hash(refreshToken), cancellationToken) ?? throw new UnauthorizedAccessException("Invalid refresh token."); if (!token.IsActive || token.IsDeleted || token.RevokedOn is not null || token.ExpiresOn <= DateTimeOffset.UtcNow) throw new UnauthorizedAccessException("Invalid refresh token."); var user = await userManager.FindByIdAsync(token.UserId.ToString()) ?? throw new UnauthorizedAccessException("Invalid refresh token."); if (!user.IsActive || user.IsDeleted) throw new UnauthorizedAccessException("Invalid refresh token."); token.RevokedOn = DateTimeOffset.UtcNow; token.ModifiedOn = token.RevokedOn; token.ModifiedBy = user.UserName; token.IsActive = false; return await IssueAsync(user, token, cancellationToken); }
+    public async Task LogoutAsync(string refreshToken, CancellationToken cancellationToken) { var token = await dbContext.RefreshTokens.SingleOrDefaultAsync(x => x.TokenHash == Hash(refreshToken), cancellationToken); if (token is not null && token.RevokedOn is null) { token.RevokedOn = DateTimeOffset.UtcNow; token.IsActive = false; await dbContext.SaveChangesAsync(cancellationToken); } }
+    private async Task<AuthResponse> IssueAsync(ApplicationUser user, RefreshToken? replaced, CancellationToken cancellationToken) { var roles = (await userManager.GetRolesAsync(user)).ToArray(); var permissions = new HashSet<string>(StringComparer.Ordinal); foreach (var roleName in roles) { var role = await roleManager.FindByNameAsync(roleName); if (role is not null) foreach (var claim in await roleManager.GetClaimsAsync(role)) if (claim.Type == CustomClaimTypes.Permission) permissions.Add(claim.Value); } var (accessToken, expires) = jwtTokenGenerator.Generate(user, roles, permissions); var raw = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)); var refresh = new RefreshToken { UserId = user.Id, TokenHash = Hash(raw), ExpiresOn = DateTimeOffset.UtcNow.AddDays(_options.RefreshTokenExpiryDays), CreatedBy = user.UserName }; if (replaced is not null) replaced.ReplacedByTokenHash = refresh.TokenHash; dbContext.RefreshTokens.Add(refresh); await dbContext.SaveChangesAsync(cancellationToken); return new AuthResponse(accessToken, raw, expires, new CurrentUserDto(user.Id, user.UserName ?? string.Empty, user.Email ?? string.Empty, roles, permissions.ToArray())); }
+    private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+}

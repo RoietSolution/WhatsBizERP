@@ -42,6 +42,7 @@ const navigation: NavigationItem[] = [
     { label: 'Receipts', icon: 'call_received', route: '/finance/receipt', permission: 'receipt.create' },
     { label: 'Payments', icon: 'call_made', route: '/finance/payment', permission: 'payment.create' },
   ]},
+  { label: 'Reports', icon: 'assessment', route: '/reports', permission: 'gst.view' },
   { label: 'GST', icon: 'percent', route: '/gst', permission: 'gst.view' },
   { label: 'Analytics', icon: 'query_stats', permission: 'analytics.view', children: [
     { label: 'Sales', icon: 'trending_up', route: '/analytics/sales', permission: 'analytics.view' },
@@ -51,6 +52,7 @@ const navigation: NavigationItem[] = [
   ]},
   { label: 'Warehouses', icon: 'factory', route: '/warehouses', permission: 'warehouse.view' },
   { label: 'Administration', icon: 'admin_panel_settings', permission: 'admin.view', children: [
+    { label: 'Admin Center', icon: 'dashboard', route: '/admin', permission: 'admin.view' },
     { label: 'Company Profile', icon: 'business', route: '/admin/company', permission: 'admin.company' },
     { label: 'Branches', icon: 'lan', route: '/admin/branches', permission: 'admin.settings' },
     { label: 'Settings', icon: 'settings', route: '/admin/settings', permission: 'admin.settings' },

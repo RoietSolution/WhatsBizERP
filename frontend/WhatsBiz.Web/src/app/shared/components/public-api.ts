@@ -1,5 +1,6 @@
 export * from './action-toolbar/action-toolbar.component';
 export * from './breadcrumb/breadcrumb.component';
+export * from './chart/chart.component';
 export * from './confirm-dialog/confirm-dialog.component';
 export * from './data-table/data-table.component';
 export * from './empty-state/empty-state.component';

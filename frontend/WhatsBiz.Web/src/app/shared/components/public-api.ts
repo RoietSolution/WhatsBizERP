@@ -8,6 +8,7 @@ export * from './filter-panel/filter-panel.component';
 export * from './form-section/form-section.component';
 export * from './loading-overlay/loading-overlay.component';
 export * from './notification-panel/notification-panel.component';
+export * from './operations-workspace/operations-workspace.component';
 export * from './page-container/page-container.component';
 export * from './page-header/page-header.component';
 export * from './search-box/search-box.component';

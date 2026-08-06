@@ -2,4 +2,9 @@
 @keyframes wb-slide-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .wb-fade-in { animation: wb-fade-in var(--wb-motion); }
 .wb-slide-up { animation: wb-slide-up var(--wb-motion); }
+main > router-outlet + * { animation: wb-fade-in var(--wb-motion); }
+.mat-mdc-snack-bar-container { animation: wb-slide-up var(--wb-motion); }
+.wb-skeleton { overflow: hidden; position: relative; color: transparent; background: var(--wb-border); border-radius: var(--wb-radius-sm); }
+.wb-skeleton::after { position: absolute; inset: 0; content: ''; background: linear-gradient(90deg, transparent, rgb(255 255 255 / 28%), transparent); transform: translateX(-100%); animation: wb-skeleton 1.25s infinite; }
+@keyframes wb-skeleton { to { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto; animation-duration: 1ms; transition-duration: 1ms; } }

@@ -24,7 +24,11 @@ export const routes:Routes=[
   {path:'403',title:'Access Denied | KhataDhari ERP',data:{mode:'denied'},loadComponent:()=>import('./features/authentication/state/authentication-state.component').then(m=>m.AuthenticationStateComponent)},
   {path:'unauthorized',title:'Access Denied | KhataDhari ERP',data:{mode:'denied'},loadComponent:()=>import('./features/authentication/state/authentication-state.component').then(m=>m.AuthenticationStateComponent)}
  ]},
- {path:'404',loadComponent:()=>import('./features/not-found/not-found.component').then(m=>m.NotFoundComponent)},
+ {path:'401',data:{mode:'401'},loadComponent:()=>import('./features/system-state/system-state.component').then(m=>m.SystemStateComponent)},
+ {path:'404',data:{mode:'404'},loadComponent:()=>import('./features/system-state/system-state.component').then(m=>m.SystemStateComponent)},
+ {path:'500',data:{mode:'500'},loadComponent:()=>import('./features/system-state/system-state.component').then(m=>m.SystemStateComponent)},
+ {path:'offline',data:{mode:'offline'},loadComponent:()=>import('./features/system-state/system-state.component').then(m=>m.SystemStateComponent)},
+ {path:'maintenance',data:{mode:'maintenance'},loadComponent:()=>import('./features/system-state/system-state.component').then(m=>m.SystemStateComponent)},
  {path:'',canActivate:[authGuard],loadComponent:()=>import('./layout/main-layout/main-layout.component').then(m=>m.MainLayoutComponent),children:[
   {path:'dashboard',canActivate:[permissionGuard],data:dashboardView,loadComponent:()=>import('./features/dashboard/dashboard.component').then(m=>m.DashboardComponent)},
   {path:'analytics/sales',canActivate:[permissionGuard],data:{...analyticsView,mode:'sales',title:'Sales Analytics'},loadComponent:()=>import('./features/dashboard/analytics-page.component').then(m=>m.AnalyticsPageComponent)},
@@ -114,4 +118,4 @@ export const routes:Routes=[
   {path:'finance/supplier-ageing',canActivate:[permissionGuard],data:{...supplierOutstanding,party:'supplier',ageing:true},loadComponent:()=>import('./features/receivables/outstanding-ageing.component').then(m=>m.OutstandingAgeingComponent)},
   {path:'finance/collection-followup',canActivate:[permissionGuard],data:customerOutstanding,loadComponent:()=>import('./features/receivables/collection-followup.component').then(m=>m.CollectionFollowUpComponent)},
   {path:'',pathMatch:'full',redirectTo:'dashboard'}]},
- {path:'**',loadComponent:()=>import('./features/not-found/not-found.component').then(m=>m.NotFoundComponent)}];
+ {path:'**',data:{mode:'404'},loadComponent:()=>import('./features/system-state/system-state.component').then(m=>m.SystemStateComponent)}];

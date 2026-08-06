@@ -4,3 +4,4 @@
 :r ..\SeedData\InventorySettings.sql
 :r ..\SeedData\PaymentMethods.sql
 :r ..\SeedData\InvoiceSeries.sql
+:r ..\SeedData\PurchaseSeries.sql

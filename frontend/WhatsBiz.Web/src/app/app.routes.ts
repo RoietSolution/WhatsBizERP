@@ -7,6 +7,7 @@ const customerView={permission:'customer.view'},customerCreate={permission:'cust
 const warehouseView={permission:'warehouse.view'},warehouseCreate={permission:'warehouse.create'},warehouseEdit={permission:'warehouse.edit'};
 const inventoryView={permission:'inventory.view'},inventoryAdjust={permission:'inventory.adjust'},inventoryTransfer={permission:'inventory.transfer'},inventoryReserve={permission:'inventory.reserve'};
 const posView={permission:'pos.view'},posCreate={permission:'pos.create'},posEdit={permission:'pos.edit'},posReturn={permission:'pos.return'};
+const purchaseView={permission:'purchase.view'},purchaseCreate={permission:'purchase.create'},purchaseEdit={permission:'purchase.edit'},purchaseReturn={permission:'purchase.return'},purchasePayment={permission:'purchase.payment'};
 export const routes:Routes=[
  {path:'login',loadComponent:()=>import('./features/authentication/login/login.component').then(m=>m.LoginComponent)},
  {path:'403',loadComponent:()=>import('./features/forbidden/forbidden.component').then(m=>m.ForbiddenComponent)},
@@ -46,5 +47,12 @@ export const routes:Routes=[
   {path:'pos/resume',canActivate:[permissionGuard],data:posEdit,loadComponent:()=>import('./features/pos/hold-bills.component').then(m=>m.HoldBillsComponent)},
   {path:'pos/history',canActivate:[permissionGuard],data:posView,loadComponent:()=>import('./features/pos/invoice-history.component').then(m=>m.InvoiceHistoryComponent)},
   {path:'pos/returns',canActivate:[permissionGuard],data:posReturn,loadComponent:()=>import('./features/pos/return-screen.component').then(m=>m.ReturnScreenComponent)},
+  {path:'purchases/dashboard',canActivate:[permissionGuard],data:purchaseView,loadComponent:()=>import('./features/purchases/purchase-dashboard.component').then(m=>m.PurchaseDashboardComponent)},
+  {path:'purchases',canActivate:[permissionGuard],data:purchaseView,loadComponent:()=>import('./features/purchases/purchase-list.component').then(m=>m.PurchaseListComponent)},
+  {path:'purchases/create',canActivate:[permissionGuard],data:purchaseCreate,loadComponent:()=>import('./features/purchases/purchase-form.component').then(m=>m.PurchaseFormComponent)},
+  {path:'purchases/:id/edit',canActivate:[permissionGuard],data:purchaseEdit,loadComponent:()=>import('./features/purchases/purchase-form.component').then(m=>m.PurchaseFormComponent)},
+  {path:'purchases/:id/payment',canActivate:[permissionGuard],data:purchasePayment,loadComponent:()=>import('./features/purchases/purchase-payment.component').then(m=>m.PurchasePaymentComponent)},
+  {path:'purchases/:id/return',canActivate:[permissionGuard],data:purchaseReturn,loadComponent:()=>import('./features/purchases/purchase-return.component').then(m=>m.PurchaseReturnComponent)},
+  {path:'purchases/:id',canActivate:[permissionGuard],data:purchaseView,loadComponent:()=>import('./features/purchases/purchase-details.component').then(m=>m.PurchaseDetailsComponent)},
   {path:'',pathMatch:'full',redirectTo:'dashboard'}]},
  {path:'**',loadComponent:()=>import('./features/not-found/not-found.component').then(m=>m.NotFoundComponent)}];

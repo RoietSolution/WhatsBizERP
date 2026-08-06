@@ -1,69 +1,12 @@
-# Database Rules
+## Database Development Standard
 
-## Connection
+- Use the local SQL Server configured in `appsettings.Development.json`.
+- Apply all schema changes directly to the development database.
+- Create or alter tables, stored procedures, views, functions, indexes, and constraints as required.
+- Preserve existing data where possible.
+- Verify the schema after every sprint.
+- Build and run the application successfully.
 
-Always use the connection string configured in:
+Do NOT generate separate SQL files for every database object during normal development.
 
-- backend/WhatsBiz.Api/appsettings.Development.json
-
-Never create a new connection string.
-
-Never assume Windows Authentication.
-
-Never assume SQL Authentication.
-
-Use exactly the configured connection string.
-
-## Database
-
-Use the existing SQL Server instance.
-
-Database Name:
-
-WhatsBizERP
-
-## Development
-
-For every sprint:
-
-- Connect to SQL Server.
-- Create missing tables.
-- Create or alter stored procedures.
-- Create or alter views.
-- Create or alter functions.
-- Create indexes.
-- Create constraints.
-- Seed required data.
-- Preserve existing data.
-- Apply schema changes directly to the database.
-
-## Repository
-
-Every database object must have its corresponding SQL file inside:
-
-database/
-
-Tables/
-
-StoredProcedures/
-
-Views/
-
-Functions/
-
-SeedData/
-
-Scripts/
-
-## Validation
-
-At the end of every sprint:
-
-- Verify SQL Server schema.
-- Verify application startup.
-- Verify API.
-- Verify Angular application.
-- Build solution.
-- Fix errors before completing the sprint.
-
-No sprint is complete until the application runs successfully.
+Generate deployment or upgrade SQL scripts only when explicitly requested for a release.

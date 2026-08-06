@@ -5,9 +5,10 @@ const productView={permission:'product.view'},productCreate={permission:'product
 const supplierView={permission:'supplier.view'},supplierCreate={permission:'supplier.create'},supplierEdit={permission:'supplier.edit'};
 const customerView={permission:'customer.view'},customerCreate={permission:'customer.create'},customerEdit={permission:'customer.edit'};
 const warehouseView={permission:'warehouse.view'},warehouseCreate={permission:'warehouse.create'},warehouseEdit={permission:'warehouse.edit'};
-const inventoryView={permission:'inventory.view'},inventoryAdjust={permission:'inventory.adjust'},inventoryTransfer={permission:'inventory.transfer'},inventoryReserve={permission:'inventory.reserve'};
+const inventoryView={permission:'inventory.view'},inventoryAdjust={permission:'inventory.adjust'},inventoryTransfer={permission:'inventory.transfer'},inventoryReserve={permission:'inventory.reserve'},inventoryVerify={permission:'inventory.verify'},inventoryReorder={permission:'inventory.reorder'},inventoryAlerts={permission:'inventory.alerts'};
 const posView={permission:'pos.view'},posCreate={permission:'pos.create'},posEdit={permission:'pos.edit'},posReturn={permission:'pos.return'};
 const purchaseView={permission:'purchase.view'},purchaseCreate={permission:'purchase.create'},purchaseEdit={permission:'purchase.edit'},purchaseReturn={permission:'purchase.return'},purchasePayment={permission:'purchase.payment'};
+const ledgerView={permission:'ledger.view'},receiptView={permission:'receipt.view'},receiptCreate={permission:'receipt.create'},paymentView={permission:'payment.view'},paymentCreate={permission:'payment.create'},customerOutstanding={permission:'customer.outstanding.view'},supplierOutstanding={permission:'supplier.outstanding.view'},cashbookView={permission:'cashbook.view'},bankbookView={permission:'bankbook.view'};
 export const routes:Routes=[
  {path:'login',loadComponent:()=>import('./features/authentication/login/login.component').then(m=>m.LoginComponent)},
  {path:'403',loadComponent:()=>import('./features/forbidden/forbidden.component').then(m=>m.ForbiddenComponent)},
@@ -41,6 +42,10 @@ export const routes:Routes=[
   {path:'inventory/adjustment',canActivate:[permissionGuard],data:inventoryAdjust,loadComponent:()=>import('./features/inventory/stock-adjustment.component').then(m=>m.StockAdjustmentComponent)},
   {path:'inventory/transfer',canActivate:[permissionGuard],data:inventoryTransfer,loadComponent:()=>import('./features/inventory/stock-transfer.component').then(m=>m.StockTransferComponent)},
   {path:'inventory/reservation',canActivate:[permissionGuard],data:inventoryReserve,loadComponent:()=>import('./features/inventory/stock-reservation.component').then(m=>m.StockReservationComponent)},
+  {path:'inventory/verification',canActivate:[permissionGuard],data:inventoryVerify,loadComponent:()=>import('./features/inventory/physical-stock-verification.component').then(m=>m.PhysicalStockVerificationComponent)},
+  {path:'inventory/reorder',canActivate:[permissionGuard],data:{...inventoryReorder,mode:'reorder',title:'Reorder Suggestions'},loadComponent:()=>import('./features/inventory/stock-control-list.component').then(m=>m.StockControlListComponent)},
+  {path:'inventory/alerts',canActivate:[permissionGuard],data:{...inventoryAlerts,mode:'alerts',title:'Inventory Alerts'},loadComponent:()=>import('./features/inventory/stock-control-list.component').then(m=>m.StockControlListComponent)},
+  {path:'inventory/movement-history',canActivate:[permissionGuard],data:{...inventoryView,mode:'movement',title:'Stock Movement History'},loadComponent:()=>import('./features/inventory/stock-control-list.component').then(m=>m.StockControlListComponent)},
   {path:'pos',canActivate:[permissionGuard],data:posCreate,loadComponent:()=>import('./features/pos/pos-screen.component').then(m=>m.POSScreenComponent)},
   {path:'pos/today',canActivate:[permissionGuard],data:posView,loadComponent:()=>import('./features/pos/today-sales.component').then(m=>m.TodaySalesComponent)},
   {path:'pos/holds',canActivate:[permissionGuard],data:posEdit,loadComponent:()=>import('./features/pos/hold-bills.component').then(m=>m.HoldBillsComponent)},
@@ -54,5 +59,17 @@ export const routes:Routes=[
   {path:'purchases/:id/payment',canActivate:[permissionGuard],data:purchasePayment,loadComponent:()=>import('./features/purchases/purchase-payment.component').then(m=>m.PurchasePaymentComponent)},
   {path:'purchases/:id/return',canActivate:[permissionGuard],data:purchaseReturn,loadComponent:()=>import('./features/purchases/purchase-return.component').then(m=>m.PurchaseReturnComponent)},
   {path:'purchases/:id',canActivate:[permissionGuard],data:purchaseView,loadComponent:()=>import('./features/purchases/purchase-details.component').then(m=>m.PurchaseDetailsComponent)},
+  {path:'finance/customer-ledger',canActivate:[permissionGuard],data:{...ledgerView,party:'customer'},loadComponent:()=>import('./features/finance/party-ledger.component').then(m=>m.PartyLedgerComponent)},
+  {path:'finance/supplier-ledger',canActivate:[permissionGuard],data:{...ledgerView,party:'supplier'},loadComponent:()=>import('./features/finance/party-ledger.component').then(m=>m.PartyLedgerComponent)},
+  {path:'finance/cashbook',canActivate:[permissionGuard],data:{...cashbookView,kind:'cash'},loadComponent:()=>import('./features/finance/book.component').then(m=>m.FinanceBookComponent)},
+  {path:'finance/bankbook',canActivate:[permissionGuard],data:{...bankbookView,kind:'bank'},loadComponent:()=>import('./features/finance/book.component').then(m=>m.FinanceBookComponent)},
+  {path:'finance/daybook',canActivate:[permissionGuard],data:{...ledgerView,kind:'day'},loadComponent:()=>import('./features/finance/book.component').then(m=>m.FinanceBookComponent)},
+  {path:'finance/receipt',canActivate:[permissionGuard],data:{...receiptCreate,kind:'receipt'},loadComponent:()=>import('./features/receivables/receivable-payable-entry.component').then(m=>m.ReceivablePayableEntryComponent)},
+  {path:'finance/payment',canActivate:[permissionGuard],data:{...paymentCreate,kind:'payment'},loadComponent:()=>import('./features/receivables/receivable-payable-entry.component').then(m=>m.ReceivablePayableEntryComponent)},
+  {path:'finance/customer-outstanding',canActivate:[permissionGuard],data:{...customerOutstanding,party:'customer'},loadComponent:()=>import('./features/receivables/outstanding-ageing.component').then(m=>m.OutstandingAgeingComponent)},
+  {path:'finance/supplier-outstanding',canActivate:[permissionGuard],data:{...supplierOutstanding,party:'supplier'},loadComponent:()=>import('./features/receivables/outstanding-ageing.component').then(m=>m.OutstandingAgeingComponent)},
+  {path:'finance/customer-ageing',canActivate:[permissionGuard],data:{...customerOutstanding,party:'customer',ageing:true},loadComponent:()=>import('./features/receivables/outstanding-ageing.component').then(m=>m.OutstandingAgeingComponent)},
+  {path:'finance/supplier-ageing',canActivate:[permissionGuard],data:{...supplierOutstanding,party:'supplier',ageing:true},loadComponent:()=>import('./features/receivables/outstanding-ageing.component').then(m=>m.OutstandingAgeingComponent)},
+  {path:'finance/collection-followup',canActivate:[permissionGuard],data:customerOutstanding,loadComponent:()=>import('./features/receivables/collection-followup.component').then(m=>m.CollectionFollowUpComponent)},
   {path:'',pathMatch:'full',redirectTo:'dashboard'}]},
  {path:'**',loadComponent:()=>import('./features/not-found/not-found.component').then(m=>m.NotFoundComponent)}];

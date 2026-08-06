@@ -3,7 +3,9 @@ using System.Globalization;
 using WhatsBiz.Api.Extensions;
 using WhatsBiz.Api.Middleware;
 using WhatsBiz.Application;
+using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Infrastructure;
+using WhatsBiz.Infrastructure.Persistence;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console(formatProvider: CultureInfo.InvariantCulture).CreateBootstrapLogger();
 
@@ -13,6 +15,8 @@ try
     builder.Host.UseSerilog((context, services, configuration) => configuration.ReadFrom.Configuration(context.Configuration).ReadFrom.Services(services).Enrich.FromLogContext());
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
+    builder.Services.AddScoped<IInventoryOperationsRepository, InventoryOperationsRepository>();
+    builder.Services.AddScoped<IReceivablesRepository, ReceivablesRepository>();
     builder.Services.AddApiServices(builder.Configuration);
     var app = builder.Build();
     app.UseMiddleware<GlobalExceptionMiddleware>();

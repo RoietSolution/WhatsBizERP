@@ -1,0 +1,18 @@
+CREATE PROCEDURE [inventory].[Inventory_Transfer] @ProductId UNIQUEIDENTIFIER,@SourceWarehouseId UNIQUEIDENTIFIER,@DestinationWarehouseId UNIQUEIDENTIFIER,@Quantity DECIMAL(18,4),@TransferDate DATETIMEOFFSET,@Remarks NVARCHAR(1000)=NULL,@CreatedBy NVARCHAR(256)=NULL
+AS
+BEGIN
+ SET NOCOUNT ON;SET XACT_ABORT ON;IF @Quantity<=0 THROW 51000,'Quantity must be greater than zero.',1;IF @SourceWarehouseId=@DestinationWarehouseId THROW 51000,'Source and destination warehouses must differ.',1;
+ DECLARE @AllowNegative BIT=(SELECT TOP(1)NegativeStockAllowed FROM inventory.InventorySettings),@SourceBalanceId UNIQUEIDENTIFIER,@DestinationBalanceId UNIQUEIDENTIFIER,@OnHand DECIMAL(18,4),@Cost DECIMAL(18,4),@OutId UNIQUEIDENTIFIER=NEWID(),@InId UNIQUEIDENTIFIER=NEWID(),@TransferId UNIQUEIDENTIFIER=NEWID(),@No NVARCHAR(50)=CONCAT('TRF-',UPPER(LEFT(REPLACE(CONVERT(NVARCHAR(36),NEWID()),'-',''),20)));
+ SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;BEGIN TRAN;
+ SELECT @SourceBalanceId=InventoryBalanceId,@OnHand=QuantityOnHand,@Cost=AverageCost FROM inventory.InventoryBalances WITH(UPDLOCK,HOLDLOCK) WHERE ProductId=@ProductId AND WarehouseId=@SourceWarehouseId AND ZoneId IS NULL AND BinId IS NULL AND BatchNo IS NULL AND SerialNo IS NULL;
+ IF @SourceBalanceId IS NULL SET @OnHand=0;IF ISNULL(@AllowNegative,0)=0 AND ISNULL(@OnHand,0)<@Quantity BEGIN ROLLBACK;THROW 51001,'Insufficient stock for transfer.',1;END;
+ SELECT @DestinationBalanceId=InventoryBalanceId FROM inventory.InventoryBalances WITH(UPDLOCK,HOLDLOCK) WHERE ProductId=@ProductId AND WarehouseId=@DestinationWarehouseId AND ZoneId IS NULL AND BinId IS NULL AND BatchNo IS NULL AND SerialNo IS NULL;
+ IF @DestinationBalanceId IS NULL BEGIN SET @DestinationBalanceId=NEWID();INSERT inventory.InventoryBalances(InventoryBalanceId,ProductId,WarehouseId,CreatedBy)VALUES(@DestinationBalanceId,@ProductId,@DestinationWarehouseId,@CreatedBy);END;
+ IF @SourceBalanceId IS NULL BEGIN SET @SourceBalanceId=NEWID();INSERT inventory.InventoryBalances(InventoryBalanceId,ProductId,WarehouseId,CreatedBy)VALUES(@SourceBalanceId,@ProductId,@SourceWarehouseId,@CreatedBy);END;
+ INSERT inventory.InventoryTransactions(TransactionId,TransactionNo,TransactionDate,TransactionType,ReferenceType,ReferenceId,WarehouseId,Remarks,CreatedBy)VALUES(@OutId,@No+'-OUT',@TransferDate,'TRANSFER_OUT','STOCK_TRANSFER',@TransferId,@SourceWarehouseId,@Remarks,@CreatedBy),(@InId,@No+'-IN',@TransferDate,'TRANSFER_IN','STOCK_TRANSFER',@TransferId,@DestinationWarehouseId,@Remarks,@CreatedBy);
+ INSERT inventory.InventoryTransactionDetails(TransactionId,ProductId,Quantity,UnitCost)VALUES(@OutId,@ProductId,@Quantity,ISNULL(@Cost,0)),(@InId,@ProductId,@Quantity,ISNULL(@Cost,0));
+ INSERT inventory.StockTransfers(StockTransferId,TransferNo,SourceTransactionId,DestinationTransactionId,SourceWarehouseId,DestinationWarehouseId,ApprovalStatus,TransferDate,Remarks,CreatedBy)VALUES(@TransferId,@No,@OutId,@InId,@SourceWarehouseId,@DestinationWarehouseId,'COMPLETED',@TransferDate,@Remarks,@CreatedBy);
+ UPDATE inventory.InventoryBalances SET QuantityOnHand=QuantityOnHand-@Quantity,LastUpdated=SYSUTCDATETIME(),ModifiedOn=SYSUTCDATETIME(),ModifiedBy=@CreatedBy WHERE InventoryBalanceId=@SourceBalanceId;
+ UPDATE inventory.InventoryBalances SET AverageCost=CASE WHEN QuantityOnHand+@Quantity=0 THEN 0 ELSE ((QuantityOnHand*AverageCost)+(@Quantity*ISNULL(@Cost,0)))/(QuantityOnHand+@Quantity) END,QuantityOnHand=QuantityOnHand+@Quantity,LastUpdated=SYSUTCDATETIME(),ModifiedOn=SYSUTCDATETIME(),ModifiedBy=@CreatedBy WHERE InventoryBalanceId=@DestinationBalanceId;
+ COMMIT;SELECT @TransferId StockTransferId,@No TransferNo,@OutId SourceTransactionId,@InId DestinationTransactionId;
+END;

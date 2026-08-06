@@ -1,0 +1,8 @@
+CREATE TABLE [inventory].[StockTransfers] (
+    [StockTransferId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_StockTransfers_Id] DEFAULT NEWSEQUENTIALID(),[TransferNo] NVARCHAR(50) NOT NULL,[SourceTransactionId] UNIQUEIDENTIFIER NOT NULL,[DestinationTransactionId] UNIQUEIDENTIFIER NOT NULL,
+    [SourceWarehouseId] UNIQUEIDENTIFIER NOT NULL,[DestinationWarehouseId] UNIQUEIDENTIFIER NOT NULL,[ApprovalStatus] NVARCHAR(20) NOT NULL CONSTRAINT [DF_StockTransfers_Status] DEFAULT 'PENDING',[TransferDate] DATETIMEOFFSET NOT NULL,[Remarks] NVARCHAR(1000) NULL,[CreatedBy] NVARCHAR(256) NULL,[CreatedOn] DATETIMEOFFSET NOT NULL CONSTRAINT [DF_StockTransfers_Created] DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT [PK_StockTransfers] PRIMARY KEY ([StockTransferId]),CONSTRAINT [UQ_StockTransfers_No] UNIQUE ([TransferNo]),
+    CONSTRAINT [FK_StockTransfers_SourceTransaction] FOREIGN KEY ([SourceTransactionId]) REFERENCES [inventory].[InventoryTransactions]([TransactionId]),CONSTRAINT [FK_StockTransfers_DestinationTransaction] FOREIGN KEY ([DestinationTransactionId]) REFERENCES [inventory].[InventoryTransactions]([TransactionId]),
+    CONSTRAINT [FK_StockTransfers_SourceWarehouse] FOREIGN KEY ([SourceWarehouseId]) REFERENCES [inventory].[Warehouses]([WarehouseId]),CONSTRAINT [FK_StockTransfers_DestinationWarehouse] FOREIGN KEY ([DestinationWarehouseId]) REFERENCES [inventory].[Warehouses]([WarehouseId]),
+    CONSTRAINT [CK_StockTransfers_Warehouses] CHECK ([SourceWarehouseId]<>[DestinationWarehouseId]),CONSTRAINT [CK_StockTransfers_Status] CHECK ([ApprovalStatus] IN ('PENDING','APPROVED','REJECTED','COMPLETED'))
+);

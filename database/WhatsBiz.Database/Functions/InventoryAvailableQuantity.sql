@@ -1,0 +1,1 @@
+CREATE FUNCTION [inventory].[InventoryAvailableQuantity](@ProductId UNIQUEIDENTIFIER,@WarehouseId UNIQUEIDENTIFIER)RETURNS DECIMAL(18,4) AS BEGIN DECLARE @Quantity DECIMAL(18,4);SELECT @Quantity=SUM(QuantityAvailable)FROM inventory.InventoryBalances WHERE ProductId=@ProductId AND WarehouseId=@WarehouseId;RETURN ISNULL(@Quantity,0);END;

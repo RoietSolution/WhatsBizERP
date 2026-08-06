@@ -14,9 +14,16 @@ const gstView={permission:'gst.view'},gstConfiguration={permission:'gst.configur
 const printView={permission:'print.view'},printDocument={permission:'print.document'},printBarcode={permission:'print.barcode'},printSettings={permission:'print.settings'};
 const adminView={permission:'admin.view'},adminSettings={permission:'admin.settings'},adminCompany={permission:'admin.company'},adminBackup={permission:'admin.backup'},adminRestore={permission:'admin.restore'},adminAudit={permission:'admin.audit'};
 export const routes:Routes=[
- {path:'login',loadComponent:()=>import('./features/authentication/login/login.component').then(m=>m.LoginComponent)},
- {path:'403',loadComponent:()=>import('./features/forbidden/forbidden.component').then(m=>m.ForbiddenComponent)},
- {path:'unauthorized',loadComponent:()=>import('./features/unauthorized/unauthorized.component').then(m=>m.UnauthorizedComponent)},
+ {path:'',loadComponent:()=>import('./layout/authentication-layout/authentication-layout.component').then(m=>m.AuthenticationLayoutComponent),children:[
+  {path:'login',title:'Sign In | KhataDhari ERP',loadComponent:()=>import('./features/authentication/login/login.component').then(m=>m.LoginComponent)},
+  {path:'forgot-password',title:'Forgot Password | KhataDhari ERP',data:{mode:'forgot'},loadComponent:()=>import('./features/authentication/password/password-workflow.component').then(m=>m.PasswordWorkflowComponent)},
+  {path:'reset-password',title:'Reset Password | KhataDhari ERP',data:{mode:'reset'},loadComponent:()=>import('./features/authentication/password/password-workflow.component').then(m=>m.PasswordWorkflowComponent)},
+  {path:'change-password',title:'Change Password | KhataDhari ERP',data:{mode:'change'},loadComponent:()=>import('./features/authentication/password/password-workflow.component').then(m=>m.PasswordWorkflowComponent)},
+  {path:'account-locked',title:'Account Locked | KhataDhari ERP',data:{mode:'locked'},loadComponent:()=>import('./features/authentication/state/authentication-state.component').then(m=>m.AuthenticationStateComponent)},
+  {path:'session-expired',title:'Session Expired | KhataDhari ERP',data:{mode:'expired'},loadComponent:()=>import('./features/authentication/state/authentication-state.component').then(m=>m.AuthenticationStateComponent)},
+  {path:'403',title:'Access Denied | KhataDhari ERP',data:{mode:'denied'},loadComponent:()=>import('./features/authentication/state/authentication-state.component').then(m=>m.AuthenticationStateComponent)},
+  {path:'unauthorized',title:'Access Denied | KhataDhari ERP',data:{mode:'denied'},loadComponent:()=>import('./features/authentication/state/authentication-state.component').then(m=>m.AuthenticationStateComponent)}
+ ]},
  {path:'404',loadComponent:()=>import('./features/not-found/not-found.component').then(m=>m.NotFoundComponent)},
  {path:'',canActivate:[authGuard],loadComponent:()=>import('./layout/main-layout/main-layout.component').then(m=>m.MainLayoutComponent),children:[
   {path:'dashboard',canActivate:[permissionGuard],data:dashboardView,loadComponent:()=>import('./features/dashboard/dashboard.component').then(m=>m.DashboardComponent)},

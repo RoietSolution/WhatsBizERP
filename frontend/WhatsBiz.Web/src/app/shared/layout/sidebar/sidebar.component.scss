@@ -2,8 +2,8 @@
 aside { display: flex; width: var(--wb-sidebar-width); height: 100%; color: #cbd5e1; background: var(--wb-sidebar); flex-direction: column; transition: width var(--wb-motion); }
 aside.sidebar--collapsed { width: var(--wb-sidebar-collapsed-width); }
 .brand { display: flex; align-items: center; gap: 12px; height: var(--wb-header-height); padding: 0 12px 0 16px; border-bottom: 1px solid rgb(255 255 255 / 8%); }
-.brand__mark { display: grid; flex: 0 0 36px; width: 36px; height: 36px; color: #fff; background: var(--wb-primary); border-radius: 10px; font-size: 1.125rem; font-weight: 700; place-items: center; box-shadow: 0 6px 18px rgb(29 78 216 / 35%); }
-.brand > div:nth-child(2) { min-width: 0; flex: 1; }
+.brand__logo { display: block; flex: 0 0 40px; width: 40px; height: 40px; object-fit: contain; }
+.brand__copy { min-width: 0; flex: 1; }
 .brand strong, .brand span { display: block; white-space: nowrap; }
 .brand strong { color: #fff; font-size: .9375rem; }
 .brand span { color: #94a3b8; font-size: .6875rem; }

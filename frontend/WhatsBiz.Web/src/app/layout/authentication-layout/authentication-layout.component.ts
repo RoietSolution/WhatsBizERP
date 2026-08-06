@@ -1,3 +1,6 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core'; import { RouterOutlet } from '@angular/router';
-@Component({ selector: 'app-authentication-layout', imports: [RouterOutlet], template: '<main class="authentication"><router-outlet /></main>', styles: ['.authentication { min-height: 100vh; display: grid; place-items: center; }'], changeDetection: ChangeDetectionStrategy.OnPush })
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+import { AuthenticationShellComponent } from '../../shared/layout/authentication-shell/authentication-shell.component';
+
+@Component({ selector: 'app-authentication-layout', imports: [AuthenticationShellComponent, RouterOutlet], template: '<app-authentication-shell><router-outlet /></app-authentication-shell>', changeDetection: ChangeDetectionStrategy.OnPush })
 export class AuthenticationLayoutComponent {}

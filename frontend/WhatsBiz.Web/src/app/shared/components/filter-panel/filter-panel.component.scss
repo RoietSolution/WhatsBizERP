@@ -4,6 +4,8 @@ header { justify-content: space-between; min-height: 52px; padding: 4px 12px 4px
 header > div { gap: 8px; }
 header .material-symbols-rounded { color: var(--wb-primary); }
 .filter-panel__body { display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 16px; padding: 16px 20px; border-top: 1px solid var(--wb-border); }
-footer { justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--wb-border); }
+footer { justify-content: space-between; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--wb-border); }
+footer > div { display: flex; align-items: center; gap: 4px; }
+footer .material-symbols-rounded { margin-right: 4px; font-size: 17px; }
 @media(max-width:1199px) { .filter-panel__body { grid-template-columns: repeat(2, 1fr); } }
-@media(max-width:767px) { .filter-panel__body { grid-template-columns: 1fr; } }
+@media(max-width:767px) { .filter-panel__body { grid-template-columns: 1fr; } footer { align-items: stretch; flex-direction: column; } footer > div:last-child { justify-content: flex-end; } }

@@ -11,6 +11,7 @@ const purchaseView={permission:'purchase.view'},purchaseCreate={permission:'purc
 const ledgerView={permission:'ledger.view'},receiptView={permission:'receipt.view'},receiptCreate={permission:'receipt.create'},paymentView={permission:'payment.view'},paymentCreate={permission:'payment.create'},customerOutstanding={permission:'customer.outstanding.view'},supplierOutstanding={permission:'supplier.outstanding.view'},cashbookView={permission:'cashbook.view'},bankbookView={permission:'bankbook.view'};
 const dashboardView={permission:'dashboard.view'},analyticsView={permission:'analytics.view'};
 const gstView={permission:'gst.view'},gstConfiguration={permission:'gst.configuration'};
+const printView={permission:'print.view'},printDocument={permission:'print.document'},printBarcode={permission:'print.barcode'},printSettings={permission:'print.settings'};
 export const routes:Routes=[
  {path:'login',loadComponent:()=>import('./features/authentication/login/login.component').then(m=>m.LoginComponent)},
  {path:'403',loadComponent:()=>import('./features/forbidden/forbidden.component').then(m=>m.ForbiddenComponent)},
@@ -30,6 +31,11 @@ export const routes:Routes=[
   {path:'gst/gstr3b',canActivate:[permissionGuard],data:{...gstView,report:'gstr3b',title:'GSTR-3B Summary'},loadComponent:()=>import('./features/gst/gst-report.component').then(m=>m.GstReportComponent)},
   {path:'gst/tax-summary',canActivate:[permissionGuard],data:{...gstView,report:'tax-summary',title:'GST Tax Summary'},loadComponent:()=>import('./features/gst/gst-report.component').then(m=>m.GstReportComponent)},
   {path:'gst/configuration',canActivate:[permissionGuard],data:gstConfiguration,loadComponent:()=>import('./features/gst/gst-configuration.component').then(m=>m.GstConfigurationComponent)},
+  {path:'print/preview',canActivate:[permissionGuard],data:printDocument,loadComponent:()=>import('./features/printing/print-preview.component').then(m=>m.PrintPreviewComponent)},
+  {path:'print/labels',canActivate:[permissionGuard],data:printDocument,loadComponent:()=>import('./features/printing/label-designer.component').then(m=>m.LabelDesignerComponent)},
+  {path:'print/barcodes',canActivate:[permissionGuard],data:printBarcode,loadComponent:()=>import('./features/printing/barcode-generator.component').then(m=>m.BarcodeGeneratorComponent)},
+  {path:'print/printers',canActivate:[permissionGuard],data:printSettings,loadComponent:()=>import('./features/printing/printer-configuration.component').then(m=>m.PrinterConfigurationComponent)},
+  {path:'print/templates',canActivate:[permissionGuard],data:printView,loadComponent:()=>import('./features/printing/template-manager.component').then(m=>m.TemplateManagerComponent)},
   {path:'products',canActivate:[permissionGuard],data:productView,loadComponent:()=>import('./features/products/product-list.component').then(m=>m.ProductListComponent)},
   {path:'products/new',canActivate:[permissionGuard],data:productCreate,loadComponent:()=>import('./features/products/product-form.component').then(m=>m.ProductFormComponent)},
   {path:'products/:id/edit',canActivate:[permissionGuard],data:productEdit,loadComponent:()=>import('./features/products/product-form.component').then(m=>m.ProductFormComponent)},

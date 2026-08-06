@@ -7,6 +7,7 @@ using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Infrastructure;
 using WhatsBiz.Infrastructure.Persistence;
 using WhatsBiz.Infrastructure.Gst;
+using WhatsBiz.Infrastructure.Printing;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console(formatProvider: CultureInfo.InvariantCulture).CreateBootstrapLogger();
 
@@ -22,6 +23,8 @@ try
     builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
     builder.Services.AddScoped<IGstRepository, GstRepository>();
     builder.Services.AddSingleton<IGstExportService, GstExportService>();
+    builder.Services.AddScoped<IPrintRepository, PrintRepository>();
+    builder.Services.AddSingleton<IPrintingService, PrintingService>();
     builder.Services.AddApiServices(builder.Configuration);
     var app = builder.Build();
     app.UseMiddleware<GlobalExceptionMiddleware>();

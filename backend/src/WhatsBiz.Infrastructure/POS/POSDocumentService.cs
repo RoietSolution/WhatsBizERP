@@ -1,4 +1,39 @@
 #pragma warning disable CA1305
-using System.Net;using System.Text;using ClosedXML.Excel;using WhatsBiz.Application.Common.Interfaces;using WhatsBiz.Domain.POS;
+using System.Net;
+using System.Text;
+using ClosedXML.Excel;
+using WhatsBiz.Application.Common.Interfaces;
+using WhatsBiz.Application.Features.Printing;
+using WhatsBiz.Domain.POS;
+
 namespace WhatsBiz.Infrastructure.POS;
-public sealed class POSDocumentService:IPOSDocumentService{public string InvoiceHtml(SalesInvoice invoice,string paper){var width=paper.ToLowerInvariant()switch{"58mm"=>"58mm","80mm"=>"80mm",_=>"210mm"};var b=new StringBuilder($"<!doctype html><html><head><meta charset='utf-8'><style>@page{{size:{width} auto;margin:4mm}}body{{font-family:Arial,sans-serif;font-size:12px;max-width:{width};margin:auto}}table{{width:100%;border-collapse:collapse}}th,td{{padding:4px;border-bottom:1px solid #ccc;text-align:right}}th:first-child,td:first-child{{text-align:left}}h1,p{{text-align:center}}.total{{font-size:16px;font-weight:bold}}</style></head><body><h1>GST INVOICE</h1><p>{E(invoice.InvoiceNumber)}<br>{invoice.InvoiceDate:dd-MMM-yyyy HH:mm}</p><table><tr><th>Item</th><th>Qty</th><th>Rate</th><th>GST</th><th>Total</th></tr>");foreach(var x in invoice.Items)b.Append($"<tr><td>{E(x.Product.ProductName)}</td><td>{x.Quantity}</td><td>{x.UnitPrice:F2}</td><td>{x.TaxAmount:F2}</td><td>{x.LineTotal:F2}</td></tr>");b.Append($"</table><p>Subtotal: {invoice.Subtotal:F2}<br>Discount: {invoice.DiscountAmount:F2}<br>GST: {invoice.TaxAmount:F2}</p><p class='total'>Grand Total: {invoice.GrandTotal:F2}</p><p>Paid: {invoice.PaidAmount:F2} · Balance: {invoice.BalanceAmount:F2}</p><script>window.print()</script></body></html>");return b.ToString();}public byte[] Export(IReadOnlyCollection<SalesInvoice> invoices){using var book=new XLWorkbook();var sheet=book.AddWorksheet("Sales");string[] headers=["Invoice Number","Date","Customer","Status","Subtotal","Discount","Tax","Grand Total","Paid","Balance"];for(var i=0;i<headers.Length;i++)sheet.Cell(1,i+1).Value=headers[i];sheet.Row(1).Style.Font.Bold=true;var row=2;foreach(var x in invoices){sheet.Cell(row,1).Value=x.InvoiceNumber;sheet.Cell(row,2).Value=x.InvoiceDate.DateTime;sheet.Cell(row,3).Value=x.Customer?.CustomerName;sheet.Cell(row,4).Value=x.Status;sheet.Cell(row,5).Value=x.Subtotal;sheet.Cell(row,6).Value=x.DiscountAmount;sheet.Cell(row,7).Value=x.TaxAmount;sheet.Cell(row,8).Value=x.GrandTotal;sheet.Cell(row,9).Value=x.PaidAmount;sheet.Cell(row,10).Value=x.BalanceAmount;row++;}sheet.Columns().AdjustToContents();using var stream=new MemoryStream();book.SaveAs(stream);return stream.ToArray();}private static string E(string value)=>WebUtility.HtmlEncode(value);}
+
+public sealed class POSDocumentService(IPrintingService printing) : IPOSDocumentService
+{
+    public string InvoiceHtml(SalesInvoice invoice, string paper)
+    {
+        var body = new StringBuilder($"<p>{invoice.InvoiceDate:dd-MMM-yyyy HH:mm}</p><table><tr><th>Item</th><th>Qty</th><th>Rate</th><th>GST</th><th>Total</th></tr>");
+        foreach (var item in invoice.Items)
+            body.Append($"<tr><td>{Encode(item.Product.ProductName)}</td><td>{item.Quantity}</td><td>{item.UnitPrice:F2}</td><td>{item.TaxAmount:F2}</td><td>{item.LineTotal:F2}</td></tr>");
+        body.Append($"</table><p>Subtotal: {invoice.Subtotal:F2}<br>Discount: {invoice.DiscountAmount:F2}<br>GST: {invoice.TaxAmount:F2}</p><p><strong>Grand Total: {invoice.GrandTotal:F2}</strong><br>Paid: {invoice.PaidAmount:F2} · Balance: {invoice.BalanceAmount:F2}</p><script>window.print()</script>");
+        var document = printing.Document(new DocumentInput("SALES_INVOICE", invoice.InvoiceNumber, "GST INVOICE", body.ToString(), paper.ToUpperInvariant(), "html"));
+        return Encoding.UTF8.GetString(document.Data);
+    }
+
+    public byte[] Export(IReadOnlyCollection<SalesInvoice> invoices)
+    {
+        using var book = new XLWorkbook();
+        var sheet = book.AddWorksheet("Sales");
+        string[] headers = ["Invoice Number", "Date", "Customer", "Status", "Subtotal", "Discount", "Tax", "Grand Total", "Paid", "Balance"];
+        for (var index = 0; index < headers.Length; index++) sheet.Cell(1, index + 1).Value = headers[index];
+        sheet.Row(1).Style.Font.Bold = true;
+        var row = 2;
+        foreach (var invoice in invoices)
+        {
+            sheet.Cell(row, 1).Value = invoice.InvoiceNumber;sheet.Cell(row, 2).Value = invoice.InvoiceDate.DateTime;sheet.Cell(row, 3).Value = invoice.Customer?.CustomerName;sheet.Cell(row, 4).Value = invoice.Status;sheet.Cell(row, 5).Value = invoice.Subtotal;sheet.Cell(row, 6).Value = invoice.DiscountAmount;sheet.Cell(row, 7).Value = invoice.TaxAmount;sheet.Cell(row, 8).Value = invoice.GrandTotal;sheet.Cell(row, 9).Value = invoice.PaidAmount;sheet.Cell(row, 10).Value = invoice.BalanceAmount;row++;
+        }
+        sheet.Columns().AdjustToContents();using var stream = new MemoryStream();book.SaveAs(stream);return stream.ToArray();
+    }
+
+    private static string Encode(string value) => WebUtility.HtmlEncode(value);
+}

@@ -12,6 +12,7 @@ const ledgerView={permission:'ledger.view'},receiptView={permission:'receipt.vie
 const dashboardView={permission:'dashboard.view'},analyticsView={permission:'analytics.view'};
 const gstView={permission:'gst.view'},gstConfiguration={permission:'gst.configuration'};
 const printView={permission:'print.view'},printDocument={permission:'print.document'},printBarcode={permission:'print.barcode'},printSettings={permission:'print.settings'};
+const adminView={permission:'admin.view'},adminSettings={permission:'admin.settings'},adminCompany={permission:'admin.company'},adminBackup={permission:'admin.backup'},adminRestore={permission:'admin.restore'},adminAudit={permission:'admin.audit'};
 export const routes:Routes=[
  {path:'login',loadComponent:()=>import('./features/authentication/login/login.component').then(m=>m.LoginComponent)},
  {path:'403',loadComponent:()=>import('./features/forbidden/forbidden.component').then(m=>m.ForbiddenComponent)},
@@ -36,6 +37,16 @@ export const routes:Routes=[
   {path:'print/barcodes',canActivate:[permissionGuard],data:printBarcode,loadComponent:()=>import('./features/printing/barcode-generator.component').then(m=>m.BarcodeGeneratorComponent)},
   {path:'print/printers',canActivate:[permissionGuard],data:printSettings,loadComponent:()=>import('./features/printing/printer-configuration.component').then(m=>m.PrinterConfigurationComponent)},
   {path:'print/templates',canActivate:[permissionGuard],data:printView,loadComponent:()=>import('./features/printing/template-manager.component').then(m=>m.TemplateManagerComponent)},
+  {path:'admin/company',canActivate:[permissionGuard],data:adminCompany,loadComponent:()=>import('./features/administration/company-profile.component').then(m=>m.CompanyProfileComponent)},
+  {path:'admin/branches',canActivate:[permissionGuard],data:adminSettings,loadComponent:()=>import('./features/administration/branch-management.component').then(m=>m.BranchManagementComponent)},
+  {path:'admin/financial-years',canActivate:[permissionGuard],data:adminSettings,loadComponent:()=>import('./features/administration/financial-year.component').then(m=>m.FinancialYearComponent)},
+  {path:'admin/settings',canActivate:[permissionGuard],data:{...adminSettings,title:'Application Settings'},loadComponent:()=>import('./features/administration/application-settings.component').then(m=>m.ApplicationSettingsComponent)},
+  {path:'admin/printers',canActivate:[permissionGuard],data:adminSettings,loadComponent:()=>import('./features/printing/printer-configuration.component').then(m=>m.PrinterConfigurationComponent)},
+  {path:'admin/backup',canActivate:[permissionGuard],data:adminBackup,loadComponent:()=>import('./features/administration/backup-restore.component').then(m=>m.BackupRestoreComponent)},
+  {path:'admin/restore',canActivate:[permissionGuard],data:{...adminRestore,restore:true},loadComponent:()=>import('./features/administration/backup-restore.component').then(m=>m.BackupRestoreComponent)},
+  {path:'admin/audit',canActivate:[permissionGuard],data:adminAudit,loadComponent:()=>import('./features/administration/audit-history.component').then(m=>m.AuditHistoryComponent)},
+  {path:'admin/login-history',canActivate:[permissionGuard],data:{...adminAudit,login:true},loadComponent:()=>import('./features/administration/audit-history.component').then(m=>m.AuditHistoryComponent)},
+  {path:'admin/preferences',canActivate:[permissionGuard],data:{...adminView,title:'User Preferences'},loadComponent:()=>import('./features/administration/application-settings.component').then(m=>m.ApplicationSettingsComponent)},
   {path:'products',canActivate:[permissionGuard],data:productView,loadComponent:()=>import('./features/products/product-list.component').then(m=>m.ProductListComponent)},
   {path:'products/new',canActivate:[permissionGuard],data:productCreate,loadComponent:()=>import('./features/products/product-form.component').then(m=>m.ProductFormComponent)},
   {path:'products/:id/edit',canActivate:[permissionGuard],data:productEdit,loadComponent:()=>import('./features/products/product-form.component').then(m=>m.ProductFormComponent)},

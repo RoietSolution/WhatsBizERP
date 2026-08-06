@@ -8,6 +8,7 @@ using WhatsBiz.Infrastructure;
 using WhatsBiz.Infrastructure.Persistence;
 using WhatsBiz.Infrastructure.Gst;
 using WhatsBiz.Infrastructure.Printing;
+using WhatsBiz.Infrastructure.Administration;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console(formatProvider: CultureInfo.InvariantCulture).CreateBootstrapLogger();
 
@@ -25,9 +26,12 @@ try
     builder.Services.AddSingleton<IGstExportService, GstExportService>();
     builder.Services.AddScoped<IPrintRepository, PrintRepository>();
     builder.Services.AddSingleton<IPrintingService, PrintingService>();
+    builder.Services.AddScoped<IAdminRepository, AdminRepository>();
+    builder.Services.AddScoped<IDatabaseMaintenanceService, DatabaseMaintenanceService>();
     builder.Services.AddApiServices(builder.Configuration);
     var app = builder.Build();
     app.UseMiddleware<GlobalExceptionMiddleware>();
+    app.UseMiddleware<AuditMiddleware>();
     app.UseSerilogRequestLogging();
     app.UseHttpsRedirection();
     app.UseCors(ApiServiceCollectionExtensions.CorsPolicyName);

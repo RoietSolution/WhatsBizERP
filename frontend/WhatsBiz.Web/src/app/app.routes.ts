@@ -9,13 +9,18 @@ const inventoryView={permission:'inventory.view'},inventoryAdjust={permission:'i
 const posView={permission:'pos.view'},posCreate={permission:'pos.create'},posEdit={permission:'pos.edit'},posReturn={permission:'pos.return'};
 const purchaseView={permission:'purchase.view'},purchaseCreate={permission:'purchase.create'},purchaseEdit={permission:'purchase.edit'},purchaseReturn={permission:'purchase.return'},purchasePayment={permission:'purchase.payment'};
 const ledgerView={permission:'ledger.view'},receiptView={permission:'receipt.view'},receiptCreate={permission:'receipt.create'},paymentView={permission:'payment.view'},paymentCreate={permission:'payment.create'},customerOutstanding={permission:'customer.outstanding.view'},supplierOutstanding={permission:'supplier.outstanding.view'},cashbookView={permission:'cashbook.view'},bankbookView={permission:'bankbook.view'};
+const dashboardView={permission:'dashboard.view'},analyticsView={permission:'analytics.view'};
 export const routes:Routes=[
  {path:'login',loadComponent:()=>import('./features/authentication/login/login.component').then(m=>m.LoginComponent)},
  {path:'403',loadComponent:()=>import('./features/forbidden/forbidden.component').then(m=>m.ForbiddenComponent)},
  {path:'unauthorized',loadComponent:()=>import('./features/unauthorized/unauthorized.component').then(m=>m.UnauthorizedComponent)},
  {path:'404',loadComponent:()=>import('./features/not-found/not-found.component').then(m=>m.NotFoundComponent)},
  {path:'',canActivate:[authGuard],loadComponent:()=>import('./layout/main-layout/main-layout.component').then(m=>m.MainLayoutComponent),children:[
-  {path:'dashboard',loadComponent:()=>import('./features/dashboard/dashboard.component').then(m=>m.DashboardComponent)},
+  {path:'dashboard',canActivate:[permissionGuard],data:dashboardView,loadComponent:()=>import('./features/dashboard/dashboard.component').then(m=>m.DashboardComponent)},
+  {path:'analytics/sales',canActivate:[permissionGuard],data:{...analyticsView,mode:'sales',title:'Sales Analytics'},loadComponent:()=>import('./features/dashboard/analytics-page.component').then(m=>m.AnalyticsPageComponent)},
+  {path:'analytics/purchase',canActivate:[permissionGuard],data:{...analyticsView,mode:'purchase',title:'Purchase Analytics'},loadComponent:()=>import('./features/dashboard/analytics-page.component').then(m=>m.AnalyticsPageComponent)},
+  {path:'analytics/inventory',canActivate:[permissionGuard],data:{...analyticsView,mode:'inventory',title:'Inventory Analytics'},loadComponent:()=>import('./features/dashboard/analytics-page.component').then(m=>m.AnalyticsPageComponent)},
+  {path:'analytics/finance',canActivate:[permissionGuard],data:{...analyticsView,mode:'finance',title:'Finance Analytics'},loadComponent:()=>import('./features/dashboard/analytics-page.component').then(m=>m.AnalyticsPageComponent)},
   {path:'products',canActivate:[permissionGuard],data:productView,loadComponent:()=>import('./features/products/product-list.component').then(m=>m.ProductListComponent)},
   {path:'products/new',canActivate:[permissionGuard],data:productCreate,loadComponent:()=>import('./features/products/product-form.component').then(m=>m.ProductFormComponent)},
   {path:'products/:id/edit',canActivate:[permissionGuard],data:productEdit,loadComponent:()=>import('./features/products/product-form.component').then(m=>m.ProductFormComponent)},

@@ -17,6 +17,8 @@ try
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddScoped<IInventoryOperationsRepository, InventoryOperationsRepository>();
     builder.Services.AddScoped<IReceivablesRepository, ReceivablesRepository>();
+    builder.Services.AddMemoryCache(options => options.SizeLimit = 1024);
+    builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
     builder.Services.AddApiServices(builder.Configuration);
     var app = builder.Build();
     app.UseMiddleware<GlobalExceptionMiddleware>();

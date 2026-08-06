@@ -5,5 +5,5 @@ RUN npm ci
 COPY frontend/WhatsBiz.Web/ ./
 RUN npm run build
 FROM nginx:1.27-alpine
-COPY --from=build /src/dist/whats-biz.web/browser /usr/share/nginx/html
+COPY --from=build /src/dist/WhatsBiz.Web/browser /usr/share/nginx/html
 EXPOSE 80

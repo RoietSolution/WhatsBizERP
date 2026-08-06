@@ -11,8 +11,9 @@ services:
       context: .
       dockerfile: docker/api.Dockerfile
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: Server=sqlserver;Database=WhatsBizERP;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True
+      Jwt__SigningKey: ${JWT_SIGNING_KEY}
     ports: ["8080:8080"]
     depends_on: [sqlserver]
   web:

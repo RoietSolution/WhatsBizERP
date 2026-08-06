@@ -9,6 +9,7 @@ using WhatsBiz.Infrastructure.Persistence;
 using WhatsBiz.Infrastructure.Gst;
 using WhatsBiz.Infrastructure.Printing;
 using WhatsBiz.Infrastructure.Administration;
+using Microsoft.AspNetCore.HttpOverrides;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console(formatProvider: CultureInfo.InvariantCulture).CreateBootstrapLogger();
 
@@ -30,13 +31,17 @@ try
     builder.Services.AddScoped<IDatabaseMaintenanceService, DatabaseMaintenanceService>();
     builder.Services.AddApiServices(builder.Configuration);
     var app = builder.Build();
+    app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto });
+    if (!app.Environment.IsDevelopment()) app.UseHsts();
     app.UseMiddleware<GlobalExceptionMiddleware>();
+    app.UseMiddleware<SecurityHeadersMiddleware>();
     app.UseMiddleware<AuditMiddleware>();
     app.UseSerilogRequestLogging();
     app.UseHttpsRedirection();
+    app.UseResponseCompression();
+    app.UseRateLimiter();
     app.UseCors(ApiServiceCollectionExtensions.CorsPolicyName);
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
     app.UseAuthentication();
     app.UseAuthorization();
     app.MapControllers();

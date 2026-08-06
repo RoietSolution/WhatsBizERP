@@ -1,0 +1,6 @@
+.data-table { overflow: hidden; background: var(--wb-surface); border: 1px solid var(--wb-border); border-radius: var(--wb-radius-md); box-shadow: var(--wb-shadow-sm); }
+header { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 64px; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--wb-border); }
+header app-search-box { width: min(360px, 100%); }
+header > div { display: flex; gap: 4px; }
+ag-grid-angular { display: block; width: 100%; min-height: 180px; }
+@media(max-width:767px) { header { align-items: stretch; flex-direction: column; } header app-search-box { width: 100%; } header > div { justify-content: flex-end; } }

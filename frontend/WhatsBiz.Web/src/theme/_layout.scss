@@ -1,0 +1,32 @@
+body { background: var(--wb-background); }
+.wb-card {
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-md);
+  box-shadow: var(--wb-shadow-sm);
+}
+.wb-responsive-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 24px; }
+
+// Transitional enterprise surface treatment for existing feature pages. New pages
+// should compose the shared components instead of defining page-specific shells.
+main > router-outlet + * { display: block; }
+main > router-outlet + * > h1:first-child { margin-bottom: 24px; }
+main > router-outlet + * > form,
+main > router-outlet + * > section,
+main > router-outlet + * > div:not(.cdk-overlay-container) {
+  border-radius: var(--wb-radius-md);
+}
+
+.mat-mdc-card {
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-md);
+  box-shadow: var(--wb-shadow-sm);
+}
+
+.mat-mdc-menu-panel {
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-md);
+  box-shadow: var(--wb-shadow-md);
+}
+@media (max-width: 1199px) { .wb-responsive-grid { gap: 16px; } }
+@media (max-width: 767px) { .wb-responsive-grid { grid-template-columns: 1fr; } }

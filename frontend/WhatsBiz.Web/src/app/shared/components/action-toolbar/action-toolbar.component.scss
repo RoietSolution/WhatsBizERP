@@ -1,0 +1,4 @@
+.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 56px; margin-bottom: 16px; padding: 8px 12px; background: var(--wb-surface); border: 1px solid var(--wb-border); border-radius: var(--wb-radius-md); }
+.toolbar--sticky { position: sticky; z-index: 20; top: 72px; box-shadow: var(--wb-shadow-md); }
+.toolbar__start, .toolbar__end { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+@media(max-width:767px) { .toolbar { align-items: stretch; flex-direction: column; } .toolbar__end { justify-content: flex-end; } }

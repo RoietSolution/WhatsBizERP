@@ -1,0 +1,10 @@
+:host { display: block; height: 100dvh; }
+mat-sidenav-container { height: 100%; background: var(--wb-background); }
+mat-sidenav { width: auto; background: var(--wb-sidebar); border-radius: 0; }
+mat-sidenav-content { display: flex; min-width: 0; flex-direction: column; }
+app-topbar { position: sticky; z-index: 100; top: 0; }
+.content-frame { display: flex; min-height: calc(100dvh - var(--wb-header-height)); flex-direction: column; }
+app-breadcrumb { padding: 16px clamp(16px, 2vw, 32px) 0; }
+main { flex: 1; min-width: 0; padding: 16px clamp(16px, 2vw, 32px) 32px; outline: none; }
+footer { display: flex; justify-content: space-between; gap: 16px; min-height: 48px; align-items: center; padding: 8px clamp(16px, 2vw, 32px); color: var(--wb-text-secondary); border-top: 1px solid var(--wb-border); font-size: .75rem; }
+@media(max-width:767px) { main { padding-bottom: 24px; } footer { align-items: flex-start; flex-direction: column; justify-content: center; gap: 2px; } }

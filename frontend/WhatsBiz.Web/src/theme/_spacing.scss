@@ -1,0 +1,11 @@
+$space-1: 8px;
+$space-2: 16px;
+$space-3: 24px;
+$space-4: 32px;
+$space-6: 48px;
+$space-8: 64px;
+
+.stack-1 { display: grid; gap: $space-1; }
+.stack-2 { display: grid; gap: $space-2; }
+.stack-3 { display: grid; gap: $space-3; }
+.cluster { display: flex; flex-wrap: wrap; gap: $space-2; align-items: center; }

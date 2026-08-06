@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatButtonModule } from '@angular/material/button';
-import { RouterLink, RouterOutlet } from '@angular/router';
-@Component({ selector: 'app-main-layout', imports: [MatButtonModule, MatToolbarModule, RouterLink, RouterOutlet], template: '<mat-toolbar color="primary"><a mat-button routerLink="/dashboard">WhatsBiz ERP</a><span class="spacer"></span><a mat-button routerLink="/pos">POS</a><a mat-button routerLink="/purchases">Purchases</a><a mat-button routerLink="/finance/daybook">Finance</a><a mat-button routerLink="/pos/today">Today</a><a mat-button routerLink="/products">Products</a><a mat-button routerLink="/suppliers">Suppliers</a><a mat-button routerLink="/customers">Customers</a><a mat-button routerLink="/warehouses">Warehouses</a><a mat-button routerLink="/inventory">Inventory</a><a mat-button routerLink="/product-categories">Categories</a><a mat-button routerLink="/brands">Brands</a><a mat-button routerLink="/units">Units</a></mat-toolbar><main><router-outlet /></main>', styles: ['main { padding: 1.5rem; max-width: 1440px; margin: auto; } .spacer { flex: 1; } @media(max-width:700px){mat-toolbar{overflow:auto}}'], changeDetection: ChangeDetectionStrategy.OnPush })
+import { RouterOutlet } from '@angular/router';
+import { AppShellComponent } from '../../shared/layout/app-shell/app-shell.component';
+
+@Component({ selector: 'app-main-layout', imports: [AppShellComponent, RouterOutlet], template: '<app-shell><router-outlet /></app-shell>', changeDetection: ChangeDetectionStrategy.OnPush })
 export class MainLayoutComponent {}

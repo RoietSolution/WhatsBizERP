@@ -1,1 +1,24 @@
-$primary: #005cbb;
+@use '@angular/material' as mat;
+@use 'variables';
+@use 'colors';
+@use 'typography';
+@use 'spacing';
+@use 'buttons';
+@use 'forms';
+@use 'tables';
+@use 'dialogs';
+@use 'layout';
+@use 'icons';
+@use 'animations';
+
+html {
+  color-scheme: light;
+  @include mat.theme((
+    color: (primary: mat.$blue-palette, tertiary: mat.$cyan-palette),
+    typography: Inter,
+    density: 0,
+  ));
+}
+
+:focus-visible { outline: 2px solid var(--wb-primary); outline-offset: 2px; }
+::selection { color: #fff; background: var(--wb-primary); }

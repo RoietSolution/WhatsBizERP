@@ -1,0 +1,7 @@
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatButtonModule } from '@angular/material/button';
+
+export interface ConfirmDialogData { title: string; message: string; confirmLabel?: string; cancelLabel?: string; tone?: 'danger'|'warning'|'info'|'success'; }
+@Component({ selector: 'app-confirm-dialog', imports: [MatButtonModule, MatDialogModule], template: '<div class="dialog-icon" [attr.data-tone]="data.tone ?? `warning`"><span class="material-symbols-rounded">{{ icon }}</span></div><h2 mat-dialog-title>{{ data.title }}</h2><mat-dialog-content>{{ data.message }}</mat-dialog-content><mat-dialog-actions align="end"><button mat-button type="button" (click)="dialog.close(false)">{{ data.cancelLabel ?? "Cancel" }}</button><button mat-flat-button [class.wb-danger-button]="data.tone === `danger`" type="button" (click)="dialog.close(true)">{{ data.confirmLabel ?? "Confirm" }}</button></mat-dialog-actions>', styleUrl: './confirm-dialog.component.scss', changeDetection: ChangeDetectionStrategy.OnPush })
+export class ConfirmDialogComponent { readonly data = inject<ConfirmDialogData>(MAT_DIALOG_DATA); readonly dialog = inject(MatDialogRef<ConfirmDialogComponent>); get icon(): string { return ({danger:'delete_forever',warning:'warning',info:'info',success:'check_circle'} as const)[this.data.tone ?? 'warning']; } }

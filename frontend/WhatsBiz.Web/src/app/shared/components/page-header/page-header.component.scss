@@ -1,0 +1,6 @@
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 24px; }
+.page-header h1 { margin-bottom: 4px; }
+.page-header__eyebrow { min-height: 12px; margin-bottom: 4px; color: var(--wb-primary); font-size: 0.75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.page-header__description { max-width: 720px; margin: 0; color: var(--wb-text-secondary); }
+.page-header__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+@media(max-width:767px) { .page-header { flex-direction: column; } .page-header__actions { width: 100%; } }

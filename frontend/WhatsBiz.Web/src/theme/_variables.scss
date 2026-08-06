@@ -1,0 +1,28 @@
+:root {
+  --wb-primary: #1d4ed8;
+  --wb-primary-hover: #2563eb;
+  --wb-primary-soft: #eff6ff;
+  --wb-success: #10b981;
+  --wb-warning: #f59e0b;
+  --wb-danger: #ef4444;
+  --wb-info: #0ea5e9;
+  --wb-background: #f5f7fa;
+  --wb-surface: #ffffff;
+  --wb-sidebar: #0f172a;
+  --wb-sidebar-raised: #1e293b;
+  --wb-border: #e5e7eb;
+  --wb-text: #111827;
+  --wb-text-secondary: #6b7280;
+  --wb-text-on-dark: #f8fafc;
+  --wb-radius-sm: 6px;
+  --wb-radius-md: 10px;
+  --wb-radius-lg: 14px;
+  --wb-shadow-sm: 0 1px 2px rgb(15 23 42 / 6%);
+  --wb-shadow-md: 0 8px 24px rgb(15 23 42 / 8%);
+  --wb-header-height: 64px;
+  --wb-sidebar-width: 272px;
+  --wb-sidebar-collapsed-width: 80px;
+  --wb-content-max-width: 1600px;
+  --wb-motion: 200ms cubic-bezier(0.2, 0, 0, 1);
+  --wb-focus-ring: 0 0 0 3px rgb(29 78 216 / 22%);
+}

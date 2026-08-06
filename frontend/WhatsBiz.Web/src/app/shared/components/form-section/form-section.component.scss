@@ -1,0 +1,7 @@
+section { margin-bottom: 24px; background: var(--wb-surface); border: 1px solid var(--wb-border); border-radius: var(--wb-radius-md); box-shadow: var(--wb-shadow-sm); }
+header { display: flex; gap: 12px; padding: 20px 24px; border-bottom: 1px solid var(--wb-border); }
+header > .material-symbols-rounded { color: var(--wb-primary); }
+h2 { margin: 0; font-size: 1rem; }
+p { margin: 2px 0 0; color: var(--wb-text-secondary); font-size: .8125rem; }
+.form-section__body { padding: 24px; }
+@media(max-width:767px) { header, .form-section__body { padding: 16px; } }

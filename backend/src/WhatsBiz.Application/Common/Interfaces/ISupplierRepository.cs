@@ -1,0 +1,5 @@
+using WhatsBiz.Domain.Suppliers;
+namespace WhatsBiz.Application.Common.Interfaces;
+public interface ISupplierRepository { Task<(IReadOnlyCollection<Supplier>,int)> SearchAsync(string? search,bool? active,string sort,bool desc,int page,int size,CancellationToken token); Task<Supplier?> GetAsync(Guid id,bool tracking,CancellationToken token); Task<bool> DuplicateAsync(string code,string? gstin,string name,Guid? exclude,CancellationToken token); Task<IReadOnlyCollection<SupplierPaymentTerm>> PaymentTermsAsync(CancellationToken token); void Add(Supplier supplier); void RemoveChildren(Supplier supplier); Task<SupplierDocument?> DocumentAsync(Guid supplierId,Guid documentId,bool tracking,CancellationToken token); void Add(SupplierDocument document); Task SaveAsync(CancellationToken token); }
+public interface ISupplierSpreadsheetService { byte[] Export(IReadOnlyCollection<Supplier> suppliers); byte[] Template(); IReadOnlyCollection<SupplierImportRow> Read(byte[] data); }
+public sealed record SupplierImportRow(int Row,string Code,string Name,string Type,string? GSTIN,string? PAN,string? Email,string? Mobile,string Currency,decimal CreditLimit,bool Active);

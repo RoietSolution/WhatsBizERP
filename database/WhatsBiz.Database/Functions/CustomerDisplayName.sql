@@ -1,0 +1,1 @@
+CREATE FUNCTION [sales].[CustomerDisplayName](@Code NVARCHAR(50),@Name NVARCHAR(250)) RETURNS NVARCHAR(310) AS BEGIN RETURN CONCAT(@Code,N' - ',@Name); END;

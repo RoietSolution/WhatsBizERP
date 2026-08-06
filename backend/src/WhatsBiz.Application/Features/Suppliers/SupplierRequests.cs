@@ -1,0 +1,16 @@
+using MediatR;
+namespace WhatsBiz.Application.Features.Suppliers;
+public sealed record GetSuppliersQuery(string? Search=null,bool? IsActive=null,string SortBy="supplierName",bool Descending=false,int PageNumber=1,int PageSize=20):IRequest<PagedSuppliers>;
+public sealed record GetSupplierQuery(Guid Id):IRequest<SupplierDto>;
+public sealed record CreateSupplierCommand(SupplierInput Input):IRequest<SupplierDto>;
+public sealed record UpdateSupplierCommand(Guid Id,SupplierInput Input):IRequest<SupplierDto>;
+public sealed record DeleteSupplierCommand(Guid Id):IRequest;
+public sealed record SupplierDropdownQuery(string? Search=null):IRequest<IReadOnlyCollection<SupplierDropdownDto>>;
+public sealed record PaymentTermsQuery:IRequest<IReadOnlyCollection<PaymentTermDto>>;
+public sealed record ExportSuppliersQuery(string? Search=null,bool? IsActive=null):IRequest<byte[]>;
+public sealed record SupplierTemplateQuery:IRequest<byte[]>;
+public sealed record ImportSuppliersCommand(byte[] Data):IRequest<SupplierImportResult>;
+public sealed record UploadSupplierDocumentCommand(Guid SupplierId,string Type,string FileName,string ContentType,byte[] Data):IRequest<SupplierDocumentDto>;
+public sealed record GetSupplierDocumentQuery(Guid SupplierId,Guid DocumentId):IRequest<SupplierDocumentFile?>;
+public sealed record DeleteSupplierDocumentCommand(Guid SupplierId,Guid DocumentId):IRequest;
+public sealed record SupplierDocumentFile(string FileName,string ContentType,byte[] Data);

@@ -1,5 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using WhatsBiz.Application.Common.Exceptions;
 
 namespace WhatsBiz.Api.Middleware;
 
@@ -19,6 +21,18 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
         catch (UnauthorizedAccessException exception)
         {
             await WriteProblemAsync(context, StatusCodes.Status401Unauthorized, "Authentication failed", [exception.Message]);
+        }
+        catch (EntityNotFoundException exception)
+        {
+            await WriteProblemAsync(context, StatusCodes.Status404NotFound, "Resource not found", [exception.Message]);
+        }
+        catch (BusinessRuleException exception)
+        {
+            await WriteProblemAsync(context, StatusCodes.Status409Conflict, "Business rule violation", [exception.Message]);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            await WriteProblemAsync(context, StatusCodes.Status409Conflict, "The record was changed by another user", [exception.Message]);
         }
         catch (Exception exception)
         {

@@ -15,9 +15,9 @@ CREATE TABLE [core].[RoleClaims] ([Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY, [
 GO
 CREATE TABLE [core].[UserClaims] ([Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY, [UserId] UNIQUEIDENTIFIER NOT NULL, [ClaimType] NVARCHAR(MAX) NULL, [ClaimValue] NVARCHAR(MAX) NULL, CONSTRAINT [FK_UserClaims_Users] FOREIGN KEY ([UserId]) REFERENCES [core].[Users]([Id]));
 GO
-CREATE TABLE [core].[UserLogins] ([LoginProvider] NVARCHAR(450) NOT NULL, [ProviderKey] NVARCHAR(450) NOT NULL, [ProviderDisplayName] NVARCHAR(MAX) NULL, [UserId] UNIQUEIDENTIFIER NOT NULL, CONSTRAINT [PK_UserLogins] PRIMARY KEY ([LoginProvider],[ProviderKey]), CONSTRAINT [FK_UserLogins_Users] FOREIGN KEY ([UserId]) REFERENCES [core].[Users]([Id]));
+CREATE TABLE [core].[UserLogins] ([LoginProvider] NVARCHAR(128) NOT NULL, [ProviderKey] NVARCHAR(128) NOT NULL, [ProviderDisplayName] NVARCHAR(MAX) NULL, [UserId] UNIQUEIDENTIFIER NOT NULL, CONSTRAINT [PK_UserLogins] PRIMARY KEY ([LoginProvider],[ProviderKey]), CONSTRAINT [FK_UserLogins_Users] FOREIGN KEY ([UserId]) REFERENCES [core].[Users]([Id]));
 GO
-CREATE TABLE [core].[UserTokens] ([UserId] UNIQUEIDENTIFIER NOT NULL, [LoginProvider] NVARCHAR(450) NOT NULL, [Name] NVARCHAR(450) NOT NULL, [Value] NVARCHAR(MAX) NULL, CONSTRAINT [PK_UserTokens] PRIMARY KEY ([UserId],[LoginProvider],[Name]), CONSTRAINT [FK_UserTokens_Users] FOREIGN KEY ([UserId]) REFERENCES [core].[Users]([Id]));
+CREATE TABLE [core].[UserTokens] ([UserId] UNIQUEIDENTIFIER NOT NULL, [LoginProvider] NVARCHAR(128) NOT NULL, [Name] NVARCHAR(128) NOT NULL, [Value] NVARCHAR(MAX) NULL, CONSTRAINT [PK_UserTokens] PRIMARY KEY ([UserId],[LoginProvider],[Name]), CONSTRAINT [FK_UserTokens_Users] FOREIGN KEY ([UserId]) REFERENCES [core].[Users]([Id]));
 GO
 CREATE TABLE [core].[RefreshTokens] ([Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, [UserId] UNIQUEIDENTIFIER NOT NULL, [TokenHash] NVARCHAR(128) NOT NULL, [ExpiresOn] DATETIMEOFFSET NOT NULL, [CreatedOn] DATETIMEOFFSET NOT NULL, [CreatedBy] NVARCHAR(256) NULL, [ModifiedOn] DATETIMEOFFSET NULL, [ModifiedBy] NVARCHAR(256) NULL, [IsActive] BIT NOT NULL, [IsDeleted] BIT NOT NULL, [RevokedOn] DATETIMEOFFSET NULL, [ReplacedByTokenHash] NVARCHAR(128) NULL, [RowVersion] ROWVERSION NOT NULL, CONSTRAINT [FK_RefreshTokens_Users] FOREIGN KEY ([UserId]) REFERENCES [core].[Users]([Id]));
 GO

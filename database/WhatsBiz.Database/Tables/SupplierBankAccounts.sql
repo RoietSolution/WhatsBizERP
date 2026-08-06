@@ -1,0 +1,3 @@
+CREATE TABLE [purchase].[SupplierBankAccounts] ([BankAccountId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_SupplierBankAccounts_Id] DEFAULT NEWSEQUENTIALID(), [SupplierId] UNIQUEIDENTIFIER NOT NULL, [BankName] NVARCHAR(150) NOT NULL, [Branch] NVARCHAR(150) NULL, [AccountNumber] NVARCHAR(50) NOT NULL, [IFSCCode] NVARCHAR(11) NULL, [UPIId] NVARCHAR(100) NULL, CONSTRAINT [PK_SupplierBankAccounts] PRIMARY KEY ([BankAccountId]), CONSTRAINT [FK_SupplierBankAccounts_Suppliers] FOREIGN KEY ([SupplierId]) REFERENCES [purchase].[Suppliers]([SupplierId]) ON DELETE CASCADE);
+GO
+CREATE INDEX [IX_SupplierBankAccounts_SupplierId] ON [purchase].[SupplierBankAccounts]([SupplierId]);

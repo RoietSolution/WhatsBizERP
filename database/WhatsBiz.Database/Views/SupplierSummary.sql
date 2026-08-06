@@ -1,0 +1,1 @@
+CREATE VIEW [purchase].[SupplierSummary] AS SELECT s.[SupplierId],s.[SupplierCode],s.[SupplierName],s.[SupplierType],s.[GSTIN],s.[Email],s.[Mobile],s.[Currency],s.[CreditLimit],s.[IsActive],pt.[PaymentTermName],pt.[DueDays] FROM [purchase].[Suppliers] s LEFT JOIN [purchase].[SupplierPaymentTerms] pt ON pt.[PaymentTermId]=s.[PaymentTermId] WHERE s.[IsDeleted]=0;

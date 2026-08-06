@@ -1,0 +1,3 @@
+CREATE TABLE [sales].[CustomerBankAccounts] ([BankAccountId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_CustomerBankAccounts_Id] DEFAULT NEWSEQUENTIALID(),[CustomerId] UNIQUEIDENTIFIER NOT NULL,[BankName] NVARCHAR(150) NOT NULL,[Branch] NVARCHAR(150) NULL,[AccountNumber] NVARCHAR(50) NOT NULL,[IFSCCode] NVARCHAR(11) NULL,[UPIId] NVARCHAR(100) NULL,CONSTRAINT [PK_CustomerBankAccounts] PRIMARY KEY([BankAccountId]),CONSTRAINT [FK_CustomerBankAccounts_Customers] FOREIGN KEY([CustomerId]) REFERENCES [sales].[Customers]([CustomerId]) ON DELETE CASCADE);
+GO
+CREATE INDEX [IX_CustomerBankAccounts_CustomerId] ON [sales].[CustomerBankAccounts]([CustomerId]);

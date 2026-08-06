@@ -1,0 +1,3 @@
+CREATE TABLE [sales].[CustomerContacts] ([ContactId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_CustomerContacts_Id] DEFAULT NEWSEQUENTIALID(),[CustomerId] UNIQUEIDENTIFIER NOT NULL,[ContactPerson] NVARCHAR(150) NOT NULL,[Designation] NVARCHAR(100) NULL,[Department] NVARCHAR(100) NULL,[Mobile] NVARCHAR(15) NULL,[Email] NVARCHAR(256) NULL,[IsPrimary] BIT NOT NULL CONSTRAINT [DF_CustomerContacts_Primary] DEFAULT 0,CONSTRAINT [PK_CustomerContacts] PRIMARY KEY([ContactId]),CONSTRAINT [FK_CustomerContacts_Customers] FOREIGN KEY([CustomerId]) REFERENCES [sales].[Customers]([CustomerId]) ON DELETE CASCADE);
+GO
+CREATE INDEX [IX_CustomerContacts_CustomerId] ON [sales].[CustomerContacts]([CustomerId]);

@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using WhatsBiz.Infrastructure.Identity;
+using WhatsBiz.Domain.Products;
+using WhatsBiz.Domain.Suppliers;
+using WhatsBiz.Domain.Customers;
 
 namespace WhatsBiz.Infrastructure.Persistence;
 
@@ -8,6 +11,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
 {
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<Brand> Brands => Set<Brand>();
+    public DbSet<UnitOfMeasure> UnitsOfMeasure => Set<UnitOfMeasure>();
+    public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+    public DbSet<ProductBarcode> ProductBarcodes => Set<ProductBarcode>();
+    public DbSet<ProductPrice> ProductPrices => Set<ProductPrice>();
+    public DbSet<ProductTaxMapping> ProductTaxMappings => Set<ProductTaxMapping>();
+    public DbSet<Supplier> Suppliers => Set<Supplier>(); public DbSet<SupplierContact> SupplierContacts=>Set<SupplierContact>(); public DbSet<SupplierAddress> SupplierAddresses=>Set<SupplierAddress>(); public DbSet<SupplierBankAccount> SupplierBankAccounts=>Set<SupplierBankAccount>(); public DbSet<SupplierDocument> SupplierDocuments=>Set<SupplierDocument>(); public DbSet<SupplierPaymentTerm> SupplierPaymentTerms=>Set<SupplierPaymentTerm>(); public DbSet<Customer> Customers=>Set<Customer>();public DbSet<CustomerContact> CustomerContacts=>Set<CustomerContact>();public DbSet<CustomerAddress> CustomerAddresses=>Set<CustomerAddress>();public DbSet<CustomerBankAccount> CustomerBankAccounts=>Set<CustomerBankAccount>();public DbSet<CustomerDocument> CustomerDocuments=>Set<CustomerDocument>();public DbSet<CustomerPaymentTerm> CustomerPaymentTerms=>Set<CustomerPaymentTerm>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -38,5 +50,37 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.RowVersion).IsRowVersion();
             entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
+
+        ConfigureProductMaster(builder);
+        ConfigureSuppliers(builder);
+        ConfigureCustomers(builder);
+    }
+
+    private static void ConfigureCustomers(ModelBuilder b){b.Entity<CustomerPaymentTerm>(e=>{e.ToTable("CustomerPaymentTerms","sales");e.HasKey(x=>x.PaymentTermId);e.Property(x=>x.RowVersion).IsRowVersion();});b.Entity<Customer>(e=>{e.ToTable("Customers","sales");e.HasKey(x=>x.CustomerId);e.Property(x=>x.CustomerCode).HasMaxLength(50);e.Property(x=>x.CustomerName).HasMaxLength(250);e.Property(x=>x.GSTIN).HasMaxLength(15);e.Property(x=>x.PAN).HasMaxLength(10);e.Property(x=>x.Currency).HasMaxLength(3).IsFixedLength();e.Property(x=>x.CreditLimit).HasPrecision(18,2);e.Property(x=>x.OpeningBalance).HasPrecision(18,2);e.Property(x=>x.RowVersion).IsRowVersion();e.HasOne(x=>x.PaymentTerm).WithMany().HasForeignKey(x=>x.PaymentTermId).OnDelete(DeleteBehavior.Restrict);});b.Entity<CustomerContact>(e=>{e.ToTable("CustomerContacts","sales");e.HasKey(x=>x.ContactId);e.HasOne<Customer>().WithMany(x=>x.Contacts).HasForeignKey(x=>x.CustomerId).OnDelete(DeleteBehavior.Cascade);});b.Entity<CustomerAddress>(e=>{e.ToTable("CustomerAddresses","sales");e.HasKey(x=>x.AddressId);e.HasOne<Customer>().WithMany(x=>x.Addresses).HasForeignKey(x=>x.CustomerId).OnDelete(DeleteBehavior.Cascade);});b.Entity<CustomerBankAccount>(e=>{e.ToTable("CustomerBankAccounts","sales");e.HasKey(x=>x.BankAccountId);e.HasOne<Customer>().WithMany(x=>x.BankAccounts).HasForeignKey(x=>x.CustomerId).OnDelete(DeleteBehavior.Cascade);});b.Entity<CustomerDocument>(e=>{e.ToTable("CustomerDocuments","sales");e.HasKey(x=>x.DocumentId);e.Property(x=>x.RowVersion).IsRowVersion();e.HasOne<Customer>().WithMany(x=>x.Documents).HasForeignKey(x=>x.CustomerId).OnDelete(DeleteBehavior.Cascade);});}
+
+    private static void ConfigureSuppliers(ModelBuilder b)
+    {
+        b.Entity<SupplierPaymentTerm>(e=>{e.ToTable("SupplierPaymentTerms","purchase");e.HasKey(x=>x.PaymentTermId);e.Property(x=>x.PaymentTermCode).HasMaxLength(30);e.Property(x=>x.PaymentTermName).HasMaxLength(100);e.Property(x=>x.RowVersion).IsRowVersion();});
+        b.Entity<Supplier>(e=>{e.ToTable("Suppliers","purchase");e.HasKey(x=>x.SupplierId);e.Property(x=>x.SupplierCode).HasMaxLength(50);e.Property(x=>x.SupplierName).HasMaxLength(250);e.Property(x=>x.SupplierType).HasMaxLength(50);e.Property(x=>x.GSTIN).HasMaxLength(15);e.Property(x=>x.PAN).HasMaxLength(10);e.Property(x=>x.Email).HasMaxLength(256);e.Property(x=>x.Mobile).HasMaxLength(15);e.Property(x=>x.Currency).HasMaxLength(3).IsFixedLength();e.Property(x=>x.CreditLimit).HasPrecision(18,2);e.Property(x=>x.OpeningBalance).HasPrecision(18,2);e.Property(x=>x.RowVersion).IsRowVersion();e.HasIndex(x=>x.SupplierCode).IsUnique().HasFilter("[IsDeleted] = 0");e.HasIndex(x=>x.GSTIN).IsUnique().HasFilter("[GSTIN] IS NOT NULL AND [IsDeleted] = 0");e.HasOne(x=>x.PaymentTerm).WithMany().HasForeignKey(x=>x.PaymentTermId).OnDelete(DeleteBehavior.Restrict);});
+        b.Entity<SupplierContact>(e=>{e.ToTable("SupplierContacts","purchase");e.HasKey(x=>x.ContactId);e.HasOne<Supplier>().WithMany(x=>x.Contacts).HasForeignKey(x=>x.SupplierId).OnDelete(DeleteBehavior.Cascade);}); b.Entity<SupplierAddress>(e=>{e.ToTable("SupplierAddresses","purchase");e.HasKey(x=>x.AddressId);e.HasOne<Supplier>().WithMany(x=>x.Addresses).HasForeignKey(x=>x.SupplierId).OnDelete(DeleteBehavior.Cascade);}); b.Entity<SupplierBankAccount>(e=>{e.ToTable("SupplierBankAccounts","purchase");e.HasKey(x=>x.BankAccountId);e.HasOne<Supplier>().WithMany(x=>x.BankAccounts).HasForeignKey(x=>x.SupplierId).OnDelete(DeleteBehavior.Cascade);}); b.Entity<SupplierDocument>(e=>{e.ToTable("SupplierDocuments","purchase");e.HasKey(x=>x.DocumentId);e.Property(x=>x.RowVersion).IsRowVersion();e.HasOne<Supplier>().WithMany(x=>x.Documents).HasForeignKey(x=>x.SupplierId).OnDelete(DeleteBehavior.Cascade);});
+    }
+
+    private static void ConfigureProductMaster(ModelBuilder builder)
+    {
+        builder.Entity<ProductCategory>(entity => { ConfigureAudit(entity); entity.ToTable("ProductCategories", "master"); entity.HasKey(x => x.ProductCategoryId); entity.Property(x => x.CategoryCode).HasMaxLength(50); entity.Property(x => x.CategoryName).HasMaxLength(200); entity.Property(x => x.Description).HasMaxLength(1000); entity.HasIndex(x => x.CategoryCode).IsUnique().HasFilter("[IsDeleted] = 0"); entity.HasOne(x => x.ParentCategory).WithMany().HasForeignKey(x => x.ParentCategoryId).OnDelete(DeleteBehavior.Restrict); });
+        builder.Entity<Brand>(entity => { ConfigureAudit(entity); entity.ToTable("Brands", "master"); entity.HasKey(x => x.BrandId); entity.Property(x => x.BrandCode).HasMaxLength(50); entity.Property(x => x.BrandName).HasMaxLength(200); entity.Property(x => x.Description).HasMaxLength(1000); entity.Property(x => x.Logo).HasMaxLength(500); entity.HasIndex(x => x.BrandCode).IsUnique().HasFilter("[IsDeleted] = 0"); });
+        builder.Entity<UnitOfMeasure>(entity => { ConfigureAudit(entity); entity.ToTable("UnitsOfMeasure", "master"); entity.HasKey(x => x.UnitId); entity.Property(x => x.UnitCode).HasMaxLength(50); entity.Property(x => x.UnitName).HasMaxLength(200); entity.Property(x => x.ShortName).HasMaxLength(20); entity.HasIndex(x => x.UnitCode).IsUnique().HasFilter("[IsDeleted] = 0"); });
+        builder.Entity<Product>(entity => { ConfigureAudit(entity); entity.ToTable("Products", "master"); entity.HasKey(x => x.ProductId); entity.Property(x => x.ProductCode).HasMaxLength(50); entity.Property(x => x.Barcode).HasMaxLength(100); entity.Property(x => x.ProductName).HasMaxLength(250); entity.Property(x => x.ShortDescription).HasMaxLength(500); entity.Property(x => x.HSNCode).HasMaxLength(20); entity.Property(x => x.SACCode).HasMaxLength(20); entity.Property(x => x.ImageUrl).HasMaxLength(500); foreach (var property in new[] { nameof(Product.PurchasePrice), nameof(Product.SellingPrice), nameof(Product.MRP), nameof(Product.MinimumStock), nameof(Product.MaximumStock), nameof(Product.ReorderLevel), nameof(Product.Weight), nameof(Product.Length), nameof(Product.Width), nameof(Product.Height) }) entity.Property(property).HasPrecision(18, 4); entity.Property(x => x.GSTPercentage).HasPrecision(5, 2); entity.HasIndex(x => x.ProductCode).IsUnique().HasFilter("[IsDeleted] = 0"); entity.HasIndex(x => x.Barcode).IsUnique().HasFilter("[Barcode] IS NOT NULL AND [IsDeleted] = 0"); entity.HasOne(x => x.Category).WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict); entity.HasOne(x => x.Brand).WithMany().HasForeignKey(x => x.BrandId).OnDelete(DeleteBehavior.Restrict); entity.HasOne(x => x.Unit).WithMany().HasForeignKey(x => x.UnitId).OnDelete(DeleteBehavior.Restrict); });
+        builder.Entity<ProductImage>(entity => { ConfigureAudit(entity); entity.ToTable("ProductImages", "master"); entity.HasKey(x => x.ProductImageId); entity.Property(x => x.FileName).HasMaxLength(255); entity.Property(x => x.ContentType).HasMaxLength(100); entity.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade); });
+        builder.Entity<ProductBarcode>(entity => { ConfigureAudit(entity); entity.ToTable("ProductBarcodes", "master"); entity.HasKey(x => x.ProductBarcodeId); entity.Property(x => x.Barcode).HasMaxLength(100); entity.HasIndex(x => x.Barcode).IsUnique().HasFilter("[IsDeleted] = 0"); entity.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade); });
+        builder.Entity<ProductPrice>(entity => { ConfigureAudit(entity); entity.ToTable("ProductPrices", "master"); entity.HasKey(x => x.ProductPriceId); entity.Property(x => x.PriceType).HasMaxLength(50); entity.Property(x => x.Amount).HasPrecision(18, 4); entity.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade); });
+        builder.Entity<ProductTaxMapping>(entity => { ConfigureAudit(entity); entity.ToTable("ProductTaxMappings", "master"); entity.HasKey(x => x.ProductTaxMappingId); entity.Property(x => x.TaxCode).HasMaxLength(50); entity.Property(x => x.TaxPercentage).HasPrecision(5, 2); entity.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade); });
+    }
+
+    private static void ConfigureAudit<TEntity>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity> entity) where TEntity : ProductMasterEntity
+    {
+        entity.Property(x => x.CreatedBy).HasMaxLength(256);
+        entity.Property(x => x.ModifiedBy).HasMaxLength(256);
+        entity.Property(x => x.RowVersion).IsRowVersion();
     }
 }

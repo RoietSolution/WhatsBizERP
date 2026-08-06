@@ -1,0 +1,1 @@
+CREATE VIEW [sales].[CustomerSummary] AS SELECT c.[CustomerId],c.[CustomerCode],c.[CustomerName],c.[CustomerType],c.[GSTIN],c.[Email],c.[Mobile],c.[Currency],c.[CreditLimit],c.[IsActive],p.[PaymentTermName],p.[DueDays] FROM [sales].[Customers] c LEFT JOIN [sales].[CustomerPaymentTerms] p ON p.[PaymentTermId]=c.[PaymentTermId] WHERE c.[IsDeleted]=0;

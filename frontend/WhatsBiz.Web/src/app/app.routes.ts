@@ -10,6 +10,7 @@ const posView={permission:'pos.view'},posCreate={permission:'pos.create'},posEdi
 const purchaseView={permission:'purchase.view'},purchaseCreate={permission:'purchase.create'},purchaseEdit={permission:'purchase.edit'},purchaseReturn={permission:'purchase.return'},purchasePayment={permission:'purchase.payment'};
 const ledgerView={permission:'ledger.view'},receiptView={permission:'receipt.view'},receiptCreate={permission:'receipt.create'},paymentView={permission:'payment.view'},paymentCreate={permission:'payment.create'},customerOutstanding={permission:'customer.outstanding.view'},supplierOutstanding={permission:'supplier.outstanding.view'},cashbookView={permission:'cashbook.view'},bankbookView={permission:'bankbook.view'};
 const dashboardView={permission:'dashboard.view'},analyticsView={permission:'analytics.view'};
+const gstView={permission:'gst.view'},gstConfiguration={permission:'gst.configuration'};
 export const routes:Routes=[
  {path:'login',loadComponent:()=>import('./features/authentication/login/login.component').then(m=>m.LoginComponent)},
  {path:'403',loadComponent:()=>import('./features/forbidden/forbidden.component').then(m=>m.ForbiddenComponent)},
@@ -21,6 +22,14 @@ export const routes:Routes=[
   {path:'analytics/purchase',canActivate:[permissionGuard],data:{...analyticsView,mode:'purchase',title:'Purchase Analytics'},loadComponent:()=>import('./features/dashboard/analytics-page.component').then(m=>m.AnalyticsPageComponent)},
   {path:'analytics/inventory',canActivate:[permissionGuard],data:{...analyticsView,mode:'inventory',title:'Inventory Analytics'},loadComponent:()=>import('./features/dashboard/analytics-page.component').then(m=>m.AnalyticsPageComponent)},
   {path:'analytics/finance',canActivate:[permissionGuard],data:{...analyticsView,mode:'finance',title:'Finance Analytics'},loadComponent:()=>import('./features/dashboard/analytics-page.component').then(m=>m.AnalyticsPageComponent)},
+  {path:'gst',canActivate:[permissionGuard],data:gstView,loadComponent:()=>import('./features/gst/gst-dashboard.component').then(m=>m.GstDashboardComponent)},
+  {path:'gst/sales-register',canActivate:[permissionGuard],data:{...gstView,report:'sales-register',title:'GST Sales Register'},loadComponent:()=>import('./features/gst/gst-report.component').then(m=>m.GstReportComponent)},
+  {path:'gst/purchase-register',canActivate:[permissionGuard],data:{...gstView,report:'purchase-register',title:'GST Purchase Register'},loadComponent:()=>import('./features/gst/gst-report.component').then(m=>m.GstReportComponent)},
+  {path:'gst/hsn-summary',canActivate:[permissionGuard],data:{...gstView,report:'hsn-summary',title:'HSN Summary'},loadComponent:()=>import('./features/gst/gst-report.component').then(m=>m.GstReportComponent)},
+  {path:'gst/gstr1',canActivate:[permissionGuard],data:{...gstView,report:'gstr1',title:'GSTR-1 Summary'},loadComponent:()=>import('./features/gst/gst-report.component').then(m=>m.GstReportComponent)},
+  {path:'gst/gstr3b',canActivate:[permissionGuard],data:{...gstView,report:'gstr3b',title:'GSTR-3B Summary'},loadComponent:()=>import('./features/gst/gst-report.component').then(m=>m.GstReportComponent)},
+  {path:'gst/tax-summary',canActivate:[permissionGuard],data:{...gstView,report:'tax-summary',title:'GST Tax Summary'},loadComponent:()=>import('./features/gst/gst-report.component').then(m=>m.GstReportComponent)},
+  {path:'gst/configuration',canActivate:[permissionGuard],data:gstConfiguration,loadComponent:()=>import('./features/gst/gst-configuration.component').then(m=>m.GstConfigurationComponent)},
   {path:'products',canActivate:[permissionGuard],data:productView,loadComponent:()=>import('./features/products/product-list.component').then(m=>m.ProductListComponent)},
   {path:'products/new',canActivate:[permissionGuard],data:productCreate,loadComponent:()=>import('./features/products/product-form.component').then(m=>m.ProductFormComponent)},
   {path:'products/:id/edit',canActivate:[permissionGuard],data:productEdit,loadComponent:()=>import('./features/products/product-form.component').then(m=>m.ProductFormComponent)},

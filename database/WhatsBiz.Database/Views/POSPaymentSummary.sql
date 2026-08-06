@@ -1,0 +1,1 @@
+CREATE VIEW [sales].[POSPaymentSummary] AS SELECT CAST(p.PaymentDate AS DATE)PaymentDate,m.MethodCode,m.MethodName,SUM(p.Amount)Amount,COUNT_BIG(*)PaymentCount FROM sales.SalesPayments p INNER JOIN sales.PaymentMethods m ON m.PaymentMethodId=p.PaymentMethodId WHERE p.Status='COMPLETED'GROUP BY CAST(p.PaymentDate AS DATE),m.MethodCode,m.MethodName;

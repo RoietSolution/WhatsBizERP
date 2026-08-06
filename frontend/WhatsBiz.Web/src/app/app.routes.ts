@@ -6,6 +6,7 @@ const supplierView={permission:'supplier.view'},supplierCreate={permission:'supp
 const customerView={permission:'customer.view'},customerCreate={permission:'customer.create'},customerEdit={permission:'customer.edit'};
 const warehouseView={permission:'warehouse.view'},warehouseCreate={permission:'warehouse.create'},warehouseEdit={permission:'warehouse.edit'};
 const inventoryView={permission:'inventory.view'},inventoryAdjust={permission:'inventory.adjust'},inventoryTransfer={permission:'inventory.transfer'},inventoryReserve={permission:'inventory.reserve'};
+const posView={permission:'pos.view'},posCreate={permission:'pos.create'},posEdit={permission:'pos.edit'},posReturn={permission:'pos.return'};
 export const routes:Routes=[
  {path:'login',loadComponent:()=>import('./features/authentication/login/login.component').then(m=>m.LoginComponent)},
  {path:'403',loadComponent:()=>import('./features/forbidden/forbidden.component').then(m=>m.ForbiddenComponent)},
@@ -39,5 +40,11 @@ export const routes:Routes=[
   {path:'inventory/adjustment',canActivate:[permissionGuard],data:inventoryAdjust,loadComponent:()=>import('./features/inventory/stock-adjustment.component').then(m=>m.StockAdjustmentComponent)},
   {path:'inventory/transfer',canActivate:[permissionGuard],data:inventoryTransfer,loadComponent:()=>import('./features/inventory/stock-transfer.component').then(m=>m.StockTransferComponent)},
   {path:'inventory/reservation',canActivate:[permissionGuard],data:inventoryReserve,loadComponent:()=>import('./features/inventory/stock-reservation.component').then(m=>m.StockReservationComponent)},
+  {path:'pos',canActivate:[permissionGuard],data:posCreate,loadComponent:()=>import('./features/pos/pos-screen.component').then(m=>m.POSScreenComponent)},
+  {path:'pos/today',canActivate:[permissionGuard],data:posView,loadComponent:()=>import('./features/pos/today-sales.component').then(m=>m.TodaySalesComponent)},
+  {path:'pos/holds',canActivate:[permissionGuard],data:posEdit,loadComponent:()=>import('./features/pos/hold-bills.component').then(m=>m.HoldBillsComponent)},
+  {path:'pos/resume',canActivate:[permissionGuard],data:posEdit,loadComponent:()=>import('./features/pos/hold-bills.component').then(m=>m.HoldBillsComponent)},
+  {path:'pos/history',canActivate:[permissionGuard],data:posView,loadComponent:()=>import('./features/pos/invoice-history.component').then(m=>m.InvoiceHistoryComponent)},
+  {path:'pos/returns',canActivate:[permissionGuard],data:posReturn,loadComponent:()=>import('./features/pos/return-screen.component').then(m=>m.ReturnScreenComponent)},
   {path:'',pathMatch:'full',redirectTo:'dashboard'}]},
  {path:'**',loadComponent:()=>import('./features/not-found/not-found.component').then(m=>m.NotFoundComponent)}];

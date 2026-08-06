@@ -1,0 +1,1 @@
+CREATE FUNCTION [sales].[InvoiceBalance](@InvoiceId UNIQUEIDENTIFIER)RETURNS DECIMAL(18,2)AS BEGIN DECLARE @Balance DECIMAL(18,2);SELECT @Balance=BalanceAmount FROM sales.SalesInvoices WHERE InvoiceId=@InvoiceId;RETURN ISNULL(@Balance,0);END;

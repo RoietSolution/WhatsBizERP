@@ -1,0 +1,1 @@
+DECLARE @Year NVARCHAR(9)=CONCAT(YEAR(GETDATE()),'-',RIGHT(CONVERT(NVARCHAR(4),YEAR(GETDATE())+1),2));IF NOT EXISTS(SELECT 1 FROM sales.InvoiceSeries WHERE SeriesCode='POS' AND FinancialYear=@Year)INSERT sales.InvoiceSeries(SeriesCode,Prefix,FinancialYear,NextNumber,NumberLength,IsDefault)VALUES('POS','POS',@Year,1,6,1);

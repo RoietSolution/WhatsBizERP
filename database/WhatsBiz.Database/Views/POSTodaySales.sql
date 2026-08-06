@@ -1,0 +1,1 @@
+CREATE VIEW [sales].[POSTodaySales] AS SELECT CAST(InvoiceDate AS DATE)SalesDate,COUNT_BIG(*)InvoiceCount,SUM(GrandTotal)GrossSales,SUM(DiscountAmount)Discounts,SUM(TaxAmount)TaxAmount,SUM(PaidAmount)Collections FROM sales.SalesInvoices WHERE Status IN('COMPLETED','PARTIALLY_RETURNED','RETURNED')GROUP BY CAST(InvoiceDate AS DATE);

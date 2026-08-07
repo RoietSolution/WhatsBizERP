@@ -8,12 +8,14 @@ header { display: flex; height: var(--wb-header-height); align-items: center; ga
 .business-context small { font-size: .5625rem; font-weight: 500; }
 .business-context strong { color: #374151; font-size: .6875rem; font-weight: 600; }
 .topbar-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.topbar-actions > button { display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; }
+.topbar-actions .material-symbols-rounded { display: inline-flex; line-height: 1; align-items: center; justify-content: center; }
 .company-switch { max-width: 220px; }
 .company-switch > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
 .chevron { font-size: 18px; }
 .notification-button { position: relative; }
 .notification-count { position: absolute; top: 4px; right: 3px; display: grid; min-width: 16px; height: 16px; padding: 0 3px; color: #fff; background: var(--wb-danger); border: 2px solid #fff; border-radius: 8px; font-size: 9px; font-weight: 700; place-items: center; }
-.user-button { height: 48px; margin-left: 4px; padding-inline: 6px 8px; }
+.user-button { height: 48px; margin-left: 4px; padding-inline: 6px 8px; align-items: center; }
 .avatar { display: grid; width: 34px; height: 34px; color: #1e3a8a; background: #dbeafe; border-radius: 50%; font-size: .75rem; font-weight: 700; place-items: center; }
 .user-copy { display: block; margin-inline: 8px 12px; text-align: left; line-height: 1.2; }
 .user-copy strong, .user-copy small { display: block; }

@@ -1,6 +1,6 @@
 :host { display: block; }
-.auth-card__brand { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
-.auth-card__brand img { width: 48px; height: 48px; object-fit: contain; }
+.auth-card__brand { display: flex; min-height: 72px; margin-bottom: 32px; align-items: center; justify-content: center; }
+.auth-card__brand img { width: min(100%, 300px); height: auto; max-height: 76px; object-fit: contain; }
 .auth-card__brand strong, .auth-card__brand span { display: block; }
 .auth-card__brand strong { font-size: .9375rem; }
 .auth-card__brand span { color: var(--wb-text-secondary); font-size: .6875rem; }
@@ -21,4 +21,4 @@ mat-form-field { display: block; }
 .sign-in-button .material-symbols-rounded { font-size: 20px; }
 .secure-note { display: flex; margin: 22px 0 0; color: var(--wb-text-secondary); align-items: center; justify-content: center; gap: 6px; font-size: .6875rem; }
 .secure-note .material-symbols-rounded { color: var(--wb-success); font-size: 17px; }
-@media(max-width: 599px) { .auth-card__brand { margin-bottom: 28px; } .form-options { align-items: flex-start; flex-direction: column; gap: 4px; } }
+@media(max-width: 599px) { .auth-card__brand { min-height: 60px; margin-bottom: 28px; } .auth-card__brand img { width: min(100%, 260px); max-height: 64px; } .form-options { align-items: flex-start; flex-direction: column; gap: 4px; } }

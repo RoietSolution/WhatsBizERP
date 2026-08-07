@@ -55,3 +55,10 @@ button:not(:disabled), a { transition: color var(--wb-motion), background-color 
 .cdk-overlay-container {
   z-index: 1200;
 }
+
+/* One application-wide required-field treatment for Material and shared labels. */
+.mat-mdc-form-field-required-marker,
+.wb-required-marker {
+  color: var(--wb-danger);
+  font-weight: 700;
+}

@@ -18,7 +18,7 @@ export const routes:Routes=[
   {path:'login',title:'Sign In | KhataDhari ERP',loadComponent:()=>import('./features/authentication/login/login.component').then(m=>m.LoginComponent)},
   {path:'forgot-password',title:'Forgot Password | KhataDhari ERP',data:{mode:'forgot'},loadComponent:()=>import('./features/authentication/password/password-workflow.component').then(m=>m.PasswordWorkflowComponent)},
   {path:'reset-password',title:'Reset Password | KhataDhari ERP',data:{mode:'reset'},loadComponent:()=>import('./features/authentication/password/password-workflow.component').then(m=>m.PasswordWorkflowComponent)},
-  {path:'change-password',title:'Change Password | KhataDhari ERP',data:{mode:'change'},loadComponent:()=>import('./features/authentication/password/password-workflow.component').then(m=>m.PasswordWorkflowComponent)},
+  {path:'change-password',title:'Change Password | KhataDhari ERP',canActivate:[authGuard],data:{mode:'change'},loadComponent:()=>import('./features/authentication/password/password-workflow.component').then(m=>m.PasswordWorkflowComponent)},
   {path:'account-locked',title:'Account Locked | KhataDhari ERP',data:{mode:'locked'},loadComponent:()=>import('./features/authentication/state/authentication-state.component').then(m=>m.AuthenticationStateComponent)},
   {path:'session-expired',title:'Session Expired | KhataDhari ERP',data:{mode:'expired'},loadComponent:()=>import('./features/authentication/state/authentication-state.component').then(m=>m.AuthenticationStateComponent)},
   {path:'403',title:'Access Denied | KhataDhari ERP',data:{mode:'denied'},loadComponent:()=>import('./features/authentication/state/authentication-state.component').then(m=>m.AuthenticationStateComponent)},
@@ -30,6 +30,8 @@ export const routes:Routes=[
  {path:'offline',data:{mode:'offline'},loadComponent:()=>import('./features/system-state/system-state.component').then(m=>m.SystemStateComponent)},
  {path:'maintenance',data:{mode:'maintenance'},loadComponent:()=>import('./features/system-state/system-state.component').then(m=>m.SystemStateComponent)},
  {path:'',canActivate:[authGuard],loadComponent:()=>import('./layout/main-layout/main-layout.component').then(m=>m.MainLayoutComponent),children:[
+  {path:'profile',title:'My Profile | KhataDhari ERP',loadComponent:()=>import('./features/account/user-profile.component').then(m=>m.UserProfileComponent)},
+  {path:'preferences',title:'My Preferences | KhataDhari ERP',loadComponent:()=>import('./features/account/user-preferences.component').then(m=>m.UserPreferencesComponent)},
   {path:'dashboard',canActivate:[permissionGuard],data:dashboardView,loadComponent:()=>import('./features/dashboard/dashboard.component').then(m=>m.DashboardComponent)},
   {path:'analytics/sales',canActivate:[permissionGuard],data:{...analyticsView,mode:'sales',title:'Sales Analytics'},loadComponent:()=>import('./features/dashboard/analytics-page.component').then(m=>m.AnalyticsPageComponent)},
   {path:'analytics/purchase',canActivate:[permissionGuard],data:{...analyticsView,mode:'purchase',title:'Purchase Analytics'},loadComponent:()=>import('./features/dashboard/analytics-page.component').then(m=>m.AnalyticsPageComponent)},

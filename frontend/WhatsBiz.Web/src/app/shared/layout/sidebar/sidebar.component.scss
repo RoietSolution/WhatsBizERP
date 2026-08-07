@@ -1,31 +1,174 @@
-:host { display: block; height: 100%; }
-aside { display: flex; width: var(--wb-sidebar-width); height: 100%; color: #cbd5e1; background: var(--wb-sidebar); flex-direction: column; transition: width var(--wb-motion); }
-aside.sidebar--collapsed { width: var(--wb-sidebar-collapsed-width); }
-.brand { display: flex; align-items: center; gap: 12px; height: var(--wb-header-height); padding: 0 12px 0 16px; border-bottom: 1px solid rgb(255 255 255 / 8%); }
-.brand__logo { display: block; flex: 0 0 40px; width: 40px; height: 40px; object-fit: contain; }
-.brand__copy { min-width: 0; flex: 1; }
-.brand strong, .brand span { display: block; white-space: nowrap; }
-.brand strong { color: #fff; font-size: .9375rem; }
-.brand span { color: #94a3b8; font-size: .6875rem; }
-.brand button { display: grid; width: 32px; height: 32px; padding: 0; color: #94a3b8; background: transparent; border: 0; border-radius: 6px; cursor: pointer; place-items: center; }
-.sidebar--collapsed .brand { justify-content: center; padding: 0; }
-.sidebar--collapsed .brand button { display: none; }
-nav { flex: 1; overflow: auto; padding: 12px 10px; scrollbar-width: thin; }
-.nav-item, .nav-children a { display: flex; width: 100%; align-items: center; color: inherit; border: 0; text-decoration: none; cursor: pointer; transition: color var(--wb-motion), background var(--wb-motion); }
-.nav-item { min-height: 44px; gap: 12px; margin-bottom: 2px; padding: 0 12px; background: transparent; border-radius: 8px; font-size: .8125rem; font-weight: 500; text-align: left; }
-.nav-item:hover, .nav-item--active { color: #fff; background: var(--wb-sidebar-raised); }
-.nav-item--active { box-shadow: inset 3px 0 var(--wb-primary-hover); }
-.nav-item > .material-symbols-rounded { flex: 0 0 22px; font-size: 21px; }
-.nav-group > span:nth-child(2) { flex: 1; }
-.nav-chevron { margin-left: auto; font-size: 18px; transition: transform var(--wb-motion); }
-.nav-item--expanded .nav-chevron { transform: rotate(180deg); }
-.nav-children { margin: 2px 0 8px 44px; border-left: 1px solid #334155; animation: wb-fade-in var(--wb-motion); }
-.nav-children a { min-height: 36px; padding: 0 12px; border-radius: 0 6px 6px 0; font-size: .78rem; }
-.sidebar--collapsed nav { padding-inline: 12px; }
-.sidebar--collapsed .nav-item { justify-content: center; padding: 0; }
-.sidebar-user { display: flex; align-items: center; gap: 10px; min-height: 72px; padding: 12px 16px; border-top: 1px solid rgb(255 255 255 / 8%); }
-.avatar { display: grid; flex: 0 0 36px; width: 36px; height: 36px; color: #dbeafe; background: #1e3a8a; border-radius: 50%; font-weight: 700; place-items: center; }
-.sidebar-user strong, .sidebar-user span { display: block; white-space: nowrap; }
-.sidebar-user strong { color: #fff; font-size: .8125rem; }
-.sidebar-user span { color: #94a3b8; font-size: .6875rem; }
-.sidebar--collapsed .sidebar-user { justify-content: center; padding-inline: 0; }
+:host {
+  display: block;
+  height: 100%;
+}
+aside {
+  display: flex;
+  width: var(--wb-sidebar-width);
+  height: 100%;
+  color: #cbd5e1;
+  background: var(--wb-sidebar);
+  flex-direction: column;
+  transition: width var(--wb-motion);
+}
+aside.sidebar--collapsed {
+  width: var(--wb-sidebar-collapsed-width);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--wb-header-height);
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+}
+.brand__logo {
+  display: block;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+.brand__copy {
+  min-width: 0;
+  flex: 1;
+}
+.brand strong,
+.brand span {
+  display: block;
+  white-space: nowrap;
+}
+.brand strong {
+  color: #fff;
+  font-size: 0.9375rem;
+}
+.brand span {
+  color: #94a3b8;
+  font-size: 0.6875rem;
+}
+.brand button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: #94a3b8;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  place-items: center;
+}
+.sidebar--collapsed .brand {
+  justify-content: center;
+  padding: 0;
+}
+.sidebar--collapsed .brand button {
+  display: none;
+}
+nav {
+  flex: 1;
+  overflow: auto;
+  padding: 12px 10px;
+  scrollbar-width: thin;
+}
+.nav-item,
+.nav-children a {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  color: inherit;
+  border: 0;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    color var(--wb-motion),
+    background var(--wb-motion);
+}
+.nav-item {
+  min-height: 44px;
+  gap: 12px;
+  margin-bottom: 2px;
+  padding: 0 12px;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-align: left;
+}
+.nav-item:hover,
+.nav-item--active {
+  color: #fff;
+  background: var(--wb-sidebar-raised);
+}
+.nav-item--active {
+  box-shadow: inset 3px 0 var(--wb-primary-hover);
+}
+.nav-item > .material-symbols-rounded {
+  flex: 0 0 22px;
+  font-size: 21px;
+}
+.nav-group > span:nth-child(2) {
+  flex: 1;
+}
+.nav-chevron {
+  margin-left: auto;
+  font-size: 18px;
+  transition: transform var(--wb-motion);
+}
+.nav-item--expanded .nav-chevron {
+  transform: rotate(180deg);
+}
+.nav-children {
+  margin: 2px 0 8px 44px;
+  border-left: 1px solid #334155;
+  animation: wb-fade-in var(--wb-motion);
+}
+.nav-children a {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 0 6px 6px 0;
+  font-size: 0.78rem;
+}
+.sidebar--collapsed nav {
+  padding-inline: 12px;
+}
+.sidebar--collapsed .nav-item {
+  justify-content: center;
+  padding: 0;
+}
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 72px;
+  padding: 12px 16px;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
+.avatar {
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  color: #dbeafe;
+  background: #1e3a8a;
+  border-radius: 50%;
+  font-weight: 700;
+  place-items: center;
+}
+.sidebar-user strong,
+.sidebar-user span {
+  display: block;
+  white-space: nowrap;
+}
+.sidebar-user strong {
+  color: #fff;
+  font-size: 0.8125rem;
+}
+.sidebar-user span {
+  color: #94a3b8;
+  font-size: 0.6875rem;
+}
+.sidebar--collapsed .sidebar-user {
+  justify-content: center;
+  padding-inline: 0;
+}

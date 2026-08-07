@@ -1,1 +1,43 @@
-import{Component,signal}from'@angular/core';import{ActivatedRoute,RouterLink}from'@angular/router';import{MatButtonModule}from'@angular/material/button';import{MatCardModule}from'@angular/material/card';import{PurchaseApiService}from'./purchase-api.service';import{Purchase}from'./purchase.models';@Component({imports:[RouterLink,MatButtonModule,MatCardModule],template:`@if(p();as x){<header><div><h1>{{x.invoiceNumber}}</h1><p>{{x.supplierName}} · {{x.supplierInvoiceNo}}</p></div><div>@if(x.status==='DRAFT'){<a mat-button [routerLink]="['/purchases',x.purchaseInvoiceId,'edit']">Edit</a>}<a mat-button [routerLink]="['/purchases',x.purchaseInvoiceId,'payment']">Payment</a><a mat-button [routerLink]="['/purchases',x.purchaseInvoiceId,'return']">Return</a></div></header><section><mat-card>Grand Total<br><strong>{{x.grandTotal}}</strong></mat-card><mat-card>Paid<br><strong>{{x.paidAmount}}</strong></mat-card><mat-card>Outstanding<br><strong>{{x.balanceAmount}}</strong></mat-card><mat-card>Status<br><strong>{{x.status}}</strong></mat-card></section><div class="table"><table><tr><th>Product</th><th>Batch</th><th>Expiry</th><th>Quantity</th><th>Free</th><th>Cost</th><th>GST</th><th>Total</th></tr>@for(i of x.items;track i.purchaseItemId){<tr><td>{{i.productCode}} · {{i.productName}}</td><td>{{i.batchNo}}</td><td>{{i.expiryDate}}</td><td>{{i.quantity}}</td><td>{{i.freeQuantity}}</td><td>{{i.purchasePrice}}</td><td>{{i.gstAmount}}</td><td>{{i.lineTotal}}</td></tr>}</table></div>}`,styles:[`header,section{display:flex;justify-content:space-between;gap:1rem}mat-card{padding:1rem;flex:1}.table{overflow:auto}table{width:100%;border-collapse:collapse}th,td{padding:.7rem;border-bottom:1px solid #ddd;text-align:left}`]})export class PurchaseDetailsComponent{p=signal<Purchase|null>(null);constructor(api:PurchaseApiService,route:ActivatedRoute){api.get(route.snapshot.paramMap.get('id')!).subscribe(x=>this.p.set(x))}}
+import { Component, signal } from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { PurchaseApiService } from './purchase-api.service';
+import { Purchase } from './purchase.models';
+@Component({
+  imports: [RouterLink, MatButtonModule, MatCardModule],
+  templateUrl: './purchase-details.component.html',
+  styles: [
+    `
+      header,
+      section {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+      mat-card {
+        padding: 1rem;
+        flex: 1;
+      }
+      .table {
+        overflow: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 0.7rem;
+        border-bottom: 1px solid #ddd;
+        text-align: left;
+      }
+    `,
+  ],
+})
+export class PurchaseDetailsComponent {
+  p = signal<Purchase | null>(null);
+  constructor(api: PurchaseApiService, route: ActivatedRoute) {
+    api.get(route.snapshot.paramMap.get('id')!).subscribe((x) => this.p.set(x));
+  }
+}

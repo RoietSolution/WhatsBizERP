@@ -1,0 +1,61 @@
+<app-operations-workspace
+  eyebrow="Purchase operations"
+  title="Purchase History"
+  description="Review invoices, pending receipts, supplier balances, and purchase status."
+  [summaries]="summaries()"
+  [statusText]="rows().length + ' purchases loaded'"
+  ><a workspace-header-actions mat-flat-button color="primary" routerLink="/purchases/create"
+    ><span class="material-symbols-rounded">add</span>Create Purchase</a
+  >
+  <div workspace-toolbar-actions class="actions">
+    <a mat-button routerLink="/purchases/create"
+      ><span class="material-symbols-rounded">add_shopping_cart</span>Create</a
+    ><button mat-button (click)="load()">
+      <span class="material-symbols-rounded">refresh</span>Refresh</button
+    ><button mat-button (click)="export()">
+      <span class="material-symbols-rounded">download</span>Export</button
+    ><button mat-button (click)="template()">
+      <span class="material-symbols-rounded">upload_file</span>Import Template</button
+    ><button mat-button (click)="print()">
+      <span class="material-symbols-rounded">print</span>Print
+    </button>
+  </div>
+  <app-filter-panel
+    workspace-filters
+    title="Smart purchase filters"
+    (apply)="load()"
+    (reset)="status = ''; load()"
+    ><mat-form-field appearance="outline"
+      ><mat-label>Status</mat-label
+      ><mat-select [(ngModel)]="status"
+        ><mat-option value="">All statuses</mat-option><mat-option value="DRAFT">Pending</mat-option
+        ><mat-option value="POSTED">Received</mat-option></mat-select
+      ></mat-form-field
+    ></app-filter-panel
+  ><app-data-table
+    [rows]="rows()"
+    [columns]="columns"
+    [loading]="loading()"
+    searchPlaceholder="Search invoice, supplier, or reference"
+    (searchChange)="search = $event; load()"
+    (rowOpen)="view($event)"
+    (rowAction)="action($event)"
+  />
+  <section workspace-context class="context-card">
+    <h3>Supplier Summary</h3>
+    <p>
+      Select an invoice to review supplier information, outstanding balance, and purchase history.
+    </p>
+  </section>
+  <section workspace-context class="context-card">
+    <h3>Purchase Status</h3>
+    <dl>
+      <dt>Pending</dt>
+      <dd>{{ pending() }}</dd>
+      <dt>Received</dt>
+      <dd>{{ received() }}</dd>
+      <dt>Outstanding</dt>
+      <dd>{{ outstanding() }}</dd>
+    </dl>
+  </section></app-operations-workspace
+>

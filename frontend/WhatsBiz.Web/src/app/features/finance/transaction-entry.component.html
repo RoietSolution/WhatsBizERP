@@ -1,0 +1,33 @@
+<h1>{{ type === 'receipt' ? 'Receipt' : 'Payment' }} Entry</h1>
+<mat-form-field
+  ><mat-label>Party Type</mat-label
+  ><mat-select [(ngModel)]="partyType" (selectionChange)="loadParties()"
+    ><mat-option value="CUSTOMER">Customer</mat-option
+    ><mat-option value="SUPPLIER">Supplier</mat-option></mat-select
+  ></mat-form-field
+><mat-form-field
+  ><mat-label>Party</mat-label
+  ><mat-select [(ngModel)]="partyId">
+    @for (x of parties(); track partyType === 'CUSTOMER' ? x.customerId : x.supplierId) {
+      <mat-option [value]="partyType === 'CUSTOMER' ? x.customerId : x.supplierId">{{
+        partyType === 'CUSTOMER' ? x.customerName : x.supplierName
+      }}</mat-option>
+    }
+  </mat-select></mat-form-field
+><mat-form-field
+  ><mat-label>Mode</mat-label
+  ><mat-select [(ngModel)]="mode"
+    ><mat-option value="CASH">Cash</mat-option><mat-option value="UPI">UPI</mat-option
+    ><mat-option value="CARD">Card</mat-option><mat-option value="BANK">Bank</mat-option
+    ><mat-option value="NEFT">NEFT</mat-option
+    ><mat-option value="RTGS">RTGS</mat-option></mat-select
+  ></mat-form-field
+><mat-form-field
+  ><mat-label>Amount</mat-label
+  ><input matInput type="number" [(ngModel)]="amount" /></mat-form-field
+><mat-form-field
+  ><mat-label>Reference</mat-label><input matInput [(ngModel)]="reference" /></mat-form-field
+><mat-form-field
+  ><mat-label>Narration</mat-label
+  ><textarea matInput [(ngModel)]="narration"></textarea></mat-form-field
+><button mat-flat-button (click)="save()">Post {{ type }}</button>

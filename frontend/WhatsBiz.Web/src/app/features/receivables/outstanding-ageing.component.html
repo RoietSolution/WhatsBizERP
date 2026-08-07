@@ -1,0 +1,90 @@
+<app-operations-workspace
+  eyebrow="Finance command center"
+  [title]="
+    (party === 'customer' ? 'Customer' : 'Supplier') + ' ' + (ageing ? 'Ageing' : 'Outstanding')
+  "
+  description="Monitor open invoices, overdue exposure, ageing risk, and collection priorities."
+  [summaries]="summaries()"
+  [statusText]="rows().length + ' outstanding invoices'"
+  ><a
+    workspace-header-actions
+    mat-flat-button
+    color="primary"
+    [routerLink]="party === 'customer' ? '/finance/receipt' : '/finance/payment'"
+    ><span class="material-symbols-rounded">add</span
+    >{{ party === 'customer' ? 'New Receipt' : 'New Payment' }}</a
+  >
+  <div workspace-toolbar-actions class="actions">
+    <button mat-button (click)="load()">
+      <span class="material-symbols-rounded">refresh</span>Refresh</button
+    ><button mat-button (click)="exportCsv()">
+      <span class="material-symbols-rounded">download</span>Export</button
+    ><button mat-button (click)="print()">
+      <span class="material-symbols-rounded">print</span>Print
+    </button>
+  </div>
+  <app-filter-panel
+    workspace-filters
+    title="Outstanding & ageing filters"
+    (apply)="load()"
+    (reset)="bucket = ''; load()"
+    ><div class="filters">
+      @if (ageing) {
+        <mat-form-field appearance="outline"
+          ><mat-label>Age Bucket</mat-label
+          ><mat-select [(ngModel)]="bucket"
+            ><mat-option value="">All buckets</mat-option
+            ><mat-option value="0-30">0–30 days</mat-option
+            ><mat-option value="31-60">31–60 days</mat-option
+            ><mat-option value="61-90">61–90 days</mat-option
+            ><mat-option value="ABOVE_90">90+ days</mat-option></mat-select
+          ></mat-form-field
+        >
+      }
+      <button mat-stroked-button>Date Range</button><button mat-stroked-button>Branch</button
+      ><button mat-stroked-button>{{ party === 'customer' ? 'Customer' : 'Supplier' }}</button
+      ><button mat-stroked-button>Status</button>
+    </div></app-filter-panel
+  >
+  <section class="ageing-strip" aria-label="Ageing bucket visualization">
+    <button (click)="bucket = '0-30'; load()">
+      <span>0–30</span><strong>{{ bucketTotal('0-30') }}</strong></button
+    ><button (click)="bucket = '31-60'; load()">
+      <span>31–60</span><strong>{{ bucketTotal('31-60') }}</strong></button
+    ><button (click)="bucket = '61-90'; load()">
+      <span>61–90</span><strong>{{ bucketTotal('61-90') }}</strong></button
+    ><button (click)="bucket = 'ABOVE_90'; load()">
+      <span>90+</span><strong>{{ bucketTotal('ABOVE_90') }}</strong>
+    </button>
+  </section>
+  <app-data-table
+    [rows]="rows()"
+    [columns]="columns"
+    searchPlaceholder="Search party, invoice, or due date"
+    (selectionChange)="selected.set($event[0] ?? null)"
+  />
+  <section workspace-context class="insight">
+    <h3>Outstanding Balance</h3>
+    <strong>{{ total() }}</strong>
+    <p>Total open exposure in the current view.</p>
+  </section>
+  <section workspace-context class="insight">
+    <h3>Selected Account</h3>
+    @if (selected(); as x) {
+      <dl>
+        <dt>Party</dt>
+        <dd>{{ x.partyName }}</dd>
+        <dt>Invoice</dt>
+        <dd>{{ x.invoiceNumber }}</dd>
+        <dt>Last due date</dt>
+        <dd>{{ x.dueDate || '—' }}</dd>
+        <dt>Age</dt>
+        <dd>{{ x.ageDays }} days</dd>
+      </dl>
+    } @else {
+      <p>
+        Select an invoice to inspect recent transactions, last payment, notes, and audit history.
+      </p>
+    }
+  </section></app-operations-workspace
+>

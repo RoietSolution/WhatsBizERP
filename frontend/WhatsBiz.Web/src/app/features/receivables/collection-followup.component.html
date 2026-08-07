@@ -1,0 +1,54 @@
+<h1>Collection Follow-up</h1>
+<div class="grid">
+  <mat-form-field
+    ><mat-label>Customer</mat-label
+    ><mat-select [(ngModel)]="customerId" (selectionChange)="load()">
+      @for (x of customers(); track x.customerId) {
+        <mat-option [value]="x.customerId">{{ x.customerCode }} - {{ x.customerName }}</mat-option>
+      }
+    </mat-select></mat-form-field
+  ><mat-form-field
+    ><mat-label>Communication</mat-label
+    ><mat-select [(ngModel)]="mode"
+      ><mat-option value="PHONE">Phone</mat-option><mat-option value="WHATSAPP">WhatsApp</mat-option
+      ><mat-option value="EMAIL">Email</mat-option
+      ><mat-option value="VISIT">Visit</mat-option></mat-select
+    ></mat-form-field
+  ><mat-form-field
+    ><mat-label>Next follow-up</mat-label
+    ><input matInput type="datetime-local" [(ngModel)]="nextDate" /></mat-form-field
+  ><mat-form-field
+    ><mat-label>Commitment date</mat-label
+    ><input matInput type="date" [(ngModel)]="commitment" /></mat-form-field
+  ><mat-form-field class="wide"
+    ><mat-label>Reminder notes / communication</mat-label
+    ><textarea matInput [(ngModel)]="notes"></textarea></mat-form-field
+  ><button mat-flat-button (click)="save()">Save follow-up</button>
+</div>
+<h2>Communication History</h2>
+<div class="table">
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Customer</th>
+        <th>Mode</th>
+        <th>Notes</th>
+        <th>Next follow-up</th>
+        <th>Commitment</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (x of rows(); track x.id) {
+        <tr>
+          <td>{{ x.followUpDate }}</td>
+          <td>{{ x.customerName }}</td>
+          <td>{{ x.communicationMode }}</td>
+          <td>{{ x.notes }}</td>
+          <td>{{ x.nextFollowUpDate }}</td>
+          <td>{{ x.paymentCommitmentDate }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

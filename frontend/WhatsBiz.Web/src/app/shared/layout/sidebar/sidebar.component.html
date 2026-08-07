@@ -1,0 +1,70 @@
+<aside [class.sidebar--collapsed]="collapsed()">
+  <div class="brand">
+    <img class="brand__logo" src="/assets/images/khatadhari-logo.png" alt="KhataDhari logo" />
+    @if (!collapsed()) {
+      <div class="brand__copy"><strong>KhataDhari</strong><span>KhataDhari ERP</span></div>
+    }
+    <button
+      type="button"
+      [attr.aria-label]="collapsed() ? `Expand sidebar` : `Collapse sidebar`"
+      (click)="collapseToggle.emit()"
+    >
+      <span class="material-symbols-rounded">{{
+        collapsed() ? 'keyboard_double_arrow_right' : 'keyboard_double_arrow_left'
+      }}</span>
+    </button>
+  </div>
+  <nav aria-label="Primary navigation">
+    @for (item of items(); track item.label) {
+      @if (item.route) {
+        <a
+          class="nav-item"
+          [routerLink]="item.route"
+          routerLinkActive="nav-item--active"
+          [attr.title]="collapsed() ? item.label : null"
+          (click)="navigate.emit()"
+          ><span class="material-symbols-rounded">{{ item.icon }}</span>
+          @if (!collapsed()) {
+            <span>{{ item.label }}</span>
+          }
+        </a>
+      } @else {
+        <button
+          class="nav-item nav-group"
+          type="button"
+          [class.nav-item--expanded]="isExpanded(item.label)"
+          [attr.aria-expanded]="isExpanded(item.label)"
+          [attr.title]="collapsed() ? item.label : null"
+          (click)="toggle(item.label)"
+        >
+          <span class="material-symbols-rounded">{{ item.icon }}</span>
+          @if (!collapsed()) {
+            <span>{{ item.label }}</span
+            ><span class="material-symbols-rounded nav-chevron">expand_more</span>
+          }
+        </button>
+        @if (!collapsed() && isExpanded(item.label)) {
+          <div class="nav-children">
+            @for (child of item.children; track child.label) {
+              <a
+                [routerLink]="child.route"
+                routerLinkActive="nav-item--active"
+                (click)="navigate.emit()"
+                ><span>{{ child.label }}</span></a
+              >
+            }
+          </div>
+        }
+      }
+    }
+  </nav>
+  <div class="sidebar-user">
+    <div class="avatar">{{ initials() }}</div>
+    @if (!collapsed()) {
+      <div>
+        <strong>{{ user()?.username ?? 'User' }}</strong
+        ><span>{{ user()?.roles?.[0] ?? 'Team member' }}</span>
+      </div>
+    }
+  </div>
+</aside>

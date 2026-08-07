@@ -6,7 +6,11 @@ export class HasPermissionDirective {
   readonly appHasPermission = input.required<string>();
   private visible = false;
 
-  constructor(template: TemplateRef<unknown>, container: ViewContainerRef, permissions: PermissionService) {
+  constructor(
+    template: TemplateRef<unknown>,
+    container: ViewContainerRef,
+    permissions: PermissionService,
+  ) {
     effect(() => {
       const next = permissions.has(this.appHasPermission());
       if (next === this.visible) return;

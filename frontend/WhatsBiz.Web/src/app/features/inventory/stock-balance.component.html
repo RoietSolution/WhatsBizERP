@@ -1,0 +1,85 @@
+<app-operations-workspace
+  eyebrow="Inventory operations"
+  title="Warehouse Stock"
+  description="Real-time stock availability, valuation, reservations, and storage locations."
+  [summaries]="summaries()"
+  [statusText]="total() + ' stock records'"
+  ><a workspace-header-actions mat-flat-button color="primary" routerLink="/inventory/adjustment"
+    ><span class="material-symbols-rounded">tune</span>Adjust Stock</a
+  >
+  <div workspace-toolbar-actions class="actions">
+    <a mat-button routerLink="/inventory/transfer"
+      ><span class="material-symbols-rounded">swap_horiz</span>Transfer</a
+    ><a mat-button routerLink="/inventory/verification"
+      ><span class="material-symbols-rounded">fact_check</span>Verify</a
+    ><button mat-button (click)="load()">
+      <span class="material-symbols-rounded">refresh</span>Refresh</button
+    ><button mat-button (click)="export()">
+      <span class="material-symbols-rounded">download</span>Export</button
+    ><button mat-button><span class="material-symbols-rounded">label</span>Print Labels</button>
+  </div>
+  <app-filter-panel
+    workspace-filters
+    title="Stock lookup filters"
+    (apply)="load()"
+    (reset)="reset()"
+    ><div class="filters">
+      <mat-form-field appearance="outline"
+        ><mat-label>Warehouse</mat-label
+        ><mat-select [formControl]="warehouse"
+          ><mat-option value="">All warehouses</mat-option>
+          @for (x of warehouses(); track x.warehouseId) {
+            <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
+          }
+        </mat-select></mat-form-field
+      ><mat-form-field appearance="outline"
+        ><mat-label>Product</mat-label
+        ><mat-select [formControl]="product"
+          ><mat-option value="">All products</mat-option>
+          @for (x of products(); track x.productId) {
+            <mat-option [value]="x.productId">{{ x.productCode }} — {{ x.productName }}</mat-option>
+          }
+        </mat-select></mat-form-field
+      ><mat-form-field appearance="outline"
+        ><mat-label>Category</mat-label
+        ><mat-select value=""
+          ><mat-option value="">All categories</mat-option></mat-select
+        ></mat-form-field
+      ><mat-form-field appearance="outline"
+        ><mat-label>Brand</mat-label
+        ><mat-select value=""
+          ><mat-option value="">All brands</mat-option></mat-select
+        ></mat-form-field
+      >
+    </div></app-filter-panel
+  ><app-data-table
+    [rows]="items()"
+    [columns]="columns"
+    [loading]="loading()"
+    searchPlaceholder="Search product or scan barcode"
+    (searchChange)="search.setValue($event); page = 1; load()"
+  /><mat-paginator
+    [length]="total()"
+    [pageIndex]="page - 1"
+    [pageSize]="size"
+    [pageSizeOptions]="[10, 20, 50, 100]"
+    (page)="paged($event)"
+  />
+  <section workspace-context class="context-card">
+    <h3>Product Summary</h3>
+    <p>
+      Select a row to review current stock, sales history, purchase history, and inventory alerts.
+    </p>
+  </section>
+  <section workspace-context class="context-card">
+    <h3>Current View</h3>
+    <dl>
+      <dt>Available</dt>
+      <dd>{{ available() }}</dd>
+      <dt>Reserved</dt>
+      <dd>{{ reserved() }}</dd>
+      <dt>Stock value</dt>
+      <dd>{{ value() }}</dd>
+    </dl>
+  </section></app-operations-workspace
+>

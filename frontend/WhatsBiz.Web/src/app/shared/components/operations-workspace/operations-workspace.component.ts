@@ -1,2 +1,30 @@
-import{ChangeDetectionStrategy,Component,input}from'@angular/core';import{RouterLink}from'@angular/router';import{MatButtonModule}from'@angular/material/button';import{PageContainerComponent}from'../page-container/page-container.component';import{PageHeaderComponent}from'../page-header/page-header.component';import{SummaryCardComponent}from'../summary-card/summary-card.component';import{ActionToolbarComponent}from'../action-toolbar/action-toolbar.component';import{MasterSummary}from'../../master/master.models';
-@Component({selector:'app-operations-workspace',imports:[RouterLink,MatButtonModule,PageContainerComponent,PageHeaderComponent,SummaryCardComponent,ActionToolbarComponent],template:`<app-page-container wide><app-page-header [eyebrow]="eyebrow()" [title]="title()" [description]="description()"><ng-content select="[workspace-header-actions]"/></app-page-header><section class="workspace-kpis" [attr.aria-label]="title()+' summary'">@for(card of summaries();track card.label){<app-summary-card [label]="card.label" [value]="card.value" [icon]="card.icon" [tone]="card.tone"/>}</section><app-action-toolbar sticky><ng-content select="[workspace-toolbar-start]"/><ng-content select="[workspace-toolbar-actions]"/></app-action-toolbar><ng-content select="[workspace-filters]"/><div class="workspace-grid"><main><ng-content/></main><aside aria-label="Context information"><ng-content select="[workspace-context]"/></aside></div><footer class="workspace-status"><span><i></i>System online</span><span>{{statusText()}}</span><span>Last refreshed: {{lastRefreshed()}}</span></footer></app-page-container>`,styleUrl:'./operations-workspace.component.scss',changeDetection:ChangeDetectionStrategy.OnPush})export class OperationsWorkspaceComponent{readonly eyebrow=input('Operations');readonly title=input.required<string>();readonly description=input('');readonly summaries=input<MasterSummary[]>([]);readonly statusText=input('Ready');readonly lastRefreshed=input('Just now')}
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { PageContainerComponent } from '../page-container/page-container.component';
+import { PageHeaderComponent } from '../page-header/page-header.component';
+import { SummaryCardComponent } from '../summary-card/summary-card.component';
+import { ActionToolbarComponent } from '../action-toolbar/action-toolbar.component';
+import { MasterSummary } from '../../master/master.models';
+@Component({
+  selector: 'app-operations-workspace',
+  imports: [
+    RouterLink,
+    MatButtonModule,
+    PageContainerComponent,
+    PageHeaderComponent,
+    SummaryCardComponent,
+    ActionToolbarComponent,
+  ],
+  templateUrl: './operations-workspace.component.html',
+  styleUrl: './operations-workspace.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class OperationsWorkspaceComponent {
+  readonly eyebrow = input('Operations');
+  readonly title = input.required<string>();
+  readonly description = input('');
+  readonly summaries = input<MasterSummary[]>([]);
+  readonly statusText = input('Ready');
+  readonly lastRefreshed = input('Just now');
+}

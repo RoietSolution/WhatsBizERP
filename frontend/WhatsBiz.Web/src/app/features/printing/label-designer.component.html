@@ -1,0 +1,25 @@
+<h1>Label Designer</h1>
+<section>
+  <label
+    >Label type<select [(ngModel)]="labelType">
+      <option>PRODUCT</option>
+      <option>SHELF</option>
+      <option>PRICE</option>
+      <option>MRP</option>
+      <option>WAREHOUSE</option>
+    </select></label
+  ><label>Product name<input [(ngModel)]="name" /></label
+  ><label>Code<input [(ngModel)]="code" /></label
+  ><label>Barcode<input [(ngModel)]="barcode" /></label
+  ><label
+    >Size<select [(ngModel)]="size">
+      <option value="25,15">25 × 15 mm</option>
+      <option value="50,25">50 × 25 mm</option>
+      <option value="100,50">100 × 50 mm</option>
+    </select></label
+  ><label>Quantity<input type="number" min="1" max="500" [(ngModel)]="quantity" /></label
+  ><button mat-flat-button (click)="preview()">Preview labels</button>
+</section>
+@if (url()) {
+  <iframe [src]="url()"></iframe>
+}

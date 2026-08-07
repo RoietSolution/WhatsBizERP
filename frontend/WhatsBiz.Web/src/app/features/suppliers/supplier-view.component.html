@@ -1,0 +1,67 @@
+@if (supplier(); as s) {
+  <header>
+    <div>
+      <h1>{{ s.supplierName }}</h1>
+      <p>{{ s.supplierCode }} · {{ s.isActive ? 'Active' : 'Inactive' }}</p>
+    </div>
+    <a mat-flat-button [routerLink]="['/suppliers', s.supplierId, 'edit']">Edit</a>
+  </header>
+  <mat-tab-group
+    ><mat-tab label="General"
+      ><dl>
+        <dt>Type</dt>
+        <dd>{{ s.supplierType }}</dd>
+        <dt>GSTIN</dt>
+        <dd>{{ s.gstin || '—' }}</dd>
+        <dt>PAN</dt>
+        <dd>{{ s.pan || '—' }}</dd>
+        <dt>Email</dt>
+        <dd>{{ s.email || '—' }}</dd>
+        <dt>Mobile</dt>
+        <dd>{{ s.mobile || '—' }}</dd>
+        <dt>Payment terms</dt>
+        <dd>{{ s.paymentTermName || '—' }}</dd>
+        <dt>Credit limit</dt>
+        <dd>{{ s.creditLimit }}</dd>
+      </dl></mat-tab
+    ><mat-tab label="Contacts">
+      @for (x of s.contacts; track x.contactId) {
+        <p>
+          <strong>{{ x.contactPerson }}</strong> {{ x.designation }} · {{ x.mobile }} ·
+          {{ x.email }}
+        </p>
+      }</mat-tab
+    ><mat-tab label="Addresses">
+      @for (x of s.addresses; track x.addressId) {
+        <p>
+          {{ x.addressType }}: {{ x.addressLine1 }}, {{ x.city }}, {{ x.state }}
+          {{ x.postalCode }}
+        </p>
+      }</mat-tab
+    ><mat-tab label="Bank Accounts">
+      @for (x of s.bankAccounts; track x.bankAccountId) {
+        <p>{{ x.bankName }} · {{ x.accountNumber }} · {{ x.ifscCode }}</p>
+      }</mat-tab
+    ><mat-tab label="Documents"
+      ><div class="upload">
+        <select #type>
+          <option>GST Certificate</option>
+          <option>PAN Card</option>
+          <option>MSME Certificate</option>
+          <option>Cancelled Cheque</option>
+          <option>Agreement</option>
+          <option>Other</option></select
+        ><input #file type="file" /><button mat-button (click)="upload(type.value, file)">
+          Upload
+        </button>
+      </div>
+      @for (x of s.documents; track x.documentId) {
+        <p>
+          {{ x.documentType }}:
+          <button mat-button (click)="preview(x.documentId, x.fileName)">{{ x.fileName }}</button
+          ><button mat-button (click)="remove(x.documentId)">Delete</button>
+        </p>
+      }
+    </mat-tab></mat-tab-group
+  >
+}

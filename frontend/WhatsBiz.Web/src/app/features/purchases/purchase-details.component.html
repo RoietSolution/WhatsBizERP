@@ -1,0 +1,52 @@
+@if (p(); as x) {
+  <header>
+    <div>
+      <h1>{{ x.invoiceNumber }}</h1>
+      <p>{{ x.supplierName }} · {{ x.supplierInvoiceNo }}</p>
+    </div>
+    <div>
+      @if (x.status === 'DRAFT') {
+        <a mat-button [routerLink]="['/purchases', x.purchaseInvoiceId, 'edit']">Edit</a>
+      }
+      <a mat-button [routerLink]="['/purchases', x.purchaseInvoiceId, 'payment']">Payment</a
+      ><a mat-button [routerLink]="['/purchases', x.purchaseInvoiceId, 'return']">Return</a>
+    </div>
+  </header>
+  <section>
+    <mat-card
+      >Grand Total<br /><strong>{{ x.grandTotal }}</strong></mat-card
+    ><mat-card
+      >Paid<br /><strong>{{ x.paidAmount }}</strong></mat-card
+    ><mat-card
+      >Outstanding<br /><strong>{{ x.balanceAmount }}</strong></mat-card
+    ><mat-card
+      >Status<br /><strong>{{ x.status }}</strong></mat-card
+    >
+  </section>
+  <div class="table">
+    <table>
+      <tr>
+        <th>Product</th>
+        <th>Batch</th>
+        <th>Expiry</th>
+        <th>Quantity</th>
+        <th>Free</th>
+        <th>Cost</th>
+        <th>GST</th>
+        <th>Total</th>
+      </tr>
+      @for (i of x.items; track i.purchaseItemId) {
+        <tr>
+          <td>{{ i.productCode }} · {{ i.productName }}</td>
+          <td>{{ i.batchNo }}</td>
+          <td>{{ i.expiryDate }}</td>
+          <td>{{ i.quantity }}</td>
+          <td>{{ i.freeQuantity }}</td>
+          <td>{{ i.purchasePrice }}</td>
+          <td>{{ i.gstAmount }}</td>
+          <td>{{ i.lineTotal }}</td>
+        </tr>
+      }
+    </table>
+  </div>
+}

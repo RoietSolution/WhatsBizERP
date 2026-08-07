@@ -1,3 +1,16 @@
-.form-card { overflow: hidden; background: var(--wb-surface); border: 1px solid var(--wb-border); border-radius: var(--wb-radius-md); box-shadow: var(--wb-shadow-sm); }
-.tab-content { min-height: 240px; padding: 24px; }
-@media(max-width:767px) { .tab-content { padding: 16px; } }
+.form-card {
+  overflow: hidden;
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-md);
+  box-shadow: var(--wb-shadow-sm);
+}
+.tab-content {
+  min-height: 240px;
+  padding: 24px;
+}
+@media (max-width: 767px) {
+  .tab-content {
+    padding: 16px;
+  }
+}

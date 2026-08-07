@@ -1,0 +1,58 @@
+<h1>Inventory Transactions</h1>
+<form [formGroup]="filters" class="tools">
+  <mat-form-field
+    ><mat-label>Search</mat-label
+    ><input matInput formControlName="search" (keyup.enter)="load()" /></mat-form-field
+  ><mat-form-field
+    ><mat-label>Warehouse</mat-label
+    ><mat-select formControlName="warehouseId" (selectionChange)="load()"
+      ><mat-option value="">All</mat-option>
+      @for (x of warehouses(); track x.warehouseId) {
+        <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
+      }
+    </mat-select></mat-form-field
+  ><mat-form-field
+    ><mat-label>Type</mat-label
+    ><mat-select formControlName="transactionType" (selectionChange)="load()"
+      ><mat-option value="">All</mat-option>
+      @for (x of transactionTypes; track x) {
+        <mat-option [value]="x">{{ x }}</mat-option>
+      }
+    </mat-select></mat-form-field
+  ><mat-form-field
+    ><mat-label>From</mat-label
+    ><input matInput type="date" formControlName="from" /></mat-form-field
+  ><mat-form-field
+    ><mat-label>To</mat-label><input matInput type="date" formControlName="to" /></mat-form-field
+  ><button mat-button type="button" (click)="load()">Apply</button>
+</form>
+<div class="table">
+  <table mat-table [dataSource]="items()">
+    <ng-container matColumnDef="number"
+      ><th mat-header-cell *matHeaderCellDef>Number</th>
+      <td mat-cell *matCellDef="let x">
+        <button mat-button (click)="view(x)">{{ x.transactionNo }}</button>
+      </td></ng-container
+    ><ng-container matColumnDef="date"
+      ><th mat-header-cell *matHeaderCellDef>Date</th>
+      <td mat-cell *matCellDef="let x">
+        {{ x.transactionDate | date: 'medium' }}
+      </td></ng-container
+    ><ng-container matColumnDef="type"
+      ><th mat-header-cell *matHeaderCellDef>Type</th>
+      <td mat-cell *matCellDef="let x">{{ x.transactionType }}</td></ng-container
+    ><ng-container matColumnDef="warehouse"
+      ><th mat-header-cell *matHeaderCellDef>Warehouse</th>
+      <td mat-cell *matCellDef="let x">{{ x.warehouseName }}</td></ng-container
+    ><ng-container matColumnDef="quantity"
+      ><th mat-header-cell *matHeaderCellDef>Quantity</th>
+      <td mat-cell *matCellDef="let x">{{ x.totalQuantity }}</td></ng-container
+    ><ng-container matColumnDef="cost"
+      ><th mat-header-cell *matHeaderCellDef>Cost</th>
+      <td mat-cell *matCellDef="let x">{{ x.totalCost }}</td></ng-container
+    >
+    <tr mat-header-row *matHeaderRowDef="cols"></tr>
+    <tr mat-row *matRowDef="let row; columns: cols"></tr>
+  </table>
+</div>
+<mat-paginator [length]="total()" [pageIndex]="page - 1" [pageSize]="size" (page)="paged($event)" />

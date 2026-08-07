@@ -1,0 +1,78 @@
+<app-operations-workspace
+  eyebrow="Enterprise administration"
+  title="Administration Center"
+  description="Manage organization, security, system configuration, printing, backup, and monitoring."
+  [summaries]="summaries"
+  statusText="Administration services available"
+  ><a workspace-header-actions mat-flat-button color="primary" routerLink="/admin/company"
+    ><span class="material-symbols-rounded">business</span>Company Profile</a
+  >
+  <div workspace-toolbar-start class="search">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic"
+      ><mat-label>Search all settings</mat-label
+      ><span matPrefix class="material-symbols-rounded">search</span
+      ><input matInput [(ngModel)]="query" placeholder="Try backup, printer, GST, audit..."
+    /></mat-form-field>
+  </div>
+  <div workspace-toolbar-actions>
+    <button mat-button routerLink="/admin/audit">
+      <span class="material-symbols-rounded">history</span>Audit Logs
+    </button>
+  </div>
+  <nav class="category-nav" aria-label="Administration categories">
+    @for (group of groups; track group.title) {
+      <button
+        type="button"
+        [class.active]="category() == group.title"
+        (click)="category.set(group.title)"
+      >
+        <span class="material-symbols-rounded">{{ group.icon }}</span
+        >{{ group.title }}
+      </button>
+    }
+  </nav>
+  <section class="settings-grid">
+    @for (item of visible(); track item.title) {
+      @if (item.route) {
+        <a [routerLink]="item.route" (focus)="selected.set(item)"
+          ><span class="material-symbols-rounded setting-icon">{{ item.icon }}</span>
+          <div>
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.description }}</p>
+          </div>
+          <span class="material-symbols-rounded arrow">arrow_forward</span></a
+        >
+      } @else {
+        <article tabindex="0" (focus)="selected.set(item)">
+          <span class="material-symbols-rounded setting-icon">{{ item.icon }}</span>
+          <div>
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.description }}</p>
+            <app-status-chip label="Planned" tone="info" />
+          </div>
+        </article>
+      }
+    }
+  </section>
+  <section workspace-context class="context">
+    <h3>Selected Setting</h3>
+    @if (selected(); as item) {
+      <span class="material-symbols-rounded hero-icon">{{ item.icon }}</span
+      ><strong>{{ item.title }}</strong>
+      <p>{{ item.description }}</p>
+      @if (item.route) {
+        <a mat-flat-button color="primary" [routerLink]="item.route">Open Setting</a>
+      } @else {
+        <app-status-chip label="Planned" tone="info" />
+      }
+    } @else {
+      <p>Choose a setting to see quick help, related options, and audit information.</p>
+    }
+  </section>
+  <section workspace-context class="context">
+    <h3>Quick Help</h3>
+    <p>Settings changes are recorded in the administration audit history.</p>
+    <a mat-stroked-button routerLink="/admin/audit">View Audit History</a
+    ><button mat-button disabled>Documentation</button>
+  </section></app-operations-workspace
+>

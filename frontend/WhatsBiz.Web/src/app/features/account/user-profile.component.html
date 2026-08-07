@@ -1,0 +1,56 @@
+<app-page-container
+  ><app-page-header
+    title="My Profile"
+    description="Manage your personal account information and security."
+  />
+  <section class="profile-card">
+    <div class="identity">
+      <button
+        class="avatar"
+        type="button"
+        (click)="picker.click()"
+        aria-label="Change profile picture"
+      >
+        @if (photo()) {
+          <img [src]="photo()" alt="Profile picture" />
+        } @else {
+          <span>{{ initials() }}</span>
+        }
+        <i class="material-symbols-rounded">photo_camera</i></button
+      ><input
+        #picker
+        hidden
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        (change)="selectPhoto($event)"
+      />
+      <div>
+        <h2>{{ user()?.username }}</h2>
+        <p>{{ user()?.roles?.join(', ') || 'Team member' }}</p>
+        <button mat-button type="button" (click)="picker.click()">Change picture</button>
+      </div>
+    </div>
+    <form (ngSubmit)="save()">
+      <mat-form-field appearance="outline"
+        ><mat-label>Username</mat-label
+        ><input matInput [value]="user()?.username" disabled /></mat-form-field
+      ><mat-form-field appearance="outline"
+        ><mat-label>Email address</mat-label
+        ><input
+          matInput
+          required
+          type="email"
+          autocomplete="email"
+          [formControl]="email"
+        /><mat-error>Enter a valid email address.</mat-error></mat-form-field
+      >
+      <div class="actions">
+        <a mat-stroked-button routerLink="/change-password"
+          ><span class="material-symbols-rounded">password</span>Change password</a
+        ><button mat-flat-button color="primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : 'Save profile' }}
+        </button>
+      </div>
+    </form>
+  </section></app-page-container
+>

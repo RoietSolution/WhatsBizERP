@@ -1,14 +1,87 @@
-.data-table { overflow: hidden; background: var(--wb-surface); border: 1px solid var(--wb-border); border-radius: var(--wb-radius-md); box-shadow: var(--wb-shadow-sm); }
-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 64px; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--wb-border); }
-header app-search-box { width: min(360px, 100%); }
-header > div { display: flex; gap: 4px; }
-ag-grid-angular { display: block; width: 100%; min-height: 180px; }
-.data-table { position: relative; }
-.grid-loading { display: flex; min-height: 180px; color: var(--wb-text-secondary); align-items: center; justify-content: center; gap: 8px; }
-.grid-loading .material-symbols-rounded { color: var(--wb-primary); animation: grid-spin 1s linear infinite; }
-:host ::ng-deep .wb-grid-actions { display: flex; height: 100%; align-items: center; justify-content: flex-end; gap: 2px; }
-:host ::ng-deep .wb-grid-action { display: grid; width: 30px; height: 30px; padding: 0; color: var(--wb-text-secondary); background: transparent; border: 0; border-radius: 6px; cursor: pointer; place-items: center; }
-:host ::ng-deep .wb-grid-action:hover, :host ::ng-deep .wb-grid-action:focus-visible { color: var(--wb-primary); background: var(--wb-primary-soft); }
-:host ::ng-deep .wb-grid-action .material-symbols-rounded { font-size: 18px; }
-@keyframes grid-spin { to { transform: rotate(360deg); } }
-@media(max-width:767px) { header { align-items: stretch; flex-direction: column; } header app-search-box { width: 100%; } header > div { justify-content: flex-end; } }
+.data-table {
+  overflow: hidden;
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-md);
+  box-shadow: var(--wb-shadow-sm);
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  min-height: 64px;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid var(--wb-border);
+}
+header app-search-box {
+  width: min(360px, 100%);
+}
+header > div {
+  display: flex;
+  gap: 4px;
+}
+ag-grid-angular {
+  display: block;
+  width: 100%;
+  min-height: 180px;
+}
+.data-table {
+  position: relative;
+}
+.grid-loading {
+  display: flex;
+  min-height: 180px;
+  color: var(--wb-text-secondary);
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.grid-loading .material-symbols-rounded {
+  color: var(--wb-primary);
+  animation: grid-spin 1s linear infinite;
+}
+:host ::ng-deep .wb-grid-actions {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+:host ::ng-deep .wb-grid-action {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--wb-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  place-items: center;
+}
+:host ::ng-deep .wb-grid-action:hover,
+:host ::ng-deep .wb-grid-action:focus-visible {
+  color: var(--wb-primary);
+  background: var(--wb-primary-soft);
+}
+:host ::ng-deep .wb-grid-action .material-symbols-rounded {
+  font-size: 18px;
+}
+@keyframes grid-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 767px) {
+  header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  header app-search-box {
+    width: 100%;
+  }
+  header > div {
+    justify-content: flex-end;
+  }
+}

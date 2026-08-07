@@ -1,0 +1,12 @@
+<section>
+  <header>
+    <span class="material-symbols-rounded">{{ icon() }}</span>
+    <div>
+      <h2>{{ title() }}</h2>
+      @if (description()) {
+        <p>{{ description() }}</p>
+      }
+    </div>
+  </header>
+  <div class="form-section__body"><ng-content /></div>
+</section>

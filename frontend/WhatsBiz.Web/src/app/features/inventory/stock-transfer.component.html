@@ -1,0 +1,34 @@
+<h1>Stock Transfer</h1>
+<form [formGroup]="form" (ngSubmit)="save()" class="grid">
+  <mat-form-field
+    ><mat-label>Product</mat-label
+    ><mat-select formControlName="productId">
+      @for (x of products(); track x.productId) {
+        <mat-option [value]="x.productId">{{ x.productCode }} — {{ x.productName }}</mat-option>
+      }
+    </mat-select></mat-form-field
+  ><mat-form-field
+    ><mat-label>Source warehouse</mat-label
+    ><mat-select formControlName="sourceWarehouseId">
+      @for (x of warehouses(); track x.warehouseId) {
+        <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
+      }
+    </mat-select></mat-form-field
+  ><mat-form-field
+    ><mat-label>Destination warehouse</mat-label
+    ><mat-select formControlName="destinationWarehouseId">
+      @for (x of warehouses(); track x.warehouseId) {
+        <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
+      }
+    </mat-select></mat-form-field
+  ><mat-form-field
+    ><mat-label>Quantity</mat-label
+    ><input matInput type="number" formControlName="quantity" /></mat-form-field
+  ><mat-form-field
+    ><mat-label>Transfer date</mat-label
+    ><input matInput type="datetime-local" formControlName="transferDate" /></mat-form-field
+  ><mat-form-field class="wide"
+    ><mat-label>Remarks</mat-label
+    ><textarea matInput formControlName="remarks"></textarea></mat-form-field
+  ><button mat-flat-button type="submit" [disabled]="form.invalid">Transfer stock</button>
+</form>

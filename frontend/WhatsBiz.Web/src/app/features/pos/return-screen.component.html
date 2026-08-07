@@ -1,0 +1,25 @@
+<h1>Sales Return</h1>
+<div>
+  <mat-form-field
+    ><mat-label>Invoice ID</mat-label><input matInput [(ngModel)]="invoiceId" /></mat-form-field
+  ><button mat-button (click)="load()">Load</button>
+</div>
+@if (invoice(); as x) {
+  <h2>{{ x.invoiceNumber }}</h2>
+  @for (item of x.items; track item.invoiceItemId) {
+    <section>
+      <span
+        >{{ item.productName }} · Sold {{ item.quantity }} · Returned
+        {{ item.returnedQuantity }}</span
+      ><input
+        type="number"
+        min="0"
+        [max]="item.quantity - item.returnedQuantity"
+        [(ngModel)]="quantities[item.invoiceItemId]"
+      />
+    </section>
+  }
+  <mat-form-field
+    ><mat-label>Return reason</mat-label><input matInput [(ngModel)]="reason" /></mat-form-field
+  ><button mat-flat-button (click)="submit()">Process Return</button>
+}

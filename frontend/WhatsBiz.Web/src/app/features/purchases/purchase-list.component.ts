@@ -1,2 +1,164 @@
-import{ChangeDetectionStrategy,Component,computed,signal}from'@angular/core';import{FormsModule}from'@angular/forms';import{Router,RouterLink}from'@angular/router';import{MatButtonModule}from'@angular/material/button';import{MatFormFieldModule}from'@angular/material/form-field';import{MatSelectModule}from'@angular/material/select';import{OperationsWorkspaceComponent}from'../../shared/components/operations-workspace/operations-workspace.component';import{FilterPanelComponent}from'../../shared/components/filter-panel/filter-panel.component';import{DataTableComponent,GridRowAction}from'../../shared/components/data-table/data-table.component';import{LoadingOverlayComponent}from'../../shared/components/loading-overlay/loading-overlay.component';import{PurchaseApiService}from'./purchase-api.service';import{PurchaseList}from'./purchase.models';
-@Component({imports:[FormsModule,RouterLink,MatButtonModule,MatFormFieldModule,MatSelectModule,OperationsWorkspaceComponent,FilterPanelComponent,DataTableComponent,LoadingOverlayComponent],template:`<app-operations-workspace eyebrow="Purchase operations" title="Purchase History" description="Review invoices, pending receipts, supplier balances, and purchase status." [summaries]="summaries()" [statusText]="rows().length+' purchases loaded'"><a workspace-header-actions mat-flat-button color="primary" routerLink="/purchases/create"><span class="material-symbols-rounded">add</span>Create Purchase</a><div workspace-toolbar-actions class="actions"><a mat-button routerLink="/purchases/create"><span class="material-symbols-rounded">add_shopping_cart</span>Create</a><button mat-button (click)="load()"><span class="material-symbols-rounded">refresh</span>Refresh</button><button mat-button (click)="export()"><span class="material-symbols-rounded">download</span>Export</button><button mat-button (click)="template()"><span class="material-symbols-rounded">upload_file</span>Import Template</button><button mat-button (click)="print()"><span class="material-symbols-rounded">print</span>Print</button></div><app-filter-panel workspace-filters title="Smart purchase filters" (apply)="load()" (reset)="status='';load()"><mat-form-field appearance="outline"><mat-label>Status</mat-label><mat-select [(ngModel)]="status"><mat-option value="">All statuses</mat-option><mat-option value="DRAFT">Pending</mat-option><mat-option value="POSTED">Received</mat-option></mat-select></mat-form-field></app-filter-panel><app-data-table [rows]="rows()" [columns]="columns" [loading]="loading()" searchPlaceholder="Search invoice, supplier, or reference" (searchChange)="search=$event;load()" (rowOpen)="view($event)" (rowAction)="action($event)"/><section workspace-context class="context-card"><h3>Supplier Summary</h3><p>Select an invoice to review supplier information, outstanding balance, and purchase history.</p></section><section workspace-context class="context-card"><h3>Purchase Status</h3><dl><dt>Pending</dt><dd>{{pending()}}</dd><dt>Received</dt><dd>{{received()}}</dd><dt>Outstanding</dt><dd>{{outstanding()}}</dd></dl></section></app-operations-workspace>`,styles:[`.actions{display:flex;flex-wrap:wrap}.context-card{padding:18px;background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--wb-radius-md)}.context-card h3{margin-top:0}.context-card p{color:var(--wb-text-secondary)}dl{display:grid;grid-template-columns:1fr auto;gap:10px}dd{margin:0;font-weight:700}`],changeDetection:ChangeDetectionStrategy.OnPush})export class PurchaseListComponent{readonly rows=signal<PurchaseList[]>([]);readonly loading=signal(false);readonly pending=computed(()=>this.rows().filter(x=>x.status==='DRAFT').length);readonly received=computed(()=>this.rows().filter(x=>x.status==='POSTED').length);readonly outstanding=computed(()=>this.rows().reduce((a,x)=>a+x.balanceAmount,0));readonly summaries=computed(()=>[{label:'Purchase records',value:this.rows().length,subtitle:'Current view',icon:'receipt_long',tone:'primary' as const},{label:'Pending',value:this.pending(),subtitle:'Awaiting receipt',icon:'pending_actions',tone:'warning' as const},{label:'Received',value:this.received(),subtitle:'Posted purchases',icon:'inventory',tone:'success' as const},{label:'Outstanding',value:this.outstanding(),subtitle:'Supplier payable',icon:'account_balance_wallet',tone:'danger' as const}]);readonly columns=[{field:'invoiceNumber',headerName:'Purchase number',minWidth:170},{field:'invoiceDate',headerName:'Date',valueFormatter:(p:any)=>String(p.value??'').slice(0,10)},{field:'supplierName',headerName:'Supplier',minWidth:200},{field:'supplierInvoiceNo',headerName:'Supplier invoice'},{field:'warehouseName',headerName:'Warehouse'},{field:'grandTotal',headerName:'Total',valueFormatter:(p:any)=>Number(p.value??0).toLocaleString('en-IN',{style:'currency',currency:'INR'})},{field:'balanceAmount',headerName:'Outstanding',valueFormatter:(p:any)=>Number(p.value??0).toLocaleString('en-IN',{style:'currency',currency:'INR'})},{field:'status',headerName:'Status'}];search='';status='';constructor(private api:PurchaseApiService,private router:Router){this.load()}load(){this.loading.set(true);this.api.list(this.search,this.status).subscribe({next:x=>{this.rows.set(x.items);this.loading.set(false)},error:()=>this.loading.set(false)})}view(x:PurchaseList){this.router.navigate(['/purchases',x.purchaseInvoiceId])}action(e:GridRowAction<PurchaseList>){if(e.action==='view')this.view(e.row);else if(e.action==='edit')this.router.navigate(['/purchases',e.row.purchaseInvoiceId,'edit']);else if(e.action==='print')window.print()}download(b:Blob,n:string){const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=n;a.click();URL.revokeObjectURL(u)}export(){this.api.export().subscribe(x=>this.download(x,'purchases.xlsx'))}template(){this.api.template().subscribe(x=>this.download(x,'purchase-template.xlsx'))}print(){window.print()}}
+import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
+import { OperationsWorkspaceComponent } from '../../shared/components/operations-workspace/operations-workspace.component';
+import { FilterPanelComponent } from '../../shared/components/filter-panel/filter-panel.component';
+import {
+  DataTableComponent,
+  GridRowAction,
+} from '../../shared/components/data-table/data-table.component';
+import { LoadingOverlayComponent } from '../../shared/components/loading-overlay/loading-overlay.component';
+import { PurchaseApiService } from './purchase-api.service';
+import { PurchaseList } from './purchase.models';
+@Component({
+  imports: [
+    FormsModule,
+    RouterLink,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatSelectModule,
+    OperationsWorkspaceComponent,
+    FilterPanelComponent,
+    DataTableComponent,
+    LoadingOverlayComponent,
+  ],
+  templateUrl: './purchase-list.component.html',
+  styles: [
+    `
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+      }
+      .context-card {
+        padding: 18px;
+        background: var(--wb-surface);
+        border: 1px solid var(--wb-border);
+        border-radius: var(--wb-radius-md);
+      }
+      .context-card h3 {
+        margin-top: 0;
+      }
+      .context-card p {
+        color: var(--wb-text-secondary);
+      }
+      dl {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+      }
+      dd {
+        margin: 0;
+        font-weight: 700;
+      }
+    `,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class PurchaseListComponent {
+  readonly rows = signal<PurchaseList[]>([]);
+  readonly loading = signal(false);
+  readonly pending = computed(() => this.rows().filter((x) => x.status === 'DRAFT').length);
+  readonly received = computed(() => this.rows().filter((x) => x.status === 'POSTED').length);
+  readonly outstanding = computed(() => this.rows().reduce((a, x) => a + x.balanceAmount, 0));
+  readonly summaries = computed(() => [
+    {
+      label: 'Purchase records',
+      value: this.rows().length,
+      subtitle: 'Current view',
+      icon: 'receipt_long',
+      tone: 'primary' as const,
+    },
+    {
+      label: 'Pending',
+      value: this.pending(),
+      subtitle: 'Awaiting receipt',
+      icon: 'pending_actions',
+      tone: 'warning' as const,
+    },
+    {
+      label: 'Received',
+      value: this.received(),
+      subtitle: 'Posted purchases',
+      icon: 'inventory',
+      tone: 'success' as const,
+    },
+    {
+      label: 'Outstanding',
+      value: this.outstanding(),
+      subtitle: 'Supplier payable',
+      icon: 'account_balance_wallet',
+      tone: 'danger' as const,
+    },
+  ]);
+  readonly columns = [
+    { field: 'invoiceNumber', headerName: 'Purchase number', minWidth: 170 },
+    {
+      field: 'invoiceDate',
+      headerName: 'Date',
+      valueFormatter: (p: any) => String(p.value ?? '').slice(0, 10),
+    },
+    { field: 'supplierName', headerName: 'Supplier', minWidth: 200 },
+    { field: 'supplierInvoiceNo', headerName: 'Supplier invoice' },
+    { field: 'warehouseName', headerName: 'Warehouse' },
+    {
+      field: 'grandTotal',
+      headerName: 'Total',
+      valueFormatter: (p: any) =>
+        Number(p.value ?? 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR' }),
+    },
+    {
+      field: 'balanceAmount',
+      headerName: 'Outstanding',
+      valueFormatter: (p: any) =>
+        Number(p.value ?? 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR' }),
+    },
+    { field: 'status', headerName: 'Status' },
+  ];
+  search = '';
+  status = '';
+  constructor(
+    private api: PurchaseApiService,
+    private router: Router,
+  ) {
+    this.load();
+  }
+  load() {
+    this.loading.set(true);
+    this.api.list(this.search, this.status).subscribe({
+      next: (x) => {
+        this.rows.set(x.items);
+        this.loading.set(false);
+      },
+      error: () => this.loading.set(false),
+    });
+  }
+  view(x: PurchaseList) {
+    this.router.navigate(['/purchases', x.purchaseInvoiceId]);
+  }
+  action(e: GridRowAction<PurchaseList>) {
+    if (e.action === 'view') this.view(e.row);
+    else if (e.action === 'edit')
+      this.router.navigate(['/purchases', e.row.purchaseInvoiceId, 'edit']);
+    else if (e.action === 'print') window.print();
+  }
+  download(b: Blob, n: string) {
+    const u = URL.createObjectURL(b),
+      a = document.createElement('a');
+    a.href = u;
+    a.download = n;
+    a.click();
+    URL.revokeObjectURL(u);
+  }
+  export() {
+    this.api.export().subscribe((x) => this.download(x, 'purchases.xlsx'));
+  }
+  template() {
+    this.api.template().subscribe((x) => this.download(x, 'purchase-template.xlsx'));
+  }
+  print() {
+    window.print();
+  }
+}

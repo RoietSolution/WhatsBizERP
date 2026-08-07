@@ -1,6 +1,69 @@
-<header mat-dialog-title class="payment-title"><span class="material-symbols-rounded">payments</span><div><h2>Complete Payment</h2><p>Amount due {{data.total|currency:'INR'}}</p></div></header>
-<mat-dialog-content><section class="method-grid" aria-label="Payment method">@for(x of data.methods;track x.methodCode){<button type="button" [class.active]="method===x.methodCode" (click)="method=x.methodCode"><span class="material-symbols-rounded">{{icon(x.methodCode)}}</span>{{x.methodName}}</button>}</section>
-<div class="entry"><mat-form-field appearance="outline"><mat-label>Amount</mat-label><span matPrefix>₹&nbsp;</span><input matInput type="number" min="0" [(ngModel)]="amount"></mat-form-field><mat-form-field appearance="outline"><mat-label>Reference</mat-label><input matInput [(ngModel)]="reference" placeholder="Optional reference"></mat-form-field><button mat-flat-button color="primary" (click)="add()"><span class="material-symbols-rounded">add</span>Add payment</button></div>
-<div class="quick"><button mat-stroked-button (click)="amount=500">₹500</button><button mat-stroked-button (click)="amount=1000">₹1,000</button><button mat-stroked-button (click)="amount=2000">₹2,000</button><button mat-stroked-button (click)="amount=balance()">Exact balance</button></div>
-<section class="payment-list">@for(x of payments();track $index){<div><span><span class="material-symbols-rounded">check_circle</span>{{x.methodCode}}</span><strong>{{x.amount|currency:'INR'}}</strong><button mat-icon-button aria-label="Remove payment" (click)="remove($index)"><span class="material-symbols-rounded">close</span></button></div>}@empty{<p>No payment lines added yet.</p>}</section><div class="totals"><span>Paid <strong>{{paid()|currency:'INR'}}</strong></span><span>Balance <strong>{{balance()|currency:'INR'}}</strong></span></div></mat-dialog-content>
-<mat-dialog-actions align="end"><button mat-button mat-dialog-close>Cancel</button><button mat-flat-button color="primary" [disabled]="paid()<=0||paid()>data.total" (click)="complete()"><span class="material-symbols-rounded">check</span>Complete Sale</button></mat-dialog-actions>
+<header mat-dialog-title class="payment-title">
+  <span class="material-symbols-rounded">payments</span>
+  <div>
+    <h2>Complete Payment</h2>
+    <p>Amount due {{ data.total | currency: 'INR' }}</p>
+  </div>
+</header>
+<mat-dialog-content
+  ><section class="method-grid" aria-label="Payment method">
+    @for (x of data.methods; track x.methodCode) {
+      <button
+        type="button"
+        [class.active]="method === x.methodCode"
+        (click)="method = x.methodCode"
+      >
+        <span class="material-symbols-rounded">{{ icon(x.methodCode) }}</span
+        >{{ x.methodName }}
+      </button>
+    }
+  </section>
+  <div class="entry">
+    <mat-form-field appearance="outline"
+      ><mat-label>Amount</mat-label><span matPrefix>₹&nbsp;</span
+      ><input matInput type="number" min="0" [(ngModel)]="amount" /></mat-form-field
+    ><mat-form-field appearance="outline"
+      ><mat-label>Reference</mat-label
+      ><input matInput [(ngModel)]="reference" placeholder="Optional reference" /></mat-form-field
+    ><button mat-flat-button color="primary" (click)="add()">
+      <span class="material-symbols-rounded">add</span>Add payment
+    </button>
+  </div>
+  <div class="quick">
+    <button mat-stroked-button (click)="amount = 500">₹500</button
+    ><button mat-stroked-button (click)="amount = 1000">₹1,000</button
+    ><button mat-stroked-button (click)="amount = 2000">₹2,000</button
+    ><button mat-stroked-button (click)="amount = balance()">Exact balance</button>
+  </div>
+  <section class="payment-list">
+    @for (x of payments(); track $index) {
+      <div>
+        <span><span class="material-symbols-rounded">check_circle</span>{{ x.methodCode }}</span
+        ><strong>{{ x.amount | currency: 'INR' }}</strong
+        ><button mat-icon-button aria-label="Remove payment" (click)="remove($index)">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+    } @empty {
+      <p>No payment lines added yet.</p>
+    }
+  </section>
+  <div class="totals">
+    <span
+      >Paid <strong>{{ paid() | currency: 'INR' }}</strong></span
+    ><span
+      >Balance <strong>{{ balance() | currency: 'INR' }}</strong></span
+    >
+  </div></mat-dialog-content
+>
+<mat-dialog-actions align="end"
+  ><button mat-button mat-dialog-close>Cancel</button
+  ><button
+    mat-flat-button
+    color="primary"
+    [disabled]="paid() <= 0 || paid() > data.total"
+    (click)="complete()"
+  >
+    <span class="material-symbols-rounded">check</span>Complete Sale
+  </button></mat-dialog-actions
+>

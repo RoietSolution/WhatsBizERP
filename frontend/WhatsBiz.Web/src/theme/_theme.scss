@@ -13,12 +13,23 @@
 
 html {
   color-scheme: light;
-  @include mat.theme((
-    color: (primary: mat.$blue-palette, tertiary: mat.$cyan-palette),
-    typography: Inter,
-    density: 0,
-  ));
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$blue-palette,
+        tertiary: mat.$cyan-palette,
+      ),
+      typography: Inter,
+      density: 0,
+    )
+  );
 }
 
-:focus-visible { outline: 2px solid var(--wb-primary); outline-offset: 2px; }
-::selection { color: #fff; background: var(--wb-primary); }
+:focus-visible {
+  outline: 2px solid var(--wb-primary);
+  outline-offset: 2px;
+}
+::selection {
+  color: #fff;
+  background: var(--wb-primary);
+}

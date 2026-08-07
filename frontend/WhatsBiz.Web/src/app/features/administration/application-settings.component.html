@@ -1,0 +1,50 @@
+<app-page-container
+  ><app-page-header
+    eyebrow="System configuration"
+    [title]="title"
+    description="Manage grouped application configuration through one consistent settings workspace."
+    ><a mat-button routerLink="/admin"
+      ><span class="material-symbols-rounded">arrow_back</span>Admin Center</a
+    ><app-status-chip label="Configured" tone="success"
+  /></app-page-header>
+  @if (categories().length) {
+    <mat-tab-group animationDuration="200ms">
+      @for (group of categories(); track group) {
+        <mat-tab [label]="group"
+          ><section class="settings-card">
+            <header>
+              <span class="material-symbols-rounded">tune</span>
+              <div>
+                <h2>{{ group }}</h2>
+                <p>Configuration values for {{ group.toLowerCase() }}.</p>
+              </div>
+            </header>
+            <div class="settings-grid">
+              @for (x of byCategory(group); track x.key) {
+                <mat-form-field appearance="outline"
+                  ><mat-label>{{ label(x.key) }}</mat-label
+                  ><input
+                    matInput
+                    [(ngModel)]="x.value"
+                    [attr.aria-label]="label(x.key)"
+                  /><mat-hint>{{ x.key }}</mat-hint></mat-form-field
+                >
+              }
+            </div>
+          </section></mat-tab
+        >
+      }
+    </mat-tab-group>
+  } @else {
+    <section class="empty">
+      <span class="material-symbols-rounded">settings</span
+      ><strong>No configurable settings found</strong>
+    </section>
+  }
+  <footer>
+    <span>All changes are recorded in the audit history.</span
+    ><button mat-flat-button color="primary" (click)="save()">
+      <span class="material-symbols-rounded">save</span>Save Settings
+    </button>
+  </footer></app-page-container
+>

@@ -1,0 +1,49 @@
+<header>
+  <h1>Print Preview</h1>
+  <div>
+    <button mat-stroked-button (click)="zoomOut()">−</button
+    ><span>{{ zoom * 100 | number: '1.0-0' }}%</span
+    ><button mat-stroked-button (click)="zoomIn()">+</button
+    ><button mat-flat-button (click)="print()">Print</button>
+  </div>
+</header>
+<section class="controls">
+  <label
+    >Document type<select [(ngModel)]="type">
+      <option>SALES_INVOICE</option>
+      <option>PURCHASE_INVOICE</option>
+      <option>RECEIPT</option>
+      <option>PAYMENT_VOUCHER</option>
+      <option>CUSTOMER_LEDGER</option>
+      <option>SUPPLIER_LEDGER</option>
+      <option>GST_REPORT</option>
+    </select></label
+  ><label
+    >Template<select [(ngModel)]="template">
+      <option value="">Default</option>
+      @for (x of templates(); track x.id) {
+        <option [value]="x.code">{{ x.name }}</option>
+      }
+    </select></label
+  ><label
+    >Paper<select [(ngModel)]="paper">
+      <option>A4</option>
+      <option>80MM</option>
+      <option>58MM</option>
+    </select></label
+  ><label
+    >Printer<select [(ngModel)]="printer">
+      <option value="">Browser printer</option>
+      @for (x of printers(); track x.id) {
+        <option [value]="x.id">{{ x.displayName }}</option>
+      }
+    </select></label
+  ><button mat-flat-button (click)="preview()">Generate preview</button>
+</section>
+<div class="stage">
+  @if (url()) {
+    <iframe [src]="url()" [style.transform]="'scale(' + zoom + ')'"></iframe>
+  } @else {
+    <p>Generate a document to preview it.</p>
+  }
+</div>

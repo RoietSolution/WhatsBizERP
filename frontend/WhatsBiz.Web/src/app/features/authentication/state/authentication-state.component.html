@@ -1,0 +1,16 @@
+<div class="state-icon" [attr.data-tone]="content().tone">
+  <span class="material-symbols-rounded">{{ content().icon }}</span>
+</div>
+<p class="state-code">{{ content().code }}</p>
+<h2>{{ content().title }}</h2>
+<p class="state-message">{{ content().message }}</p>
+<div class="state-actions">
+  <a mat-flat-button color="primary" routerLink="/login">{{ content().action }}</a>
+  @if (mode === 'locked') {
+    <a mat-button routerLink="/forgot-password">Reset password</a>
+  }
+</div>
+<p class="state-support">
+  <span class="material-symbols-rounded">support_agent</span> Need help? Contact your system
+  administrator.
+</p>

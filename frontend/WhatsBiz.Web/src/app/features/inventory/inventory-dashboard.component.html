@@ -1,0 +1,66 @@
+<app-operations-workspace
+  eyebrow="Inventory operations"
+  title="Inventory Workspace"
+  description="Monitor stock availability, warehouse movements, replenishment, and inventory risk."
+  [summaries]="summaries()"
+  statusText="Inventory synchronized"
+  ><a workspace-header-actions mat-flat-button color="primary" routerLink="/inventory/adjustment"
+    ><span class="material-symbols-rounded">tune</span>Adjust Stock</a
+  >
+  <div workspace-toolbar-actions class="actions">
+    <a mat-button routerLink="/inventory/balance"
+      ><span class="material-symbols-rounded">inventory_2</span>Stock List</a
+    ><a mat-button routerLink="/inventory/transfer"
+      ><span class="material-symbols-rounded">swap_horiz</span>Transfer</a
+    ><a mat-button routerLink="/inventory/verification"
+      ><span class="material-symbols-rounded">fact_check</span>Verify</a
+    ><a mat-button routerLink="/inventory/reorder"
+      ><span class="material-symbols-rounded">autorenew</span>Reorder</a
+    ><button mat-button><span class="material-symbols-rounded">label</span>Print Labels</button>
+  </div>
+  <app-filter-panel
+    workspace-filters
+    title="Warehouse & stock filters"
+    (apply)="load()"
+    (reset)="warehouseId = ''; load()"
+    ><mat-form-field appearance="outline"
+      ><mat-label>Warehouse</mat-label
+      ><mat-select [(ngModel)]="warehouseId">
+        <mat-option value="">All warehouses</mat-option>
+        @for (x of warehouses(); track x.warehouseId) {
+          <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
+        }
+      </mat-select></mat-form-field
+    ></app-filter-panel
+  >
+  <section class="operations">
+    <a routerLink="/inventory/balance"
+      ><span class="material-symbols-rounded">warehouse</span><strong>Warehouse Stock</strong
+      ><small>Search product, barcode, category, and warehouse balances.</small></a
+    ><a routerLink="/inventory/transactions"
+      ><span class="material-symbols-rounded">timeline</span><strong>Inventory History</strong
+      ><small>Review the stock timeline and product movements.</small></a
+    ><a routerLink="/inventory/alerts"
+      ><span class="material-symbols-rounded">warning</span><strong>Inventory Alerts</strong
+      ><small>Low, negative, expiring, and expired stock.</small></a
+    ><a routerLink="/inventory/reorder"
+      ><span class="material-symbols-rounded">shopping_cart_checkout</span
+      ><strong>Reorder Suggestions</strong
+      ><small>Suggested quantities based on current availability.</small></a
+    >
+  </section>
+  <section workspace-context class="context-card">
+    <h3>Quick Stock Lookup</h3>
+    <p>Open Stock List to locate a product across warehouses and storage locations.</p>
+    <a mat-stroked-button routerLink="/inventory/balance">Open lookup</a>
+  </section>
+  <section workspace-context class="context-card">
+    <h3>Inventory Alerts</h3>
+    <app-status-chip
+      [label]="(summary()?.lowStockProducts || 0) + ' low stock'"
+      tone="warning"
+    /><app-status-chip
+      [label]="(summary()?.outOfStockProducts || 0) + ' out of stock'"
+      tone="danger"
+    /></section
+></app-operations-workspace>

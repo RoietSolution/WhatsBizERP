@@ -12,16 +12,74 @@ import { PageHeaderComponent } from '../../shared/components/page-header/page-he
 
 @Component({
   selector: 'app-user-profile',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, RouterLink, PageContainerComponent, PageHeaderComponent],
-  template: '<app-page-container><app-page-header title="My Profile" description="Manage your personal account information and security." /><section class="profile-card"><div class="identity"><button class="avatar" type="button" (click)="picker.click()" aria-label="Change profile picture">@if (photo()) { <img [src]="photo()" alt="Profile picture"> } @else { <span>{{ initials() }}</span> }<i class="material-symbols-rounded">photo_camera</i></button><input #picker hidden type="file" accept="image/png,image/jpeg,image/webp" (change)="selectPhoto($event)"><div><h2>{{ user()?.username }}</h2><p>{{ user()?.roles?.join(", ") || "Team member" }}</p><button mat-button type="button" (click)="picker.click()">Change picture</button></div></div><form (ngSubmit)="save()"><mat-form-field appearance="outline"><mat-label>Username</mat-label><input matInput [value]="user()?.username" disabled></mat-form-field><mat-form-field appearance="outline"><mat-label>Email address</mat-label><input matInput required type="email" autocomplete="email" [formControl]="email"><mat-error>Enter a valid email address.</mat-error></mat-form-field><div class="actions"><a mat-stroked-button routerLink="/change-password"><span class="material-symbols-rounded">password</span>Change password</a><button mat-flat-button color="primary" type="submit" [disabled]="saving()">{{ saving() ? "Saving…" : "Save profile" }}</button></div></form></section></app-page-container>',
-  styles: [':host{display:block}.profile-card{max-width:760px;padding:32px;background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--wb-radius-lg);box-shadow:var(--wb-shadow-sm)}.identity{display:flex;align-items:center;gap:20px;padding-bottom:24px;margin-bottom:24px;border-bottom:1px solid var(--wb-border)}.identity h2,.identity p{margin:0}.identity p{margin-top:4px;color:var(--wb-text-secondary)}.avatar{position:relative;display:grid;width:88px;height:88px;padding:0;overflow:hidden;color:#1e3a8a;background:#dbeafe;border:0;border-radius:50%;font-size:1.5rem;font-weight:700;place-items:center;cursor:pointer}.avatar img{width:100%;height:100%;object-fit:cover}.avatar i{position:absolute;right:0;bottom:0;display:grid;width:30px;height:30px;color:#fff;background:var(--wb-primary);border:3px solid var(--wb-surface);border-radius:50%;font-size:16px;place-items:center}form{display:grid;grid-template-columns:1fr 1fr;gap:16px}.actions{display:flex;grid-column:1/-1;justify-content:flex-end;gap:12px}.actions a{display:inline-flex;gap:6px}@media(max-width:767px){.profile-card{padding:20px}form{grid-template-columns:1fr}.identity{align-items:flex-start}.actions{flex-direction:column-reverse}.actions>*{width:100%}}'],
+  imports: [
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    RouterLink,
+    PageContainerComponent,
+    PageHeaderComponent,
+  ],
+  templateUrl: './user-profile.component.html',
+  styles: [
+    ':host{display:block}.profile-card{max-width:760px;padding:32px;background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--wb-radius-lg);box-shadow:var(--wb-shadow-sm)}.identity{display:flex;align-items:center;gap:20px;padding-bottom:24px;margin-bottom:24px;border-bottom:1px solid var(--wb-border)}.identity h2,.identity p{margin:0}.identity p{margin-top:4px;color:var(--wb-text-secondary)}.avatar{position:relative;display:grid;width:88px;height:88px;padding:0;overflow:hidden;color:#1e3a8a;background:#dbeafe;border:0;border-radius:50%;font-size:1.5rem;font-weight:700;place-items:center;cursor:pointer}.avatar img{width:100%;height:100%;object-fit:cover}.avatar i{position:absolute;right:0;bottom:0;display:grid;width:30px;height:30px;color:#fff;background:var(--wb-primary);border:3px solid var(--wb-surface);border-radius:50%;font-size:16px;place-items:center}form{display:grid;grid-template-columns:1fr 1fr;gap:16px}.actions{display:flex;grid-column:1/-1;justify-content:flex-end;gap:12px}.actions a{display:inline-flex;gap:6px}@media(max-width:767px){.profile-card{padding:20px}form{grid-template-columns:1fr}.identity{align-items:flex-start}.actions{flex-direction:column-reverse}.actions>*{width:100%}}',
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UserProfileComponent {
-  private readonly currentUser = inject(CurrentUserService); private readonly authentication = inject(AuthenticationService); private readonly snack = inject(MatSnackBar);
-  readonly user = this.currentUser.user; readonly saving = signal(false); readonly photo = signal(localStorage.getItem('khatadhari.profile.photo'));
+  private readonly currentUser = inject(CurrentUserService);
+  private readonly authentication = inject(AuthenticationService);
+  private readonly snack = inject(MatSnackBar);
+  readonly user = this.currentUser.user;
+  readonly saving = signal(false);
+  readonly photo = signal(localStorage.getItem('khatadhari.profile.photo'));
   readonly initials = computed(() => (this.user()?.username ?? 'U').slice(0, 2).toUpperCase());
-  readonly email = new FormControl(this.user()?.email ?? '', { nonNullable: true, validators: [Validators.required, Validators.email] });
-  save(): void { this.email.markAsTouched(); if (this.email.invalid || this.saving()) return; this.saving.set(true); this.authentication.updateProfile(this.email.value).subscribe({ next: () => { this.saving.set(false); this.snack.open('Profile updated successfully.', 'Close', { duration: 3500, panelClass: 'wb-success' }); }, error: () => { this.saving.set(false); this.snack.open('Profile could not be updated.', 'Close', { duration: 4500, panelClass: 'wb-error' }); } }); }
-  selectPhoto(event: Event): void { const file = (event.target as HTMLInputElement).files?.[0]; if (!file || file.size > 2_000_000) { if (file) this.snack.open('Choose an image smaller than 2 MB.', 'Close', { duration: 4000, panelClass: 'wb-warning' }); return; } const reader = new FileReader(); reader.onload = () => { const value = String(reader.result); localStorage.setItem('khatadhari.profile.photo', value); this.photo.set(value); this.snack.open('Profile picture updated.', 'Close', { duration: 3000, panelClass: 'wb-success' }); }; reader.readAsDataURL(file); }
+  readonly email = new FormControl(this.user()?.email ?? '', {
+    nonNullable: true,
+    validators: [Validators.required, Validators.email],
+  });
+  save(): void {
+    this.email.markAsTouched();
+    if (this.email.invalid || this.saving()) return;
+    this.saving.set(true);
+    this.authentication.updateProfile(this.email.value).subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.snack.open('Profile updated successfully.', 'Close', {
+          duration: 3500,
+          panelClass: 'wb-success',
+        });
+      },
+      error: () => {
+        this.saving.set(false);
+        this.snack.open('Profile could not be updated.', 'Close', {
+          duration: 4500,
+          panelClass: 'wb-error',
+        });
+      },
+    });
+  }
+  selectPhoto(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file || file.size > 2_000_000) {
+      if (file)
+        this.snack.open('Choose an image smaller than 2 MB.', 'Close', {
+          duration: 4000,
+          panelClass: 'wb-warning',
+        });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = String(reader.result);
+      localStorage.setItem('khatadhari.profile.photo', value);
+      this.photo.set(value);
+      this.snack.open('Profile picture updated.', 'Close', {
+        duration: 3000,
+        panelClass: 'wb-success',
+      });
+    };
+    reader.readAsDataURL(file);
+  }
 }

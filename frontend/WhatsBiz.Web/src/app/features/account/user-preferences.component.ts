@@ -7,17 +7,47 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { PageContainerComponent } from '../../shared/components/page-container/page-container.component';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
-import { UserPreferences, UserPreferencesService } from '../../shared/services/user-preferences.service';
+import {
+  UserPreferences,
+  UserPreferencesService,
+} from '../../shared/services/user-preferences.service';
 
 @Component({
   selector: 'app-user-preferences',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatSelectModule, MatSlideToggleModule, PageContainerComponent, PageHeaderComponent],
-  template: '<app-page-container><app-page-header title="My Preferences" description="Personalize appearance, regional formats, grids and notifications." /><form class="preferences-card" [formGroup]="form" (ngSubmit)="save()"><section><h2><span class="material-symbols-rounded">palette</span>Appearance</h2><div class="grid"><mat-form-field appearance="outline"><mat-label>Theme</mat-label><mat-select formControlName="theme"><mat-option value="light">Light</mat-option><mat-option value="dark">Dark</mat-option></mat-select></mat-form-field><mat-form-field appearance="outline"><mat-label>Grid density</mat-label><mat-select formControlName="gridDensity"><mat-option value="Comfortable">Comfortable</mat-option><mat-option value="Compact">Compact</mat-option></mat-select></mat-form-field><mat-form-field appearance="outline"><mat-label>Default dashboard</mat-label><mat-select formControlName="defaultDashboard"><mat-option value="Executive Dashboard">Executive Dashboard</mat-option><mat-option value="Sales Dashboard">Sales Dashboard</mat-option></mat-select></mat-form-field></div></section><section><h2><span class="material-symbols-rounded">language</span>Language & Region</h2><div class="grid"><mat-form-field appearance="outline"><mat-label>Language</mat-label><mat-select formControlName="language"><mat-option value="English">English</mat-option><mat-option value="Hindi">Hindi</mat-option></mat-select></mat-form-field><mat-form-field appearance="outline"><mat-label>Date format</mat-label><mat-select formControlName="dateFormat"><mat-option value="dd/MM/yyyy">DD/MM/YYYY</mat-option><mat-option value="MM/dd/yyyy">MM/DD/YYYY</mat-option><mat-option value="yyyy-MM-dd">YYYY-MM-DD</mat-option></mat-select></mat-form-field><mat-form-field appearance="outline"><mat-label>Time format</mat-label><mat-select formControlName="timeFormat"><mat-option value="12-hour">12-hour</mat-option><mat-option value="24-hour">24-hour</mat-option></mat-select></mat-form-field><mat-form-field appearance="outline"><mat-label>Currency</mat-label><mat-select formControlName="currency"><mat-option value="INR">INR — Indian Rupee</mat-option><mat-option value="USD">USD — US Dollar</mat-option></mat-select></mat-form-field></div></section><section><h2><span class="material-symbols-rounded">notifications</span>Notifications</h2><div class="toggles"><mat-slide-toggle formControlName="emailNotifications">Email notifications</mat-slide-toggle><mat-slide-toggle formControlName="pushNotifications">In-app notifications</mat-slide-toggle></div></section><div class="actions"><button mat-flat-button color="primary" type="submit" [disabled]="saving()">{{ saving() ? "Saving…" : "Save preferences" }}</button></div></form></app-page-container>',
-  styles: [':host{display:block}.preferences-card{max-width:900px;background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--wb-radius-lg);box-shadow:var(--wb-shadow-sm)}section{padding:24px 28px;border-bottom:1px solid var(--wb-border)}h2{display:flex;margin:0 0 20px;align-items:center;gap:8px;font-size:1rem}h2 span{color:var(--wb-primary)}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}.toggles{display:flex;flex-wrap:wrap;gap:24px}.actions{display:flex;padding:20px 28px;justify-content:flex-end}@media(max-width:767px){section{padding:20px}.grid{grid-template-columns:1fr}.actions{padding:20px}.actions button{width:100%}}'],
+  imports: [
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatSelectModule,
+    MatSlideToggleModule,
+    PageContainerComponent,
+    PageHeaderComponent,
+  ],
+  templateUrl: './user-preferences.component.html',
+  styles: [
+    ':host{display:block}.preferences-card{max-width:900px;background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--wb-radius-lg);box-shadow:var(--wb-shadow-sm)}section{padding:24px 28px;border-bottom:1px solid var(--wb-border)}h2{display:flex;margin:0 0 20px;align-items:center;gap:8px;font-size:1rem}h2 span{color:var(--wb-primary)}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}.toggles{display:flex;flex-wrap:wrap;gap:24px}.actions{display:flex;padding:20px 28px;justify-content:flex-end}@media(max-width:767px){section{padding:20px}.grid{grid-template-columns:1fr}.actions{padding:20px}.actions button{width:100%}}',
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UserPreferencesComponent {
-  private readonly preferences = inject(UserPreferencesService); private readonly snack = inject(MatSnackBar); readonly saving = signal(false);
-  readonly form = new FormGroup(Object.fromEntries(Object.entries(this.preferences.preferences()).map(([key, value]) => [key, new FormControl(value, { nonNullable: true })])) as { [K in keyof UserPreferences]: FormControl<UserPreferences[K]> });
-  save(): void { this.saving.set(true); this.preferences.save(this.form.getRawValue()); this.saving.set(false); this.snack.open('Preferences saved successfully.', 'Close', { duration: 3500, panelClass: 'wb-success' }); }
+  private readonly preferences = inject(UserPreferencesService);
+  private readonly snack = inject(MatSnackBar);
+  readonly saving = signal(false);
+  readonly form = new FormGroup(
+    Object.fromEntries(
+      Object.entries(this.preferences.preferences()).map(([key, value]) => [
+        key,
+        new FormControl(value, { nonNullable: true }),
+      ]),
+    ) as { [K in keyof UserPreferences]: FormControl<UserPreferences[K]> },
+  );
+  save(): void {
+    this.saving.set(true);
+    this.preferences.save(this.form.getRawValue());
+    this.saving.set(false);
+    this.snack.open('Preferences saved successfully.', 'Close', {
+      duration: 3500,
+      panelClass: 'wb-success',
+    });
+  }
 }

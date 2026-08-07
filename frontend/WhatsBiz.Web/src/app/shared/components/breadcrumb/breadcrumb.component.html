@@ -1,0 +1,19 @@
+<nav aria-label="Breadcrumb">
+  <ol>
+    <li>
+      <a routerLink="/dashboard" aria-label="Home"
+        ><span class="material-symbols-rounded">home</span></a
+      >
+    </li>
+    @for (crumb of crumbs(); track crumb.route; let last = $last) {
+      <li>
+        <span class="material-symbols-rounded separator">chevron_right</span>
+        @if (last) {
+          <span aria-current="page">{{ crumb.label }}</span>
+        } @else {
+          <a [routerLink]="crumb.route">{{ crumb.label }}</a>
+        }
+      </li>
+    }
+  </ol>
+</nav>

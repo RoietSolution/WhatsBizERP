@@ -1,1 +1,55 @@
-import{Component,signal}from'@angular/core';import{FormsModule}from'@angular/forms';import{MatButtonModule}from'@angular/material/button';import{MatSnackBar,MatSnackBarModule}from'@angular/material/snack-bar';import{GstApiService,GstSettings}from'./gst-api.service';@Component({imports:[FormsModule,MatButtonModule,MatSnackBarModule],template:`<h1>Tax Configuration</h1>@if(model()){<form #f="ngForm" (ngSubmit)="save()"><label>Legal name<input required name="legalName" [(ngModel)]="model()!.legalName"></label><label>Trade name<input name="tradeName" [(ngModel)]="model()!.tradeName"></label><label>Company GSTIN<input name="gstin" pattern="^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$" maxlength="15" [(ngModel)]="model()!.companyGstin"></label><label>State code<input required name="state" pattern="^[0-9]{2}$" [(ngModel)]="model()!.stateCode"></label><label>Registration type<select name="type" [(ngModel)]="model()!.registrationType"><option>REGULAR</option><option>COMPOSITION</option><option>UNREGISTERED</option></select></label><label>Effective date<input type="date" required name="date" [(ngModel)]="model()!.gstEffectiveDate"></label><label class="check"><input type="checkbox" name="composition" [(ngModel)]="model()!.isCompositionScheme">Composition scheme</label><button mat-flat-button [disabled]="f.invalid">Save configuration</button></form>}`,styles:[`form{max-width:700px;display:grid;grid-template-columns:1fr 1fr;gap:1rem;background:#fff;padding:1.25rem}label{display:grid;gap:.3rem}input,select{padding:.65rem}.check{display:flex}@media(max-width:650px){form{grid-template-columns:1fr}}`]})export class GstConfigurationComponent{readonly model=signal<GstSettings|null>(null);constructor(private api:GstApiService,private snack:MatSnackBar){api.settings().subscribe(x=>this.model.set({...x,gstEffectiveDate:x.gstEffectiveDate?.slice(0,10)}))}save(){this.api.saveSettings(this.model()!).subscribe(()=>this.snack.open('GST configuration saved','Close',{duration:2500}))}}
+import { Component, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { GstApiService, GstSettings } from './gst-api.service';
+@Component({
+  imports: [FormsModule, MatButtonModule, MatSnackBarModule],
+  templateUrl: './gst-configuration.component.html',
+  styles: [
+    `
+      form {
+        max-width: 700px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        background: #fff;
+        padding: 1.25rem;
+      }
+      label {
+        display: grid;
+        gap: 0.3rem;
+      }
+      input,
+      select {
+        padding: 0.65rem;
+      }
+      .check {
+        display: flex;
+      }
+      @media (max-width: 650px) {
+        form {
+          grid-template-columns: 1fr;
+        }
+      }
+    `,
+  ],
+})
+export class GstConfigurationComponent {
+  readonly model = signal<GstSettings | null>(null);
+  constructor(
+    private api: GstApiService,
+    private snack: MatSnackBar,
+  ) {
+    api
+      .settings()
+      .subscribe((x) =>
+        this.model.set({ ...x, gstEffectiveDate: x.gstEffectiveDate?.slice(0, 10) }),
+      );
+  }
+  save() {
+    this.api
+      .saveSettings(this.model()!)
+      .subscribe(() => this.snack.open('GST configuration saved', 'Close', { duration: 2500 }));
+  }
+}

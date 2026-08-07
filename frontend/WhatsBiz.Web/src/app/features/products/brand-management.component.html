@@ -1,0 +1,32 @@
+<h1>Brands</h1>
+<div class="layout">
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <h2>{{ editingId ? 'Edit' : 'New' }} brand</h2>
+    <mat-form-field
+      ><mat-label>Code</mat-label><input matInput formControlName="brandCode" /></mat-form-field
+    ><mat-form-field
+      ><mat-label>Name</mat-label><input matInput formControlName="brandName" /></mat-form-field
+    ><mat-form-field
+      ><mat-label>Description</mat-label
+      ><textarea matInput formControlName="description"></textarea></mat-form-field
+    ><mat-form-field
+      ><mat-label>Logo URL</mat-label><input matInput formControlName="logo" /></mat-form-field
+    ><mat-slide-toggle formControlName="isActive">Active</mat-slide-toggle>
+    <div>
+      <button mat-flat-button type="submit" [disabled]="form.invalid">Save</button
+      ><button mat-button type="button" (click)="reset()">Clear</button>
+    </div>
+  </form>
+  <section>
+    @for (item of items(); track item.brandId) {
+      <article>
+        <div>
+          <strong>{{ item.brandName }}</strong
+          ><small>{{ item.brandCode }} · {{ item.isActive ? 'Active' : 'Inactive' }}</small>
+        </div>
+        <button mat-button (click)="edit(item)">Edit</button
+        ><button mat-button (click)="remove(item)">Delete</button>
+      </article>
+    }
+  </section>
+</div>

@@ -1,1 +1,130 @@
-<app-page-container wide><app-page-header eyebrow="Purchase operations" [title]="id?'Edit Purchase':'Create Purchase'" description="Enter supplier invoice details and receive stock with minimal steps."><app-status-chip label="Draft" tone="warning"/></app-page-header><div class="entry-layout"><aside class="details-panel"><h3><span class="material-symbols-rounded">local_shipping</span>Supplier Details</h3><mat-form-field appearance="outline"><mat-label>Supplier</mat-label><mat-select [(ngModel)]="supplierId" required>@for(x of suppliers();track x.supplierId){<mat-option [value]="x.supplierId">{{x.supplierCode}} · {{x.supplierName}}</mat-option>}</mat-select></mat-form-field><h3><span class="material-symbols-rounded">description</span>Purchase Information</h3><mat-form-field appearance="outline"><mat-label>Supplier Invoice</mat-label><input matInput [(ngModel)]="supplierInvoiceNo"></mat-form-field><mat-form-field appearance="outline"><mat-label>Warehouse</mat-label><mat-select [(ngModel)]="warehouseId" required>@for(x of warehouses();track x.warehouseId){<mat-option [value]="x.warehouseId">{{x.warehouseName}}</mat-option>}</mat-select></mat-form-field><mat-form-field appearance="outline"><mat-label>Due Date</mat-label><input matInput type="date" [(ngModel)]="dueDate"></mat-form-field><h3><span class="material-symbols-rounded">attach_file</span>Attachments</h3><button mat-stroked-button type="button"><span class="material-symbols-rounded">upload</span>Add Attachment</button></aside><main class="items-panel"><div class="lookup"><mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Barcode or product</mat-label><span matPrefix class="material-symbols-rounded">barcode_scanner</span><input matInput [(ngModel)]="lookup" (keyup.enter)="find()"></mat-form-field><button mat-flat-button color="primary" (click)="find()"><span class="material-symbols-rounded">add</span>Add Item</button></div><div class="item-grid"><div class="grid-head"><span>Product</span><span>Batch</span><span>Expiry</span><span>Qty</span><span>Free</span><span>Rate</span><span>MRP</span><span>GST</span><span>Discount</span><span>Amount</span><span></span></div>@for(x of items();track $index;let i=$index){<div class="grid-row"><span class="product"><i class="material-symbols-rounded">inventory_2</i><span><strong>{{x.productName}}</strong><small>{{x.barcode||'No barcode'}}</small></span></span><input aria-label="Batch" [(ngModel)]="x.batchNo"><input aria-label="Expiry" type="date" [(ngModel)]="x.expiryDate"><input aria-label="Quantity" type="number" [(ngModel)]="x.quantity"><input aria-label="Free quantity" type="number" [(ngModel)]="x.freeQuantity"><input aria-label="Purchase rate" type="number" [(ngModel)]="x.purchasePrice"><input aria-label="MRP" type="number" [(ngModel)]="x.mrp"><input aria-label="GST" type="number" [(ngModel)]="x.gstPercentage"><input aria-label="Discount" type="number" [(ngModel)]="x.discountPercentage"><strong>{{x.quantity*x.purchasePrice}}</strong><button mat-icon-button aria-label="Delete item" (click)="remove(i)"><span class="material-symbols-rounded">delete</span></button></div>}@empty{<div class="empty"><span class="material-symbols-rounded">barcode_scanner</span><strong>Scan or search a product</strong><p>Purchase items will appear here.</p></div>}</div><mat-form-field class="remarks" appearance="outline"><mat-label>Remarks</mat-label><textarea matInput [(ngModel)]="remarks"></textarea></mat-form-field></main><aside class="summary-panel"><h3>Purchase Summary</h3><dl><dt>Subtotal</dt><dd>{{subtotal()}}</dd><dt>Discount</dt><dd>{{discount()}}</dd><dt>GST</dt><dd>{{tax()}}</dd></dl><mat-form-field appearance="outline"><mat-label>Bill Discount</mat-label><input matInput type="number" [(ngModel)]="billDiscount"></mat-form-field><mat-form-field appearance="outline"><mat-label>Freight / Expense</mat-label><input matInput type="number" [(ngModel)]="expense"></mat-form-field><mat-form-field appearance="outline"><mat-label>Round Off</mat-label><input matInput type="number" [(ngModel)]="roundOff"></mat-form-field><div class="grand"><span>Grand Total</span><strong>{{total()}}</strong></div><button mat-stroked-button (click)="save('DRAFT')">Save Draft</button><button mat-flat-button color="primary" (click)="save('POSTED')">Post Purchase</button><button mat-button><span class="material-symbols-rounded">payments</span>Quick Payment</button></aside></div><footer class="entry-footer"><span><kbd>Ctrl+S</kbd> Save draft</span><span><kbd>F4</kbd> Add item</span><span><kbd>F8</kbd> Post purchase</span><span>Ready</span></footer></app-page-container>
+<app-page-container wide
+  ><app-page-header
+    eyebrow="Purchase operations"
+    [title]="id ? 'Edit Purchase' : 'Create Purchase'"
+    description="Enter supplier invoice details and receive stock with minimal steps."
+    ><app-status-chip label="Draft" tone="warning"
+  /></app-page-header>
+  <div class="entry-layout">
+    <aside class="details-panel">
+      <h3><span class="material-symbols-rounded">local_shipping</span>Supplier Details</h3>
+      <mat-form-field appearance="outline"
+        ><mat-label>Supplier</mat-label
+        ><mat-select [(ngModel)]="supplierId" required>
+          @for (x of suppliers(); track x.supplierId) {
+            <mat-option [value]="x.supplierId"
+              >{{ x.supplierCode }} · {{ x.supplierName }}</mat-option
+            >
+          }
+        </mat-select></mat-form-field
+      >
+      <h3><span class="material-symbols-rounded">description</span>Purchase Information</h3>
+      <mat-form-field appearance="outline"
+        ><mat-label>Supplier Invoice</mat-label
+        ><input matInput [(ngModel)]="supplierInvoiceNo" /></mat-form-field
+      ><mat-form-field appearance="outline"
+        ><mat-label>Warehouse</mat-label
+        ><mat-select [(ngModel)]="warehouseId" required>
+          @for (x of warehouses(); track x.warehouseId) {
+            <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
+          }
+        </mat-select></mat-form-field
+      ><mat-form-field appearance="outline"
+        ><mat-label>Due Date</mat-label><input matInput type="date" [(ngModel)]="dueDate"
+      /></mat-form-field>
+      <h3><span class="material-symbols-rounded">attach_file</span>Attachments</h3>
+      <button mat-stroked-button type="button">
+        <span class="material-symbols-rounded">upload</span>Add Attachment
+      </button>
+    </aside>
+    <main class="items-panel">
+      <div class="lookup">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"
+          ><mat-label>Barcode or product</mat-label
+          ><span matPrefix class="material-symbols-rounded">barcode_scanner</span
+          ><input matInput [(ngModel)]="lookup" (keyup.enter)="find()" /></mat-form-field
+        ><button mat-flat-button color="primary" (click)="find()">
+          <span class="material-symbols-rounded">add</span>Add Item
+        </button>
+      </div>
+      <div class="item-grid">
+        <div class="grid-head">
+          <span>Product</span><span>Batch</span><span>Expiry</span><span>Qty</span><span>Free</span
+          ><span>Rate</span><span>MRP</span><span>GST</span><span>Discount</span><span>Amount</span
+          ><span></span>
+        </div>
+        @for (x of items(); track $index; let i = $index) {
+          <div class="grid-row">
+            <span class="product"
+              ><i class="material-symbols-rounded">inventory_2</i
+              ><span
+                ><strong>{{ x.productName }}</strong
+                ><small>{{ x.barcode || 'No barcode' }}</small></span
+              ></span
+            ><input aria-label="Batch" [(ngModel)]="x.batchNo" /><input
+              aria-label="Expiry"
+              type="date"
+              [(ngModel)]="x.expiryDate"
+            /><input aria-label="Quantity" type="number" [(ngModel)]="x.quantity" /><input
+              aria-label="Free quantity"
+              type="number"
+              [(ngModel)]="x.freeQuantity"
+            /><input aria-label="Purchase rate" type="number" [(ngModel)]="x.purchasePrice" /><input
+              aria-label="MRP"
+              type="number"
+              [(ngModel)]="x.mrp"
+            /><input aria-label="GST" type="number" [(ngModel)]="x.gstPercentage" /><input
+              aria-label="Discount"
+              type="number"
+              [(ngModel)]="x.discountPercentage"
+            /><strong>{{ x.quantity * x.purchasePrice }}</strong
+            ><button mat-icon-button aria-label="Delete item" (click)="remove(i)">
+              <span class="material-symbols-rounded">delete</span>
+            </button>
+          </div>
+        } @empty {
+          <div class="empty">
+            <span class="material-symbols-rounded">barcode_scanner</span
+            ><strong>Scan or search a product</strong>
+            <p>Purchase items will appear here.</p>
+          </div>
+        }
+      </div>
+      <mat-form-field class="remarks" appearance="outline"
+        ><mat-label>Remarks</mat-label><textarea matInput [(ngModel)]="remarks"></textarea>
+      </mat-form-field>
+    </main>
+    <aside class="summary-panel">
+      <h3>Purchase Summary</h3>
+      <dl>
+        <dt>Subtotal</dt>
+        <dd>{{ subtotal() }}</dd>
+        <dt>Discount</dt>
+        <dd>{{ discount() }}</dd>
+        <dt>GST</dt>
+        <dd>{{ tax() }}</dd>
+      </dl>
+      <mat-form-field appearance="outline"
+        ><mat-label>Bill Discount</mat-label
+        ><input matInput type="number" [(ngModel)]="billDiscount" /></mat-form-field
+      ><mat-form-field appearance="outline"
+        ><mat-label>Freight / Expense</mat-label
+        ><input matInput type="number" [(ngModel)]="expense" /></mat-form-field
+      ><mat-form-field appearance="outline"
+        ><mat-label>Round Off</mat-label><input matInput type="number" [(ngModel)]="roundOff"
+      /></mat-form-field>
+      <div class="grand">
+        <span>Grand Total</span><strong>{{ total() }}</strong>
+      </div>
+      <button mat-stroked-button (click)="save('DRAFT')">Save Draft</button
+      ><button mat-flat-button color="primary" (click)="save('POSTED')">Post Purchase</button
+      ><button mat-button>
+        <span class="material-symbols-rounded">payments</span>Quick Payment
+      </button>
+    </aside>
+  </div>
+  <footer class="entry-footer">
+    <span><kbd>Ctrl+S</kbd> Save draft</span><span><kbd>F4</kbd> Add item</span
+    ><span><kbd>F8</kbd> Post purchase</span><span>Ready</span>
+  </footer></app-page-container
+>

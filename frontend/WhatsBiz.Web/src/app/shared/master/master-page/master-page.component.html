@@ -1,0 +1,105 @@
+<app-page-container wide
+  ><app-page-header
+    eyebrow="Master data"
+    [title]="config().title"
+    [description]="config().description"
+    ><a mat-flat-button color="primary" [routerLink]="config().newRoute"
+      ><span class="material-symbols-rounded">add</span>New {{ config().singular }}</a
+    ></app-page-header
+  >
+  <section class="master-summary" [attr.aria-label]="config().title + ' summary'">
+    @for (card of summaries(); track card.label) {
+      <app-summary-card
+        [label]="card.label"
+        [value]="card.value"
+        [icon]="card.icon"
+        [tone]="card.tone"
+      />
+    }
+  </section>
+  <app-action-toolbar sticky
+    ><div toolbar-start class="selection-state">
+      <span class="material-symbols-rounded">checklist</span>{{ selected().length }} selected
+    </div>
+    <a mat-flat-button color="primary" [routerLink]="config().newRoute"
+      ><span class="material-symbols-rounded">add</span>New</a
+    ><button mat-button [disabled]="selected().length !== 1" (click)="emitAction('edit')">
+      <span class="material-symbols-rounded">edit</span>Edit</button
+    ><button
+      mat-button
+      class="danger-action"
+      [disabled]="!selected().length"
+      (click)="emitAction('delete')"
+    >
+      <span class="material-symbols-rounded">delete</span>Delete</button
+    ><button mat-button (click)="emitAction('refresh')">
+      <span class="material-symbols-rounded">refresh</span>Refresh
+    </button>
+    @if (config().importEnabled) {
+      <button mat-button (click)="emitAction('import')">
+        <span class="material-symbols-rounded">upload</span>Import
+      </button>
+    }
+    @if (config().exportEnabled) {
+      <button mat-button (click)="emitAction('export')">
+        <span class="material-symbols-rounded">download</span>Export
+      </button>
+    }
+    @if (config().printEnabled !== false) {
+      <button mat-button (click)="emitAction('print')">
+        <span class="material-symbols-rounded">print</span>Print
+      </button>
+    }
+    <button mat-button [disabled]="!selected().length" (click)="emitAction('bulk')">
+      <span class="material-symbols-rounded">playlist_add_check</span>Bulk actions
+    </button></app-action-toolbar
+  >
+  <app-filter-panel
+    (apply)="applyFilters()"
+    (reset)="resetFilters()"
+    (save)="savedFilter.emit()"
+    (load)="loadedFilter.emit()"
+    ><div class="master-filters">
+      <mat-form-field appearance="outline"
+        ><mat-label>Status</mat-label
+        ><mat-select [formControl]="statusControl"
+          ><mat-option value="all">All records</mat-option
+          ><mat-option value="active">Active</mat-option
+          ><mat-option value="inactive">Inactive</mat-option></mat-select
+        ></mat-form-field
+      ><ng-content select="[master-filters]" /></div
+  ></app-filter-panel>
+  <app-data-table
+    [rows]="rows()"
+    [columns]="config().columns"
+    [loading]="loading()"
+    [actions]="rowActions"
+    [emptyTitle]="'No ' + config().title.toLowerCase() + ' found'"
+    [emptyDescription]="
+      'Adjust the search or filters, or create a new ' + config().singular.toLowerCase() + '.'
+    "
+    (selectionChange)="selected.set($event)"
+    (searchChange)="queueSearch($event)"
+    (sortChange)="sortChange.emit($event)"
+    (rowAction)="row($event)"
+    (rowOpen)="drawerRow.set($event)"
+    ><a empty-action mat-flat-button color="primary" [routerLink]="config().newRoute"
+      ><span class="material-symbols-rounded">add</span>Create New</a
+    ></app-data-table
+  >
+  <mat-paginator
+    [length]="total()"
+    [pageIndex]="pageIndex()"
+    [pageSize]="pageSize()"
+    [pageSizeOptions]="[10, 20, 50, 100]"
+    showFirstLastButtons
+    (page)="page($event)"
+/></app-page-container>
+<app-master-detail-drawer
+  [open]="!!drawerRow()"
+  [title]="drawerTitle()"
+  [record]="drawerRow()"
+  [fields]="config().detailFields"
+  (closed)="drawerRow.set(null)"
+  (edit)="drawerEdit()"
+/>

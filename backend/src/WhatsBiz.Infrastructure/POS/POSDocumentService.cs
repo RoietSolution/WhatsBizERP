@@ -30,9 +30,9 @@ public sealed class POSDocumentService(IPrintingService printing) : IPOSDocument
         var row = 2;
         foreach (var invoice in invoices)
         {
-            sheet.Cell(row, 1).Value = invoice.InvoiceNumber;sheet.Cell(row, 2).Value = invoice.InvoiceDate.DateTime;sheet.Cell(row, 3).Value = invoice.Customer?.CustomerName;sheet.Cell(row, 4).Value = invoice.Status;sheet.Cell(row, 5).Value = invoice.Subtotal;sheet.Cell(row, 6).Value = invoice.DiscountAmount;sheet.Cell(row, 7).Value = invoice.TaxAmount;sheet.Cell(row, 8).Value = invoice.GrandTotal;sheet.Cell(row, 9).Value = invoice.PaidAmount;sheet.Cell(row, 10).Value = invoice.BalanceAmount;row++;
+            sheet.Cell(row, 1).Value = invoice.InvoiceNumber; sheet.Cell(row, 2).Value = invoice.InvoiceDate.DateTime; sheet.Cell(row, 3).Value = invoice.Customer?.CustomerName; sheet.Cell(row, 4).Value = invoice.Status; sheet.Cell(row, 5).Value = invoice.Subtotal; sheet.Cell(row, 6).Value = invoice.DiscountAmount; sheet.Cell(row, 7).Value = invoice.TaxAmount; sheet.Cell(row, 8).Value = invoice.GrandTotal; sheet.Cell(row, 9).Value = invoice.PaidAmount; sheet.Cell(row, 10).Value = invoice.BalanceAmount; row++;
         }
-        sheet.Columns().AdjustToContents();using var stream = new MemoryStream();book.SaveAs(stream);return stream.ToArray();
+        sheet.Columns().AdjustToContents(); using var stream = new MemoryStream(); book.SaveAs(stream); return stream.ToArray();
     }
 
     private static string Encode(string value) => WebUtility.HtmlEncode(value);

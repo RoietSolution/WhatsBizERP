@@ -1,13 +1,19 @@
-using MediatR;using Microsoft.AspNetCore.Mvc;using WhatsBiz.Api.Authorization;using WhatsBiz.Application.Features.Warehouses;using WhatsBiz.SharedKernel;
+using MediatR;
+using Microsoft.AspNetCore.Mvc;
+using WhatsBiz.Api.Authorization;
+using WhatsBiz.Application.Features.Warehouses;
+using WhatsBiz.SharedKernel;
 namespace WhatsBiz.Api.Controllers;
-[ApiController,Route("api/warehouses")]
-public sealed class WarehousesController(ISender sender):ControllerBase{
-[HttpGet,HasPermission(Permissions.Warehouse.View)]public Task<PagedWarehouses> Get([FromQuery]string? search,[FromQuery]bool? isActive,[FromQuery]Guid? warehouseTypeId,[FromQuery]string sortBy="warehouseName",[FromQuery]bool descending=false,[FromQuery]int pageNumber=1,[FromQuery]int pageSize=20,CancellationToken token=default)=>sender.Send(new GetWarehouses(search,isActive,warehouseTypeId,sortBy,descending,pageNumber,pageSize),token);
-[HttpGet("dropdown"),HasPermission(Permissions.Warehouse.View)]public Task<IReadOnlyCollection<WarehouseDropdownDto>> Dropdown([FromQuery]string? search,CancellationToken token)=>sender.Send(new WarehouseDropdown(search),token);
-[HttpGet("export"),HasPermission(Permissions.Warehouse.View)]public async Task<IActionResult> Export(CancellationToken token)=>File(await sender.Send(new ExportWarehouses(),token),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","warehouses.xlsx");
-[HttpGet("import-template"),HasPermission(Permissions.Warehouse.Create)]public async Task<IActionResult> Template(CancellationToken token)=>File(await sender.Send(new WarehouseTemplate(),token),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","warehouse-import-template.xlsx");
-[HttpPost("import"),HasPermission(Permissions.Warehouse.Create),RequestSizeLimit(10*1024*1024)]public async Task<ImportResult> Import(IFormFile file,CancellationToken token){await using var stream=new MemoryStream();await file.CopyToAsync(stream,token);return await sender.Send(new ImportWarehouses(stream.ToArray()),token);}
-[HttpGet("{id:guid}"),HasPermission(Permissions.Warehouse.View)]public Task<WarehouseDto> GetById(Guid id,CancellationToken token)=>sender.Send(new GetWarehouse(id),token);
-[HttpPost,HasPermission(Permissions.Warehouse.Create)]public async Task<IActionResult> Create(WarehouseInput input,CancellationToken token){var value=await sender.Send(new CreateWarehouse(input),token);return CreatedAtAction(nameof(GetById),new{id=value.WarehouseId},value);}
-[HttpPut("{id:guid}"),HasPermission(Permissions.Warehouse.Edit)]public Task<WarehouseDto> Update(Guid id,WarehouseInput input,CancellationToken token)=>sender.Send(new UpdateWarehouse(id,input),token);
-[HttpDelete("{id:guid}"),HasPermission(Permissions.Warehouse.Delete)]public async Task<IActionResult> Delete(Guid id,CancellationToken token){await sender.Send(new DeleteWarehouse(id),token);return NoContent();}}
+[ApiController, Route("api/warehouses")]
+public sealed class WarehousesController(ISender sender) : ControllerBase
+{
+    [HttpGet, HasPermission(Permissions.Warehouse.View)] public Task<PagedWarehouses> Get([FromQuery] string? search, [FromQuery] bool? isActive, [FromQuery] Guid? warehouseTypeId, [FromQuery] string sortBy = "warehouseName", [FromQuery] bool descending = false, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, CancellationToken token = default) => sender.Send(new GetWarehouses(search, isActive, warehouseTypeId, sortBy, descending, pageNumber, pageSize), token);
+    [HttpGet("dropdown"), HasPermission(Permissions.Warehouse.View)] public Task<IReadOnlyCollection<WarehouseDropdownDto>> Dropdown([FromQuery] string? search, CancellationToken token) => sender.Send(new WarehouseDropdown(search), token);
+    [HttpGet("export"), HasPermission(Permissions.Warehouse.View)] public async Task<IActionResult> Export(CancellationToken token) => File(await sender.Send(new ExportWarehouses(), token), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "warehouses.xlsx");
+    [HttpGet("import-template"), HasPermission(Permissions.Warehouse.Create)] public async Task<IActionResult> Template(CancellationToken token) => File(await sender.Send(new WarehouseTemplate(), token), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "warehouse-import-template.xlsx");
+    [HttpPost("import"), HasPermission(Permissions.Warehouse.Create), RequestSizeLimit(10 * 1024 * 1024)] public async Task<ImportResult> Import(IFormFile file, CancellationToken token) { await using var stream = new MemoryStream(); await file.CopyToAsync(stream, token); return await sender.Send(new ImportWarehouses(stream.ToArray()), token); }
+    [HttpGet("{id:guid}"), HasPermission(Permissions.Warehouse.View)] public Task<WarehouseDto> GetById(Guid id, CancellationToken token) => sender.Send(new GetWarehouse(id), token);
+    [HttpPost, HasPermission(Permissions.Warehouse.Create)] public async Task<IActionResult> Create(WarehouseInput input, CancellationToken token) { var value = await sender.Send(new CreateWarehouse(input), token); return CreatedAtAction(nameof(GetById), new { id = value.WarehouseId }, value); }
+    [HttpPut("{id:guid}"), HasPermission(Permissions.Warehouse.Edit)] public Task<WarehouseDto> Update(Guid id, WarehouseInput input, CancellationToken token) => sender.Send(new UpdateWarehouse(id, input), token);
+    [HttpDelete("{id:guid}"), HasPermission(Permissions.Warehouse.Delete)] public async Task<IActionResult> Delete(Guid id, CancellationToken token) { await sender.Send(new DeleteWarehouse(id), token); return NoContent(); }
+}

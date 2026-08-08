@@ -35,7 +35,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 export class DataTableComponent<T extends object> {
   readonly rows = input<T[]>([]);
   readonly columns = input<ColDef<any>[]>([]);
-  readonly pagination = input(false);
+  readonly pagination = input(true);
   readonly pageSize = input(25);
   readonly loading = input(false);
   readonly searchPlaceholder = input('Search records');

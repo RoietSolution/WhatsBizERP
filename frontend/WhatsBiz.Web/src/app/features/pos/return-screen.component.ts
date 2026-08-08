@@ -68,7 +68,10 @@ export class ReturnScreenComponent {
       .map(([invoiceItemId, quantity]) => ({ invoiceItemId, quantity }));
     this.api.return({ invoiceId: this.invoiceId, items, reason: this.reason }).subscribe(() => {
       this.snack.open('Return completed.', undefined, { duration: 3000 });
-      this.load();
+      this.invoice.set(null);
+      this.invoiceId = '';
+      this.reason = 'Customer return';
+      this.quantities = {};
     });
   }
 }

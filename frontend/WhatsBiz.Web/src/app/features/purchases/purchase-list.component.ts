@@ -10,7 +10,6 @@ import {
   DataTableComponent,
   GridRowAction,
 } from '../../shared/components/data-table/data-table.component';
-import { LoadingOverlayComponent } from '../../shared/components/loading-overlay/loading-overlay.component';
 import { PurchaseApiService } from './purchase-api.service';
 import { PurchaseList } from './purchase.models';
 @Component({
@@ -23,7 +22,6 @@ import { PurchaseList } from './purchase.models';
     OperationsWorkspaceComponent,
     FilterPanelComponent,
     DataTableComponent,
-    LoadingOverlayComponent,
   ],
   templateUrl: './purchase-list.component.html',
   styles: [

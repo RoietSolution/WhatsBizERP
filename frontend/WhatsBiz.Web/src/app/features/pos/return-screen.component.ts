@@ -1,4 +1,5 @@
 import { Component, signal } from '@angular/core';
+import { catchError, of, switchMap } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -30,7 +31,33 @@ export class ReturnScreenComponent {
     private readonly snack: MatSnackBar,
   ) {}
   load() {
-    this.api.get(this.invoiceId).subscribe((x) => {
+    const value = this.invoiceId.trim();
+    if (!value) {
+      this.snack.open('Enter an invoice number or invoice ID.', undefined, { duration: 5000 });
+      return;
+    }
+
+    const isId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    );
+    const request = isId
+      ? this.api.get(value)
+      : this.api.invoices(undefined, 1, value).pipe(
+          switchMap((result) => {
+            const match = result.items[0];
+            return match ? this.api.get(match.invoiceId) : of(null);
+          }),
+        );
+
+    request.pipe(catchError(() => of(null))).subscribe((x) => {
+      if (!x) {
+        this.invoice.set(null);
+        this.snack.open('Invoice not found. Check the invoice number or ID.', undefined, {
+          duration: 6000,
+        });
+        return;
+      }
+      this.invoiceId = x.invoiceId;
       this.invoice.set(x);
       this.quantities = {};
     });

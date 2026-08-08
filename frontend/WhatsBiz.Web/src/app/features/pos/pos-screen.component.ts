@@ -278,10 +278,27 @@ export class POSScreenComponent {
     this.barcodeInput?.nativeElement.focus();
   }
   private showOrderError(error: HttpErrorResponse, fallback: string) {
-    const message =
-      typeof error.error?.detail === 'string' && error.error.detail.trim()
-        ? error.error.detail
-        : fallback;
-    this.snack.open(message, 'Dismiss', { duration: 6000, panelClass: 'wb-error' });
+    const message = this.errorMessage(error, fallback);
+    this.snack.open(message, 'Dismiss', { duration: 12000, panelClass: 'wb-error' });
+  }
+
+  private errorMessage(error: HttpErrorResponse, fallback: string): string {
+    const body = error.error;
+    if (typeof body === 'string' && body.trim()) return body.trim();
+    if (body && typeof body === 'object') {
+      if (typeof body.detail === 'string' && body.detail.trim()) return body.detail.trim();
+      if (typeof body.title === 'string' && body.title.trim()) return body.title.trim();
+      if (Array.isArray(body.errors)) {
+        const messages = body.errors
+          .flatMap((value: unknown) => (Array.isArray(value) ? value : [value]))
+          .filter(
+            (value: unknown): value is string =>
+              typeof value === 'string' && value.trim().length > 0,
+          )
+          .map((value: string) => value.trim());
+        if (messages.length) return messages.join('; ');
+      }
+    }
+    return error.message?.trim() || fallback;
   }
 }

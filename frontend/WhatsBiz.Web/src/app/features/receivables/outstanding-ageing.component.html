@@ -61,7 +61,7 @@
     [rows]="rows()"
     [columns]="columns"
     searchPlaceholder="Search party, invoice, or due date"
-    (selectionChange)="selected.set($event[0] ?? null)"
+    (selectionChange)="selected.set($event[0])"
   />
   <section workspace-context class="insight">
     <h3>Outstanding Balance</h3>

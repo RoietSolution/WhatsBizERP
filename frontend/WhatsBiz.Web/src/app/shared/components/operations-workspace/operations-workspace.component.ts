@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { PageContainerComponent } from '../page-container/page-container.component';
 import { PageHeaderComponent } from '../page-header/page-header.component';
@@ -9,7 +8,6 @@ import { MasterSummary } from '../../master/master.models';
 @Component({
   selector: 'app-operations-workspace',
   imports: [
-    RouterLink,
     MatButtonModule,
     PageContainerComponent,
     PageHeaderComponent,

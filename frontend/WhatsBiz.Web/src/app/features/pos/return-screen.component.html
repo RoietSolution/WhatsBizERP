@@ -1,7 +1,8 @@
 <h1>Sales Return</h1>
 <div>
   <mat-form-field
-    ><mat-label>Invoice ID</mat-label><input matInput [(ngModel)]="invoiceId" /></mat-form-field
+    ><mat-label>Invoice Number or ID</mat-label
+    ><input matInput [(ngModel)]="invoiceId" /></mat-form-field
   ><button mat-button (click)="load()">Load</button>
 </div>
 @if (invoice(); as x) {

@@ -63,7 +63,18 @@ a {
   border-left-color: var(--wb-success);
 }
 .mat-mdc-snack-bar-container.wb-error .mdc-snackbar__surface {
-  border-left-color: var(--wb-danger);
+  color: var(--wb-text-on-dark);
+  background: var(--wb-primary);
+  border-color: var(--wb-primary);
+  border-left-color: var(--wb-primary-hover);
+}
+.mat-mdc-snack-bar-container.wb-error .mdc-snackbar__label {
+  color: var(--wb-text-on-dark);
+  font-weight: 600;
+}
+.mat-mdc-snack-bar-container.wb-error .mat-mdc-snack-bar-action {
+  color: var(--wb-text-on-dark);
+  font-weight: 700;
 }
 .mat-mdc-snack-bar-container.wb-warning .mdc-snackbar__surface {
   border-left-color: var(--wb-warning);

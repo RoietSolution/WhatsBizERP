@@ -4,7 +4,6 @@ import { MatButtonModule } from '@angular/material/button';
 import { OperationsWorkspaceComponent } from '../../shared/components/operations-workspace/operations-workspace.component';
 import { FilterPanelComponent } from '../../shared/components/filter-panel/filter-panel.component';
 import { DataTableComponent } from '../../shared/components/data-table/data-table.component';
-import { StatusChipComponent } from '../../shared/components/status-chip/status-chip.component';
 import { FinanceApiService } from './finance-api.service';
 @Component({
   imports: [
@@ -13,7 +12,6 @@ import { FinanceApiService } from './finance-api.service';
     OperationsWorkspaceComponent,
     FilterPanelComponent,
     DataTableComponent,
-    StatusChipComponent,
   ],
   templateUrl: './book.component.html',
   styles: [

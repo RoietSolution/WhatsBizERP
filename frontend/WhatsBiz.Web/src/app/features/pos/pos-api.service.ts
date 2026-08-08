@@ -47,9 +47,10 @@ export class POSApiService {
   get(id: string) {
     return this.http.get<Invoice>(`/api/pos/invoice/${id}`);
   }
-  invoices(status?: string, pageNumber = 1) {
+  invoices(status?: string, pageNumber = 1, search?: string) {
     let params = new HttpParams().set('pageNumber', pageNumber);
     if (status) params = params.set('status', status);
+    if (search) params = params.set('search', search);
     return this.http.get<PagedInvoices>('/api/pos/invoices', { params });
   }
   payment(value: object) {

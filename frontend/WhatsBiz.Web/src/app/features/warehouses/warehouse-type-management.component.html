@@ -1,0 +1,28 @@
+<header>
+  <h1>Warehouse Types</h1>
+  <a mat-button routerLink="/warehouses">Warehouses</a>
+</header>
+<form [formGroup]="form" (ngSubmit)="save()" class="grid">
+  <mat-form-field
+    ><mat-label>Type code</mat-label><input matInput formControlName="typeCode" /></mat-form-field
+  ><mat-form-field
+    ><mat-label>Type name</mat-label><input matInput formControlName="typeName" /></mat-form-field
+  ><mat-form-field
+    ><mat-label>Description</mat-label
+    ><input matInput formControlName="description" /></mat-form-field
+  ><mat-checkbox formControlName="isActive">Active</mat-checkbox
+  ><button mat-flat-button type="submit" [disabled]="form.invalid">
+    {{ editingId ? 'Update' : 'Add' }} type</button
+  ><button mat-button type="button" (click)="clear()">Clear</button>
+</form>
+@for (x of types(); track x.warehouseTypeId) {
+  <section>
+    <div>
+      <strong>{{ x.typeCode }} — {{ x.typeName }}</strong>
+      <p>{{ x.description }}</p>
+    </div>
+    <span>{{ x.isActive ? 'Active' : 'Inactive' }}</span
+    ><button mat-button (click)="edit(x)">Edit</button
+    ><button mat-button (click)="remove(x)">Delete</button>
+  </section>
+}

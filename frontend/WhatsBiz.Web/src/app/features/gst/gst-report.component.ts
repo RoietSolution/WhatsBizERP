@@ -1,2 +1,199 @@
-import{ChangeDetectionStrategy,Component,computed,signal}from'@angular/core';import{FormsModule}from'@angular/forms';import{ActivatedRoute,RouterLink}from'@angular/router';import{MatButtonModule}from'@angular/material/button';import{MatFormFieldModule}from'@angular/material/form-field';import{MatInputModule}from'@angular/material/input';import{MatSnackBar}from'@angular/material/snack-bar';import{finalize}from'rxjs';import{OperationsWorkspaceComponent}from'../../shared/components/operations-workspace/operations-workspace.component';import{FilterPanelComponent}from'../../shared/components/filter-panel/filter-panel.component';import{ReportViewerComponent}from'../../shared/components/report-viewer/report-viewer.component';import{StatusChipComponent}from'../../shared/components/status-chip/status-chip.component';import{GstApiService,GstFilter,GstRow}from'./gst-api.service';
-@Component({imports:[FormsModule,RouterLink,MatButtonModule,MatFormFieldModule,MatInputModule,OperationsWorkspaceComponent,FilterPanelComponent,ReportViewerComponent,StatusChipComponent],template:`<app-operations-workspace eyebrow="GST reports" [title]="title" description="Statutory GST figures sourced from posted sales and purchases." [summaries]="summaries()" [statusText]="rows().length+' records generated'"><app-status-chip workspace-header-actions label="GST Ready" tone="success"/><div workspace-toolbar-actions class="actions"><button mat-button (click)="download('xlsx')"><span class="material-symbols-rounded">table_view</span>Excel</button><button mat-button (click)="download('pdf')"><span class="material-symbols-rounded">picture_as_pdf</span>PDF</button><button mat-button (click)="download('csv')"><span class="material-symbols-rounded">csv</span>CSV</button><button mat-button (click)="print()"><span class="material-symbols-rounded">print</span>Print</button><button mat-button disabled><span class="material-symbols-rounded">mail</span>Email</button><button mat-button><span class="material-symbols-rounded">bookmark_add</span>Save Report</button></div><app-filter-panel workspace-filters title="Advanced report filters" (apply)="load()" (reset)="reset()" (save)="saveFilter()"><div class="filters"><mat-form-field appearance="outline"><mat-label>From</mat-label><input matInput type="date" [(ngModel)]="from"></mat-form-field><mat-form-field appearance="outline"><mat-label>To</mat-label><input matInput type="date" [(ngModel)]="to"></mat-form-field><mat-form-field appearance="outline"><mat-label>GST Rate</mat-label><input matInput type="number" min="0" max="100" [(ngModel)]="gstRate"></mat-form-field><button mat-stroked-button>Financial Year</button><button mat-stroked-button>Branch</button><button mat-stroked-button>Status</button></div></app-filter-panel><app-report-viewer [rows]="rows()" [columns]="columns" [chart]="chart()" [loading]="loading()" [chartLabel]="title+' tax visualization'"/><section workspace-context class="insight"><h3>Report Summary</h3><dl><dt>Last generated</dt><dd>{{lastGenerated()}}</dd><dt>Total records</dt><dd>{{rows().length}}</dd><dt>Taxable value</dt><dd>{{total('taxableAmount')}}</dd><dt>Total GST</dt><dd>{{total('totalTax')}}</dd></dl></section><section workspace-context class="insight"><h3>Related Reports</h3><nav><a routerLink="/gst/sales-register">Sales Register</a><a routerLink="/gst/purchase-register">Purchase Register</a><a routerLink="/gst/hsn-summary">HSN Summary</a><a routerLink="/gst/gstr1">GSTR-1</a><a routerLink="/gst/gstr3b">GSTR-3B</a><a routerLink="/gst/tax-summary">Tax Summary</a></nav></section><section workspace-context class="insight"><h3>Export History</h3><p>Exports generated in this session will appear here.</p><app-status-chip label="Export Ready" tone="success"/></section></app-operations-workspace>`,styles:[`.actions,.filters{display:flex;align-items:center;flex-wrap:wrap;gap:5px}.filters mat-form-field{min-width:150px}.insight{padding:18px;background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--wb-radius-md)}.insight h3{margin-top:0}.insight p{color:var(--wb-text-secondary)}dl{display:grid;grid-template-columns:1fr auto;gap:10px}dd{margin:0;font-weight:700}.insight nav{display:flex;flex-direction:column}.insight nav a{padding:7px 0;color:var(--wb-primary);text-decoration:none;border-bottom:1px solid var(--wb-border)}`],changeDetection:ChangeDetectionStrategy.OnPush})export class GstReportComponent{title='GST Report';report='tax-summary';from=new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().slice(0,10);to=new Date().toISOString().slice(0,10);gstRate?:number;readonly rows=signal<GstRow[]>([]);readonly loading=signal(false);readonly lastGenerated=signal('Not generated');readonly summaries=computed(()=>[{label:'Taxable Value',value:this.total('taxableAmount'),subtitle:'Current filters',icon:'currency_rupee',tone:'primary' as const},{label:'CGST + SGST',value:this.total('cgstAmount')+this.total('sgstAmount'),subtitle:'Intra-state tax',icon:'account_balance',tone:'info' as const},{label:'IGST',value:this.total('igstAmount'),subtitle:'Inter-state tax',icon:'swap_horiz',tone:'warning' as const},{label:'GST Liability',value:this.total('totalTax'),subtitle:'Total tax',icon:'percent',tone:'danger' as const}]);readonly chart=computed(()=>({type:'bar' as const,height:320,currency:true,categories:['Taxable','CGST','SGST','IGST','CESS'],series:[{name:'Amount',data:[this.total('taxableAmount'),this.total('cgstAmount'),this.total('sgstAmount'),this.total('igstAmount'),this.total('cessAmount')]}]}));readonly columns=[{field:'documentNumber',headerName:'Document / Type',minWidth:180},{field:'documentDate',headerName:'Date'},{field:'partyName',headerName:'Party',minWidth:180},{field:'partyGstin',headerName:'GSTIN'},{field:'hsnCode',headerName:'HSN/SAC'},{field:'gstRate',headerName:'Rate %'},{field:'quantity',headerName:'Quantity'},{field:'taxableAmount',headerName:'Taxable'},{field:'cgstAmount',headerName:'CGST'},{field:'sgstAmount',headerName:'SGST'},{field:'igstAmount',headerName:'IGST'},{field:'totalTax',headerName:'Total Tax'}];constructor(private api:GstApiService,route:ActivatedRoute,private snack:MatSnackBar){this.title=route.snapshot.data['title'];this.report=route.snapshot.data['report'];this.load()}filter():GstFilter{return{from:this.from,to:this.to,gstRate:this.gstRate}}load(){this.loading.set(true);this.api.report(this.report,this.filter()).pipe(finalize(()=>this.loading.set(false))).subscribe({next:x=>{this.rows.set(x);this.lastGenerated.set(new Date().toLocaleTimeString('en-IN'))},error:()=>this.snack.open('Unable to load GST report','Close',{duration:3500})})}reset(){this.from=new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().slice(0,10);this.to=new Date().toISOString().slice(0,10);this.gstRate=undefined;this.load()}total(f:keyof GstRow){return this.rows().reduce((n,r)=>n+(Number(r[f])||0),0)}download(format:string){this.api.export(this.report,format,this.filter()).subscribe({next:b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`${this.report}.${format}`;a.click();URL.revokeObjectURL(a.href)},error:()=>this.snack.open('Export failed','Close',{duration:3500})})}print(){window.print()}saveFilter(){this.snack.open('Report filters saved for this session.',undefined,{duration:2200})}}
+import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { finalize } from 'rxjs';
+import { OperationsWorkspaceComponent } from '../../shared/components/operations-workspace/operations-workspace.component';
+import { FilterPanelComponent } from '../../shared/components/filter-panel/filter-panel.component';
+import { ReportViewerComponent } from '../../shared/components/report-viewer/report-viewer.component';
+import { StatusChipComponent } from '../../shared/components/status-chip/status-chip.component';
+import { GstApiService, GstFilter, GstRow } from './gst-api.service';
+@Component({
+  imports: [
+    FormsModule,
+    RouterLink,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    OperationsWorkspaceComponent,
+    FilterPanelComponent,
+    ReportViewerComponent,
+    StatusChipComponent,
+  ],
+  templateUrl: './gst-report.component.html',
+  styles: [
+    `
+      .actions,
+      .filters {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 5px;
+      }
+      .filters mat-form-field {
+        min-width: 150px;
+      }
+      .insight {
+        padding: 18px;
+        background: var(--wb-surface);
+        border: 1px solid var(--wb-border);
+        border-radius: var(--wb-radius-md);
+      }
+      .insight h3 {
+        margin-top: 0;
+      }
+      .insight p {
+        color: var(--wb-text-secondary);
+      }
+      dl {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+      }
+      dd {
+        margin: 0;
+        font-weight: 700;
+      }
+      .insight nav {
+        display: flex;
+        flex-direction: column;
+      }
+      .insight nav a {
+        padding: 7px 0;
+        color: var(--wb-primary);
+        text-decoration: none;
+        border-bottom: 1px solid var(--wb-border);
+      }
+    `,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class GstReportComponent {
+  title = 'GST Report';
+  report = 'tax-summary';
+  from = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  to = new Date().toISOString().slice(0, 10);
+  gstRate?: number;
+  readonly rows = signal<GstRow[]>([]);
+  readonly loading = signal(false);
+  readonly lastGenerated = signal('Not generated');
+  readonly summaries = computed(() => [
+    {
+      label: 'Taxable Value',
+      value: this.total('taxableAmount'),
+      subtitle: 'Current filters',
+      icon: 'currency_rupee',
+      tone: 'primary' as const,
+    },
+    {
+      label: 'CGST + SGST',
+      value: this.total('cgstAmount') + this.total('sgstAmount'),
+      subtitle: 'Intra-state tax',
+      icon: 'account_balance',
+      tone: 'info' as const,
+    },
+    {
+      label: 'IGST',
+      value: this.total('igstAmount'),
+      subtitle: 'Inter-state tax',
+      icon: 'swap_horiz',
+      tone: 'warning' as const,
+    },
+    {
+      label: 'GST Liability',
+      value: this.total('totalTax'),
+      subtitle: 'Total tax',
+      icon: 'percent',
+      tone: 'danger' as const,
+    },
+  ]);
+  readonly chart = computed(() => ({
+    type: 'bar' as const,
+    height: 320,
+    currency: true,
+    categories: ['Taxable', 'CGST', 'SGST', 'IGST', 'CESS'],
+    series: [
+      {
+        name: 'Amount',
+        data: [
+          this.total('taxableAmount'),
+          this.total('cgstAmount'),
+          this.total('sgstAmount'),
+          this.total('igstAmount'),
+          this.total('cessAmount'),
+        ],
+      },
+    ],
+  }));
+  readonly columns = [
+    { field: 'documentNumber', headerName: 'Document / Type', minWidth: 180 },
+    { field: 'documentDate', headerName: 'Date' },
+    { field: 'partyName', headerName: 'Party', minWidth: 180 },
+    { field: 'partyGstin', headerName: 'GSTIN' },
+    { field: 'hsnCode', headerName: 'HSN/SAC' },
+    { field: 'gstRate', headerName: 'Rate %' },
+    { field: 'quantity', headerName: 'Quantity' },
+    { field: 'taxableAmount', headerName: 'Taxable' },
+    { field: 'cgstAmount', headerName: 'CGST' },
+    { field: 'sgstAmount', headerName: 'SGST' },
+    { field: 'igstAmount', headerName: 'IGST' },
+    { field: 'totalTax', headerName: 'Total Tax' },
+  ];
+  constructor(
+    private api: GstApiService,
+    route: ActivatedRoute,
+    private snack: MatSnackBar,
+  ) {
+    this.title = route.snapshot.data['title'];
+    this.report = route.snapshot.data['report'];
+    this.load();
+  }
+  filter(): GstFilter {
+    return { from: this.from, to: this.to, gstRate: this.gstRate };
+  }
+  load() {
+    this.loading.set(true);
+    this.api
+      .report(this.report, this.filter())
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: (x) => {
+          this.rows.set(x);
+          this.lastGenerated.set(new Date().toLocaleTimeString('en-IN'));
+        },
+        error: () => this.snack.open('Unable to load GST report', 'Close', { duration: 3500 }),
+      });
+  }
+  reset() {
+    this.from = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      .toISOString()
+      .slice(0, 10);
+    this.to = new Date().toISOString().slice(0, 10);
+    this.gstRate = undefined;
+    this.load();
+  }
+  total(f: keyof GstRow) {
+    return this.rows().reduce((n, r) => n + (Number(r[f]) || 0), 0);
+  }
+  download(format: string) {
+    this.api.export(this.report, format, this.filter()).subscribe({
+      next: (b) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(b);
+        a.download = `${this.report}.${format}`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      },
+      error: () => this.snack.open('Export failed', 'Close', { duration: 3500 }),
+    });
+  }
+  print() {
+    window.print();
+  }
+  saveFilter() {
+    this.snack.open('Report filters saved for this session.', undefined, { duration: 2200 });
+  }
+}

@@ -1,2 +1,111 @@
-import{ChangeDetectionStrategy,Component,computed,signal}from'@angular/core';import{RouterLink}from'@angular/router';import{MatButtonModule}from'@angular/material/button';import{OperationsWorkspaceComponent}from'../../shared/components/operations-workspace/operations-workspace.component';import{StatusChipComponent}from'../../shared/components/status-chip/status-chip.component';import{PurchaseApiService}from'./purchase-api.service';import{PurchaseDashboard}from'./purchase.models';
-@Component({imports:[RouterLink,MatButtonModule,OperationsWorkspaceComponent,StatusChipComponent],template:`<app-operations-workspace eyebrow="Purchase operations" title="Purchase Workspace" description="Manage purchasing, receipts, supplier obligations, and operational follow-up." [summaries]="summaries()" statusText="Purchase services available"><a workspace-header-actions mat-flat-button color="primary" routerLink="/purchases/create"><span class="material-symbols-rounded">add</span>Create Purchase</a><div workspace-toolbar-actions class="actions"><a mat-button routerLink="/purchases"><span class="material-symbols-rounded">receipt_long</span>Purchase History</a><a mat-button routerLink="/purchases/create"><span class="material-symbols-rounded">inventory</span>Receive Stock</a><button mat-button><span class="material-symbols-rounded">assignment_return</span>Supplier Return</button><button mat-button><span class="material-symbols-rounded">print</span>Print</button></div><section class="operations"><a routerLink="/purchases"><span class="material-symbols-rounded">shopping_cart</span><strong>Purchase Invoices</strong><small>Review invoices, pending purchases, and purchase history.</small></a><a routerLink="/purchases/create"><span class="material-symbols-rounded">add_shopping_cart</span><strong>Purchase Entry</strong><small>Create purchase orders and receive supplier stock.</small></a><a routerLink="/inventory/balance"><span class="material-symbols-rounded">warehouse</span><strong>Goods Receipt</strong><small>Inspect warehouse stock after receiving purchases.</small></a><a routerLink="/inventory/movement-history"><span class="material-symbols-rounded">timeline</span><strong>Purchase Movement</strong><small>Trace inventory movements and receipt history.</small></a></section><section workspace-context class="context-card"><h3>Supplier Information</h3><p>Select a supplier or purchase to view outstanding balances, order history, and recent activity.</p><app-status-chip label="Ready" tone="success"/></section><section workspace-context class="context-card"><h3>Outstanding Orders</h3><strong>{{data()?.outstanding||0}}</strong><small>Supplier outstanding</small></section></app-operations-workspace>`,styles:[`.actions{display:flex;flex-wrap:wrap}.operations{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.operations a{display:grid;min-height:140px;padding:20px;color:var(--wb-text-primary);text-decoration:none;background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--wb-radius-md);transition:200ms}.operations a:hover{border-color:var(--wb-primary);box-shadow:var(--wb-shadow-md);transform:translateY(-2px)}.operations .material-symbols-rounded{color:var(--wb-primary);font-size:30px}.operations strong{margin-top:14px}.operations small,.context-card p,.context-card small{color:var(--wb-text-secondary)}.context-card{padding:18px;background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--wb-radius-md)}.context-card h3{margin-top:0}.context-card>strong{display:block;color:var(--wb-primary);font-size:28px}@media(max-width:767px){.operations{grid-template-columns:1fr}}`],changeDetection:ChangeDetectionStrategy.OnPush})export class PurchaseDashboardComponent{readonly data=signal<PurchaseDashboard|null>(null);readonly summaries=computed(()=>{const x=this.data();return[{label:'Purchase today',value:x?.todayPurchases??0,subtitle:'Today',icon:'shopping_cart',tone:'primary' as const},{label:'Pending orders',value:x?.todayCount??0,subtitle:'Invoices today',icon:'pending_actions',tone:'warning' as const},{label:'Outstanding',value:x?.outstanding??0,subtitle:'Supplier payable',icon:'account_balance_wallet',tone:'danger' as const},{label:'Month purchases',value:x?.monthPurchases??0,subtitle:'Current month',icon:'calendar_month',tone:'info' as const}]});constructor(api:PurchaseApiService){api.dashboard().subscribe(x=>this.data.set(x))}}
+import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { OperationsWorkspaceComponent } from '../../shared/components/operations-workspace/operations-workspace.component';
+import { StatusChipComponent } from '../../shared/components/status-chip/status-chip.component';
+import { PurchaseApiService } from './purchase-api.service';
+import { PurchaseDashboard } from './purchase.models';
+@Component({
+  imports: [RouterLink, MatButtonModule, OperationsWorkspaceComponent, StatusChipComponent],
+  templateUrl: './purchase-dashboard.component.html',
+  styles: [
+    `
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+      }
+      .operations {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .operations a {
+        display: grid;
+        min-height: 140px;
+        padding: 20px;
+        color: var(--wb-text-primary);
+        text-decoration: none;
+        background: var(--wb-surface);
+        border: 1px solid var(--wb-border);
+        border-radius: var(--wb-radius-md);
+        transition: 200ms;
+      }
+      .operations a:hover {
+        border-color: var(--wb-primary);
+        box-shadow: var(--wb-shadow-md);
+        transform: translateY(-2px);
+      }
+      .operations .material-symbols-rounded {
+        color: var(--wb-primary);
+        font-size: 30px;
+      }
+      .operations strong {
+        margin-top: 14px;
+      }
+      .operations small,
+      .context-card p,
+      .context-card small {
+        color: var(--wb-text-secondary);
+      }
+      .context-card {
+        padding: 18px;
+        background: var(--wb-surface);
+        border: 1px solid var(--wb-border);
+        border-radius: var(--wb-radius-md);
+      }
+      .context-card h3 {
+        margin-top: 0;
+      }
+      .context-card > strong {
+        display: block;
+        color: var(--wb-primary);
+        font-size: 28px;
+      }
+      @media (max-width: 767px) {
+        .operations {
+          grid-template-columns: 1fr;
+        }
+      }
+    `,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class PurchaseDashboardComponent {
+  readonly data = signal<PurchaseDashboard | null>(null);
+  readonly summaries = computed(() => {
+    const x = this.data();
+    return [
+      {
+        label: 'Purchase today',
+        value: x?.todayPurchases ?? 0,
+        subtitle: 'Today',
+        icon: 'shopping_cart',
+        tone: 'primary' as const,
+      },
+      {
+        label: 'Pending orders',
+        value: x?.todayCount ?? 0,
+        subtitle: 'Invoices today',
+        icon: 'pending_actions',
+        tone: 'warning' as const,
+      },
+      {
+        label: 'Outstanding',
+        value: x?.outstanding ?? 0,
+        subtitle: 'Supplier payable',
+        icon: 'account_balance_wallet',
+        tone: 'danger' as const,
+      },
+      {
+        label: 'Month purchases',
+        value: x?.monthPurchases ?? 0,
+        subtitle: 'Current month',
+        icon: 'calendar_month',
+        tone: 'info' as const,
+      },
+    ];
+  });
+  constructor(api: PurchaseApiService) {
+    api.dashboard().subscribe((x) => this.data.set(x));
+  }
+}

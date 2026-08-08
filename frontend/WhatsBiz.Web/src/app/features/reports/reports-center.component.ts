@@ -1,2 +1,227 @@
-import{ChangeDetectionStrategy,Component,signal}from'@angular/core';import{RouterLink}from'@angular/router';import{MatButtonModule}from'@angular/material/button';import{OperationsWorkspaceComponent}from'../../shared/components/operations-workspace/operations-workspace.component';import{FilterPanelComponent}from'../../shared/components/filter-panel/filter-panel.component';import{StatusChipComponent}from'../../shared/components/status-chip/status-chip.component';
-@Component({imports:[RouterLink,MatButtonModule,OperationsWorkspaceComponent,FilterPanelComponent,StatusChipComponent],template:`<app-operations-workspace eyebrow="Business intelligence" title="Reports Center" description="Discover, filter, visualize, and export business information from one workspace." [summaries]="summaries" statusText="Report services ready"><a workspace-header-actions mat-flat-button color="primary" routerLink="/gst"><span class="material-symbols-rounded">assessment</span>Open GST Center</a><div workspace-toolbar-actions class="actions"><button mat-button><span class="material-symbols-rounded">bookmark_add</span>Save Layout</button><button mat-button><span class="material-symbols-rounded">star</span>Favorites</button><button mat-button><span class="material-symbols-rounded">history</span>Recently Opened</button><button mat-button><span class="material-symbols-rounded">download</span>Export Center</button></div><app-filter-panel workspace-filters title="Report discovery filters"><div class="filters"><button mat-stroked-button>Date Range</button><button mat-stroked-button>Financial Year</button><button mat-stroked-button>Branch</button><button mat-stroked-button>Warehouse</button><button mat-stroked-button>Status</button></div></app-filter-panel><section class="category-grid">@for(x of categories;track x.title){<article><div><span class="material-symbols-rounded">{{x.icon}}</span><button mat-icon-button [attr.aria-label]="'Favorite '+x.title" (click)="favorite(x.title)"><span class="material-symbols-rounded">{{favorites().includes(x.title)?'star':'star_outline'}}</span></button></div><h3>{{x.title}}</h3><p>{{x.description}}</p><nav>@for(report of x.reports;track report.label){<a [routerLink]="report.route"><span>{{report.label}}</span><span class="material-symbols-rounded">arrow_forward</span></a>}</nav></article>}</section><section workspace-context class="insight"><h3>Report Summary</h3><dl><dt>Categories</dt><dd>{{categories.length}}</dd><dt>Favorites</dt><dd>{{favorites().length}}</dd><dt>Recently opened</dt><dd>—</dd><dt>Last generated</dt><dd>Not yet</dd></dl></section><section workspace-context class="insight"><h3>Export Center</h3><div class="export-actions"><button mat-stroked-button>Excel</button><button mat-stroked-button>PDF</button><button mat-stroked-button>CSV</button><button mat-stroked-button>Print</button><button mat-stroked-button disabled>Email</button></div><app-status-chip label="Ready" tone="success"/></section></app-operations-workspace>`,styles:[`.actions,.filters{display:flex;flex-wrap:wrap;gap:5px}.category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.category-grid article{padding:18px;background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--wb-radius-md);transition:200ms}.category-grid article:hover{border-color:var(--wb-primary);box-shadow:var(--wb-shadow-md);transform:translateY(-2px)}article>div{display:flex;align-items:center;justify-content:space-between}article>div>.material-symbols-rounded{display:grid;width:42px;height:42px;color:var(--wb-primary);background:var(--wb-primary-soft);border-radius:10px;place-items:center}article h3{margin:12px 0 5px}article p{min-height:38px;margin:0 0 10px;color:var(--wb-text-secondary);font-size:12px}article nav{display:flex;flex-direction:column}article nav a{display:flex;padding:7px 0;color:var(--wb-text-primary);text-decoration:none;border-top:1px solid var(--wb-border);align-items:center;justify-content:space-between}article nav a:hover{color:var(--wb-primary)}article nav .material-symbols-rounded{font-size:17px}.insight{padding:18px;background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--wb-radius-md)}.insight h3{margin-top:0}dl{display:grid;grid-template-columns:1fr auto;gap:10px}dd{margin:0;font-weight:700}.export-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:12px}@media(max-width:767px){.category-grid{grid-template-columns:1fr}}`],changeDetection:ChangeDetectionStrategy.OnPush})export class ReportsCenterComponent{readonly favorites=signal<string[]>([]);readonly summaries=[{label:"Today's sales",value:'Open report',subtitle:'Sales performance',icon:'point_of_sale',tone:'primary' as const},{label:'Purchase value',value:'Open report',subtitle:'Purchase analytics',icon:'shopping_cart',tone:'info' as const},{label:'Inventory value',value:'Open report',subtitle:'Stock valuation',icon:'inventory_2',tone:'success' as const},{label:'GST liability',value:'Open report',subtitle:'Tax center',icon:'percent',tone:'warning' as const}];readonly categories=[{title:'Sales Reports',icon:'trending_up',description:'Sales summaries, invoice history, trends, and product performance.',reports:[{label:'Sales Analytics',route:'/analytics/sales'},{label:'Invoice History',route:'/pos/history'}]},{title:'Purchase Reports',icon:'shopping_bag',description:'Purchase value, supplier invoices, outstanding orders, and trends.',reports:[{label:'Purchase Analytics',route:'/analytics/purchase'},{label:'Purchase History',route:'/purchases'}]},{title:'Inventory Reports',icon:'inventory_2',description:'Stock valuation, movement, alerts, and warehouse availability.',reports:[{label:'Inventory Analytics',route:'/analytics/inventory'},{label:'Stock Balance',route:'/inventory/balance'}]},{title:'Finance Reports',icon:'account_balance',description:'Cash flow, books, ledgers, receivables, and payables.',reports:[{label:'Finance Analytics',route:'/analytics/finance'},{label:'Day Book',route:'/finance/daybook'}]},{title:'GST Reports',icon:'percent',description:'GST registers, HSN summary, liability, GSTR-1, and GSTR-3B.',reports:[{label:'GST Center',route:'/gst'},{label:'Tax Summary',route:'/gst/tax-summary'}]},{title:'Customer Reports',icon:'groups',description:'Customer balances, ageing, collections, and ledger history.',reports:[{label:'Customer Outstanding',route:'/finance/customer-outstanding'},{label:'Customer Ledger',route:'/finance/customer-ledger'}]},{title:'Supplier Reports',icon:'local_shipping',description:'Supplier balances, ageing, payment history, and purchases.',reports:[{label:'Supplier Outstanding',route:'/finance/supplier-outstanding'},{label:'Supplier Ledger',route:'/finance/supplier-ledger'}]},{title:'Administration Reports',icon:'admin_panel_settings',description:'Audit history, company settings, and operational administration.',reports:[{label:'Audit History',route:'/admin/audit'},{label:'Company Profile',route:'/admin/company'}]}];favorite(title:string){this.favorites.update(x=>x.includes(title)?x.filter(v=>v!==title):[...x,title])}}
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { OperationsWorkspaceComponent } from '../../shared/components/operations-workspace/operations-workspace.component';
+import { FilterPanelComponent } from '../../shared/components/filter-panel/filter-panel.component';
+import { StatusChipComponent } from '../../shared/components/status-chip/status-chip.component';
+@Component({
+  imports: [
+    RouterLink,
+    MatButtonModule,
+    OperationsWorkspaceComponent,
+    FilterPanelComponent,
+    StatusChipComponent,
+  ],
+  templateUrl: './reports-center.component.html',
+  styles: [
+    `
+      .actions,
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+      }
+      .category-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .category-grid article {
+        padding: 18px;
+        background: var(--wb-surface);
+        border: 1px solid var(--wb-border);
+        border-radius: var(--wb-radius-md);
+        transition: 200ms;
+      }
+      .category-grid article:hover {
+        border-color: var(--wb-primary);
+        box-shadow: var(--wb-shadow-md);
+        transform: translateY(-2px);
+      }
+      article > div {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      article > div > .material-symbols-rounded {
+        display: grid;
+        width: 42px;
+        height: 42px;
+        color: var(--wb-primary);
+        background: var(--wb-primary-soft);
+        border-radius: 10px;
+        place-items: center;
+      }
+      article h3 {
+        margin: 12px 0 5px;
+      }
+      article p {
+        min-height: 38px;
+        margin: 0 0 10px;
+        color: var(--wb-text-secondary);
+        font-size: 12px;
+      }
+      article nav {
+        display: flex;
+        flex-direction: column;
+      }
+      article nav a {
+        display: flex;
+        padding: 7px 0;
+        color: var(--wb-text-primary);
+        text-decoration: none;
+        border-top: 1px solid var(--wb-border);
+        align-items: center;
+        justify-content: space-between;
+      }
+      article nav a:hover {
+        color: var(--wb-primary);
+      }
+      article nav .material-symbols-rounded {
+        font-size: 17px;
+      }
+      .insight {
+        padding: 18px;
+        background: var(--wb-surface);
+        border: 1px solid var(--wb-border);
+        border-radius: var(--wb-radius-md);
+      }
+      .insight h3 {
+        margin-top: 0;
+      }
+      dl {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+      }
+      dd {
+        margin: 0;
+        font-weight: 700;
+      }
+      .export-actions {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+      @media (max-width: 767px) {
+        .category-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    `,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class ReportsCenterComponent {
+  readonly favorites = signal<string[]>([]);
+  readonly summaries = [
+    {
+      label: "Today's sales",
+      value: 'Open report',
+      subtitle: 'Sales performance',
+      icon: 'point_of_sale',
+      tone: 'primary' as const,
+    },
+    {
+      label: 'Purchase value',
+      value: 'Open report',
+      subtitle: 'Purchase analytics',
+      icon: 'shopping_cart',
+      tone: 'info' as const,
+    },
+    {
+      label: 'Inventory value',
+      value: 'Open report',
+      subtitle: 'Stock valuation',
+      icon: 'inventory_2',
+      tone: 'success' as const,
+    },
+    {
+      label: 'GST liability',
+      value: 'Open report',
+      subtitle: 'Tax center',
+      icon: 'percent',
+      tone: 'warning' as const,
+    },
+  ];
+  readonly categories = [
+    {
+      title: 'Sales Reports',
+      icon: 'trending_up',
+      description: 'Sales summaries, invoice history, trends, and product performance.',
+      reports: [
+        { label: 'Sales Analytics', route: '/analytics/sales' },
+        { label: 'Invoice History', route: '/pos/history' },
+      ],
+    },
+    {
+      title: 'Purchase Reports',
+      icon: 'shopping_bag',
+      description: 'Purchase value, supplier invoices, outstanding orders, and trends.',
+      reports: [
+        { label: 'Purchase Analytics', route: '/analytics/purchase' },
+        { label: 'Purchase History', route: '/purchases' },
+      ],
+    },
+    {
+      title: 'Inventory Reports',
+      icon: 'inventory_2',
+      description: 'Stock valuation, movement, alerts, and warehouse availability.',
+      reports: [
+        { label: 'Inventory Analytics', route: '/analytics/inventory' },
+        { label: 'Stock Balance', route: '/inventory/balance' },
+      ],
+    },
+    {
+      title: 'Finance Reports',
+      icon: 'account_balance',
+      description: 'Cash flow, books, ledgers, receivables, and payables.',
+      reports: [
+        { label: 'Finance Analytics', route: '/analytics/finance' },
+        { label: 'Day Book', route: '/finance/daybook' },
+      ],
+    },
+    {
+      title: 'GST Reports',
+      icon: 'percent',
+      description: 'GST registers, HSN summary, liability, GSTR-1, and GSTR-3B.',
+      reports: [
+        { label: 'GST Center', route: '/gst' },
+        { label: 'Tax Summary', route: '/gst/tax-summary' },
+      ],
+    },
+    {
+      title: 'Customer Reports',
+      icon: 'groups',
+      description: 'Customer balances, ageing, collections, and ledger history.',
+      reports: [
+        { label: 'Customer Outstanding', route: '/finance/customer-outstanding' },
+        { label: 'Customer Ledger', route: '/finance/customer-ledger' },
+      ],
+    },
+    {
+      title: 'Supplier Reports',
+      icon: 'local_shipping',
+      description: 'Supplier balances, ageing, payment history, and purchases.',
+      reports: [
+        { label: 'Supplier Outstanding', route: '/finance/supplier-outstanding' },
+        { label: 'Supplier Ledger', route: '/finance/supplier-ledger' },
+      ],
+    },
+    {
+      title: 'Administration Reports',
+      icon: 'admin_panel_settings',
+      description: 'Audit history, company settings, and operational administration.',
+      reports: [
+        { label: 'Audit History', route: '/admin/audit' },
+        { label: 'Company Profile', route: '/admin/company' },
+      ],
+    },
+  ];
+  favorite(title: string) {
+    this.favorites.update((x) =>
+      x.includes(title) ? x.filter((v) => v !== title) : [...x, title],
+    );
+  }
+}

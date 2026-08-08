@@ -1,0 +1,10 @@
+<h1>Hold Bills</h1>
+@for (x of bills(); track x.invoiceId) {
+  <section>
+    <span
+      ><strong>{{ x.invoiceNumber }}</strong> · {{ x.invoiceDate }} · {{ x.grandTotal }}</span
+    ><button mat-flat-button (click)="resume(x)">Resume</button>
+  </section>
+} @empty {
+  <p>No held bills.</p>
+}

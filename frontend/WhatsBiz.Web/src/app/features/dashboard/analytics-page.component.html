@@ -1,0 +1,37 @@
+<header>
+  <h1>{{ title }}</h1>
+  <div>
+    @if (mode !== 'inventory') {
+      <input type="date" [(ngModel)]="from" /><input type="date" [(ngModel)]="to" />
+    }
+    <button mat-flat-button (click)="load(true)">Refresh</button>
+  </div>
+</header>
+@if (kpis().length) {
+  <section class="kpis">
+    @for (k of kpis(); track k.label) {
+      <article>
+        <span>{{ k.label }}</span
+        ><b>{{ k.money ? '₹' : '' }}{{ k.value | number: '1.2-2' }}</b>
+      </article>
+    }
+  </section>
+}
+<section class="charts">
+  @for (chart of charts(); track chart.name) {
+    <article class="chart">
+      <h2>{{ chart.name }}</h2>
+      @if (chart.points.length) {
+        @for (p of chart.points; track p.label) {
+          <div class="bar" [title]="p.label + ': ' + p.value">
+            <label>{{ p.label }}</label>
+            <div><i [style.width.%]="width(p.value, chart.points)"></i></div>
+            <b>{{ p.value | number: '1.0-2' }}</b>
+          </div>
+        }
+      } @else {
+        <p>No data for this range.</p>
+      }
+    </article>
+  }
+</section>

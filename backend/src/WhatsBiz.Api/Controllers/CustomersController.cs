@@ -1,18 +1,24 @@
-using MediatR;using Microsoft.AspNetCore.Mvc;using WhatsBiz.Api.Authorization;using WhatsBiz.Application.Features.Customers;using WhatsBiz.SharedKernel;
+using MediatR;
+using Microsoft.AspNetCore.Mvc;
+using WhatsBiz.Api.Authorization;
+using WhatsBiz.Application.Features.Customers;
+using WhatsBiz.SharedKernel;
 namespace WhatsBiz.Api.Controllers;
-[ApiController,Route("api/customers")]
-public sealed class CustomersController(ISender sender):ControllerBase{
-[HttpGet,HasPermission(Permissions.Customer.View)]public Task<PagedCustomers> Get([FromQuery]string? search,[FromQuery]bool? isActive,[FromQuery]string sortBy="customerName",[FromQuery]bool descending=false,[FromQuery]int pageNumber=1,[FromQuery]int pageSize=20,CancellationToken token=default)=>sender.Send(new GetCustomers(search,isActive,sortBy,descending,pageNumber,pageSize),token);
-[HttpGet("search"),HasPermission(Permissions.Customer.View)]public Task<PagedCustomers> Search([FromQuery]string? q,[FromQuery]int pageNumber=1,[FromQuery]int pageSize=20,CancellationToken token=default)=>sender.Send(new GetCustomers(q,null,"customerName",false,pageNumber,pageSize),token);
-[HttpGet("dropdown"),HasPermission(Permissions.Customer.View)]public Task<IReadOnlyCollection<CustomerDropdownDto>> Dropdown([FromQuery]string? search,CancellationToken token)=>sender.Send(new Dropdown(search),token);
-[HttpGet("payment-terms"),HasPermission(Permissions.Customer.View)]public Task<IReadOnlyCollection<TermDto>> Terms(CancellationToken token)=>sender.Send(new Terms(),token);
-[HttpGet("export"),HasPermission(Permissions.Customer.View)]public async Task<IActionResult> Export(CancellationToken token)=>File(await sender.Send(new ExportCustomers(),token),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","customers.xlsx");
-[HttpGet("import-template"),HasPermission(Permissions.Customer.Create)]public async Task<IActionResult> Template(CancellationToken token)=>File(await sender.Send(new Template(),token),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","customer-import-template.xlsx");
-[HttpPost("import"),HasPermission(Permissions.Customer.Create),RequestSizeLimit(10*1024*1024)]public async Task<ImportResult> Import(IFormFile file,CancellationToken token){await using var m=new MemoryStream();await file.CopyToAsync(m,token);return await sender.Send(new ImportCustomers(m.ToArray()),token);}
-[HttpGet("{id:guid}"),HasPermission(Permissions.Customer.View)]public Task<CustomerDto> GetById(Guid id,CancellationToken token)=>sender.Send(new GetCustomer(id),token);
-[HttpPost,HasPermission(Permissions.Customer.Create)]public async Task<IActionResult> Create(CustomerInput input,CancellationToken token){var x=await sender.Send(new CreateCustomer(input),token);return CreatedAtAction(nameof(GetById),new{id=x.CustomerId},x);}
-[HttpPut("{id:guid}"),HasPermission(Permissions.Customer.Edit)]public Task<CustomerDto> Update(Guid id,CustomerInput input,CancellationToken token)=>sender.Send(new UpdateCustomer(id,input),token);
-[HttpDelete("{id:guid}"),HasPermission(Permissions.Customer.Delete)]public async Task<IActionResult> Delete(Guid id,CancellationToken token){await sender.Send(new DeleteCustomer(id),token);return NoContent();}
-[HttpPost("{id:guid}/documents"),HasPermission(Permissions.Customer.Edit),RequestSizeLimit(10*1024*1024)]public async Task<CustomerDocumentDto> Upload(Guid id,[FromForm]string documentType,IFormFile file,CancellationToken token){await using var m=new MemoryStream();await file.CopyToAsync(m,token);return await sender.Send(new UploadDocument(id,documentType,file.FileName,file.ContentType,m.ToArray()),token);}
-[HttpGet("{id:guid}/documents/{documentId:guid}"),HasPermission(Permissions.Customer.View)]public async Task<IActionResult> Document(Guid id,Guid documentId,CancellationToken token){var x=await sender.Send(new GetDocument(id,documentId),token);return x is null?NotFound():File(x.Data,x.ContentType,x.Name);}
-[HttpDelete("{id:guid}/documents/{documentId:guid}"),HasPermission(Permissions.Customer.Edit)]public async Task<IActionResult> DeleteDocument(Guid id,Guid documentId,CancellationToken token){await sender.Send(new DeleteDocument(id,documentId),token);return NoContent();}}
+[ApiController, Route("api/customers")]
+public sealed class CustomersController(ISender sender) : ControllerBase
+{
+    [HttpGet, HasPermission(Permissions.Customer.View)] public Task<PagedCustomers> Get([FromQuery] string? search, [FromQuery] bool? isActive, [FromQuery] string sortBy = "customerName", [FromQuery] bool descending = false, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, CancellationToken token = default) => sender.Send(new GetCustomers(search, isActive, sortBy, descending, pageNumber, pageSize), token);
+    [HttpGet("search"), HasPermission(Permissions.Customer.View)] public Task<PagedCustomers> Search([FromQuery] string? q, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, CancellationToken token = default) => sender.Send(new GetCustomers(q, null, "customerName", false, pageNumber, pageSize), token);
+    [HttpGet("dropdown"), HasPermission(Permissions.Customer.View)] public Task<IReadOnlyCollection<CustomerDropdownDto>> Dropdown([FromQuery] string? search, CancellationToken token) => sender.Send(new Dropdown(search), token);
+    [HttpGet("payment-terms"), HasPermission(Permissions.Customer.View)] public Task<IReadOnlyCollection<TermDto>> Terms(CancellationToken token) => sender.Send(new Terms(), token);
+    [HttpGet("export"), HasPermission(Permissions.Customer.View)] public async Task<IActionResult> Export(CancellationToken token) => File(await sender.Send(new ExportCustomers(), token), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "customers.xlsx");
+    [HttpGet("import-template"), HasPermission(Permissions.Customer.Create)] public async Task<IActionResult> Template(CancellationToken token) => File(await sender.Send(new Template(), token), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "customer-import-template.xlsx");
+    [HttpPost("import"), HasPermission(Permissions.Customer.Create), RequestSizeLimit(10 * 1024 * 1024)] public async Task<ImportResult> Import(IFormFile file, CancellationToken token) { await using var m = new MemoryStream(); await file.CopyToAsync(m, token); return await sender.Send(new ImportCustomers(m.ToArray()), token); }
+    [HttpGet("{id:guid}"), HasPermission(Permissions.Customer.View)] public Task<CustomerDto> GetById(Guid id, CancellationToken token) => sender.Send(new GetCustomer(id), token);
+    [HttpPost, HasPermission(Permissions.Customer.Create)] public async Task<IActionResult> Create(CustomerInput input, CancellationToken token) { var x = await sender.Send(new CreateCustomer(input), token); return CreatedAtAction(nameof(GetById), new { id = x.CustomerId }, x); }
+    [HttpPut("{id:guid}"), HasPermission(Permissions.Customer.Edit)] public Task<CustomerDto> Update(Guid id, CustomerInput input, CancellationToken token) => sender.Send(new UpdateCustomer(id, input), token);
+    [HttpDelete("{id:guid}"), HasPermission(Permissions.Customer.Delete)] public async Task<IActionResult> Delete(Guid id, CancellationToken token) { await sender.Send(new DeleteCustomer(id), token); return NoContent(); }
+    [HttpPost("{id:guid}/documents"), HasPermission(Permissions.Customer.Edit), RequestSizeLimit(10 * 1024 * 1024)] public async Task<CustomerDocumentDto> Upload(Guid id, [FromForm] string documentType, IFormFile file, CancellationToken token) { await using var m = new MemoryStream(); await file.CopyToAsync(m, token); return await sender.Send(new UploadDocument(id, documentType, file.FileName, file.ContentType, m.ToArray()), token); }
+    [HttpGet("{id:guid}/documents/{documentId:guid}"), HasPermission(Permissions.Customer.View)] public async Task<IActionResult> Document(Guid id, Guid documentId, CancellationToken token) { var x = await sender.Send(new GetDocument(id, documentId), token); return x is null ? NotFound() : File(x.Data, x.ContentType, x.Name); }
+    [HttpDelete("{id:guid}/documents/{documentId:guid}"), HasPermission(Permissions.Customer.Edit)] public async Task<IActionResult> DeleteDocument(Guid id, Guid documentId, CancellationToken token) { await sender.Send(new DeleteDocument(id, documentId), token); return NoContent(); }
+}

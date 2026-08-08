@@ -1,5 +1,21 @@
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 
-@Component({ selector: 'app-filter-panel', imports: [MatButtonModule], template: '<section [class.filter-panel--collapsed]="collapsed()"><header><div><span class="material-symbols-rounded">filter_alt</span><strong>{{ title() }}</strong></div><button mat-icon-button type="button" [attr.aria-label]="collapsed() ? `Expand ${title()}` : `Collapse ${title()}`" (click)="toggle()"><span class="material-symbols-rounded">{{ collapsed() ? "expand_more" : "expand_less" }}</span></button></header>@if (!collapsed()) { <div class="filter-panel__body"><ng-content /></div><footer><div><button mat-button type="button" (click)="save.emit()"><span class="material-symbols-rounded">bookmark_add</span>Save Filter</button><button mat-button type="button" (click)="load.emit()"><span class="material-symbols-rounded">bookmarks</span>Load Filter</button></div><div><button mat-button type="button" (click)="reset.emit()">Reset</button><button mat-flat-button color="primary" type="button" (click)="apply.emit()">Apply filters</button></div></footer> }</section>', styleUrl: './filter-panel.component.scss', changeDetection: ChangeDetectionStrategy.OnPush })
-export class FilterPanelComponent { readonly title = input('Filters'); readonly apply = output<void>(); readonly reset = output<void>(); readonly save = output<void>(); readonly load = output<void>(); readonly collapsed = signal(false); toggle(): void { this.collapsed.update((value) => !value); } }
+@Component({
+  selector: 'app-filter-panel',
+  imports: [MatButtonModule],
+  templateUrl: './filter-panel.component.html',
+  styleUrl: './filter-panel.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class FilterPanelComponent {
+  readonly title = input('Filters');
+  readonly apply = output<void>();
+  readonly reset = output<void>();
+  readonly save = output<void>();
+  readonly load = output<void>();
+  readonly collapsed = signal(false);
+  toggle(): void {
+    this.collapsed.update((value) => !value);
+  }
+}

@@ -1,2 +1,64 @@
-import{HttpClient,HttpParams}from'@angular/common/http';import{Injectable}from'@angular/core';import{PagedWarehouses,Warehouse,WarehouseInput,WarehouseType}from'./warehouse.models';
-@Injectable({providedIn:'root'})export class WarehouseApiService{constructor(private readonly http:HttpClient){}search(q:{search?:string;isActive?:boolean;warehouseTypeId?:string;sortBy:string;descending:boolean;pageNumber:number;pageSize:number}){let p=new HttpParams().set('sortBy',q.sortBy).set('descending',q.descending).set('pageNumber',q.pageNumber).set('pageSize',q.pageSize);if(q.search)p=p.set('search',q.search);if(q.isActive!==undefined)p=p.set('isActive',q.isActive);if(q.warehouseTypeId)p=p.set('warehouseTypeId',q.warehouseTypeId);return this.http.get<PagedWarehouses>('/api/warehouses',{params:p})}get(id:string){return this.http.get<Warehouse>(`/api/warehouses/${id}`)}create(value:WarehouseInput){return this.http.post<Warehouse>('/api/warehouses',value)}update(id:string,value:WarehouseInput){return this.http.put<Warehouse>(`/api/warehouses/${id}`,value)}delete(id:string){return this.http.delete<void>(`/api/warehouses/${id}`)}types(){return this.http.get<WarehouseType[]>('/api/warehousetypes')}createType(value:Omit<WarehouseType,'warehouseTypeId'>){return this.http.post<WarehouseType>('/api/warehousetypes',value)}updateType(id:string,value:Omit<WarehouseType,'warehouseTypeId'>){return this.http.put<WarehouseType>(`/api/warehousetypes/${id}`,value)}deleteType(id:string){return this.http.delete<void>(`/api/warehousetypes/${id}`)}export(){return this.http.get('/api/warehouses/export',{responseType:'blob'})}template(){return this.http.get('/api/warehouses/import-template',{responseType:'blob'})}import(file:File){const data=new FormData();data.append('file',file);return this.http.post<{importedCount:number;errors:string[]}>('/api/warehouses/import',data)}}
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { PagedWarehouses, Warehouse, WarehouseInput, WarehouseType } from './warehouse.models';
+@Injectable({ providedIn: 'root' })
+export class WarehouseApiService {
+  constructor(private readonly http: HttpClient) {}
+  search(q: {
+    search?: string;
+    isActive?: boolean;
+    warehouseTypeId?: string;
+    sortBy: string;
+    descending: boolean;
+    pageNumber: number;
+    pageSize: number;
+  }) {
+    let p = new HttpParams()
+      .set('sortBy', q.sortBy)
+      .set('descending', q.descending)
+      .set('pageNumber', q.pageNumber)
+      .set('pageSize', q.pageSize);
+    if (q.search) p = p.set('search', q.search);
+    if (q.isActive !== undefined) p = p.set('isActive', q.isActive);
+    if (q.warehouseTypeId) p = p.set('warehouseTypeId', q.warehouseTypeId);
+    return this.http.get<PagedWarehouses>('/api/warehouses', { params: p });
+  }
+  get(id: string) {
+    return this.http.get<Warehouse>(`/api/warehouses/${id}`);
+  }
+  create(value: WarehouseInput) {
+    return this.http.post<Warehouse>('/api/warehouses', value);
+  }
+  update(id: string, value: WarehouseInput) {
+    return this.http.put<Warehouse>(`/api/warehouses/${id}`, value);
+  }
+  delete(id: string) {
+    return this.http.delete<void>(`/api/warehouses/${id}`);
+  }
+  types() {
+    return this.http.get<WarehouseType[]>('/api/warehousetypes');
+  }
+  createType(value: Omit<WarehouseType, 'warehouseTypeId'>) {
+    return this.http.post<WarehouseType>('/api/warehousetypes', value);
+  }
+  updateType(id: string, value: Omit<WarehouseType, 'warehouseTypeId'>) {
+    return this.http.put<WarehouseType>(`/api/warehousetypes/${id}`, value);
+  }
+  deleteType(id: string) {
+    return this.http.delete<void>(`/api/warehousetypes/${id}`);
+  }
+  export() {
+    return this.http.get('/api/warehouses/export', { responseType: 'blob' });
+  }
+  template() {
+    return this.http.get('/api/warehouses/import-template', { responseType: 'blob' });
+  }
+  import(file: File) {
+    const data = new FormData();
+    data.append('file', file);
+    return this.http.post<{ importedCount: number; errors: string[] }>(
+      '/api/warehouses/import',
+      data,
+    );
+  }
+}

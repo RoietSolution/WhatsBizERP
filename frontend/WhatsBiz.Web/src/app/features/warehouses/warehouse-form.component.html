@@ -1,0 +1,144 @@
+<header>
+  <h1>{{ id ? 'Edit' : 'Create' }} warehouse</h1>
+  <a mat-button routerLink="/warehouses">Cancel</a>
+</header>
+<form [formGroup]="form" (ngSubmit)="save()">
+  <mat-tab-group
+    ><mat-tab label="General"
+      ><div class="grid">
+        <mat-form-field
+          ><mat-label>Code</mat-label
+          ><input matInput formControlName="warehouseCode" /></mat-form-field
+        ><mat-form-field
+          ><mat-label>Name</mat-label
+          ><input matInput formControlName="warehouseName" /></mat-form-field
+        ><mat-form-field
+          ><mat-label>Type</mat-label
+          ><mat-select formControlName="warehouseTypeId">
+            @for (x of types(); track x.warehouseTypeId) {
+              <mat-option [value]="x.warehouseTypeId">{{ x.typeName }}</mat-option>
+            }
+          </mat-select></mat-form-field
+        ><mat-form-field
+          ><mat-label>Branch ID</mat-label
+          ><input matInput formControlName="branchId" /></mat-form-field
+        ><mat-form-field
+          ><mat-label>Manager</mat-label
+          ><input matInput formControlName="managerName" /></mat-form-field
+        ><mat-form-field
+          ><mat-label>Email</mat-label><input matInput formControlName="email" /></mat-form-field
+        ><mat-form-field
+          ><mat-label>Phone</mat-label><input matInput formControlName="phone" /></mat-form-field
+        ><mat-form-field
+          ><mat-label>Mobile</mat-label><input matInput formControlName="mobile" /></mat-form-field
+        ><mat-form-field
+          ><mat-label>Capacity</mat-label
+          ><input matInput type="number" formControlName="capacity" /></mat-form-field
+        ><mat-form-field class="wide"
+          ><mat-label>Remarks</mat-label><textarea matInput formControlName="remarks"></textarea>
+        </mat-form-field>
+        <div class="checks">
+          <mat-checkbox formControlName="isDefault">Default warehouse</mat-checkbox
+          ><mat-checkbox formControlName="isActive">Active</mat-checkbox>
+        </div>
+      </div></mat-tab
+    ><mat-tab label="Address"
+      ><div formGroupName="address" class="grid">
+        <mat-form-field
+          ><mat-label>Address line 1</mat-label
+          ><input matInput formControlName="addressLine1" /></mat-form-field
+        ><mat-form-field
+          ><mat-label>Address line 2</mat-label
+          ><input matInput formControlName="addressLine2" /></mat-form-field
+        ><mat-form-field
+          ><mat-label>City</mat-label><input matInput formControlName="city" /></mat-form-field
+        ><mat-form-field
+          ><mat-label>District</mat-label
+          ><input matInput formControlName="district" /></mat-form-field
+        ><mat-form-field
+          ><mat-label>State</mat-label><input matInput formControlName="state" /></mat-form-field
+        ><mat-form-field
+          ><mat-label>Country</mat-label
+          ><input matInput formControlName="country" /></mat-form-field
+        ><mat-form-field
+          ><mat-label>Postal code</mat-label><input matInput formControlName="postalCode"
+        /></mat-form-field></div></mat-tab
+    ><mat-tab label="Contacts"
+      ><div formArrayName="contacts">
+        @for (contact of contacts.controls; track $index; let i = $index) {
+          <section [formGroupName]="i" class="grid">
+            <mat-form-field
+              ><mat-label>Contact person</mat-label
+              ><input matInput formControlName="contactPerson" /></mat-form-field
+            ><mat-form-field
+              ><mat-label>Designation</mat-label
+              ><input matInput formControlName="designation" /></mat-form-field
+            ><mat-form-field
+              ><mat-label>Mobile</mat-label
+              ><input matInput formControlName="mobile" /></mat-form-field
+            ><mat-form-field
+              ><mat-label>Email</mat-label
+              ><input matInput formControlName="email" /></mat-form-field
+            ><mat-checkbox formControlName="isPrimary">Primary</mat-checkbox
+            ><button mat-button type="button" (click)="contacts.removeAt(i)">Remove</button>
+          </section>
+        }
+      </div>
+      <button mat-button type="button" (click)="addContact()">Add contact</button></mat-tab
+    ><mat-tab label="Zones"
+      ><div formArrayName="zones">
+        @for (zone of zones.controls; track $index; let i = $index) {
+          <section [formGroupName]="i" class="grid">
+            <mat-form-field
+              ><mat-label>Zone code</mat-label
+              ><input matInput formControlName="zoneCode" /></mat-form-field
+            ><mat-form-field
+              ><mat-label>Zone name</mat-label
+              ><input matInput formControlName="zoneName" /></mat-form-field
+            ><mat-form-field
+              ><mat-label>Description</mat-label
+              ><input matInput formControlName="description" /></mat-form-field
+            ><mat-checkbox formControlName="isActive">Active</mat-checkbox
+            ><button mat-button type="button" (click)="zones.removeAt(i)">Remove</button>
+          </section>
+        }
+      </div>
+      <button mat-button type="button" (click)="addZone()">Add zone</button></mat-tab
+    ><mat-tab label="Bins"
+      ><p>Bins are assigned to zones. Add bin details to each zone below.</p>
+      <div formArrayName="zones">
+        @for (zone of zones.controls; track $index; let i = $index) {
+          <section [formGroupName]="i">
+            <h3>{{ zone.value.zoneName || 'Zone ' + (i + 1) }}</h3>
+            <div formArrayName="bins">
+              @for (bin of bins(i).controls; track $index; let j = $index) {
+                <div [formGroupName]="j" class="grid">
+                  <mat-form-field
+                    ><mat-label>Bin code</mat-label
+                    ><input matInput formControlName="binCode" /></mat-form-field
+                  ><mat-form-field
+                    ><mat-label>Bin name</mat-label
+                    ><input matInput formControlName="binName" /></mat-form-field
+                  ><mat-form-field
+                    ><mat-label>Maximum capacity</mat-label
+                    ><input
+                      matInput
+                      type="number"
+                      formControlName="maximumCapacity" /></mat-form-field
+                  ><mat-checkbox formControlName="isActive">Active</mat-checkbox
+                  ><button mat-button type="button" (click)="bins(i).removeAt(j)">Remove</button>
+                </div>
+              }
+            </div>
+            <button mat-button type="button" (click)="addBin(i)">Add bin</button>
+          </section>
+        }
+      </div></mat-tab
+    ></mat-tab-group
+  >
+  <footer>
+    <button mat-flat-button type="submit" [disabled]="form.invalid || saving()">
+      {{ saving() ? 'Saving...' : 'Save warehouse' }}
+    </button>
+  </footer>
+</form>

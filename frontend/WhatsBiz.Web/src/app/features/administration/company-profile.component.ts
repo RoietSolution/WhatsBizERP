@@ -1,2 +1,43 @@
-import{ChangeDetectionStrategy,Component,signal}from'@angular/core';import{FormsModule}from'@angular/forms';import{RouterLink}from'@angular/router';import{MatButtonModule}from'@angular/material/button';import{MatFormFieldModule}from'@angular/material/form-field';import{MatInputModule}from'@angular/material/input';import{MatSnackBar}from'@angular/material/snack-bar';import{PageContainerComponent}from'../../shared/components/page-container/page-container.component';import{PageHeaderComponent}from'../../shared/components/page-header/page-header.component';import{FormSectionComponent}from'../../shared/components/form-section/form-section.component';import{StatusChipComponent}from'../../shared/components/status-chip/status-chip.component';import{AdminApiService,Company}from'./admin-api.service';
-@Component({imports:[FormsModule,RouterLink,MatButtonModule,MatFormFieldModule,MatInputModule,PageContainerComponent,PageHeaderComponent,FormSectionComponent,StatusChipComponent],templateUrl:'./company-profile.component.html',styleUrl:'./company-profile.component.scss',changeDetection:ChangeDetectionStrategy.OnPush})export class CompanyProfileComponent{readonly model=signal<Company|null>(null);constructor(private api:AdminApiService,private snack:MatSnackBar){api.company().subscribe(x=>this.model.set(x))}save(){this.api.saveCompany(this.model()!).subscribe(x=>{this.model.set(x);this.snack.open('Company saved','Close',{duration:2000})})}}
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { PageContainerComponent } from '../../shared/components/page-container/page-container.component';
+import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
+import { FormSectionComponent } from '../../shared/components/form-section/form-section.component';
+import { StatusChipComponent } from '../../shared/components/status-chip/status-chip.component';
+import { AdminApiService, Company } from './admin-api.service';
+@Component({
+  imports: [
+    FormsModule,
+    RouterLink,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    PageContainerComponent,
+    PageHeaderComponent,
+    FormSectionComponent,
+    StatusChipComponent,
+  ],
+  templateUrl: './company-profile.component.html',
+  styleUrl: './company-profile.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class CompanyProfileComponent {
+  readonly model = signal<Company | null>(null);
+  constructor(
+    private api: AdminApiService,
+    private snack: MatSnackBar,
+  ) {
+    api.company().subscribe((x) => this.model.set(x));
+  }
+  save() {
+    this.api.saveCompany(this.model()!).subscribe((x) => {
+      this.model.set(x);
+      this.snack.open('Company saved', 'Close', { duration: 2000 });
+    });
+  }
+}

@@ -1,2 +1,187 @@
-import{ChangeDetectionStrategy,Component,OnInit,computed,signal}from'@angular/core';import{FormsModule}from'@angular/forms';import{ActivatedRoute,RouterLink}from'@angular/router';import{MatButtonModule}from'@angular/material/button';import{MatFormFieldModule}from'@angular/material/form-field';import{MatSelectModule}from'@angular/material/select';import{OperationsWorkspaceComponent}from'../../shared/components/operations-workspace/operations-workspace.component';import{FilterPanelComponent}from'../../shared/components/filter-panel/filter-panel.component';import{DataTableComponent}from'../../shared/components/data-table/data-table.component';import{Outstanding,ReceivablesApiService}from'./receivables-api.service';
-@Component({imports:[FormsModule,RouterLink,MatButtonModule,MatFormFieldModule,MatSelectModule,OperationsWorkspaceComponent,FilterPanelComponent,DataTableComponent],template:`<app-operations-workspace eyebrow="Finance command center" [title]="(party==='customer'?'Customer':'Supplier')+' '+(ageing?'Ageing':'Outstanding')" description="Monitor open invoices, overdue exposure, ageing risk, and collection priorities." [summaries]="summaries()" [statusText]="rows().length+' outstanding invoices'"><a workspace-header-actions mat-flat-button color="primary" [routerLink]="party==='customer'?'/finance/receipt':'/finance/payment'"><span class="material-symbols-rounded">add</span>{{party==='customer'?'New Receipt':'New Payment'}}</a><div workspace-toolbar-actions class="actions"><button mat-button (click)="load()"><span class="material-symbols-rounded">refresh</span>Refresh</button><button mat-button (click)="exportCsv()"><span class="material-symbols-rounded">download</span>Export</button><button mat-button (click)="print()"><span class="material-symbols-rounded">print</span>Print</button></div><app-filter-panel workspace-filters title="Outstanding & ageing filters" (apply)="load()" (reset)="bucket='';load()"><div class="filters">@if(ageing){<mat-form-field appearance="outline"><mat-label>Age Bucket</mat-label><mat-select [(ngModel)]="bucket"><mat-option value="">All buckets</mat-option><mat-option value="0-30">0–30 days</mat-option><mat-option value="31-60">31–60 days</mat-option><mat-option value="61-90">61–90 days</mat-option><mat-option value="ABOVE_90">90+ days</mat-option></mat-select></mat-form-field>}<button mat-stroked-button>Date Range</button><button mat-stroked-button>Branch</button><button mat-stroked-button>{{party==='customer'?'Customer':'Supplier'}}</button><button mat-stroked-button>Status</button></div></app-filter-panel><section class="ageing-strip" aria-label="Ageing bucket visualization"><button (click)="bucket='0-30';load()"><span>0–30</span><strong>{{bucketTotal('0-30')}}</strong></button><button (click)="bucket='31-60';load()"><span>31–60</span><strong>{{bucketTotal('31-60')}}</strong></button><button (click)="bucket='61-90';load()"><span>61–90</span><strong>{{bucketTotal('61-90')}}</strong></button><button (click)="bucket='ABOVE_90';load()"><span>90+</span><strong>{{bucketTotal('ABOVE_90')}}</strong></button></section><app-data-table [rows]="rows()" [columns]="columns" searchPlaceholder="Search party, invoice, or due date" (selectionChange)="selected.set($event[0]??null)"/><section workspace-context class="insight"><h3>Outstanding Balance</h3><strong>{{total()}}</strong><p>Total open exposure in the current view.</p></section><section workspace-context class="insight"><h3>Selected Account</h3>@if(selected();as x){<dl><dt>Party</dt><dd>{{x.partyName}}</dd><dt>Invoice</dt><dd>{{x.invoiceNumber}}</dd><dt>Last due date</dt><dd>{{x.dueDate||'—'}}</dd><dt>Age</dt><dd>{{x.ageDays}} days</dd></dl>}@else{<p>Select an invoice to inspect recent transactions, last payment, notes, and audit history.</p>}</section></app-operations-workspace>`,styles:[`.actions,.filters{display:flex;align-items:center;flex-wrap:wrap;gap:6px}.ageing-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}.ageing-strip button{display:flex;padding:14px;color:var(--wb-text-secondary);background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:8px;align-items:center;justify-content:space-between;font:inherit;cursor:pointer}.ageing-strip button:hover{color:var(--wb-primary);border-color:var(--wb-primary)}.ageing-strip strong{font-size:17px}.ageing-strip button:nth-child(2){border-bottom-color:var(--wb-info)}.ageing-strip button:nth-child(3){border-bottom-color:var(--wb-warning)}.ageing-strip button:nth-child(4){border-bottom-color:var(--wb-danger)}.insight{padding:18px;background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--wb-radius-md)}.insight h3{margin-top:0}.insight>strong{color:var(--wb-primary);font-size:28px}.insight p{color:var(--wb-text-secondary)}dl{display:grid;grid-template-columns:1fr auto;gap:10px}dd{margin:0;font-weight:700}@media(max-width:600px){.ageing-strip{grid-template-columns:repeat(2,1fr)}}`],changeDetection:ChangeDetectionStrategy.OnPush})export class OutstandingAgeingComponent implements OnInit{party='customer';ageing=false;bucket='';readonly rows=signal<Outstanding[]>([]);readonly selected=signal<Outstanding|null>(null);readonly total=computed(()=>this.rows().reduce((n,x)=>n+x.outstandingAmount,0));readonly summaries=computed(()=>[{label:this.party==='customer'?'Receivables':'Payables',value:this.total(),subtitle:'Total outstanding',icon:'account_balance_wallet',tone:'primary' as const},{label:'0–30 days',value:this.bucketTotal('0-30'),subtitle:'Current',icon:'check_circle',tone:'success' as const},{label:'31–90 days',value:this.bucketTotal('31-60')+this.bucketTotal('61-90'),subtitle:'Attention',icon:'warning',tone:'warning' as const},{label:'90+ days',value:this.bucketTotal('ABOVE_90'),subtitle:'Critical ageing',icon:'error',tone:'danger' as const}]);readonly columns=[{field:'partyCode',headerName:'Code'},{field:'partyName',headerName:'Party',minWidth:190},{field:'invoiceNumber',headerName:'Invoice'},{field:'invoiceDate',headerName:'Invoice date'},{field:'dueDate',headerName:'Due date'},{field:'invoiceAmount',headerName:'Invoice amount'},{field:'paidAmount',headerName:'Paid'},{field:'outstandingAmount',headerName:'Outstanding'},{field:'ageDays',headerName:'Age (days)'},{field:'ageBucket',headerName:'Bucket'}];constructor(private api:ReceivablesApiService,route:ActivatedRoute){this.party=route.snapshot.data['party'];this.ageing=route.snapshot.data['ageing']??false}ngOnInit(){this.load()}load(){this.api.outstanding(this.party,undefined,this.ageing?this.bucket:undefined).subscribe(x=>this.rows.set(x))}bucketTotal(bucket:string){return this.rows().filter(x=>x.ageBucket===bucket).reduce((n,x)=>n+x.outstandingAmount,0)}exportCsv(){const data=this.rows();if(!data.length)return;const keys=Object.keys(data[0]),csv=[keys.join(','),...data.map((x:any)=>keys.map(k=>`"${String(x[k]??'').replaceAll('"','""')}"`).join(','))].join('\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`${this.party}-${this.ageing?'ageing':'outstanding'}.csv`;a.click()}print(){window.print()}}
+import { ChangeDetectionStrategy, Component, OnInit, computed, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
+import { OperationsWorkspaceComponent } from '../../shared/components/operations-workspace/operations-workspace.component';
+import { FilterPanelComponent } from '../../shared/components/filter-panel/filter-panel.component';
+import { DataTableComponent } from '../../shared/components/data-table/data-table.component';
+import { Outstanding, ReceivablesApiService } from './receivables-api.service';
+@Component({
+  imports: [
+    FormsModule,
+    RouterLink,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatSelectModule,
+    OperationsWorkspaceComponent,
+    FilterPanelComponent,
+    DataTableComponent,
+  ],
+  templateUrl: './outstanding-ageing.component.html',
+  styles: [
+    `
+      .actions,
+      .filters {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .ageing-strip {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .ageing-strip button {
+        display: flex;
+        padding: 14px;
+        color: var(--wb-text-secondary);
+        background: var(--wb-surface);
+        border: 1px solid var(--wb-border);
+        border-radius: 8px;
+        align-items: center;
+        justify-content: space-between;
+        font: inherit;
+        cursor: pointer;
+      }
+      .ageing-strip button:hover {
+        color: var(--wb-primary);
+        border-color: var(--wb-primary);
+      }
+      .ageing-strip strong {
+        font-size: 17px;
+      }
+      .ageing-strip button:nth-child(2) {
+        border-bottom-color: var(--wb-info);
+      }
+      .ageing-strip button:nth-child(3) {
+        border-bottom-color: var(--wb-warning);
+      }
+      .ageing-strip button:nth-child(4) {
+        border-bottom-color: var(--wb-danger);
+      }
+      .insight {
+        padding: 18px;
+        background: var(--wb-surface);
+        border: 1px solid var(--wb-border);
+        border-radius: var(--wb-radius-md);
+      }
+      .insight h3 {
+        margin-top: 0;
+      }
+      .insight > strong {
+        color: var(--wb-primary);
+        font-size: 28px;
+      }
+      .insight p {
+        color: var(--wb-text-secondary);
+      }
+      dl {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+      }
+      dd {
+        margin: 0;
+        font-weight: 700;
+      }
+      @media (max-width: 600px) {
+        .ageing-strip {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+    `,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class OutstandingAgeingComponent implements OnInit {
+  party = 'customer';
+  ageing = false;
+  bucket = '';
+  readonly rows = signal<Outstanding[]>([]);
+  readonly selected = signal<Outstanding | null>(null);
+  readonly total = computed(() => this.rows().reduce((n, x) => n + x.outstandingAmount, 0));
+  readonly summaries = computed(() => [
+    {
+      label: this.party === 'customer' ? 'Receivables' : 'Payables',
+      value: this.total(),
+      subtitle: 'Total outstanding',
+      icon: 'account_balance_wallet',
+      tone: 'primary' as const,
+    },
+    {
+      label: '0–30 days',
+      value: this.bucketTotal('0-30'),
+      subtitle: 'Current',
+      icon: 'check_circle',
+      tone: 'success' as const,
+    },
+    {
+      label: '31–90 days',
+      value: this.bucketTotal('31-60') + this.bucketTotal('61-90'),
+      subtitle: 'Attention',
+      icon: 'warning',
+      tone: 'warning' as const,
+    },
+    {
+      label: '90+ days',
+      value: this.bucketTotal('ABOVE_90'),
+      subtitle: 'Critical ageing',
+      icon: 'error',
+      tone: 'danger' as const,
+    },
+  ]);
+  readonly columns = [
+    { field: 'partyCode', headerName: 'Code' },
+    { field: 'partyName', headerName: 'Party', minWidth: 190 },
+    { field: 'invoiceNumber', headerName: 'Invoice' },
+    { field: 'invoiceDate', headerName: 'Invoice date' },
+    { field: 'dueDate', headerName: 'Due date' },
+    { field: 'invoiceAmount', headerName: 'Invoice amount' },
+    { field: 'paidAmount', headerName: 'Paid' },
+    { field: 'outstandingAmount', headerName: 'Outstanding' },
+    { field: 'ageDays', headerName: 'Age (days)' },
+    { field: 'ageBucket', headerName: 'Bucket' },
+  ];
+  constructor(
+    private api: ReceivablesApiService,
+    route: ActivatedRoute,
+  ) {
+    this.party = route.snapshot.data['party'];
+    this.ageing = route.snapshot.data['ageing'] ?? false;
+  }
+  ngOnInit() {
+    this.load();
+  }
+  load() {
+    this.api
+      .outstanding(this.party, undefined, this.ageing ? this.bucket : undefined)
+      .subscribe((x) => this.rows.set(x));
+  }
+  bucketTotal(bucket: string) {
+    return this.rows()
+      .filter((x) => x.ageBucket === bucket)
+      .reduce((n, x) => n + x.outstandingAmount, 0);
+  }
+  exportCsv() {
+    const data = this.rows();
+    if (!data.length) return;
+    const keys = Object.keys(data[0]),
+      csv = [
+        keys.join(','),
+        ...data.map((x: any) =>
+          keys.map((k) => `"${String(x[k] ?? '').replaceAll('"', '""')}"`).join(','),
+        ),
+      ].join('\n'),
+      a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `${this.party}-${this.ageing ? 'ageing' : 'outstanding'}.csv`;
+    a.click();
+  }
+  print() {
+    window.print();
+  }
+}

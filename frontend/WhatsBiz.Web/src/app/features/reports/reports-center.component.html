@@ -1,0 +1,72 @@
+<app-operations-workspace
+  eyebrow="Business intelligence"
+  title="Reports Center"
+  description="Discover, filter, visualize, and export business information from one workspace."
+  [summaries]="summaries"
+  statusText="Report services ready"
+  ><a workspace-header-actions mat-flat-button color="primary" routerLink="/gst"
+    ><span class="material-symbols-rounded">assessment</span>Open GST Center</a
+  >
+  <div workspace-toolbar-actions class="actions">
+    <button mat-button><span class="material-symbols-rounded">bookmark_add</span>Save Layout</button
+    ><button mat-button><span class="material-symbols-rounded">star</span>Favorites</button
+    ><button mat-button><span class="material-symbols-rounded">history</span>Recently Opened</button
+    ><button mat-button><span class="material-symbols-rounded">download</span>Export Center</button>
+  </div>
+  <app-filter-panel workspace-filters title="Report discovery filters"
+    ><div class="filters">
+      <button mat-stroked-button>Date Range</button
+      ><button mat-stroked-button>Financial Year</button><button mat-stroked-button>Branch</button
+      ><button mat-stroked-button>Warehouse</button><button mat-stroked-button>Status</button>
+    </div></app-filter-panel
+  >
+  <section class="category-grid">
+    @for (x of categories; track x.title) {
+      <article>
+        <div>
+          <span class="material-symbols-rounded">{{ x.icon }}</span
+          ><button
+            mat-icon-button
+            [attr.aria-label]="'Favorite ' + x.title"
+            (click)="favorite(x.title)"
+          >
+            <span class="material-symbols-rounded">{{
+              favorites().includes(x.title) ? 'star' : 'star_outline'
+            }}</span>
+          </button>
+        </div>
+        <h3>{{ x.title }}</h3>
+        <p>{{ x.description }}</p>
+        <nav>
+          @for (report of x.reports; track report.label) {
+            <a [routerLink]="report.route"
+              ><span>{{ report.label }}</span
+              ><span class="material-symbols-rounded">arrow_forward</span></a
+            >
+          }
+        </nav>
+      </article>
+    }
+  </section>
+  <section workspace-context class="insight">
+    <h3>Report Summary</h3>
+    <dl>
+      <dt>Categories</dt>
+      <dd>{{ categories.length }}</dd>
+      <dt>Favorites</dt>
+      <dd>{{ favorites().length }}</dd>
+      <dt>Recently opened</dt>
+      <dd>—</dd>
+      <dt>Last generated</dt>
+      <dd>Not yet</dd>
+    </dl>
+  </section>
+  <section workspace-context class="insight">
+    <h3>Export Center</h3>
+    <div class="export-actions">
+      <button mat-stroked-button>Excel</button><button mat-stroked-button>PDF</button
+      ><button mat-stroked-button>CSV</button><button mat-stroked-button>Print</button
+      ><button mat-stroked-button disabled>Email</button>
+    </div>
+    <app-status-chip label="Ready" tone="success" /></section
+></app-operations-workspace>

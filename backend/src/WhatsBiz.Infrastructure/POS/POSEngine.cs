@@ -1,4 +1,143 @@
 #pragma warning disable CA1725
-using System.Data;using Microsoft.Data.SqlClient;using Microsoft.EntityFrameworkCore;using WhatsBiz.Application.Common.Exceptions;using WhatsBiz.Application.Common.Interfaces;using WhatsBiz.Infrastructure.Persistence;
+using System.Data;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using WhatsBiz.Application.Common.Exceptions;
+using WhatsBiz.Application.Common.Interfaces;
+using WhatsBiz.Infrastructure.Persistence;
 namespace WhatsBiz.Infrastructure.POS;
-public sealed class POSEngine(ApplicationDbContext db):IPOSEngine{public async Task<POSPostResult> Post(POSPostRequest r,CancellationToken token){await using var reader=await ExecuteReader("sales.POS_PostInvoice",[("@CounterId",r.CounterId),("@ShiftId",r.ShiftId),("@CustomerId",r.CustomerId),("@WarehouseId",r.WarehouseId),("@SalesPersonId",r.SalesPersonId),("@ItemsJson",r.ItemsJson),("@PaymentsJson",r.PaymentsJson),("@BillDiscount",r.BillDiscount),("@RoundOff",r.RoundOff),("@Remarks",r.Remarks),("@Status",r.Status),("@InterState",r.InterState),("@DiscountAuthorizedBy",r.DiscountAuthorizedBy),("@CreatedBy",r.User)],token);if(!await reader.ReadAsync(token))throw new InvalidOperationException("Invoice post returned no result.");return new(reader.GetGuid(reader.GetOrdinal("InvoiceId")),reader.GetString(reader.GetOrdinal("InvoiceNumber")),reader.GetDecimal(reader.GetOrdinal("GrandTotal")),reader.GetDecimal(reader.GetOrdinal("PaidAmount")),reader.GetString(reader.GetOrdinal("Status")));}public async Task Pay(POSPaymentRequest r,CancellationToken token){await using var reader=await ExecuteReader("sales.POS_AddPayment",[("@InvoiceId",r.InvoiceId),("@MethodCode",r.MethodCode),("@Amount",r.Amount),("@ReferenceNumber",r.ReferenceNumber),("@CreatedBy",r.User)],token);await reader.ReadAsync(token);}public async Task Return(POSReturnRequest r,CancellationToken token){await using var reader=await ExecuteReader("sales.POS_ReturnInvoice",[("@InvoiceId",r.InvoiceId),("@ItemsJson",r.ItemsJson),("@Reason",r.Reason),("@CreatedBy",r.User)],token);await reader.ReadAsync(token);}private async Task<SqlDataReader> ExecuteReader(string procedure,IReadOnlyCollection<(string Name,object? Value)>values,CancellationToken token){var connection=(SqlConnection)db.Database.GetDbConnection();if(connection.State!=ConnectionState.Open)await connection.OpenAsync(token);var command=connection.CreateCommand();command.CommandText=procedure;command.CommandType=CommandType.StoredProcedure;foreach(var item in values)command.Parameters.AddWithValue(item.Name,item.Value??DBNull.Value);try{return await command.ExecuteReaderAsync(CommandBehavior.CloseConnection,token);}catch(SqlException ex)when(ex.Number>=51100){await command.DisposeAsync();await connection.CloseAsync();throw new BusinessRuleException(ex.Message);}}}
+public sealed class POSEngine(ApplicationDbContext db) : IPOSEngine
+{
+    public async Task<POSPostResult> Post(
+        POSPostRequest r,
+        CancellationToken token)
+    {
+        try
+        {
+            await using var reader = await ExecuteReader(
+                "sales.POS_PostInvoice",
+                [
+                    ("@CounterId", r.CounterId),
+                    ("@ShiftId", r.ShiftId),
+                    ("@CustomerId", r.CustomerId),
+                    ("@WarehouseId", r.WarehouseId),
+                    ("@SalesPersonId", r.SalesPersonId),
+                    ("@ItemsJson", r.ItemsJson),
+                    ("@PaymentsJson", r.PaymentsJson),
+                    ("@BillDiscount", r.BillDiscount),
+                    ("@RoundOff", r.RoundOff),
+                    ("@Remarks", r.Remarks),
+                    ("@Status", r.Status),
+                    ("@InterState", r.InterState),
+                    ("@DiscountAuthorizedBy", r.DiscountAuthorizedBy),
+                    ("@CreatedBy", r.User)
+                ],
+                token);
+
+            if (!await reader.ReadAsync(token))
+                throw new InvalidOperationException("Invoice post returned no result.");
+
+            return new POSPostResult(
+                reader.GetGuid(reader.GetOrdinal("InvoiceId")),
+                reader.GetString(reader.GetOrdinal("InvoiceNumber")),
+                reader.GetDecimal(reader.GetOrdinal("GrandTotal")),
+                reader.GetDecimal(reader.GetOrdinal("PaidAmount")),
+                reader.GetString(reader.GetOrdinal("Status"))
+            );
+        }
+        catch (SqlException ex) when (ex.Number >= 51100)
+        {
+            throw new BusinessRuleException(ex.Message);
+        }
+    }
+    public async Task Pay(
+        POSPaymentRequest r,
+        CancellationToken token)
+    {
+        await using var reader = await ExecuteReader(
+            "sales.POS_AddPayment",
+            [
+                ("@InvoiceId", r.InvoiceId),
+                ("@MethodCode", r.MethodCode),
+                ("@Amount", r.Amount),
+                ("@ReferenceNumber", r.ReferenceNumber),
+                ("@CreatedBy", r.User)
+            ],
+            token);
+
+        try
+        {
+            await reader.ReadAsync(token);
+        }
+        catch (SqlException ex) when (ex.Number >= 51100)
+        {
+            throw new BusinessRuleException(ex.Message);
+        }
+    }
+
+    public async Task Return(
+        POSReturnRequest r,
+        CancellationToken token)
+    {
+        await using var reader = await ExecuteReader(
+            "sales.POS_ReturnInvoice",
+            [
+                ("@InvoiceId", r.InvoiceId),
+                ("@ItemsJson", r.ItemsJson),
+                ("@Reason", r.Reason),
+                ("@CreatedBy", r.User)
+            ],
+            token);
+
+        try
+        {
+            await reader.ReadAsync(token);
+        }
+        catch (SqlException ex) when (ex.Number >= 51100)
+        {
+            throw new BusinessRuleException(ex.Message);
+        }
+    }
+
+    private async Task<SqlDataReader> ExecuteReader(
+        string procedure,
+        IReadOnlyCollection<(string Name, object? Value)> values,
+        CancellationToken token)
+    {
+        var connection = (SqlConnection)db.Database.GetDbConnection();
+
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync(token);
+        }
+
+        var command = connection.CreateCommand();
+        command.CommandText = procedure;
+        command.CommandType = CommandType.StoredProcedure;
+
+        foreach (var item in values)
+        {
+            command.Parameters.AddWithValue(
+                item.Name,
+                item.Value ?? DBNull.Value
+            );
+        }
+
+        try
+        {
+            return await command.ExecuteReaderAsync(
+                CommandBehavior.CloseConnection,
+                token
+            );
+        }
+        catch (SqlException ex) when (ex.Number >= 51100)
+        {
+            await command.DisposeAsync();
+            await connection.CloseAsync();
+
+            throw new BusinessRuleException(
+                ex.Message
+            );
+        }
+    }
+}

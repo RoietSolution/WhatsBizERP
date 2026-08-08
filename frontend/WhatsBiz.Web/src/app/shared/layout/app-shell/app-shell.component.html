@@ -1,0 +1,21 @@
+<mat-sidenav-container
+  ><mat-sidenav
+    [mode]="mobile() ? `over` : `side`"
+    [opened]="mobile() ? layout.mobileOpen() : true"
+    [disableClose]="!mobile()"
+    (closedStart)="layout.closeMobile()"
+    ><app-sidebar
+      [collapsed]="!mobile() && layout.sidebarCollapsed()"
+      (collapseToggle)="layout.toggleSidebar()"
+      (navigate)="mobile() && layout.closeMobile()" /></mat-sidenav
+  ><mat-sidenav-content
+    ><app-topbar (menuToggle)="layout.toggleMobile()" />
+    <div class="content-frame">
+      <app-breadcrumb />
+      <main id="main-content" tabindex="-1"><ng-content /></main>
+      <footer>
+        <span>© {{ year }} KhataDhari ERP</span><span>Secure enterprise workspace</span>
+      </footer>
+    </div></mat-sidenav-content
+  ></mat-sidenav-container
+>

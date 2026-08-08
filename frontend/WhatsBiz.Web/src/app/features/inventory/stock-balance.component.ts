@@ -1,2 +1,175 @@
-import{ChangeDetectionStrategy,Component,computed,signal}from'@angular/core';import{FormControl,ReactiveFormsModule}from'@angular/forms';import{RouterLink}from'@angular/router';import{MatButtonModule}from'@angular/material/button';import{MatFormFieldModule}from'@angular/material/form-field';import{MatPaginatorModule,PageEvent}from'@angular/material/paginator';import{MatSelectModule}from'@angular/material/select';import{OperationsWorkspaceComponent}from'../../shared/components/operations-workspace/operations-workspace.component';import{FilterPanelComponent}from'../../shared/components/filter-panel/filter-panel.component';import{DataTableComponent}from'../../shared/components/data-table/data-table.component';import{InventoryApiService}from'./inventory-api.service';import{Balance,ProductOption,WarehouseOption}from'./inventory.models';
-@Component({imports:[ReactiveFormsModule,RouterLink,MatButtonModule,MatFormFieldModule,MatPaginatorModule,MatSelectModule,OperationsWorkspaceComponent,FilterPanelComponent,DataTableComponent],template:`<app-operations-workspace eyebrow="Inventory operations" title="Warehouse Stock" description="Real-time stock availability, valuation, reservations, and storage locations." [summaries]="summaries()" [statusText]="total()+' stock records'"><a workspace-header-actions mat-flat-button color="primary" routerLink="/inventory/adjustment"><span class="material-symbols-rounded">tune</span>Adjust Stock</a><div workspace-toolbar-actions class="actions"><a mat-button routerLink="/inventory/transfer"><span class="material-symbols-rounded">swap_horiz</span>Transfer</a><a mat-button routerLink="/inventory/verification"><span class="material-symbols-rounded">fact_check</span>Verify</a><button mat-button (click)="load()"><span class="material-symbols-rounded">refresh</span>Refresh</button><button mat-button (click)="export()"><span class="material-symbols-rounded">download</span>Export</button><button mat-button><span class="material-symbols-rounded">label</span>Print Labels</button></div><app-filter-panel workspace-filters title="Stock lookup filters" (apply)="load()" (reset)="reset()"><div class="filters"><mat-form-field appearance="outline"><mat-label>Warehouse</mat-label><mat-select [formControl]="warehouse"><mat-option value="">All warehouses</mat-option>@for(x of warehouses();track x.warehouseId){<mat-option [value]="x.warehouseId">{{x.warehouseName}}</mat-option>}</mat-select></mat-form-field><mat-form-field appearance="outline"><mat-label>Product</mat-label><mat-select [formControl]="product"><mat-option value="">All products</mat-option>@for(x of products();track x.productId){<mat-option [value]="x.productId">{{x.productCode}} — {{x.productName}}</mat-option>}</mat-select></mat-form-field><mat-form-field appearance="outline"><mat-label>Category</mat-label><mat-select value=""><mat-option value="">All categories</mat-option></mat-select></mat-form-field><mat-form-field appearance="outline"><mat-label>Brand</mat-label><mat-select value=""><mat-option value="">All brands</mat-option></mat-select></mat-form-field></div></app-filter-panel><app-data-table [rows]="items()" [columns]="columns" [loading]="loading()" searchPlaceholder="Search product or scan barcode" (searchChange)="search.setValue($event);page=1;load()"/><mat-paginator [length]="total()" [pageIndex]="page-1" [pageSize]="size" [pageSizeOptions]="[10,20,50,100]" (page)="paged($event)"/><section workspace-context class="context-card"><h3>Product Summary</h3><p>Select a row to review current stock, sales history, purchase history, and inventory alerts.</p></section><section workspace-context class="context-card"><h3>Current View</h3><dl><dt>Available</dt><dd>{{available()}}</dd><dt>Reserved</dt><dd>{{reserved()}}</dd><dt>Stock value</dt><dd>{{value()}}</dd></dl></section></app-operations-workspace>`,styles:[`.actions{display:flex;flex-wrap:wrap}.filters{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:12px;width:100%}.context-card{padding:18px;background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--wb-radius-md)}.context-card h3{margin-top:0}.context-card p{color:var(--wb-text-secondary)}dl{display:grid;grid-template-columns:1fr auto;gap:10px}dd{margin:0;font-weight:700}@media(max-width:767px){.filters{grid-template-columns:1fr}}`],changeDetection:ChangeDetectionStrategy.OnPush})export class StockBalanceComponent{readonly items=signal<Balance[]>([]);readonly products=signal<ProductOption[]>([]);readonly warehouses=signal<WarehouseOption[]>([]);readonly total=signal(0);readonly loading=signal(false);readonly search=new FormControl('',{nonNullable:true});readonly warehouse=new FormControl('',{nonNullable:true});readonly product=new FormControl('',{nonNullable:true});readonly available=computed(()=>this.items().reduce((a,x)=>a+x.quantityAvailable,0));readonly reserved=computed(()=>this.items().reduce((a,x)=>a+x.quantityReserved,0));readonly value=computed(()=>this.items().reduce((a,x)=>a+x.stockValue,0));readonly summaries=computed(()=>[{label:'Stock records',value:this.total(),subtitle:'Current filters',icon:'inventory_2',tone:'primary' as const},{label:'Available',value:this.available(),subtitle:'Visible stock',icon:'check_circle',tone:'success' as const},{label:'Reserved',value:this.reserved(),subtitle:'Committed stock',icon:'lock',tone:'info' as const},{label:'Stock value',value:this.value(),subtitle:'Visible value',icon:'currency_rupee',tone:'warning' as const}]);readonly columns=[{field:'productCode',headerName:'Code'},{field:'productName',headerName:'Product',minWidth:220},{field:'warehouseName',headerName:'Warehouse'},{field:'zoneCode',headerName:'Zone'},{field:'binCode',headerName:'Bin'},{field:'quantityOnHand',headerName:'On hand'},{field:'quantityReserved',headerName:'Reserved'},{field:'quantityAvailable',headerName:'Available'},{field:'stockValue',headerName:'Stock value'}];page=1;size=20;constructor(private api:InventoryApiService){api.products().subscribe(x=>this.products.set(x.items));api.warehouses().subscribe(x=>this.warehouses.set(x));this.load()}load(){this.loading.set(true);this.api.balances({search:this.search.value||undefined,warehouseId:this.warehouse.value||undefined,productId:this.product.value||undefined,pageNumber:this.page,pageSize:this.size}).subscribe({next:x=>{this.items.set(x.items);this.total.set(x.totalCount);this.loading.set(false)},error:()=>this.loading.set(false)})}reset(){this.search.setValue('');this.warehouse.setValue('');this.product.setValue('');this.page=1;this.load()}paged(e:PageEvent){this.page=e.pageIndex+1;this.size=e.pageSize;this.load()}export(){this.api.export(this.search.value||undefined,this.warehouse.value||undefined,this.product.value||undefined).subscribe(blob=>{const url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download='inventory-balances.xlsx';anchor.click();URL.revokeObjectURL(url)})}}
+import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatSelectModule } from '@angular/material/select';
+import { OperationsWorkspaceComponent } from '../../shared/components/operations-workspace/operations-workspace.component';
+import { FilterPanelComponent } from '../../shared/components/filter-panel/filter-panel.component';
+import { DataTableComponent } from '../../shared/components/data-table/data-table.component';
+import { InventoryApiService } from './inventory-api.service';
+import { Balance, ProductOption, WarehouseOption } from './inventory.models';
+@Component({
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatPaginatorModule,
+    MatSelectModule,
+    OperationsWorkspaceComponent,
+    FilterPanelComponent,
+    DataTableComponent,
+  ],
+  templateUrl: './stock-balance.component.html',
+  styles: [
+    `
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+      }
+      .filters {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(160px, 1fr));
+        gap: 12px;
+        width: 100%;
+      }
+      .context-card {
+        padding: 18px;
+        background: var(--wb-surface);
+        border: 1px solid var(--wb-border);
+        border-radius: var(--wb-radius-md);
+      }
+      .context-card h3 {
+        margin-top: 0;
+      }
+      .context-card p {
+        color: var(--wb-text-secondary);
+      }
+      dl {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+      }
+      dd {
+        margin: 0;
+        font-weight: 700;
+      }
+      @media (max-width: 767px) {
+        .filters {
+          grid-template-columns: 1fr;
+        }
+      }
+    `,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class StockBalanceComponent {
+  readonly items = signal<Balance[]>([]);
+  readonly products = signal<ProductOption[]>([]);
+  readonly warehouses = signal<WarehouseOption[]>([]);
+  readonly total = signal(0);
+  readonly loading = signal(false);
+  readonly search = new FormControl('', { nonNullable: true });
+  readonly warehouse = new FormControl('', { nonNullable: true });
+  readonly product = new FormControl('', { nonNullable: true });
+  readonly available = computed(() => this.items().reduce((a, x) => a + x.quantityAvailable, 0));
+  readonly reserved = computed(() => this.items().reduce((a, x) => a + x.quantityReserved, 0));
+  readonly value = computed(() => this.items().reduce((a, x) => a + x.stockValue, 0));
+  readonly summaries = computed(() => [
+    {
+      label: 'Stock records',
+      value: this.total(),
+      subtitle: 'Current filters',
+      icon: 'inventory_2',
+      tone: 'primary' as const,
+    },
+    {
+      label: 'Available',
+      value: this.available(),
+      subtitle: 'Visible stock',
+      icon: 'check_circle',
+      tone: 'success' as const,
+    },
+    {
+      label: 'Reserved',
+      value: this.reserved(),
+      subtitle: 'Committed stock',
+      icon: 'lock',
+      tone: 'info' as const,
+    },
+    {
+      label: 'Stock value',
+      value: this.value(),
+      subtitle: 'Visible value',
+      icon: 'currency_rupee',
+      tone: 'warning' as const,
+    },
+  ]);
+  readonly columns = [
+    { field: 'productCode', headerName: 'Code' },
+    { field: 'productName', headerName: 'Product', minWidth: 220 },
+    { field: 'warehouseName', headerName: 'Warehouse' },
+    { field: 'zoneCode', headerName: 'Zone' },
+    { field: 'binCode', headerName: 'Bin' },
+    { field: 'quantityOnHand', headerName: 'On hand' },
+    { field: 'quantityReserved', headerName: 'Reserved' },
+    { field: 'quantityAvailable', headerName: 'Available' },
+    { field: 'stockValue', headerName: 'Stock value' },
+  ];
+  page = 1;
+  size = 20;
+  constructor(private api: InventoryApiService) {
+    api.products().subscribe((x) => this.products.set(x.items));
+    api.warehouses().subscribe((x) => this.warehouses.set(x));
+    this.load();
+  }
+  load() {
+    this.loading.set(true);
+    this.api
+      .balances({
+        search: this.search.value || undefined,
+        warehouseId: this.warehouse.value || undefined,
+        productId: this.product.value || undefined,
+        pageNumber: this.page,
+        pageSize: this.size,
+      })
+      .subscribe({
+        next: (x) => {
+          this.items.set(x.items);
+          this.total.set(x.totalCount);
+          this.loading.set(false);
+        },
+        error: () => this.loading.set(false),
+      });
+  }
+  reset() {
+    this.search.setValue('');
+    this.warehouse.setValue('');
+    this.product.setValue('');
+    this.page = 1;
+    this.load();
+  }
+  paged(e: PageEvent) {
+    this.page = e.pageIndex + 1;
+    this.size = e.pageSize;
+    this.load();
+  }
+  export() {
+    this.api
+      .export(
+        this.search.value || undefined,
+        this.warehouse.value || undefined,
+        this.product.value || undefined,
+      )
+      .subscribe((blob) => {
+        const url = URL.createObjectURL(blob),
+          anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'inventory-balances.xlsx';
+        anchor.click();
+        URL.revokeObjectURL(url);
+      });
+  }
+}

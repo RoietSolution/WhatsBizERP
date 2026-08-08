@@ -1,4 +1,17 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-@Component({ selector: 'app-summary-card', template: '<article class="summary-card" tabindex="0"><div class="summary-card__icon" [attr.data-tone]="tone()"><span class="material-symbols-rounded">{{ icon() }}</span></div><div class="summary-card__copy"><p>{{ label() }}</p><strong>{{ value() }}</strong>@if (trend()) { <small [attr.data-positive]="trendPositive()"><span class="material-symbols-rounded">{{ trendPositive() ? "trending_up" : "trending_down" }}</span>{{ trend() }}</small> }</div>@if (sparkline().length) { <div class="summary-card__sparkline" aria-hidden="true">@for (point of sparkline(); track $index) { <i [style.height.%]="point"></i> }</div> }</article>', styleUrl: './summary-card.component.scss', changeDetection: ChangeDetectionStrategy.OnPush })
-export class SummaryCardComponent { readonly label = input.required<string>(); readonly value = input.required<string | number | null>(); readonly icon = input('analytics'); readonly tone = input<'primary'|'success'|'warning'|'danger'|'info'>('primary'); readonly trend = input(''); readonly trendPositive = input(true); readonly sparkline = input<number[]>([]); }
+@Component({
+  selector: 'app-summary-card',
+  templateUrl: './summary-card.component.html',
+  styleUrl: './summary-card.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class SummaryCardComponent {
+  readonly label = input.required<string>();
+  readonly value = input.required<string | number | null>();
+  readonly icon = input('analytics');
+  readonly tone = input<'primary' | 'success' | 'warning' | 'danger' | 'info'>('primary');
+  readonly trend = input('');
+  readonly trendPositive = input(true);
+  readonly sparkline = input<number[]>([]);
+}

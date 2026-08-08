@@ -1,0 +1,67 @@
+<app-operations-workspace
+  eyebrow="Finance command center"
+  [title]="(party === 'customer' ? 'Customer' : 'Supplier') + ' Ledger'"
+  description="Review opening balance, vouchers, running balance, and closing position."
+  [summaries]="summaries()"
+  [statusText]="rows().length + ' ledger entries'"
+  ><a
+    workspace-header-actions
+    mat-flat-button
+    color="primary"
+    [routerLink]="party === 'customer' ? '/finance/receipt' : '/finance/payment'"
+    ><span class="material-symbols-rounded">add</span
+    >{{ party === 'customer' ? 'New Receipt' : 'New Payment' }}</a
+  >
+  <div workspace-toolbar-actions class="actions">
+    <button mat-button (click)="load()">
+      <span class="material-symbols-rounded">refresh</span>Refresh</button
+    ><button mat-button (click)="print()">
+      <span class="material-symbols-rounded">print</span>Print Ledger</button
+    ><button mat-button (click)="exportCsv()">
+      <span class="material-symbols-rounded">download</span>Export Ledger
+    </button>
+  </div>
+  <app-filter-panel workspace-filters title="Ledger filters" (apply)="load()"
+    ><div class="filters">
+      <mat-form-field appearance="outline"
+        ><mat-label>Select {{ party }}</mat-label
+        ><mat-select [(ngModel)]="id">
+          @for (x of parties(); track party === 'customer' ? x.customerId : x.supplierId) {
+            <mat-option [value]="party === 'customer' ? x.customerId : x.supplierId">{{
+              party === 'customer' ? x.customerName : x.supplierName
+            }}</mat-option>
+          }
+        </mat-select></mat-form-field
+      ><button mat-stroked-button>Date Range</button><button mat-stroked-button>Branch</button
+      ><button mat-stroked-button>Voucher Type</button>
+    </div></app-filter-panel
+  ><app-data-table
+    [rows]="rows()"
+    [columns]="columns"
+    searchPlaceholder="Search voucher or reference"
+    (selectionChange)="selected.set($event[0])"
+  />
+  <section workspace-context class="insight">
+    <h3>Selected Ledger Summary</h3>
+    <dl>
+      <dt>Opening balance</dt>
+      <dd>{{ opening() }}</dd>
+      <dt>Closing balance</dt>
+      <dd>{{ balance() }}</dd>
+      <dt>Total debit</dt>
+      <dd>{{ debit() }}</dd>
+      <dt>Total credit</dt>
+      <dd>{{ credit() }}</dd>
+    </dl>
+  </section>
+  <section workspace-context class="insight">
+    <h3>Voucher Insight</h3>
+    @if (selected(); as x) {
+      <strong>{{ x.referenceNumber || 'Voucher' }}</strong>
+      <p>{{ x.entryType }} · Balance {{ x.balance }}</p>
+      <button mat-stroked-button>View Voucher</button>
+    } @else {
+      <p>Select a ledger transaction to view notes, attachments, and audit trail.</p>
+    }
+  </section></app-operations-workspace
+>

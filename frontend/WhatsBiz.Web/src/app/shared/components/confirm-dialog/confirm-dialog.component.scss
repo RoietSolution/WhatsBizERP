@@ -1,8 +1,40 @@
-:host { display: grid; grid-template-columns: 56px 1fr; padding: 24px; }
-.dialog-icon { display: grid; grid-row: span 2; width: 44px; height: 44px; color: #b45309; background: #fffbeb; border-radius: 50%; place-items: center; }
-.dialog-icon[data-tone='danger'] { color: #b91c1c; background: #fef2f2; }
-.dialog-icon[data-tone='info'] { color: #0369a1; background: #f0f9ff; }
-.dialog-icon[data-tone='success'] { color: #047857; background: #ecfdf5; }
-[mat-dialog-title] { padding: 0; margin: 0 0 8px; }
-mat-dialog-content { padding: 0; color: var(--wb-text-secondary); }
-mat-dialog-actions { grid-column: 1/-1; gap: 8px; padding: 24px 0 0; }
+:host {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  padding: 24px;
+}
+.dialog-icon {
+  display: grid;
+  grid-row: span 2;
+  width: 44px;
+  height: 44px;
+  color: #b45309;
+  background: #fffbeb;
+  border-radius: 50%;
+  place-items: center;
+}
+.dialog-icon[data-tone='danger'] {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+.dialog-icon[data-tone='info'] {
+  color: #0369a1;
+  background: #f0f9ff;
+}
+.dialog-icon[data-tone='success'] {
+  color: #047857;
+  background: #ecfdf5;
+}
+[mat-dialog-title] {
+  padding: 0;
+  margin: 0 0 8px;
+}
+mat-dialog-content {
+  padding: 0;
+  color: var(--wb-text-secondary);
+}
+mat-dialog-actions {
+  grid-column: 1/-1;
+  gap: 8px;
+  padding: 24px 0 0;
+}

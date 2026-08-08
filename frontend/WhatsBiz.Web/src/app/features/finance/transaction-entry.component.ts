@@ -1,1 +1,67 @@
-import{Component,signal}from'@angular/core';import{FormsModule}from'@angular/forms';import{ActivatedRoute,Router}from'@angular/router';import{MatButtonModule}from'@angular/material/button';import{MatFormFieldModule}from'@angular/material/form-field';import{MatInputModule}from'@angular/material/input';import{MatSelectModule}from'@angular/material/select';import{MatSnackBar}from'@angular/material/snack-bar';import{FinanceApiService}from'./finance-api.service';@Component({imports:[FormsModule,MatButtonModule,MatFormFieldModule,MatInputModule,MatSelectModule],template:`<h1>{{type==='receipt'?'Receipt':'Payment'}} Entry</h1><mat-form-field><mat-label>Party Type</mat-label><mat-select [(ngModel)]="partyType" (selectionChange)="loadParties()"><mat-option value="CUSTOMER">Customer</mat-option><mat-option value="SUPPLIER">Supplier</mat-option></mat-select></mat-form-field><mat-form-field><mat-label>Party</mat-label><mat-select [(ngModel)]="partyId">@for(x of parties();track partyType==='CUSTOMER'?x.customerId:x.supplierId){<mat-option [value]="partyType==='CUSTOMER'?x.customerId:x.supplierId">{{partyType==='CUSTOMER'?x.customerName:x.supplierName}}</mat-option>}</mat-select></mat-form-field><mat-form-field><mat-label>Mode</mat-label><mat-select [(ngModel)]="mode"><mat-option value="CASH">Cash</mat-option><mat-option value="UPI">UPI</mat-option><mat-option value="CARD">Card</mat-option><mat-option value="BANK">Bank</mat-option><mat-option value="NEFT">NEFT</mat-option><mat-option value="RTGS">RTGS</mat-option></mat-select></mat-form-field><mat-form-field><mat-label>Amount</mat-label><input matInput type="number" [(ngModel)]="amount"></mat-form-field><mat-form-field><mat-label>Reference</mat-label><input matInput [(ngModel)]="reference"></mat-form-field><mat-form-field><mat-label>Narration</mat-label><textarea matInput [(ngModel)]="narration"></textarea></mat-form-field><button mat-flat-button (click)="save()">Post {{type}}</button>`,styles:[`mat-form-field{display:block;max-width:480px}`]})export class FinanceTransactionEntryComponent{type='receipt';partyType='CUSTOMER';partyId='';mode='CASH';amount=0;reference='';narration='';parties=signal<any[]>([]);constructor(private api:FinanceApiService,route:ActivatedRoute,private router:Router,private snack:MatSnackBar){this.type=route.snapshot.data['type'];this.partyType=this.type==='receipt'?'CUSTOMER':'SUPPLIER';this.loadParties()}loadParties(){(this.partyType==='CUSTOMER'?this.api.customers():this.api.suppliers()).subscribe(x=>this.parties.set(x))}save(){if(!this.partyId||this.amount<=0){this.snack.open('Party and positive amount are required','Close',{duration:3000});return}const body={partyType:this.partyType,partyId:this.partyId,paymentMode:this.mode,amount:this.amount,entryDate:new Date().toISOString(),referenceNumber:this.reference,narration:this.narration};(this.type==='receipt'?this.api.receipt(body):this.api.payment(body)).subscribe(()=>{this.snack.open('Financial transaction posted','Close',{duration:2000});this.router.navigateByUrl(this.type==='receipt'?'/finance/customer-ledger':'/finance/supplier-ledger')})}}
+import { Component, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { FinanceApiService } from './finance-api.service';
+@Component({
+  imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  templateUrl: './transaction-entry.component.html',
+  styles: [
+    `
+      mat-form-field {
+        display: block;
+        max-width: 480px;
+      }
+    `,
+  ],
+})
+export class FinanceTransactionEntryComponent {
+  type = 'receipt';
+  partyType = 'CUSTOMER';
+  partyId = '';
+  mode = 'CASH';
+  amount = 0;
+  reference = '';
+  narration = '';
+  parties = signal<any[]>([]);
+  constructor(
+    private api: FinanceApiService,
+    route: ActivatedRoute,
+    private router: Router,
+    private snack: MatSnackBar,
+  ) {
+    this.type = route.snapshot.data['type'];
+    this.partyType = this.type === 'receipt' ? 'CUSTOMER' : 'SUPPLIER';
+    this.loadParties();
+  }
+  loadParties() {
+    (this.partyType === 'CUSTOMER' ? this.api.customers() : this.api.suppliers()).subscribe((x) =>
+      this.parties.set(x),
+    );
+  }
+  save() {
+    if (!this.partyId || this.amount <= 0) {
+      this.snack.open('Party and positive amount are required', 'Close', { duration: 3000 });
+      return;
+    }
+    const body = {
+      partyType: this.partyType,
+      partyId: this.partyId,
+      paymentMode: this.mode,
+      amount: this.amount,
+      entryDate: new Date().toISOString(),
+      referenceNumber: this.reference,
+      narration: this.narration,
+    };
+    (this.type === 'receipt' ? this.api.receipt(body) : this.api.payment(body)).subscribe(() => {
+      this.snack.open('Financial transaction posted', 'Close', { duration: 2000 });
+      this.router.navigateByUrl(
+        this.type === 'receipt' ? '/finance/customer-ledger' : '/finance/supplier-ledger',
+      );
+    });
+  }
+}

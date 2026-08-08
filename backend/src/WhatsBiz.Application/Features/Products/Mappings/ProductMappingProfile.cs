@@ -8,9 +8,16 @@ public sealed class ProductMappingProfile : Profile
 {
     public ProductMappingProfile()
     {
-        CreateMap<Product, ProductListItemDto>();
-        CreateMap<Product, ProductDto>();
-        CreateMap<ProductCategory, ProductCategoryDto>().ForMember(destination => destination.Children, options => options.Ignore());
+        CreateMap<Product, ProductListItemDto>()
+            .ForCtorParam(nameof(ProductListItemDto.CategoryName), options => options.MapFrom(source => source.Category.CategoryName))
+            .ForCtorParam(nameof(ProductListItemDto.BrandName), options => options.MapFrom(source => source.Brand.BrandName))
+            .ForCtorParam(nameof(ProductListItemDto.UnitName), options => options.MapFrom(source => source.Unit.UnitName));
+        CreateMap<Product, ProductDto>()
+            .ForCtorParam(nameof(ProductDto.CategoryName), options => options.MapFrom(source => source.Category.CategoryName))
+            .ForCtorParam(nameof(ProductDto.BrandName), options => options.MapFrom(source => source.Brand.BrandName))
+            .ForCtorParam(nameof(ProductDto.UnitName), options => options.MapFrom(source => source.Unit.UnitName));
+        CreateMap<ProductCategory, ProductCategoryDto>()
+            .ForCtorParam(nameof(ProductCategoryDto.Children), options => options.MapFrom(_ => Array.Empty<ProductCategoryDto>()));
         CreateMap<Brand, BrandDto>();
         CreateMap<UnitOfMeasure, UnitOfMeasureDto>();
     }

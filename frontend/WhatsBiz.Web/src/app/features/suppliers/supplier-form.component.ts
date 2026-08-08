@@ -1,2 +1,147 @@
-import{ChangeDetectionStrategy,Component,inject,signal}from'@angular/core';import{FormBuilder,ReactiveFormsModule,Validators}from'@angular/forms';import{ActivatedRoute,Router,RouterLink}from'@angular/router';import{MatButtonModule}from'@angular/material/button';import{MatCheckboxModule}from'@angular/material/checkbox';import{MatFormFieldModule}from'@angular/material/form-field';import{MatInputModule}from'@angular/material/input';import{MatSelectModule}from'@angular/material/select';import{MatSnackBar}from'@angular/material/snack-bar';import{MatTabsModule}from'@angular/material/tabs';import{forkJoin,of}from'rxjs';import{SupplierApiService}from'./supplier-api.service';import{PaymentTerm,SupplierInput}from'./supplier.models';
-@Component({imports:[ReactiveFormsModule,RouterLink,MatButtonModule,MatCheckboxModule,MatFormFieldModule,MatInputModule,MatSelectModule,MatTabsModule],template:`<header><h1>{{id?'Edit':'Create'}} supplier</h1><a mat-button routerLink="/suppliers">Cancel</a></header><form [formGroup]="form" (ngSubmit)="save()"><mat-tab-group><mat-tab label="General"><div class="grid"><mat-form-field><mat-label>Code</mat-label><input matInput formControlName="supplierCode"></mat-form-field><mat-form-field><mat-label>Name</mat-label><input matInput formControlName="supplierName"></mat-form-field><mat-form-field><mat-label>Type</mat-label><input matInput formControlName="supplierType"></mat-form-field><mat-form-field><mat-label>GSTIN</mat-label><input matInput formControlName="gstin"></mat-form-field><mat-form-field><mat-label>PAN</mat-label><input matInput formControlName="pan"></mat-form-field><mat-form-field><mat-label>MSME Number</mat-label><input matInput formControlName="msmeRegistrationNumber"></mat-form-field><mat-form-field><mat-label>Email</mat-label><input matInput formControlName="email"></mat-form-field><mat-form-field><mat-label>Mobile</mat-label><input matInput formControlName="mobile"></mat-form-field><mat-form-field><mat-label>Telephone</mat-label><input matInput formControlName="telephone"></mat-form-field><mat-form-field><mat-label>Website</mat-label><input matInput formControlName="website"></mat-form-field><mat-form-field><mat-label>Currency</mat-label><input matInput formControlName="currency"></mat-form-field><mat-form-field><mat-label>Payment term</mat-label><mat-select formControlName="paymentTermId"><mat-option [value]="null">None</mat-option>@for(x of terms();track x.paymentTermId){<mat-option [value]="x.paymentTermId">{{x.paymentTermName}}</mat-option>}</mat-select></mat-form-field><mat-form-field><mat-label>Credit limit</mat-label><input matInput type="number" formControlName="creditLimit"></mat-form-field><mat-form-field><mat-label>Opening balance</mat-label><input matInput type="number" formControlName="openingBalance"></mat-form-field><mat-form-field class="wide"><mat-label>Remarks</mat-label><textarea matInput formControlName="remarks"></textarea></mat-form-field><div class="checks"><mat-checkbox formControlName="isGSTRegistered">GST registered</mat-checkbox><mat-checkbox formControlName="isTDSApplicable">TDS applicable</mat-checkbox><mat-checkbox formControlName="isActive">Active</mat-checkbox></div></div></mat-tab><mat-tab label="Contacts"><div formGroupName="contact" class="grid"><mat-form-field><mat-label>Contact person</mat-label><input matInput formControlName="contactPerson"></mat-form-field><mat-form-field><mat-label>Designation</mat-label><input matInput formControlName="designation"></mat-form-field><mat-form-field><mat-label>Mobile</mat-label><input matInput formControlName="mobile"></mat-form-field><mat-form-field><mat-label>Email</mat-label><input matInput formControlName="email"></mat-form-field><mat-form-field><mat-label>Department</mat-label><input matInput formControlName="department"></mat-form-field><mat-checkbox formControlName="isPrimary">Primary</mat-checkbox></div></mat-tab><mat-tab label="Addresses"><div formGroupName="address" class="grid"><mat-form-field><mat-label>Type</mat-label><input matInput formControlName="addressType"></mat-form-field><mat-form-field><mat-label>Address</mat-label><input matInput formControlName="addressLine1"></mat-form-field><mat-form-field><mat-label>City</mat-label><input matInput formControlName="city"></mat-form-field><mat-form-field><mat-label>State</mat-label><input matInput formControlName="state"></mat-form-field><mat-form-field><mat-label>Country</mat-label><input matInput formControlName="country"></mat-form-field><mat-form-field><mat-label>Postal code</mat-label><input matInput formControlName="postalCode"></mat-form-field></div></mat-tab><mat-tab label="Bank Accounts"><div formGroupName="bank" class="grid"><mat-form-field><mat-label>Bank</mat-label><input matInput formControlName="bankName"></mat-form-field><mat-form-field><mat-label>Branch</mat-label><input matInput formControlName="branch"></mat-form-field><mat-form-field><mat-label>Account number</mat-label><input matInput formControlName="accountNumber"></mat-form-field><mat-form-field><mat-label>IFSC</mat-label><input matInput formControlName="ifscCode"></mat-form-field><mat-form-field><mat-label>UPI ID</mat-label><input matInput formControlName="upiId"></mat-form-field></div></mat-tab><mat-tab label="Documents"><p>Save the supplier, then manage documents from its details page.</p></mat-tab></mat-tab-group><footer><button mat-flat-button type="submit" [disabled]="form.invalid">Save supplier</button></footer></form>`,styles:[`header{display:flex;justify-content:space-between}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;padding:1.5rem}.wide,.checks{grid-column:span 3}footer{display:flex;justify-content:flex-end;padding:1rem}@media(max-width:800px){.grid{grid-template-columns:1fr}.wide,.checks{grid-column:span 1}}`],changeDetection:ChangeDetectionStrategy.OnPush})export class SupplierFormComponent{private readonly fb=inject(FormBuilder);readonly id:string|null;readonly terms=signal<PaymentTerm[]>([]);readonly form=this.fb.group({supplierCode:['',Validators.required],supplierName:['',Validators.required],supplierType:['Domestic',Validators.required],gstin:[''],pan:[''],msmeRegistrationNumber:[''],email:['',Validators.email],mobile:[''],telephone:[''],website:[''],currency:['INR',Validators.required],paymentTermId:[null as string|null],creditLimit:[0,Validators.min(0)],openingBalance:[0],isGSTRegistered:[false],isTDSApplicable:[false],isActive:[true],remarks:[''],contact:this.fb.group({contactPerson:[''],designation:[''],mobile:[''],email:[''],department:[''],isPrimary:[true]}),address:this.fb.group({addressType:['Billing'],addressLine1:[''],addressLine2:[''],city:[''],district:[''],state:[''],country:['India'],postalCode:['']}),bank:this.fb.group({bankName:[''],branch:[''],accountNumber:[''],ifscCode:[''],upiId:['']})});constructor(private readonly api:SupplierApiService,route:ActivatedRoute,private readonly router:Router,private readonly snack:MatSnackBar){this.id=route.snapshot.paramMap.get('id');forkJoin({terms:api.terms(),supplier:this.id?api.get(this.id):of(null)}).subscribe(x=>{this.terms.set(x.terms);if(x.supplier){this.form.patchValue({...x.supplier,contact:x.supplier.contacts[0],address:x.supplier.addresses[0],bank:x.supplier.bankAccounts[0]})}})}save(){if(this.form.invalid)return;const v=this.form.getRawValue();const input={...v,contacts:v.contact?.contactPerson?[v.contact]:[],addresses:v.address?.addressLine1?[v.address]:[],bankAccounts:v.bank?.accountNumber?[v.bank]:[]} as unknown as SupplierInput;(this.id?this.api.update(this.id,input):this.api.create(input)).subscribe({next:x=>{this.snack.open('Supplier saved.',undefined,{duration:2500});void this.router.navigate(['/suppliers',x.supplierId])},error:()=>this.snack.open('Supplier could not be saved.','Dismiss',{duration:5000})})}}
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTabsModule } from '@angular/material/tabs';
+import { forkJoin, of } from 'rxjs';
+import { SupplierApiService } from './supplier-api.service';
+import { PaymentTerm, SupplierInput } from './supplier.models';
+@Component({
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    MatButtonModule,
+    MatCheckboxModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatTabsModule,
+  ],
+  templateUrl: './supplier-form.component.html',
+  styles: [
+    `
+      header {
+        display: flex;
+        justify-content: space-between;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        padding: 1.5rem;
+      }
+      .wide,
+      .checks {
+        grid-column: span 3;
+      }
+      footer {
+        display: flex;
+        justify-content: flex-end;
+        padding: 1rem;
+      }
+      @media (max-width: 800px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .wide,
+        .checks {
+          grid-column: span 1;
+        }
+      }
+    `,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class SupplierFormComponent {
+  private readonly fb = inject(FormBuilder);
+  readonly id: string | null;
+  readonly terms = signal<PaymentTerm[]>([]);
+  readonly form = this.fb.group({
+    supplierCode: ['', Validators.required],
+    supplierName: ['', Validators.required],
+    supplierType: ['Domestic', Validators.required],
+    gstin: [''],
+    pan: [''],
+    msmeRegistrationNumber: [''],
+    email: ['', Validators.email],
+    mobile: [''],
+    telephone: [''],
+    website: [''],
+    currency: ['INR', Validators.required],
+    paymentTermId: [null as string | null],
+    creditLimit: [0, Validators.min(0)],
+    openingBalance: [0],
+    isGSTRegistered: [false],
+    isTDSApplicable: [false],
+    isActive: [true],
+    remarks: [''],
+    contact: this.fb.group({
+      contactPerson: [''],
+      designation: [''],
+      mobile: [''],
+      email: [''],
+      department: [''],
+      isPrimary: [true],
+    }),
+    address: this.fb.group({
+      addressType: ['Billing'],
+      addressLine1: [''],
+      addressLine2: [''],
+      city: [''],
+      district: [''],
+      state: [''],
+      country: ['India'],
+      postalCode: [''],
+    }),
+    bank: this.fb.group({
+      bankName: [''],
+      branch: [''],
+      accountNumber: [''],
+      ifscCode: [''],
+      upiId: [''],
+    }),
+  });
+  constructor(
+    private readonly api: SupplierApiService,
+    route: ActivatedRoute,
+    private readonly router: Router,
+    private readonly snack: MatSnackBar,
+  ) {
+    this.id = route.snapshot.paramMap.get('id');
+    forkJoin({ terms: api.terms(), supplier: this.id ? api.get(this.id) : of(null) }).subscribe(
+      (x) => {
+        this.terms.set(x.terms);
+        if (x.supplier) {
+          this.form.patchValue({
+            ...x.supplier,
+            contact: x.supplier.contacts[0],
+            address: x.supplier.addresses[0],
+            bank: x.supplier.bankAccounts[0],
+          });
+        }
+      },
+    );
+  }
+  save() {
+    if (this.form.invalid) return;
+    const v = this.form.getRawValue();
+    const input = {
+      ...v,
+      contacts: v.contact?.contactPerson ? [v.contact] : [],
+      addresses: v.address?.addressLine1 ? [v.address] : [],
+      bankAccounts: v.bank?.accountNumber ? [v.bank] : [],
+    } as unknown as SupplierInput;
+    (this.id ? this.api.update(this.id, input) : this.api.create(input)).subscribe({
+      next: (x) => {
+        this.snack.open('Supplier saved.', undefined, { duration: 2500 });
+        void this.router.navigate(['/suppliers', x.supplierId]);
+      },
+      error: () => this.snack.open('Supplier could not be saved.', 'Dismiss', { duration: 5000 }),
+    });
+  }
+}

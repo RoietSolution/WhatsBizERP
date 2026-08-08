@@ -1,0 +1,12 @@
+<article>
+  <header>
+    <div>
+      <p>{{ title() }}</p>
+      @if (subtitle()) {
+        <small>{{ subtitle() }}</small>
+      }
+    </div>
+    <ng-content select="[card-actions]" />
+  </header>
+  <div class="statistics-card__content"><ng-content /></div>
+</article>

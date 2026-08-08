@@ -1,2 +1,46 @@
-import{Component,signal}from'@angular/core';import{MatButtonModule}from'@angular/material/button';import{MatCardModule}from'@angular/material/card';import{POSApiService}from'./pos-api.service';import{TodaySales}from'./pos.models';
-@Component({imports:[MatCardModule,MatButtonModule],template:`<header><h1>Today's Sales</h1><button mat-button (click)="export()">Export Daily Summary</button></header>@if(data();as x){<div class="cards"><mat-card><h2>{{x.grossSales}}</h2><p>Gross Sales</p></mat-card><mat-card><h2>{{x.invoiceCount}}</h2><p>Invoices</p></mat-card><mat-card><h2>{{x.collections}}</h2><p>Collections</p></mat-card><mat-card><h2>{{x.cash}}</h2><p>Cash</p></mat-card><mat-card><h2>{{x.upi}}</h2><p>UPI</p></mat-card><mat-card><h2>{{x.card}}</h2><p>Card</p></mat-card></div>}`,styles:[`header{display:flex;justify-content:space-between}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}mat-card{padding:1rem}@media(max-width:700px){.cards{grid-template-columns:1fr 1fr}}`]})export class TodaySalesComponent{readonly data=signal<TodaySales|null>(null);constructor(private readonly api:POSApiService){api.today().subscribe(x=>this.data.set(x))}export(){this.api.export().subscribe(b=>{const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='daily-sales.xlsx';a.click();URL.revokeObjectURL(u)})}}
+import { Component, signal } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { POSApiService } from './pos-api.service';
+import { TodaySales } from './pos.models';
+@Component({
+  imports: [MatCardModule, MatButtonModule],
+  templateUrl: './today-sales.component.html',
+  styles: [
+    `
+      header {
+        display: flex;
+        justify-content: space-between;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+      }
+      mat-card {
+        padding: 1rem;
+      }
+      @media (max-width: 700px) {
+        .cards {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+    `,
+  ],
+})
+export class TodaySalesComponent {
+  readonly data = signal<TodaySales | null>(null);
+  constructor(private readonly api: POSApiService) {
+    api.today().subscribe((x) => this.data.set(x));
+  }
+  export() {
+    this.api.export().subscribe((b) => {
+      const u = URL.createObjectURL(b);
+      const a = document.createElement('a');
+      a.href = u;
+      a.download = 'daily-sales.xlsx';
+      a.click();
+      URL.revokeObjectURL(u);
+    });
+  }
+}

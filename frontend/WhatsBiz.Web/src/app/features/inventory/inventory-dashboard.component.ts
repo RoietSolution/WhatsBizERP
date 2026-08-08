@@ -1,2 +1,131 @@
-import{ChangeDetectionStrategy,Component,computed,signal}from'@angular/core';import{FormsModule}from'@angular/forms';import{RouterLink}from'@angular/router';import{MatButtonModule}from'@angular/material/button';import{MatFormFieldModule}from'@angular/material/form-field';import{MatSelectModule}from'@angular/material/select';import{OperationsWorkspaceComponent}from'../../shared/components/operations-workspace/operations-workspace.component';import{FilterPanelComponent}from'../../shared/components/filter-panel/filter-panel.component';import{StatusChipComponent}from'../../shared/components/status-chip/status-chip.component';import{InventoryApiService}from'./inventory-api.service';import{InventorySummary,WarehouseOption}from'./inventory.models';
-@Component({imports:[FormsModule,RouterLink,MatButtonModule,MatFormFieldModule,MatSelectModule,OperationsWorkspaceComponent,FilterPanelComponent,StatusChipComponent],template:`<app-operations-workspace eyebrow="Inventory operations" title="Inventory Workspace" description="Monitor stock availability, warehouse movements, replenishment, and inventory risk." [summaries]="summaries()" statusText="Inventory synchronized"><a workspace-header-actions mat-flat-button color="primary" routerLink="/inventory/adjustment"><span class="material-symbols-rounded">tune</span>Adjust Stock</a><div workspace-toolbar-actions class="actions"><a mat-button routerLink="/inventory/balance"><span class="material-symbols-rounded">inventory_2</span>Stock List</a><a mat-button routerLink="/inventory/transfer"><span class="material-symbols-rounded">swap_horiz</span>Transfer</a><a mat-button routerLink="/inventory/verification"><span class="material-symbols-rounded">fact_check</span>Verify</a><a mat-button routerLink="/inventory/reorder"><span class="material-symbols-rounded">autorenew</span>Reorder</a><button mat-button><span class="material-symbols-rounded">label</span>Print Labels</button></div><app-filter-panel workspace-filters title="Warehouse & stock filters" (apply)="load()" (reset)="warehouseId='';load()"><mat-form-field appearance="outline"><mat-label>Warehouse</mat-label><mat-select [(ngModel)]="warehouseId"> <mat-option value="">All warehouses</mat-option>@for(x of warehouses();track x.warehouseId){<mat-option [value]="x.warehouseId">{{x.warehouseName}}</mat-option>}</mat-select></mat-form-field></app-filter-panel><section class="operations"><a routerLink="/inventory/balance"><span class="material-symbols-rounded">warehouse</span><strong>Warehouse Stock</strong><small>Search product, barcode, category, and warehouse balances.</small></a><a routerLink="/inventory/transactions"><span class="material-symbols-rounded">timeline</span><strong>Inventory History</strong><small>Review the stock timeline and product movements.</small></a><a routerLink="/inventory/alerts"><span class="material-symbols-rounded">warning</span><strong>Inventory Alerts</strong><small>Low, negative, expiring, and expired stock.</small></a><a routerLink="/inventory/reorder"><span class="material-symbols-rounded">shopping_cart_checkout</span><strong>Reorder Suggestions</strong><small>Suggested quantities based on current availability.</small></a></section><section workspace-context class="context-card"><h3>Quick Stock Lookup</h3><p>Open Stock List to locate a product across warehouses and storage locations.</p><a mat-stroked-button routerLink="/inventory/balance">Open lookup</a></section><section workspace-context class="context-card"><h3>Inventory Alerts</h3><app-status-chip [label]="(summary()?.lowStockProducts||0)+' low stock'" tone="warning"/><app-status-chip [label]="(summary()?.outOfStockProducts||0)+' out of stock'" tone="danger"/></section></app-operations-workspace>`,styles:[`.actions{display:flex;flex-wrap:wrap}.operations{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.operations a{display:grid;min-height:140px;padding:20px;color:var(--wb-text-primary);text-decoration:none;background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--wb-radius-md);transition:200ms}.operations a:hover{border-color:var(--wb-primary);box-shadow:var(--wb-shadow-md);transform:translateY(-2px)}.operations .material-symbols-rounded{color:var(--wb-primary);font-size:30px}.operations strong{margin-top:14px}.operations small,.context-card p{color:var(--wb-text-secondary)}.context-card{display:flex;padding:18px;background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--wb-radius-md);flex-direction:column;gap:8px}.context-card h3,.context-card p{margin:0}.context-card app-status-chip{margin-bottom:4px}@media(max-width:767px){.operations{grid-template-columns:1fr}}`],changeDetection:ChangeDetectionStrategy.OnPush})export class InventoryDashboardComponent{readonly summary=signal<InventorySummary|null>(null);readonly warehouses=signal<WarehouseOption[]>([]);readonly summaries=computed(()=>{const x=this.summary();return[{label:'Inventory value',value:x?.totalStockValue??0,subtitle:'Current stock',icon:'currency_rupee',tone:'primary' as const},{label:'Low stock',value:x?.lowStockProducts??0,subtitle:'Needs attention',icon:'warning',tone:'warning' as const},{label:'Out of stock',value:x?.outOfStockProducts??0,subtitle:'Unavailable',icon:'remove_shopping_cart',tone:'danger' as const},{label:'Reserved stock',value:x?.reservedStock??0,subtitle:'Committed',icon:'lock',tone:'info' as const}]});warehouseId='';constructor(private api:InventoryApiService){api.warehouses().subscribe(x=>this.warehouses.set(x));this.load()}load(){this.api.summary(this.warehouseId||undefined).subscribe(x=>this.summary.set(x))}}
+import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
+import { OperationsWorkspaceComponent } from '../../shared/components/operations-workspace/operations-workspace.component';
+import { FilterPanelComponent } from '../../shared/components/filter-panel/filter-panel.component';
+import { StatusChipComponent } from '../../shared/components/status-chip/status-chip.component';
+import { InventoryApiService } from './inventory-api.service';
+import { InventorySummary, WarehouseOption } from './inventory.models';
+@Component({
+  imports: [
+    FormsModule,
+    RouterLink,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatSelectModule,
+    OperationsWorkspaceComponent,
+    FilterPanelComponent,
+    StatusChipComponent,
+  ],
+  templateUrl: './inventory-dashboard.component.html',
+  styles: [
+    `
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+      }
+      .operations {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .operations a {
+        display: grid;
+        min-height: 140px;
+        padding: 20px;
+        color: var(--wb-text-primary);
+        text-decoration: none;
+        background: var(--wb-surface);
+        border: 1px solid var(--wb-border);
+        border-radius: var(--wb-radius-md);
+        transition: 200ms;
+      }
+      .operations a:hover {
+        border-color: var(--wb-primary);
+        box-shadow: var(--wb-shadow-md);
+        transform: translateY(-2px);
+      }
+      .operations .material-symbols-rounded {
+        color: var(--wb-primary);
+        font-size: 30px;
+      }
+      .operations strong {
+        margin-top: 14px;
+      }
+      .operations small,
+      .context-card p {
+        color: var(--wb-text-secondary);
+      }
+      .context-card {
+        display: flex;
+        padding: 18px;
+        background: var(--wb-surface);
+        border: 1px solid var(--wb-border);
+        border-radius: var(--wb-radius-md);
+        flex-direction: column;
+        gap: 8px;
+      }
+      .context-card h3,
+      .context-card p {
+        margin: 0;
+      }
+      .context-card app-status-chip {
+        margin-bottom: 4px;
+      }
+      @media (max-width: 767px) {
+        .operations {
+          grid-template-columns: 1fr;
+        }
+      }
+    `,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class InventoryDashboardComponent {
+  readonly summary = signal<InventorySummary | null>(null);
+  readonly warehouses = signal<WarehouseOption[]>([]);
+  readonly summaries = computed(() => {
+    const x = this.summary();
+    return [
+      {
+        label: 'Inventory value',
+        value: x?.totalStockValue ?? 0,
+        subtitle: 'Current stock',
+        icon: 'currency_rupee',
+        tone: 'primary' as const,
+      },
+      {
+        label: 'Low stock',
+        value: x?.lowStockProducts ?? 0,
+        subtitle: 'Needs attention',
+        icon: 'warning',
+        tone: 'warning' as const,
+      },
+      {
+        label: 'Out of stock',
+        value: x?.outOfStockProducts ?? 0,
+        subtitle: 'Unavailable',
+        icon: 'remove_shopping_cart',
+        tone: 'danger' as const,
+      },
+      {
+        label: 'Reserved stock',
+        value: x?.reservedStock ?? 0,
+        subtitle: 'Committed',
+        icon: 'lock',
+        tone: 'info' as const,
+      },
+    ];
+  });
+  warehouseId = '';
+  constructor(private api: InventoryApiService) {
+    api.warehouses().subscribe((x) => this.warehouses.set(x));
+    this.load();
+  }
+  load() {
+    this.api.summary(this.warehouseId || undefined).subscribe((x) => this.summary.set(x));
+  }
+}

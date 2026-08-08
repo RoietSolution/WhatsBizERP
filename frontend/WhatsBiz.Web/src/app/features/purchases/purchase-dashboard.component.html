@@ -1,0 +1,47 @@
+<app-operations-workspace
+  eyebrow="Purchase operations"
+  title="Purchase Workspace"
+  description="Manage purchasing, receipts, supplier obligations, and operational follow-up."
+  [summaries]="summaries()"
+  statusText="Purchase services available"
+  ><a workspace-header-actions mat-flat-button color="primary" routerLink="/purchases/create"
+    ><span class="material-symbols-rounded">add</span>Create Purchase</a
+  >
+  <div workspace-toolbar-actions class="actions">
+    <a mat-button routerLink="/purchases"
+      ><span class="material-symbols-rounded">receipt_long</span>Purchase History</a
+    ><a mat-button routerLink="/purchases/create"
+      ><span class="material-symbols-rounded">inventory</span>Receive Stock</a
+    ><button mat-button>
+      <span class="material-symbols-rounded">assignment_return</span>Supplier Return</button
+    ><button mat-button><span class="material-symbols-rounded">print</span>Print</button>
+  </div>
+  <section class="operations">
+    <a routerLink="/purchases"
+      ><span class="material-symbols-rounded">shopping_cart</span><strong>Purchase Invoices</strong
+      ><small>Review invoices, pending purchases, and purchase history.</small></a
+    ><a routerLink="/purchases/create"
+      ><span class="material-symbols-rounded">add_shopping_cart</span><strong>Purchase Entry</strong
+      ><small>Create purchase orders and receive supplier stock.</small></a
+    ><a routerLink="/inventory/balance"
+      ><span class="material-symbols-rounded">warehouse</span><strong>Goods Receipt</strong
+      ><small>Inspect warehouse stock after receiving purchases.</small></a
+    ><a routerLink="/inventory/movement-history"
+      ><span class="material-symbols-rounded">timeline</span><strong>Purchase Movement</strong
+      ><small>Trace inventory movements and receipt history.</small></a
+    >
+  </section>
+  <section workspace-context class="context-card">
+    <h3>Supplier Information</h3>
+    <p>
+      Select a supplier or purchase to view outstanding balances, order history, and recent
+      activity.
+    </p>
+    <app-status-chip label="Ready" tone="success" />
+  </section>
+  <section workspace-context class="context-card">
+    <h3>Outstanding Orders</h3>
+    <strong>{{ data()?.outstanding || 0 }}</strong
+    ><small>Supplier outstanding</small>
+  </section></app-operations-workspace
+>

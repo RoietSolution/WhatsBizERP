@@ -1,8 +1,40 @@
-nav { min-width: 0; }
-ol { display: flex; align-items: center; gap: 4px; margin: 0; padding: 0; list-style: none; color: var(--wb-text-secondary); font-size: .75rem; }
-li { display: flex; align-items: center; min-width: 0; }
-a { display: inline-flex; align-items: center; color: inherit; text-decoration: none; }
-a:hover { color: var(--wb-primary); }
-.material-symbols-rounded { font-size: 17px; }
-.separator { margin-inline: 2px; color: #9ca3af; }
-[aria-current='page'] { overflow: hidden; color: #374151; text-overflow: ellipsis; white-space: nowrap; }
+nav {
+  min-width: 0;
+}
+ol {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--wb-text-secondary);
+  font-size: 0.75rem;
+}
+li {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+a {
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+}
+a:hover {
+  color: var(--wb-primary);
+}
+.material-symbols-rounded {
+  font-size: 17px;
+}
+.separator {
+  margin-inline: 2px;
+  color: #9ca3af;
+}
+[aria-current='page'] {
+  overflow: hidden;
+  color: #374151;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

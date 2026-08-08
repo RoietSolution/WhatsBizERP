@@ -1,0 +1,72 @@
+<app-operations-workspace
+  eyebrow="GST reports"
+  [title]="title"
+  description="Statutory GST figures sourced from posted sales and purchases."
+  [summaries]="summaries()"
+  [statusText]="rows().length + ' records generated'"
+  ><app-status-chip workspace-header-actions label="GST Ready" tone="success" />
+  <div workspace-toolbar-actions class="actions">
+    <button mat-button (click)="download('xlsx')">
+      <span class="material-symbols-rounded">table_view</span>Excel</button
+    ><button mat-button (click)="download('pdf')">
+      <span class="material-symbols-rounded">picture_as_pdf</span>PDF</button
+    ><button mat-button (click)="download('csv')">
+      <span class="material-symbols-rounded">csv</span>CSV</button
+    ><button mat-button (click)="print()">
+      <span class="material-symbols-rounded">print</span>Print</button
+    ><button mat-button disabled><span class="material-symbols-rounded">mail</span>Email</button
+    ><button mat-button>
+      <span class="material-symbols-rounded">bookmark_add</span>Save Report
+    </button>
+  </div>
+  <app-filter-panel
+    workspace-filters
+    title="Advanced report filters"
+    (apply)="load()"
+    (reset)="reset()"
+    (save)="saveFilter()"
+    ><div class="filters">
+      <mat-form-field appearance="outline"
+        ><mat-label>From</mat-label
+        ><input matInput type="date" [(ngModel)]="from" /></mat-form-field
+      ><mat-form-field appearance="outline"
+        ><mat-label>To</mat-label><input matInput type="date" [(ngModel)]="to" /></mat-form-field
+      ><mat-form-field appearance="outline"
+        ><mat-label>GST Rate</mat-label
+        ><input matInput type="number" min="0" max="100" [(ngModel)]="gstRate" /></mat-form-field
+      ><button mat-stroked-button>Financial Year</button><button mat-stroked-button>Branch</button
+      ><button mat-stroked-button>Status</button>
+    </div></app-filter-panel
+  ><app-report-viewer
+    [rows]="rows()"
+    [columns]="columns"
+    [chart]="chart()"
+    [loading]="loading()"
+    [chartLabel]="title + ' tax visualization'" />
+  <section workspace-context class="insight">
+    <h3>Report Summary</h3>
+    <dl>
+      <dt>Last generated</dt>
+      <dd>{{ lastGenerated() }}</dd>
+      <dt>Total records</dt>
+      <dd>{{ rows().length }}</dd>
+      <dt>Taxable value</dt>
+      <dd>{{ total('taxableAmount') }}</dd>
+      <dt>Total GST</dt>
+      <dd>{{ total('totalTax') }}</dd>
+    </dl>
+  </section>
+  <section workspace-context class="insight">
+    <h3>Related Reports</h3>
+    <nav>
+      <a routerLink="/gst/sales-register">Sales Register</a
+      ><a routerLink="/gst/purchase-register">Purchase Register</a
+      ><a routerLink="/gst/hsn-summary">HSN Summary</a><a routerLink="/gst/gstr1">GSTR-1</a
+      ><a routerLink="/gst/gstr3b">GSTR-3B</a><a routerLink="/gst/tax-summary">Tax Summary</a>
+    </nav>
+  </section>
+  <section workspace-context class="insight">
+    <h3>Export History</h3>
+    <p>Exports generated in this session will appear here.</p>
+    <app-status-chip label="Export Ready" tone="success" /></section
+></app-operations-workspace>

@@ -1,0 +1,16 @@
+<h1>Purchase Payment</h1>
+@if (p(); as x) {
+  <p>{{ x.invoiceNumber }} · Outstanding {{ x.balanceAmount }}</p>
+  <mat-form-field
+    ><mat-label>Method</mat-label
+    ><mat-select [(ngModel)]="method"
+      ><mat-option value="CASH">Cash</mat-option><mat-option value="UPI">UPI</mat-option
+      ><mat-option value="BANK">Bank</mat-option></mat-select
+    ></mat-form-field
+  ><mat-form-field
+    ><mat-label>Amount</mat-label
+    ><input matInput type="number" [(ngModel)]="amount" /></mat-form-field
+  ><mat-form-field
+    ><mat-label>Reference</mat-label><input matInput [(ngModel)]="reference" /></mat-form-field
+  ><button mat-flat-button (click)="pay()">Record Payment</button>
+}

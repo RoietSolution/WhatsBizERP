@@ -1,0 +1,56 @@
+<app-operations-workspace
+  eyebrow="Monitoring & audit"
+  [title]="login ? 'Login History' : 'Audit Timeline'"
+  description="Review user activity, configuration changes, and security events."
+  [summaries]="summaries()"
+  [statusText]="rows().length + ' events loaded'"
+  ><a workspace-header-actions mat-button routerLink="/admin"
+    ><span class="material-symbols-rounded">arrow_back</span>Admin Center</a
+  >
+  <div workspace-toolbar-actions>
+    <button mat-button (click)="load()">
+      <span class="material-symbols-rounded">refresh</span>Refresh</button
+    ><button mat-button (click)="print()">
+      <span class="material-symbols-rounded">print</span>Print
+    </button>
+  </div>
+  <app-filter-panel workspace-filters title="Audit filters" (apply)="load()"
+    ><div class="filters">
+      <button mat-stroked-button>Date Range</button><button mat-stroked-button>User</button
+      ><button mat-stroked-button>Action</button><button mat-stroked-button>Status</button>
+    </div></app-filter-panel
+  ><app-data-table
+    [rows]="rows()"
+    [columns]="columns"
+    [actions]="['view', 'history']"
+    searchPlaceholder="Search user, action, resource, or IP"
+    (selectionChange)="selected.set($event[0] ?? null)"
+  />
+  <section workspace-context class="context">
+    <h3>Selected Event</h3>
+    @if (selected(); as x) {
+      <dl>
+        <dt>User</dt>
+        <dd>{{ x.userName || '—' }}</dd>
+        <dt>Action</dt>
+        <dd>{{ x.action || (x.succeeded ? 'LOGIN' : 'FAILED LOGIN') }}</dd>
+        <dt>Resource</dt>
+        <dd>{{ x.requestPath || x.ipAddress || '—' }}</dd>
+      </dl>
+      <app-status-chip
+        [label]="x.succeeded ? 'Success' : 'Failed'"
+        [tone]="x.succeeded ? 'success' : 'danger'"
+      />
+    } @else {
+      <p>Select an event to view its audit context.</p>
+    }
+  </section>
+  <section workspace-context class="context">
+    <h3>Related Monitoring</h3>
+    <nav>
+      <a routerLink="/admin/audit">Audit Logs</a
+      ><a routerLink="/admin/login-history">Login History</a
+      ><a routerLink="/admin/backup">Backup Center</a>
+    </nav>
+  </section></app-operations-workspace
+>

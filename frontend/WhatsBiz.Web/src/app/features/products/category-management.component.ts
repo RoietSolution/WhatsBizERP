@@ -12,15 +12,119 @@ import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 import { ProductApiService } from './product-api.service';
 import { Category } from './product.models';
 
-@Component({ selector: 'app-category-management', imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatSlideToggleModule, MatTableModule], template: `<h1>Product categories</h1><div class="layout"><form [formGroup]="form" (ngSubmit)="save()"><h2>{{ editingId ? 'Edit' : 'New' }} category</h2><mat-form-field><mat-label>Code</mat-label><input matInput formControlName="categoryCode"></mat-form-field><mat-form-field><mat-label>Name</mat-label><input matInput formControlName="categoryName"></mat-form-field><mat-form-field><mat-label>Description</mat-label><textarea matInput formControlName="description"></textarea></mat-form-field><mat-form-field><mat-label>Parent</mat-label><mat-select formControlName="parentCategoryId"><mat-option [value]="null">None</mat-option>@for(item of flat();track item.productCategoryId){<mat-option [value]="item.productCategoryId" [disabled]="item.productCategoryId===editingId">{{item.categoryName}}</mat-option>}</mat-select></mat-form-field><mat-form-field><mat-label>Display order</mat-label><input matInput type="number" formControlName="displayOrder"></mat-form-field><mat-slide-toggle formControlName="isActive">Active</mat-slide-toggle><div><button mat-flat-button type="submit" [disabled]="form.invalid">Save</button><button mat-button type="button" (click)="reset()">Clear</button></div></form><div class="table"><table mat-table [dataSource]="flat()"><ng-container matColumnDef="code"><th mat-header-cell *matHeaderCellDef>Code</th><td mat-cell *matCellDef="let x">{{x.categoryCode}}</td></ng-container><ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Name</th><td mat-cell *matCellDef="let x">{{x.categoryName}}</td></ng-container><ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef>Status</th><td mat-cell *matCellDef="let x">{{x.isActive?'Active':'Inactive'}}</td></ng-container><ng-container matColumnDef="actions"><th mat-header-cell *matHeaderCellDef></th><td mat-cell *matCellDef="let x"><button mat-button (click)="edit(x)">Edit</button><button mat-button (click)="remove(x)">Delete</button></td></ng-container><tr mat-header-row *matHeaderRowDef="columns"></tr><tr mat-row *matRowDef="let row;columns:columns"></tr></table></div></div>`, styles: [`.layout{display:grid;grid-template-columns:320px 1fr;gap:1.5rem}form{display:grid;gap:.25rem}.table{overflow:auto}table{width:100%}@media(max-width:800px){.layout{grid-template-columns:1fr}}`], changeDetection: ChangeDetectionStrategy.OnPush })
+@Component({
+  selector: 'app-category-management',
+  imports: [
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatSlideToggleModule,
+    MatTableModule,
+  ],
+  templateUrl: './category-management.component.html',
+  styles: [
+    `
+      .layout {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 1.5rem;
+      }
+      form {
+        display: grid;
+        gap: 0.25rem;
+      }
+      .table {
+        overflow: auto;
+      }
+      table {
+        width: 100%;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+    `,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
 export class CategoryManagementComponent {
-  private readonly fb = inject(FormBuilder); readonly columns = ['code', 'name', 'status', 'actions']; readonly items = signal<Category[]>([]); readonly flat = signal<Category[]>([]); editingId?: string;
-  readonly form = this.fb.group({ categoryCode: ['', Validators.required], categoryName: ['', Validators.required], description: [''], displayOrder: [0, [Validators.required, Validators.min(0)]], parentCategoryId: [null as string | null], isActive: [true] });
-  constructor(private readonly api: ProductApiService, private readonly snack: MatSnackBar, private readonly dialog: MatDialog) { this.load(); }
-  load(): void { this.api.categories().subscribe(items => { this.items.set(items); this.flat.set(this.flatten(items)); }); }
-  save(): void { if (this.form.invalid) return; const input = this.form.getRawValue() as Omit<Category, 'productCategoryId' | 'children'>; const request = this.editingId ? this.api.updateCategory(this.editingId, input) : this.api.createCategory(input); request.subscribe({ next: () => { this.snack.open('Category saved.', undefined, { duration: 2000 }); this.reset(); this.load(); }, error: () => this.snack.open('Category could not be saved.', 'Dismiss', { duration: 4000 }) }); }
-  edit(item: Category): void { this.editingId = item.productCategoryId; this.form.patchValue(item); }
-  reset(): void { this.editingId = undefined; this.form.reset({ categoryCode: '', categoryName: '', description: '', displayOrder: 0, parentCategoryId: null, isActive: true }); }
-  remove(item: Category): void { this.dialog.open(ConfirmDialogComponent, { data: { title: 'Delete category', message: `Delete ${item.categoryName}?` } }).afterClosed().subscribe(confirmed => { if (confirmed) this.api.deleteCategory(item.productCategoryId).subscribe({ next: () => this.load(), error: () => this.snack.open('Category is in use and cannot be deleted.', 'Dismiss', { duration: 4000 }) }); }); }
-  private flatten(items: Category[]): Category[] { return items.flatMap(item => [item, ...this.flatten(item.children)]); }
+  private readonly fb = inject(FormBuilder);
+  readonly columns = ['code', 'name', 'status', 'actions'];
+  readonly items = signal<Category[]>([]);
+  readonly flat = signal<Category[]>([]);
+  editingId?: string;
+  readonly form = this.fb.group({
+    categoryCode: ['', Validators.required],
+    categoryName: ['', Validators.required],
+    description: [''],
+    displayOrder: [0, [Validators.required, Validators.min(0)]],
+    parentCategoryId: [null as string | null],
+    isActive: [true],
+  });
+  constructor(
+    private readonly api: ProductApiService,
+    private readonly snack: MatSnackBar,
+    private readonly dialog: MatDialog,
+  ) {
+    this.load();
+  }
+  load(): void {
+    this.api.categories().subscribe((items) => {
+      this.items.set(items);
+      this.flat.set(this.flatten(items));
+    });
+  }
+  save(): void {
+    if (this.form.invalid) return;
+    const input = this.form.getRawValue() as Omit<Category, 'productCategoryId' | 'children'>;
+    const request = this.editingId
+      ? this.api.updateCategory(this.editingId, input)
+      : this.api.createCategory(input);
+    request.subscribe({
+      next: () => {
+        this.snack.open('Category saved.', undefined, { duration: 2000 });
+        this.reset();
+        this.load();
+      },
+      error: () => this.snack.open('Category could not be saved.', 'Dismiss', { duration: 4000 }),
+    });
+  }
+  edit(item: Category): void {
+    this.editingId = item.productCategoryId;
+    this.form.patchValue(item);
+  }
+  reset(): void {
+    this.editingId = undefined;
+    this.form.reset({
+      categoryCode: '',
+      categoryName: '',
+      description: '',
+      displayOrder: 0,
+      parentCategoryId: null,
+      isActive: true,
+    });
+  }
+  remove(item: Category): void {
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: { title: 'Delete category', message: `Delete ${item.categoryName}?` },
+      })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (confirmed)
+          this.api.deleteCategory(item.productCategoryId).subscribe({
+            next: () => this.load(),
+            error: () =>
+              this.snack.open('Category is in use and cannot be deleted.', 'Dismiss', {
+                duration: 4000,
+              }),
+          });
+      });
+  }
+  private flatten(items: Category[]): Category[] {
+    return items.flatMap((item) => [item, ...this.flatten(item.children)]);
+  }
 }

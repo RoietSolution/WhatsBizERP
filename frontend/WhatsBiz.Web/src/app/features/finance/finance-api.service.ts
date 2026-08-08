@@ -1,1 +1,60 @@
-import{HttpClient,HttpParams}from'@angular/common/http';import{Injectable}from'@angular/core';export interface LedgerRow{entryDate:string;entryType:string;referenceNumber?:string;debit:number;credit:number;balance:number;narration?:string}export interface BookRow{entryDate:string;entryType:string;referenceNumber?:string;mode?:string;amountIn:number;amountOut:number;balance:number;narration?:string}export interface DayRow{entryDate:string;transactionType:string;referenceNumber?:string;debitTotal:number;creditTotal:number;narration?:string}@Injectable({providedIn:'root'})export class FinanceApiService{constructor(private http:HttpClient){}customer(id:string){return this.http.get<LedgerRow[]>(`/api/ledger/customer/${id}`)}supplier(id:string){return this.http.get<LedgerRow[]>(`/api/ledger/supplier/${id}`)}cash(){return this.http.get<BookRow[]>('/api/cashbook')}bank(){return this.http.get<BookRow[]>('/api/bankbook')}day(){return this.http.get<DayRow[]>('/api/daybook')}receipt(x:object){return this.http.post('/api/receipt',x)}payment(x:object){return this.http.post('/api/payment',x)}customers(search=''){return this.http.get<any[]>('/api/customers/dropdown',{params:{search}})}suppliers(search=''){return this.http.get<any[]>('/api/suppliers/dropdown',{params:{search}})}}
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+export interface LedgerRow {
+  entryDate: string;
+  entryType: string;
+  referenceNumber?: string;
+  debit: number;
+  credit: number;
+  balance: number;
+  narration?: string;
+}
+export interface BookRow {
+  entryDate: string;
+  entryType: string;
+  referenceNumber?: string;
+  mode?: string;
+  amountIn: number;
+  amountOut: number;
+  balance: number;
+  narration?: string;
+}
+export interface DayRow {
+  entryDate: string;
+  transactionType: string;
+  referenceNumber?: string;
+  debitTotal: number;
+  creditTotal: number;
+  narration?: string;
+}
+@Injectable({ providedIn: 'root' })
+export class FinanceApiService {
+  constructor(private http: HttpClient) {}
+  customer(id: string) {
+    return this.http.get<LedgerRow[]>(`/api/ledger/customer/${id}`);
+  }
+  supplier(id: string) {
+    return this.http.get<LedgerRow[]>(`/api/ledger/supplier/${id}`);
+  }
+  cash() {
+    return this.http.get<BookRow[]>('/api/cashbook');
+  }
+  bank() {
+    return this.http.get<BookRow[]>('/api/bankbook');
+  }
+  day() {
+    return this.http.get<DayRow[]>('/api/daybook');
+  }
+  receipt(x: object) {
+    return this.http.post('/api/receipt', x);
+  }
+  payment(x: object) {
+    return this.http.post('/api/payment', x);
+  }
+  customers(search = '') {
+    return this.http.get<any[]>('/api/customers/dropdown', { params: { search } });
+  }
+  suppliers(search = '') {
+    return this.http.get<any[]>('/api/suppliers/dropdown', { params: { search } });
+  }
+}

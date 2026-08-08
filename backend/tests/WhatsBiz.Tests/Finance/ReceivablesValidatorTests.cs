@@ -1,7 +1,10 @@
-using FluentAssertions;using WhatsBiz.Application.Features.Receivables;
+using FluentAssertions;
+using WhatsBiz.Application.Features.Receivables;
 namespace WhatsBiz.Tests.Finance;
-public sealed class ReceivablesValidatorTests{
-[Fact]public async Task ReceiptAllowsMultipleInvoiceAllocationsWithinSplitTotal(){var input=new ReceiptInput(Guid.NewGuid(),"INVOICE_WISE",DateTimeOffset.UtcNow,null,null,[new("CASH",50,null,null,null,null),new("UPI",50,null,null,null,null)],[new(Guid.NewGuid(),40),new(Guid.NewGuid(),60)]);(await new ReceiptInputValidator().ValidateAsync(new PostReceipt(input))).IsValid.Should().BeTrue();}
-[Fact]public async Task ReceiptRejectsOverAllocation(){var input=new ReceiptInput(Guid.NewGuid(),"INVOICE_WISE",DateTimeOffset.UtcNow,null,null,[new("CASH",50,null,null,null,null)],[new(Guid.NewGuid(),51)]);(await new ReceiptInputValidator().ValidateAsync(new PostReceipt(input))).IsValid.Should().BeFalse();}
-[Fact]public async Task PaymentRequiresPositiveSplit(){var input=new PaymentInput(Guid.NewGuid(),"SUPPLIER",DateTimeOffset.UtcNow,null,null,[new("BANK",0,null,null,null,null)],[]);(await new PaymentInputValidator().ValidateAsync(new PostPayment(input))).IsValid.Should().BeFalse();}
-[Fact]public async Task FollowUpRequiresCustomerAndCommunicationMode(){var input=new FollowUpInput(Guid.Empty,null,DateTimeOffset.UtcNow,null,null,"",null,null);(await new FollowUpValidator().ValidateAsync(new SaveFollowUp(input))).IsValid.Should().BeFalse();}}
+public sealed class ReceivablesValidatorTests
+{
+    [Fact] public async Task ReceiptAllowsMultipleInvoiceAllocationsWithinSplitTotal() { var input = new ReceiptInput(Guid.NewGuid(), "INVOICE_WISE", DateTimeOffset.UtcNow, null, null, [new("CASH", 50, null, null, null, null), new("UPI", 50, null, null, null, null)], [new(Guid.NewGuid(), 40), new(Guid.NewGuid(), 60)]); (await new ReceiptInputValidator().ValidateAsync(new PostReceipt(input))).IsValid.Should().BeTrue(); }
+    [Fact] public async Task ReceiptRejectsOverAllocation() { var input = new ReceiptInput(Guid.NewGuid(), "INVOICE_WISE", DateTimeOffset.UtcNow, null, null, [new("CASH", 50, null, null, null, null)], [new(Guid.NewGuid(), 51)]); (await new ReceiptInputValidator().ValidateAsync(new PostReceipt(input))).IsValid.Should().BeFalse(); }
+    [Fact] public async Task PaymentRequiresPositiveSplit() { var input = new PaymentInput(Guid.NewGuid(), "SUPPLIER", DateTimeOffset.UtcNow, null, null, [new("BANK", 0, null, null, null, null)], []); (await new PaymentInputValidator().ValidateAsync(new PostPayment(input))).IsValid.Should().BeFalse(); }
+    [Fact] public async Task FollowUpRequiresCustomerAndCommunicationMode() { var input = new FollowUpInput(Guid.Empty, null, DateTimeOffset.UtcNow, null, null, "", null, null); (await new FollowUpValidator().ValidateAsync(new SaveFollowUp(input))).IsValid.Should().BeFalse(); }
+}

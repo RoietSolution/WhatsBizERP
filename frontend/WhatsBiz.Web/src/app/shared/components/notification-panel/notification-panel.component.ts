@@ -3,5 +3,16 @@ import { DatePipe } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { NotificationService } from '../../services/notification.service';
 
-@Component({ selector: 'app-notification-panel', imports: [DatePipe, MatButtonModule], template: '<header><div><h2>Notifications</h2><span>{{ unread() }} unread</span></div><button mat-button type="button" (click)="notifications.markAllRead()">Mark all read</button></header><div class="notification-list">@for (item of notifications.notifications(); track item.id) { <article [class.notification--unread]="!item.read"><span class="material-symbols-rounded" [attr.data-tone]="item.type">{{ item.type === "success" ? "check_circle" : item.type === "warning" ? "warning" : item.type === "danger" ? "error" : "info" }}</span><div><strong>{{ item.title }}</strong><p>{{ item.message }}</p><small>{{ item.createdAt | date:"short" }}</small></div><button mat-icon-button type="button" aria-label="Dismiss notification" (click)="notifications.remove(item.id)"><span class="material-symbols-rounded">close</span></button></article> } @empty { <div class="notification-empty"><span class="material-symbols-rounded">notifications_off</span><p>You are all caught up.</p></div> }</div>', styleUrl: './notification-panel.component.scss', changeDetection: ChangeDetectionStrategy.OnPush })
-export class NotificationPanelComponent { readonly notifications = inject(NotificationService); readonly unread = computed(() => this.notifications.notifications().filter((item) => !item.read).length); }
+@Component({
+  selector: 'app-notification-panel',
+  imports: [DatePipe, MatButtonModule],
+  templateUrl: './notification-panel.component.html',
+  styleUrl: './notification-panel.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class NotificationPanelComponent {
+  readonly notifications = inject(NotificationService);
+  readonly unread = computed(
+    () => this.notifications.notifications().filter((item) => !item.read).length,
+  );
+}

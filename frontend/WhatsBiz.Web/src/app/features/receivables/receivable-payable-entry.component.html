@@ -1,1 +1,134 @@
-<app-page-container wide><app-page-header eyebrow="Finance command center" [title]="kind==='receipt'?'New Customer Receipt':'New Supplier Payment'" [description]="kind==='receipt'?'Allocate collections against customer invoices.':'Allocate payments against supplier invoices.'"><app-status-chip label="New Entry" tone="info"/></app-page-header><div class="entry-layout"><main><section class="party-card"><div class="party-icon material-symbols-rounded">{{kind==='receipt'?'person':'local_shipping'}}</div><mat-form-field appearance="outline"><mat-label>{{kind==='receipt'?'Customer':'Supplier'}} Search</mat-label><mat-select [(ngModel)]="partyId" (selectionChange)="loadOutstanding()">@for(x of parties();track id(x)){<mat-option [value]="id(x)">{{code(x)}} — {{name(x)}}</mat-option>}</mat-select></mat-form-field><mat-form-field appearance="outline"><mat-label>Entry Type</mat-label><mat-select [(ngModel)]="entryType"><mat-option value="INVOICE_WISE">Invoice-wise</mat-option><mat-option [value]="kind==='receipt'?'CUSTOMER':'SUPPLIER'">Regular</mat-option><mat-option value="ADVANCE">Advance</mat-option><mat-option value="ON_ACCOUNT">On account</mat-option></mat-select></mat-form-field><mat-form-field appearance="outline"><mat-label>Reference</mat-label><input matInput [(ngModel)]="reference"></mat-form-field></section><section class="allocation-card"><header><div><span class="material-symbols-rounded">receipt_long</span><strong>Invoice Allocation</strong></div><span>{{invoices().length}} open invoice(s)</span></header><div class="allocation-grid"><div class="grid-head"><span>Invoice</span><span>Due date</span><span>Ageing</span><span>Outstanding</span><span>Allocate</span></div>@for(x of invoices();track x.invoiceId){<div class="grid-row"><strong>{{x.invoiceNumber}}</strong><span>{{x.dueDate||'—'}}</span><app-status-chip [label]="x.ageBucket" [tone]="x.ageDays>90?'danger':x.ageDays>60?'warning':'info'"/><span>{{x.outstandingAmount}}</span><input aria-label="Allocation amount" type="number" min="0" [max]="x.outstandingAmount" [(ngModel)]="x.allocate"></div>}@empty{<div class="empty"><span class="material-symbols-rounded">manage_search</span><strong>Select a {{kind==='receipt'?'customer':'supplier'}}</strong><p>Outstanding invoices will appear here.</p></div>}</div></section><mat-form-field class="remarks" appearance="outline"><mat-label>Notes</mat-label><textarea matInput [(ngModel)]="remarks"></textarea></mat-form-field></main><aside class="payment-panel"><h3>Outstanding Summary</h3><div class="outstanding"><small>Total outstanding</small><strong>{{outstanding()}}</strong></div><h3>Payment Allocation</h3>@for(x of splits;track $index){<div class="split"><mat-form-field appearance="outline"><mat-label>Payment Mode</mat-label><mat-select [(ngModel)]="x.paymentMode">@for(m of modes;track m.code){<mat-option [value]="m.code">{{m.name}}</mat-option>}</mat-select></mat-form-field><mat-form-field appearance="outline"><mat-label>Amount</mat-label><input matInput type="number" [(ngModel)]="x.amount"></mat-form-field><mat-form-field appearance="outline"><mat-label>Mode Reference</mat-label><input matInput [(ngModel)]="x.referenceNumber"></mat-form-field>@if(splits.length>1){<button mat-icon-button aria-label="Remove payment split" (click)="removeSplit($index)"><span class="material-symbols-rounded">delete</span></button>}</div>}<button mat-stroked-button (click)="addSplit()"><span class="material-symbols-rounded">call_split</span>Add Split Payment</button><div class="quick"><button mat-stroked-button (click)="quick(500)">₹500</button><button mat-stroked-button (click)="quick(1000)">₹1,000</button><button mat-stroked-button (click)="quick(2000)">₹2,000</button><button mat-stroked-button (click)="quick(outstanding())">Exact</button></div><dl><dt>Payment total</dt><dd>{{total()}}</dd><dt>Allocated</dt><dd>{{allocated()}}</dd><dt>On account</dt><dd>{{total()-allocated()}}</dd></dl><button class="post" mat-flat-button color="primary" (click)="save()" [disabled]="saving()"><span class="material-symbols-rounded">check_circle</span>{{saving()?'Posting...':'Post '+(kind==='receipt'?'Receipt':'Payment')}}</button></aside></div><footer><span><kbd>F2</kbd> Party Search</span><span><kbd>F4</kbd> Add Split</span><span><kbd>F8</kbd> Post Entry</span><span>Finance services online</span></footer></app-page-container>
+<app-page-container wide
+  ><app-page-header
+    eyebrow="Finance command center"
+    [title]="kind === 'receipt' ? 'New Customer Receipt' : 'New Supplier Payment'"
+    [description]="
+      kind === 'receipt'
+        ? 'Allocate collections against customer invoices.'
+        : 'Allocate payments against supplier invoices.'
+    "
+    ><app-status-chip label="New Entry" tone="info"
+  /></app-page-header>
+  <div class="entry-layout">
+    <main>
+      <section class="party-card">
+        <div class="party-icon material-symbols-rounded">
+          {{ kind === 'receipt' ? 'person' : 'local_shipping' }}
+        </div>
+        <mat-form-field appearance="outline"
+          ><mat-label>{{ kind === 'receipt' ? 'Customer' : 'Supplier' }} Search</mat-label
+          ><mat-select [(ngModel)]="partyId" (selectionChange)="loadOutstanding()">
+            @for (x of parties(); track id(x)) {
+              <mat-option [value]="id(x)">{{ code(x) }} — {{ name(x) }}</mat-option>
+            }
+          </mat-select></mat-form-field
+        ><mat-form-field appearance="outline"
+          ><mat-label>Entry Type</mat-label
+          ><mat-select [(ngModel)]="entryType"
+            ><mat-option value="INVOICE_WISE">Invoice-wise</mat-option
+            ><mat-option [value]="kind === 'receipt' ? 'CUSTOMER' : 'SUPPLIER'">Regular</mat-option
+            ><mat-option value="ADVANCE">Advance</mat-option
+            ><mat-option value="ON_ACCOUNT">On account</mat-option></mat-select
+          ></mat-form-field
+        ><mat-form-field appearance="outline"
+          ><mat-label>Reference</mat-label><input matInput [(ngModel)]="reference"
+        /></mat-form-field>
+      </section>
+      <section class="allocation-card">
+        <header>
+          <div>
+            <span class="material-symbols-rounded">receipt_long</span
+            ><strong>Invoice Allocation</strong>
+          </div>
+          <span>{{ invoices().length }} open invoice(s)</span>
+        </header>
+        <div class="allocation-grid">
+          <div class="grid-head">
+            <span>Invoice</span><span>Due date</span><span>Ageing</span><span>Outstanding</span
+            ><span>Allocate</span>
+          </div>
+          @for (x of invoices(); track x.invoiceId) {
+            <div class="grid-row">
+              <strong>{{ x.invoiceNumber }}</strong
+              ><span>{{ x.dueDate || '—' }}</span
+              ><app-status-chip
+                [label]="x.ageBucket"
+                [tone]="x.ageDays > 90 ? 'danger' : x.ageDays > 60 ? 'warning' : 'info'"
+              /><span>{{ x.outstandingAmount }}</span
+              ><input
+                aria-label="Allocation amount"
+                type="number"
+                min="0"
+                [max]="x.outstandingAmount"
+                [(ngModel)]="x.allocate"
+              />
+            </div>
+          } @empty {
+            <div class="empty">
+              <span class="material-symbols-rounded">manage_search</span
+              ><strong>Select a {{ kind === 'receipt' ? 'customer' : 'supplier' }}</strong>
+              <p>Outstanding invoices will appear here.</p>
+            </div>
+          }
+        </div>
+      </section>
+      <mat-form-field class="remarks" appearance="outline"
+        ><mat-label>Notes</mat-label><textarea matInput [(ngModel)]="remarks"></textarea>
+      </mat-form-field>
+    </main>
+    <aside class="payment-panel">
+      <h3>Outstanding Summary</h3>
+      <div class="outstanding">
+        <small>Total outstanding</small><strong>{{ outstanding() }}</strong>
+      </div>
+      <h3>Payment Allocation</h3>
+      @for (x of splits; track $index) {
+        <div class="split">
+          <mat-form-field appearance="outline"
+            ><mat-label>Payment Mode</mat-label
+            ><mat-select [(ngModel)]="x.paymentMode">
+              @for (m of modes; track m.code) {
+                <mat-option [value]="m.code">{{ m.name }}</mat-option>
+              }
+            </mat-select></mat-form-field
+          ><mat-form-field appearance="outline"
+            ><mat-label>Amount</mat-label
+            ><input matInput type="number" [(ngModel)]="x.amount" /></mat-form-field
+          ><mat-form-field appearance="outline"
+            ><mat-label>Mode Reference</mat-label><input matInput [(ngModel)]="x.referenceNumber"
+          /></mat-form-field>
+          @if (splits.length > 1) {
+            <button mat-icon-button aria-label="Remove payment split" (click)="removeSplit($index)">
+              <span class="material-symbols-rounded">delete</span>
+            </button>
+          }
+        </div>
+      }
+      <button mat-stroked-button (click)="addSplit()">
+        <span class="material-symbols-rounded">call_split</span>Add Split Payment
+      </button>
+      <div class="quick">
+        <button mat-stroked-button (click)="quick(500)">₹500</button
+        ><button mat-stroked-button (click)="quick(1000)">₹1,000</button
+        ><button mat-stroked-button (click)="quick(2000)">₹2,000</button
+        ><button mat-stroked-button (click)="quick(outstanding())">Exact</button>
+      </div>
+      <dl>
+        <dt>Payment total</dt>
+        <dd>{{ total() }}</dd>
+        <dt>Allocated</dt>
+        <dd>{{ allocated() }}</dd>
+        <dt>On account</dt>
+        <dd>{{ total() - allocated() }}</dd>
+      </dl>
+      <button class="post" mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
+        <span class="material-symbols-rounded">check_circle</span
+        >{{ saving() ? 'Posting...' : 'Post ' + (kind === 'receipt' ? 'Receipt' : 'Payment') }}
+      </button>
+    </aside>
+  </div>
+  <footer>
+    <span><kbd>F2</kbd> Party Search</span><span><kbd>F4</kbd> Add Split</span
+    ><span><kbd>F8</kbd> Post Entry</span><span>Finance services online</span>
+  </footer></app-page-container
+>

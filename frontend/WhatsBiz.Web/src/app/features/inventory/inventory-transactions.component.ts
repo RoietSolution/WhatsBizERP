@@ -12,8 +12,102 @@ import { InventoryApiService } from './inventory-api.service';
 import { InventoryTransaction, TransactionList, WarehouseOption } from './inventory.models';
 
 @Component({
-  imports:[DatePipe,ReactiveFormsModule,MatButtonModule,MatFormFieldModule,MatInputModule,MatPaginatorModule,MatSelectModule,MatTableModule],
-  template:`<h1>Inventory Transactions</h1><form [formGroup]="filters" class="tools"><mat-form-field><mat-label>Search</mat-label><input matInput formControlName="search" (keyup.enter)="load()"></mat-form-field><mat-form-field><mat-label>Warehouse</mat-label><mat-select formControlName="warehouseId" (selectionChange)="load()"><mat-option value="">All</mat-option>@for(x of warehouses();track x.warehouseId){<mat-option [value]="x.warehouseId">{{x.warehouseName}}</mat-option>}</mat-select></mat-form-field><mat-form-field><mat-label>Type</mat-label><mat-select formControlName="transactionType" (selectionChange)="load()"><mat-option value="">All</mat-option>@for(x of transactionTypes;track x){<mat-option [value]="x">{{x}}</mat-option>}</mat-select></mat-form-field><mat-form-field><mat-label>From</mat-label><input matInput type="date" formControlName="from"></mat-form-field><mat-form-field><mat-label>To</mat-label><input matInput type="date" formControlName="to"></mat-form-field><button mat-button type="button" (click)="load()">Apply</button></form><div class="table"><table mat-table [dataSource]="items()"><ng-container matColumnDef="number"><th mat-header-cell *matHeaderCellDef>Number</th><td mat-cell *matCellDef="let x"><button mat-button (click)="view(x)">{{x.transactionNo}}</button></td></ng-container><ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Date</th><td mat-cell *matCellDef="let x">{{x.transactionDate|date:'medium'}}</td></ng-container><ng-container matColumnDef="type"><th mat-header-cell *matHeaderCellDef>Type</th><td mat-cell *matCellDef="let x">{{x.transactionType}}</td></ng-container><ng-container matColumnDef="warehouse"><th mat-header-cell *matHeaderCellDef>Warehouse</th><td mat-cell *matCellDef="let x">{{x.warehouseName}}</td></ng-container><ng-container matColumnDef="quantity"><th mat-header-cell *matHeaderCellDef>Quantity</th><td mat-cell *matCellDef="let x">{{x.totalQuantity}}</td></ng-container><ng-container matColumnDef="cost"><th mat-header-cell *matHeaderCellDef>Cost</th><td mat-cell *matCellDef="let x">{{x.totalCost}}</td></ng-container><tr mat-header-row *matHeaderRowDef="cols"></tr><tr mat-row *matRowDef="let row;columns:cols"></tr></table></div><mat-paginator [length]="total()" [pageIndex]="page-1" [pageSize]="size" (page)="paged($event)"/>`,
-  styles:[`.tools{display:flex;gap:1rem;flex-wrap:wrap}.table{overflow:auto}table{width:100%;min-width:800px}`],changeDetection:ChangeDetectionStrategy.OnPush})
-export class InventoryTransactionsComponent{readonly cols=['number','date','type','warehouse','quantity','cost'];readonly transactionTypes=['ADJUSTMENT_IN','ADJUSTMENT_OUT','TRANSFER_OUT','TRANSFER_IN','RESERVATION','RELEASE','PURCHASE','SALE','RETURN','MANUFACTURING'];readonly items=signal<TransactionList[]>([]);readonly warehouses=signal<WarehouseOption[]>([]);readonly total=signal(0);readonly filters;page=1;size=20;constructor(private readonly api:InventoryApiService,fb:FormBuilder,private readonly dialog:MatDialog){this.filters=fb.group({search:[''],warehouseId:[''],transactionType:[''],from:[''],to:['']});api.warehouses().subscribe(x=>this.warehouses.set(x));this.load()}load(){const f=this.filters.getRawValue();this.api.transactions({search:f.search||undefined,warehouseId:f.warehouseId||undefined,transactionType:f.transactionType||undefined,from:f.from||undefined,to:f.to||undefined,pageNumber:this.page,pageSize:this.size}).subscribe(x=>{this.items.set(x.items);this.total.set(x.totalCount)})}paged(e:PageEvent){this.page=e.pageIndex+1;this.size=e.pageSize;this.load()}view(x:TransactionList){this.api.transaction(x.transactionId).subscribe(t=>this.dialog.open(TransactionDialogComponent,{data:t,width:'800px'}))}}
-@Component({imports:[MatDialogModule,MatButtonModule],template:`<h2 mat-dialog-title>{{data.transactionNo}}</h2><mat-dialog-content><p>{{data.transactionType}} · {{data.warehouseName}}</p>@for(x of data.details;track x.transactionDetailId){<p><strong>{{x.productCode}} — {{x.productName}}</strong>: {{x.quantity}} × {{x.unitCost}} = {{x.totalCost}}</p>}<p>{{data.remarks}}</p></mat-dialog-content><mat-dialog-actions><button mat-button mat-dialog-close>Close</button></mat-dialog-actions>`})export class TransactionDialogComponent{constructor(@Inject(MAT_DIALOG_DATA)readonly data:InventoryTransaction){}}
+  imports: [
+    DatePipe,
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatPaginatorModule,
+    MatSelectModule,
+    MatTableModule,
+  ],
+  templateUrl: './inventory-transactions.component.html',
+  styles: [
+    `
+      .tools {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+      .table {
+        overflow: auto;
+      }
+      table {
+        width: 100%;
+        min-width: 800px;
+      }
+    `,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class InventoryTransactionsComponent {
+  readonly cols = ['number', 'date', 'type', 'warehouse', 'quantity', 'cost'];
+  readonly transactionTypes = [
+    'ADJUSTMENT_IN',
+    'ADJUSTMENT_OUT',
+    'TRANSFER_OUT',
+    'TRANSFER_IN',
+    'RESERVATION',
+    'RELEASE',
+    'PURCHASE',
+    'SALE',
+    'RETURN',
+    'MANUFACTURING',
+  ];
+  readonly items = signal<TransactionList[]>([]);
+  readonly warehouses = signal<WarehouseOption[]>([]);
+  readonly total = signal(0);
+  readonly filters;
+  page = 1;
+  size = 20;
+  constructor(
+    private readonly api: InventoryApiService,
+    fb: FormBuilder,
+    private readonly dialog: MatDialog,
+  ) {
+    this.filters = fb.group({
+      search: [''],
+      warehouseId: [''],
+      transactionType: [''],
+      from: [''],
+      to: [''],
+    });
+    api.warehouses().subscribe((x) => this.warehouses.set(x));
+    this.load();
+  }
+  load() {
+    const f = this.filters.getRawValue();
+    this.api
+      .transactions({
+        search: f.search || undefined,
+        warehouseId: f.warehouseId || undefined,
+        transactionType: f.transactionType || undefined,
+        from: f.from || undefined,
+        to: f.to || undefined,
+        pageNumber: this.page,
+        pageSize: this.size,
+      })
+      .subscribe((x) => {
+        this.items.set(x.items);
+        this.total.set(x.totalCount);
+      });
+  }
+  paged(e: PageEvent) {
+    this.page = e.pageIndex + 1;
+    this.size = e.pageSize;
+    this.load();
+  }
+  view(x: TransactionList) {
+    this.api
+      .transaction(x.transactionId)
+      .subscribe((t) => this.dialog.open(TransactionDialogComponent, { data: t, width: '800px' }));
+  }
+}
+@Component({
+  imports: [MatDialogModule, MatButtonModule],
+  templateUrl: './transaction-dialog.component.html',
+})
+export class TransactionDialogComponent {
+  constructor(@Inject(MAT_DIALOG_DATA) readonly data: InventoryTransaction) {}
+}

@@ -1,0 +1,19 @@
+<h1>Barcode & QR Generator</h1>
+<section>
+  <label>Value<input [(ngModel)]="value" /></label
+  ><label
+    >Format<select [(ngModel)]="format">
+      <option>CODE128</option>
+      <option>EAN13</option>
+      <option>EAN8</option>
+      <option>UPC</option>
+      <option>CODE39</option>
+      <option>QR</option>
+    </select></label
+  ><button mat-flat-button (click)="generate()">Generate</button>
+</section>
+@if (url()) {
+  <article>
+    <img [src]="url()" /><button mat-button (click)="download()">Download SVG</button>
+  </article>
+}

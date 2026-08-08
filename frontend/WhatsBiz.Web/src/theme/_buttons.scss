@@ -2,8 +2,19 @@
   border-radius: var(--wb-radius-sm);
   font-weight: 600;
   letter-spacing: 0;
-  transition: background-color var(--wb-motion), border-color var(--wb-motion), color var(--wb-motion), transform var(--wb-motion);
+  transition:
+    background-color var(--wb-motion),
+    border-color var(--wb-motion),
+    color var(--wb-motion),
+    transform var(--wb-motion);
 }
-.mat-mdc-unelevated-button.mat-primary { box-shadow: var(--wb-shadow-sm); }
-.wb-danger-button { color: var(--wb-danger); }
-.wb-loading-button { pointer-events: none; opacity: 0.72; }
+.mat-mdc-unelevated-button.mat-primary {
+  box-shadow: var(--wb-shadow-sm);
+}
+.wb-danger-button {
+  color: var(--wb-danger);
+}
+.wb-loading-button {
+  pointer-events: none;
+  opacity: 0.72;
+}

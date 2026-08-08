@@ -1,3 +1,4 @@
-using Microsoft.AspNetCore.Authorization; using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
 namespace WhatsBiz.Api.Authorization;
 public sealed class PermissionPolicyProvider(IOptions<AuthorizationOptions> options) : DefaultAuthorizationPolicyProvider(options) { public const string Prefix = "Permission:"; public override Task<AuthorizationPolicy?> GetPolicyAsync(string policyName) => policyName.StartsWith(Prefix, StringComparison.Ordinal) ? Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder().AddRequirements(new PermissionRequirement(policyName[Prefix.Length..])).Build()) : base.GetPolicyAsync(policyName); }

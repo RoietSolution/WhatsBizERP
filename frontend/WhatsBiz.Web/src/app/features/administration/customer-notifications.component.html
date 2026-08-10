@@ -1,0 +1,29 @@
+<app-page-container>
+  <app-page-header eyebrow="Communication Settings" title="Customer Notifications" description="Configure post-transaction WhatsApp and optional SMS delivery.">
+    <a mat-button routerLink="/admin"><span class="material-symbols-rounded">arrow_back</span>Admin Center</a>
+    <app-status-chip [label]="settings().enabled ? 'Enabled' : 'Disabled'" [tone]="settings().enabled ? 'success' : 'neutral'" />
+  </app-page-header>
+  <div class="grid">
+    <section class="card"><h2>Channels and triggers</h2><p class="muted">Notifications are queued only after a successful transaction commit.</p><div class="toggles">
+      <mat-slide-toggle [(ngModel)]="settings().enabled">Enable customer notifications</mat-slide-toggle>
+      <mat-slide-toggle [(ngModel)]="settings().whatsAppEnabled" [disabled]="!settings().enabled">WhatsApp (primary)</mat-slide-toggle>
+      <mat-slide-toggle [(ngModel)]="settings().smsEnabled" [disabled]="!settings().enabled">SMS (optional)</mat-slide-toggle>
+      <mat-checkbox [(ngModel)]="settings().successfulSale" [disabled]="!settings().enabled">Successful sale</mat-checkbox>
+      <mat-checkbox [(ngModel)]="settings().successfulPayment" [disabled]="!settings().enabled">Successful payment</mat-checkbox>
+    </div></section>
+    <section class="card"><h2>Provider readiness</h2><p class="muted">Credentials stay in server-side environment variables or secret storage.</p>
+      @if(status(); as s){<p><strong>WhatsApp:</strong> {{s.whatsAppConfigured ? 'Configured' : 'Not configured'}}<br><strong>SMS:</strong> {{s.smsConfigured ? 'Configured' : 'Not configured'}}</p><p class="hint">{{s.message}}</p>}
+      <button mat-stroked-button (click)="check()"><span class="material-symbols-rounded">network_check</span>Test configuration</button>
+    </section>
+  </div>
+  <section class="card templates"><h2>Message templates</h2><p class="hint">Available variables: {{variables}}</p>
+    <mat-form-field appearance="outline" class="full"><mat-label>WhatsApp message</mat-label><textarea matInput rows="8" maxlength="4000" [(ngModel)]="settings().whatsAppTemplate"></textarea></mat-form-field>
+    <mat-form-field appearance="outline" class="full"><mat-label>SMS message</mat-label><textarea matInput rows="4" maxlength="1000" [(ngModel)]="settings().smsTemplate"></textarea></mat-form-field>
+    <div class="actions"><button mat-flat-button color="primary" (click)="save()"><span class="material-symbols-rounded">save</span>Save</button><button mat-stroked-button (click)="reset()">Reset</button>@if(saved()){<app-status-chip label="Saved" tone="success" />}</div>
+  </section>
+  <section class="card history"><h2>Notification history</h2>
+    <table><thead><tr><th>Date</th><th>Customer</th><th>Invoice</th><th>Event</th><th>Channel</th><th>Recipient</th><th>Status</th><th>Attempts</th><th>Sent</th><th>Error</th><th></th></tr></thead><tbody>
+      @for(x of history(); track x.id){<tr><td>{{x.createdOn | date:'medium'}}</td><td>{{x.customerName}}</td><td>{{x.invoiceNumber}}</td><td>{{x.eventType}}</td><td>{{x.channel}}</td><td>{{x.recipient}}</td><td><app-status-chip [label]="x.status" [tone]="x.status === 'SENT' ? 'success' : x.status === 'FAILED' ? 'danger' : 'warning'" /></td><td>{{x.attemptCount}} / 3</td><td>{{x.sentOn ? (x.sentOn | date:'medium') : '—'}}</td><td class="error">{{x.errorMessage || '—'}}</td><td>@if(x.status === 'FAILED'){<button mat-button (click)="retry(x.id)">Retry</button>}</td></tr>} @empty {<tr><td colspan="11">No customer notifications recorded.</td></tr>}
+    </tbody></table>
+  </section>
+</app-page-container>

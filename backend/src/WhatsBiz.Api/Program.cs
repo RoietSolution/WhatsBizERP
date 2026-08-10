@@ -8,6 +8,7 @@ using WhatsBiz.Infrastructure;
 using WhatsBiz.Infrastructure.Persistence;
 using WhatsBiz.Infrastructure.Gst;
 using WhatsBiz.Infrastructure.Printing;
+using WhatsBiz.Infrastructure.Notifications;
 using WhatsBiz.Infrastructure.Administration;
 using Microsoft.AspNetCore.HttpOverrides;
 
@@ -19,6 +20,7 @@ try
     builder.Host.UseSerilog((context, services, configuration) => configuration.ReadFrom.Configuration(context.Configuration).ReadFrom.Services(services).Enrich.FromLogContext());
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
+    builder.Services.AddCustomerNotifications();
     builder.Services.AddScoped<IInventoryOperationsRepository, InventoryOperationsRepository>();
     builder.Services.AddScoped<IReceivablesRepository, ReceivablesRepository>();
     builder.Services.AddMemoryCache(options => options.SizeLimit = 1024);

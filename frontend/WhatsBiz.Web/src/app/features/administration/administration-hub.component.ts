@@ -281,6 +281,12 @@ export class AdministrationHubComponent {
       icon: 'forum',
       items: [
         {
+          title: 'Customer Notifications',
+          description: 'Post-sale WhatsApp, SMS, templates, delivery history, and retry.',
+          icon: 'mark_chat_read',
+          route: '/admin/customer-notifications',
+        },
+        {
           title: 'Email / SMTP',
           description: 'Outgoing email and SMTP provider settings.',
           icon: 'mail',

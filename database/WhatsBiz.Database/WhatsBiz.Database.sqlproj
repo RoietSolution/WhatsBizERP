@@ -5,9 +5,11 @@
     <Build Remove="Scripts\VerifyPOS.sql"/><Build Remove="Scripts\VerifyPurchase.sql"/><Build Remove="Scripts\V1_ReleaseHardening.sql"/>
     <Build Remove="Scripts\RCDEV008-RuntimeObjects.sql"/>
     <Build Remove="Scripts\RCDEV009-PrintingPaperSize.sql"/>
+    <Build Remove="Scripts\RCDEV010-CustomerNotifications.sql"/>
     <None Include="SeedData\DemoData.sql"/><None Include="Scripts\VerifyPOS.sql"/><None Include="Scripts\VerifyPurchase.sql"/><None Include="Scripts\V1_ReleaseHardening.sql"/>
     <None Include="Scripts\RCDEV008-RuntimeObjects.sql"/>
     <None Include="Scripts\RCDEV009-PrintingPaperSize.sql"/>
+    <None Include="Scripts\RCDEV010-CustomerNotifications.sql"/>
     <PostDeploy Include="Scripts\PostDeployment.sql"/>
   </ItemGroup>
 </Project>

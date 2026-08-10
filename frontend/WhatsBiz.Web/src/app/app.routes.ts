@@ -403,6 +403,15 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'admin/customer-notifications',
+        canActivate: [permissionGuard],
+        data: { ...adminSettings, title: 'Customer Notifications' },
+        loadComponent: () =>
+          import('./features/administration/customer-notifications.component').then(
+            (m) => m.CustomerNotificationsComponent,
+          ),
+      },
+      {
         path: 'admin/printers',
         canActivate: [permissionGuard],
         data: { ...printSettings, title: 'Printer Configuration' },

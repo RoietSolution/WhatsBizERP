@@ -73,6 +73,17 @@ export interface Audit {
 }
 export interface AdminUser { userId: string; userName: string; email: string; isActive: boolean; isDeleted: boolean; }
 export interface AdminRole { roleId: string; roleName: string; permissions: string[]; }
+export interface CustomerNotificationSettings {
+  enabled: boolean; whatsAppEnabled: boolean; smsEnabled: boolean;
+  successfulSale: boolean; successfulPayment: boolean;
+  whatsAppTemplate: string; smsTemplate: string;
+}
+export interface CustomerNotificationHistory {
+  id: string; createdOn: string; customerName: string; invoiceNumber: string;
+  eventType: string; channel: string; recipient: string; status: string;
+  attemptCount: number; errorMessage?: string; sentOn?: string; lastAttemptOn?: string;
+}
+export interface NotificationConfigurationStatus { whatsAppConfigured: boolean; smsConfigured: boolean; message: string; }
 @Injectable({ providedIn: 'root' })
 export class AdminApiService {
   private root = '/api/admin';
@@ -121,4 +132,9 @@ export class AdminApiService {
   }
   users() { return this.http.get<AdminUser[]>(`${this.root}/users`); }
   roles() { return this.http.get<AdminRole[]>(`${this.root}/roles`); }
+  customerNotificationSettings() { return this.http.get<CustomerNotificationSettings>(`${this.root}/customer-notifications/settings`); }
+  saveCustomerNotificationSettings(x: CustomerNotificationSettings) { return this.http.put<void>(`${this.root}/customer-notifications/settings`, x); }
+  customerNotificationHistory() { return this.http.get<CustomerNotificationHistory[]>(`${this.root}/customer-notifications/history`); }
+  retryCustomerNotification(id: string) { return this.http.post<void>(`${this.root}/customer-notifications/history/${id}/retry`, {}); }
+  customerNotificationConfigurationStatus() { return this.http.get<NotificationConfigurationStatus>(`${this.root}/customer-notifications/configuration-status`); }
 }

@@ -349,6 +349,24 @@ export const routes: Routes = [
       { path: 'printing/templates', redirectTo: 'print/templates', pathMatch: 'full' },
       { path: 'printing/labels', redirectTo: 'print/labels', pathMatch: 'full' },
       {
+        path: 'admin/users',
+        canActivate: [permissionGuard],
+        data: { permission: 'user.manage', mode: 'users' },
+        loadComponent: () =>
+          import('./features/administration/identity-administration.component').then(
+            (m) => m.IdentityAdministrationComponent,
+          ),
+      },
+      {
+        path: 'admin/roles',
+        canActivate: [permissionGuard],
+        data: { permission: 'role.manage', mode: 'roles' },
+        loadComponent: () =>
+          import('./features/administration/identity-administration.component').then(
+            (m) => m.IdentityAdministrationComponent,
+          ),
+      },
+      {
         path: 'admin/company',
         canActivate: [permissionGuard],
         data: adminCompany,
@@ -387,7 +405,7 @@ export const routes: Routes = [
       {
         path: 'admin/printers',
         canActivate: [permissionGuard],
-        data: adminSettings,
+        data: { ...printSettings, title: 'Printer Configuration' },
         loadComponent: () =>
           import('./features/printing/printer-configuration.component').then(
             (m) => m.PrinterConfigurationComponent,

@@ -37,4 +37,4 @@ public interface IProductSpreadsheetService
     IReadOnlyCollection<ProductImportRow> Read(byte[] content);
 }
 
-public sealed record ProductImportRow(int RowNumber, string ProductCode, string? Barcode, string ProductName, string CategoryCode, string BrandCode, string UnitCode, decimal GSTPercentage, decimal PurchasePrice, decimal SellingPrice, decimal MRP, bool IsActive);
+public sealed record ProductImportRow(int RowNumber, string ProductCode, string? Barcode, string ProductName, string CategoryCode, string BrandCode, string UnitCode, decimal GSTPercentage, decimal PurchasePrice, decimal SellingPrice, decimal MRP, bool IsActive, string BarcodeType);

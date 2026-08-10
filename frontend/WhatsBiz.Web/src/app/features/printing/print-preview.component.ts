@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MatButtonModule } from '@angular/material/button';
 import { PrintApiService, PrintTemplate, Printer } from './print-api.service';
+import { DEFAULT_PAPER_SIZE, PAPER_SIZES, PaperSize, previewDimensions } from './paper-size';
 
 @Component({
   imports: [DecimalPipe, FormsModule, MatButtonModule],
@@ -48,13 +49,14 @@ import { PrintApiService, PrintTemplate, Printer } from './print-api.service';
   ],
 })
 export class PrintPreviewComponent implements OnDestroy {
+  readonly paperSizes = PAPER_SIZES;
   readonly templates = signal<PrintTemplate[]>([]);
   readonly printers = signal<Printer[]>([]);
   readonly url = signal<SafeResourceUrl | null>(null);
   raw = '';
   zoom = 1;
   type = 'SALES_INVOICE';
-  paper = 'A4';
+  paper: PaperSize = DEFAULT_PAPER_SIZE;
   template = '';
   printer = '';
   constructor(
@@ -63,7 +65,9 @@ export class PrintPreviewComponent implements OnDestroy {
   ) {
     api.templates().subscribe((x) => this.templates.set(x));
     api.printers().subscribe((x) => this.printers.set(x));
+    api.settings().subscribe((x) => (this.paper = x.paperSize));
   }
+  dimensions() { return previewDimensions(this.paper); }
   zoomOut() {
     this.zoom = Math.max(0.5, this.zoom - 0.1);
   }

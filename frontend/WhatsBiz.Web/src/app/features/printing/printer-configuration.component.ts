@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { PrintApiService, Printer } from './print-api.service';
+import { DEFAULT_PAPER_SIZE, PAPER_SIZES } from './paper-size';
 @Component({
   imports: [FormsModule, MatButtonModule, MatSnackBarModule],
   templateUrl: './printer-configuration.component.html',
@@ -34,13 +35,14 @@ import { PrintApiService, Printer } from './print-api.service';
   ],
 })
 export class PrinterConfigurationComponent {
+  readonly paperSizes = PAPER_SIZES;
   printers = signal<Printer[]>([]);
   model = {
     printerName: '',
     displayName: '',
     printerType: 'THERMAL',
-    paperSize: '80MM',
-    isDefault: false,
+    paperSize: DEFAULT_PAPER_SIZE,
+    isDefault: true,
     autoCut: true,
     isActive: true,
   };

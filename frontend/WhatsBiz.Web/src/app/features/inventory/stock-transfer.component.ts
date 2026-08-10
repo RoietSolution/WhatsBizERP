@@ -5,7 +5,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { InventoryApiService } from './inventory-api.service';
+import { StockControlApiService } from './stock-control-api.service';
 import { ProductOption, WarehouseOption } from './inventory.models';
 @Component({
   imports: [
@@ -44,7 +44,7 @@ export class StockTransferComponent {
   readonly warehouses = signal<WarehouseOption[]>([]);
   readonly form;
   constructor(
-    private readonly api: InventoryApiService,
+    private readonly api: StockControlApiService,
     fb: FormBuilder,
     private readonly snack: MatSnackBar,
   ) {
@@ -61,8 +61,26 @@ export class StockTransferComponent {
   }
   save() {
     if (this.form.invalid) return;
+    const v = this.form.getRawValue();
     this.api
-      .transfer(this.form.getRawValue())
+      .transfer({
+        sourceWarehouseId: v.sourceWarehouseId,
+        destinationWarehouseId: v.destinationWarehouseId,
+        transferDate: new Date(v.transferDate!).toISOString(),
+        approvalStatus: 'APPROVED',
+        remarks: v.remarks,
+        items: [{
+          productId: v.productId,
+          sourceZoneId: null,
+          sourceBinId: null,
+          destinationZoneId: null,
+          destinationBinId: null,
+          batchNo: null,
+          serialNo: null,
+          quantity: v.quantity,
+          unitCost: 0,
+        }],
+      })
       .subscribe((x) =>
         this.snack.open(`Transfer ${x.number} completed.`, undefined, { duration: 3000 }),
       );

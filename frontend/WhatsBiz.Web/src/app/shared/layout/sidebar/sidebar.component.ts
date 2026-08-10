@@ -115,6 +115,37 @@ const navigation: NavigationItem[] = [
     ],
   },
   {
+    label: 'Printing',
+    icon: 'print',
+    permission: 'print.view',
+    children: [
+      {
+        label: 'Label Designer',
+        icon: 'label',
+        route: '/print/labels',
+        permission: 'print.document',
+      },
+      {
+        label: 'Barcode & QR Generator',
+        icon: 'qr_code_2',
+        route: '/print/barcodes',
+        permission: 'print.barcode',
+      },
+      {
+        label: 'Print Templates',
+        icon: 'description',
+        route: '/print/templates',
+        permission: 'print.view',
+      },
+      {
+        label: 'Printer Configuration',
+        icon: 'print',
+        route: '/print/printers',
+        permission: 'print.settings',
+      },
+    ],
+  },
+  {
     label: 'Parties',
     icon: 'groups',
     children: [
@@ -216,6 +247,12 @@ const navigation: NavigationItem[] = [
         icon: 'settings',
         route: '/admin/settings',
         permission: 'admin.settings',
+      },
+      {
+        label: 'Printer Configuration',
+        icon: 'print',
+        route: '/admin/printers',
+        permission: 'print.settings',
       },
       { label: 'Audit Log', icon: 'history', route: '/admin/audit', permission: 'admin.audit' },
       { label: 'Backup', icon: 'backup', route: '/admin/backup', permission: 'admin.backup' },

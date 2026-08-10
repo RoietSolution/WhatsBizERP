@@ -14,11 +14,11 @@
     <option>THERMAL</option>
     <option>A4</option>
     <option>LABEL</option></select
-  ><select name="paper" [(ngModel)]="model.paperSize">
-    <option>58MM</option>
-    <option>80MM</option>
-    <option>A4</option>
-    <option>CUSTOM</option></select
+  ><label>Paper Size<select name="paper" [(ngModel)]="model.paperSize">
+    @for (paper of paperSizes; track paper.value) {
+      <option [value]="paper.value">{{ paper.label }} — {{ paper.description }}</option>
+    }
+  </select></label
   ><label><input type="checkbox" name="default" [(ngModel)]="model.isDefault" /> Default</label
   ><label><input type="checkbox" name="cut" [(ngModel)]="model.autoCut" /> Auto cut</label
   ><button mat-flat-button>Save printer</button>

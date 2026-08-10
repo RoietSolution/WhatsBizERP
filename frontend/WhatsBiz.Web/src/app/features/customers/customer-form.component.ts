@@ -133,6 +133,13 @@ export class CustomerFormComponent {
     const clean = (x: string | null | undefined) => x || undefined;
     const input = {
       ...v,
+      gstin: clean(v.gstin),
+      pan: clean(v.pan),
+      email: clean(v.email),
+      mobile: clean(v.mobile),
+      telephone: clean(v.telephone),
+      website: clean(v.website),
+      remarks: clean(v.remarks),
       salesPersonId: clean(v.salesPersonId),
       customerGroupId: clean(v.customerGroupId),
       priceListId: clean(v.priceListId),

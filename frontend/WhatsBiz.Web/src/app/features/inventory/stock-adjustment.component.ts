@@ -5,7 +5,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { InventoryApiService } from './inventory-api.service';
+import { StockControlApiService } from './stock-control-api.service';
 import { ProductOption, WarehouseOption } from './inventory.models';
 @Component({
   imports: [
@@ -42,10 +42,10 @@ import { ProductOption, WarehouseOption } from './inventory.models';
 export class StockAdjustmentComponent {
   readonly products = signal<ProductOption[]>([]);
   readonly warehouses = signal<WarehouseOption[]>([]);
-  readonly reasons = ['OPENING_STOCK', 'DAMAGE', 'COUNT_CORRECTION', 'EXPIRY', 'OTHER'];
+  readonly reasons = ['DAMAGE', 'EXPIRY', 'LOST', 'FOUND', 'INTERNAL_CONSUMPTION', 'PHYSICAL_VERIFICATION', 'OTHER'];
   readonly form;
   constructor(
-    private readonly api: InventoryApiService,
+    private readonly api: StockControlApiService,
     fb: FormBuilder,
     private readonly snack: MatSnackBar,
   ) {
@@ -59,7 +59,7 @@ export class StockAdjustmentComponent {
       quantity: [1, Validators.min(0.0001)],
       unitCost: [0, Validators.min(0)],
       adjustmentType: ['INCREASE', Validators.required],
-      reasonCode: ['OPENING_STOCK', Validators.required],
+      reasonCode: ['OTHER', Validators.required],
       remarks: [''],
     });
     api.products().subscribe((x) => this.products.set(x.items));
@@ -67,7 +67,25 @@ export class StockAdjustmentComponent {
   }
   save() {
     if (this.form.invalid) return;
-    this.api.adjust(this.form.getRawValue()).subscribe((x) => {
+    const v = this.form.getRawValue();
+    this.api.adjust({
+      warehouseId: v.warehouseId,
+      adjustmentType: v.adjustmentType,
+      reasonCode: v.reasonCode,
+      approvalStatus: 'APPROVED',
+      remarks: v.remarks,
+      items: [{
+        productId: v.productId,
+        sourceZoneId: v.zoneId,
+        sourceBinId: v.binId,
+        destinationZoneId: null,
+        destinationBinId: null,
+        batchNo: v.batchNo || null,
+        serialNo: v.serialNo || null,
+        quantity: v.quantity,
+        unitCost: v.unitCost,
+      }],
+    }).subscribe((x) => {
       this.snack.open(`Adjustment ${x.number} posted.`, undefined, { duration: 3000 });
       this.form.patchValue({ quantity: 1, remarks: '' });
     });

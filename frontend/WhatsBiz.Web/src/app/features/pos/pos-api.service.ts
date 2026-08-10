@@ -1,6 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { map } from 'rxjs';
+import { PaperSize } from '../printing/paper-size';
 import {
   Invoice,
   PagedInvoices,
@@ -65,9 +66,11 @@ export class POSApiService {
   today() {
     return this.http.get<TodaySales>('/api/pos/today-sales');
   }
-  print(id: string, paper = '80mm') {
+  print(id: string, paper?: PaperSize) {
+    let params = new HttpParams();
+    if (paper) params = params.set('paper', paper);
     this.http
-      .get(`/api/pos/invoice/${id}/print`, { params: { paper }, responseType: 'blob' })
+      .get(`/api/pos/invoice/${id}/print`, { params, responseType: 'blob' })
       .subscribe((receipt) => {
         const url = URL.createObjectURL(receipt);
         const popup = window.open(url, '_blank');
@@ -79,7 +82,7 @@ export class POSApiService {
   }
   warehouses() {
     return this.http
-      .get<{ items: POSWarehouse[] }>('/api/warehouses', {
+      .get<{ items: POSWarehouse[] }>('/api/pos/warehouses', {
         params: { isActive: true, pageSize: 100, sortBy: 'warehouseName' },
       })
       .pipe(map((result) => result.items));

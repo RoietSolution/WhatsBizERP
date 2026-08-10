@@ -71,6 +71,8 @@ export interface Audit {
   succeeded: boolean;
   occurredOn: string;
 }
+export interface AdminUser { userId: string; userName: string; email: string; isActive: boolean; isDeleted: boolean; }
+export interface AdminRole { roleId: string; roleName: string; permissions: string[]; }
 @Injectable({ providedIn: 'root' })
 export class AdminApiService {
   private root = '/api/admin';
@@ -117,4 +119,6 @@ export class AdminApiService {
       params: new HttpParams().set('take', 500),
     });
   }
+  users() { return this.http.get<AdminUser[]>(`${this.root}/users`); }
+  roles() { return this.http.get<AdminRole[]>(`${this.root}/roles`); }
 }

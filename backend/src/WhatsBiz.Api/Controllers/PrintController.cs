@@ -13,6 +13,7 @@ public sealed class PrintController(ISender sender) : ControllerBase
     [HttpPost("document"), HasPermission(Permissions.Print.Document)] public async Task<IActionResult> Document(DocumentInput input, CancellationToken token) => Artifact(await sender.Send(new GenerateDocument(input), token));
     [HttpPost("label"), HasPermission(Permissions.Print.Document)] public async Task<IActionResult> Label(LabelInput input, CancellationToken token) => Artifact(await sender.Send(new GenerateLabel(input), token));
     [HttpGet("printers"), HasPermission(Permissions.Print.View)] public Task<IReadOnlyCollection<PrinterDto>> Printers(CancellationToken token) => sender.Send(new GetPrinters(), token);
+    [HttpGet("settings"), HasPermission(Permissions.Print.View)] public Task<PrintingSettingsDto> Settings(CancellationToken token) => sender.Send(new GetPrintingSettings(), token);
     [HttpPost("printers"), HasPermission(Permissions.Print.Settings)] public async Task<IActionResult> Printer(PrinterInput input, CancellationToken token) { await sender.Send(new SavePrinter(input), token); return NoContent(); }
     private FileContentResult Artifact(PrintArtifact x) => File(x.Data, x.ContentType, x.FileName);
 }

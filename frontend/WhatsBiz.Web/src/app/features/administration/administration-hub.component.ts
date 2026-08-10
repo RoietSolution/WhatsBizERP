@@ -224,13 +224,13 @@ export class AdministrationHubComponent {
           title: 'Users',
           description: 'User accounts, access, and account status.',
           icon: 'person',
-          planned: true,
+          route: '/admin/users',
         },
         {
           title: 'Roles & Permissions',
           description: 'Role-based access and permission assignments.',
           icon: 'admin_panel_settings',
-          planned: true,
+          route: '/admin/roles',
         },
         {
           title: 'Password Policy',

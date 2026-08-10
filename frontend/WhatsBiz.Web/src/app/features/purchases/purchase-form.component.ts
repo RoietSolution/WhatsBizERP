@@ -75,7 +75,9 @@ export class PurchaseFormComponent {
   }
   find() {
     if (!this.lookup) return;
-    this.api.products(this.lookup, this.lookup).subscribe((x) => {
+    // Free-text entry must remain a product/code search. Supplying the same value
+    // as an exact barcode filter made normal purchase lookup return no rows.
+    this.api.products(this.lookup).subscribe((x) => {
       const p = x[0];
       if (!p) {
         this.snack.open('Product not found', 'Close', { duration: 2500 });

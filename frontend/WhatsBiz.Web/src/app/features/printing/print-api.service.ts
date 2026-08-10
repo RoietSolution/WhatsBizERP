@@ -1,5 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { PaperSize } from './paper-size';
 export interface PrintTemplate {
   id: string;
   code: string;
@@ -20,6 +21,10 @@ export interface Printer {
   autoCut: boolean;
   isActive: boolean;
 }
+export interface PrintingSettings {
+  paperSize: PaperSize;
+  supportedPaperSizes: PaperSize[];
+}
 @Injectable({ providedIn: 'root' })
 export class PrintApiService {
   private root = '/api/print';
@@ -31,6 +36,9 @@ export class PrintApiService {
   }
   printers() {
     return this.http.get<Printer[]>(`${this.root}/printers`);
+  }
+  settings() {
+    return this.http.get<PrintingSettings>(`${this.root}/settings`);
   }
   savePrinter(x: Partial<Printer>) {
     return this.http.post<void>(`${this.root}/printers`, x);

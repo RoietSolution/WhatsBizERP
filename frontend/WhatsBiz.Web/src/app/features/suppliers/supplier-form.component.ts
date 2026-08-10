@@ -130,8 +130,17 @@ export class SupplierFormComponent {
   save() {
     if (this.form.invalid) return;
     const v = this.form.getRawValue();
+    const clean = (x: string | null | undefined) => x?.trim() || undefined;
     const input = {
       ...v,
+      gstin: clean(v.gstin),
+      pan: clean(v.pan),
+      msmeRegistrationNumber: clean(v.msmeRegistrationNumber),
+      email: clean(v.email),
+      mobile: clean(v.mobile),
+      telephone: clean(v.telephone),
+      website: clean(v.website),
+      remarks: clean(v.remarks),
       contacts: v.contact?.contactPerson ? [v.contact] : [],
       addresses: v.address?.addressLine1 ? [v.address] : [],
       bankAccounts: v.bank?.accountNumber ? [v.bank] : [],

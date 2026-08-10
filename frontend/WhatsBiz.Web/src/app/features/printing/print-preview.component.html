@@ -27,9 +27,9 @@
     </select></label
   ><label
     >Paper<select [(ngModel)]="paper">
-      <option>A4</option>
-      <option>80MM</option>
-      <option>58MM</option>
+      @for (paperSize of paperSizes; track paperSize.value) {
+        <option [value]="paperSize.value">{{ paperSize.label }} — {{ paperSize.description }}</option>
+      }
     </select></label
   ><label
     >Printer<select [(ngModel)]="printer">
@@ -42,7 +42,7 @@
 </section>
 <div class="stage">
   @if (url()) {
-    <iframe [src]="url()" [style.transform]="'scale(' + zoom + ')'"></iframe>
+    <iframe [src]="url()" [style.width]="dimensions().width" [style.min-height]="dimensions().minHeight" [style.transform]="'scale(' + zoom + ')'"></iframe>
   } @else {
     <p>Generate a document to preview it.</p>
   }

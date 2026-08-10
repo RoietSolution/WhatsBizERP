@@ -39,10 +39,10 @@ try
     app.UseSerilogRequestLogging();
     app.UseHttpsRedirection();
     app.UseResponseCompression();
+    app.UseAuthentication();
     app.UseRateLimiter();
     app.UseCors(ApiServiceCollectionExtensions.CorsPolicyName);
     if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
-    app.UseAuthentication();
     app.UseAuthorization();
     app.MapControllers();
     app.MapHealthChecks("/health").AllowAnonymous();

@@ -5,3 +5,5 @@
 :r ..\SeedData\PaymentMethods.sql
 :r ..\SeedData\InvoiceSeries.sql
 :r ..\SeedData\PurchaseSeries.sql
+:r .\RCDEV008-RuntimeObjects.sql
+:r .\RCDEV009-PrintingPaperSize.sql

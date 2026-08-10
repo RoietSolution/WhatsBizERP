@@ -8,16 +8,15 @@
     ><span class="material-symbols-rounded">assessment</span>Open GST Center</a
   >
   <div workspace-toolbar-actions class="actions">
-    <button mat-button><span class="material-symbols-rounded">bookmark_add</span>Save Layout</button
-    ><button mat-button><span class="material-symbols-rounded">star</span>Favorites</button
-    ><button mat-button><span class="material-symbols-rounded">history</span>Recently Opened</button
-    ><button mat-button><span class="material-symbols-rounded">download</span>Export Center</button>
+    <a mat-button routerLink="/reports"><span class="material-symbols-rounded">star</span>Favorites</a
+    ><a mat-button routerLink="/inventory/balance"
+      ><span class="material-symbols-rounded">download</span>Inventory export</a
+    ><a mat-button routerLink="/gst/tax-summary"
+      ><span class="material-symbols-rounded">download</span>GST export</a>
   </div>
   <app-filter-panel workspace-filters title="Report discovery filters"
     ><div class="filters">
-      <button mat-stroked-button>Date Range</button
-      ><button mat-stroked-button>Financial Year</button><button mat-stroked-button>Branch</button
-      ><button mat-stroked-button>Warehouse</button><button mat-stroked-button>Status</button>
+      <span>Date, search, status, branch, warehouse, pagination and sorting filters are available inside each applicable report.</span>
     </div></app-filter-panel
   >
   <section class="category-grid">
@@ -64,9 +63,11 @@
   <section workspace-context class="insight">
     <h3>Export Center</h3>
     <div class="export-actions">
-      <button mat-stroked-button>Excel</button><button mat-stroked-button>PDF</button
-      ><button mat-stroked-button>CSV</button><button mat-stroked-button>Print</button
-      ><button mat-stroked-button disabled>Email</button>
+      <a mat-stroked-button routerLink="/pos/history">Sales</a
+      ><a mat-stroked-button routerLink="/purchases">Purchases</a
+      ><a mat-stroked-button routerLink="/inventory/balance">Inventory</a
+      ><a mat-stroked-button routerLink="/finance/daybook">Finance</a
+      ><a mat-stroked-button routerLink="/gst/tax-summary">GST</a>
     </div>
     <app-status-chip label="Ready" tone="success" /></section
 ></app-operations-workspace>

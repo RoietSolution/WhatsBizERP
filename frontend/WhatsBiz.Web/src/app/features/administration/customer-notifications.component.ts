@@ -10,6 +10,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { PageContainerComponent } from '../../shared/components/page-container/page-container.component';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 import { StatusChipComponent } from '../../shared/components/status-chip/status-chip.component';
+import { FeatureStateService } from '../../shared/services/feature-state.service';
 import { AdminApiService, CustomerNotificationHistory, CustomerNotificationSettings, NotificationConfigurationStatus } from './admin-api.service';
 
 const defaults: CustomerNotificationSettings = {
@@ -30,13 +31,18 @@ const defaults: CustomerNotificationSettings = {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CustomerNotificationsComponent {
+  readonly features;
   readonly settings = signal<CustomerNotificationSettings>({ ...defaults });
   readonly original = signal<CustomerNotificationSettings>({ ...defaults });
   readonly history = signal<CustomerNotificationHistory[]>([]);
   readonly status = signal<NotificationConfigurationStatus | null>(null);
   readonly saved = signal(false);
   readonly variables = '{{company_name}}, {{customer_name}}, {{invoice_no}}, {{invoice_date}}, {{total_amount}}, {{paid_amount}}, {{balance_amount}}, {{payment_method}}, {{currency}}, {{store_phone}}, {{store_address}}';
-  constructor(private api: AdminApiService) { this.reload(); }
+  constructor(private api: AdminApiService, featureState: FeatureStateService) {
+    this.features = featureState.state;
+    featureState.load().subscribe();
+    this.reload();
+  }
   reload() { this.api.customerNotificationSettings().subscribe(x => { this.settings.set({ ...x }); this.original.set({ ...x }); }); this.api.customerNotificationHistory().subscribe(x => this.history.set(x)); }
   save() { this.api.saveCustomerNotificationSettings(this.settings()).subscribe(() => { this.original.set({ ...this.settings() }); this.saved.set(true); }); }
   reset() { this.settings.set({ ...this.original() }); this.saved.set(false); }

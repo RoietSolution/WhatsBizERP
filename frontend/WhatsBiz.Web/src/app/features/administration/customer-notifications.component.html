@@ -6,19 +6,20 @@
   <div class="grid">
     <section class="card"><h2>Channels and triggers</h2><p class="muted">Notifications are queued only after a successful transaction commit.</p><div class="toggles">
       <mat-slide-toggle [(ngModel)]="settings().enabled">Enable customer notifications</mat-slide-toggle>
-      <mat-slide-toggle [(ngModel)]="settings().whatsAppEnabled" [disabled]="!settings().enabled">WhatsApp (primary)</mat-slide-toggle>
-      <mat-slide-toggle [(ngModel)]="settings().smsEnabled" [disabled]="!settings().enabled">SMS (optional)</mat-slide-toggle>
+      <mat-slide-toggle [(ngModel)]="settings().whatsAppEnabled" [disabled]="!settings().enabled || !features().whatsAppEnabled">WhatsApp (primary) — {{features().whatsAppEnabled ? 'available' : 'disabled by application configuration'}}</mat-slide-toggle>
+      <mat-slide-toggle [(ngModel)]="settings().smsEnabled" [disabled]="!settings().enabled || !features().smsEnabled">SMS (optional) — {{features().smsEnabled ? 'available' : 'disabled by application configuration'}}</mat-slide-toggle>
       <mat-checkbox [(ngModel)]="settings().successfulSale" [disabled]="!settings().enabled">Successful sale</mat-checkbox>
       <mat-checkbox [(ngModel)]="settings().successfulPayment" [disabled]="!settings().enabled">Successful payment</mat-checkbox>
     </div></section>
     <section class="card"><h2>Provider readiness</h2><p class="muted">Credentials stay in server-side environment variables or secret storage.</p>
-      @if(status(); as s){<p><strong>WhatsApp:</strong> {{s.whatsAppConfigured ? 'Configured' : 'Not configured'}}<br><strong>SMS:</strong> {{s.smsConfigured ? 'Configured' : 'Not configured'}}</p><p class="hint">{{s.message}}</p>}
+      <p><strong>WhatsApp feature:</strong> {{features().whatsAppEnabled ? 'Enabled' : 'Disabled'}}<br><strong>SMS feature:</strong> {{features().smsEnabled ? 'Enabled' : 'Disabled'}}</p>
+      @if(status(); as s){<p><strong>WhatsApp provider:</strong> {{s.whatsAppConfigured ? 'Configured' : 'Unavailable'}}<br><strong>SMS provider:</strong> {{s.smsConfigured ? 'Configured' : 'Unavailable'}}</p><p class="hint">{{s.message}}</p>}
       <button mat-stroked-button (click)="check()"><span class="material-symbols-rounded">network_check</span>Test configuration</button>
     </section>
   </div>
   <section class="card templates"><h2>Message templates</h2><p class="hint">Available variables: {{variables}}</p>
-    <mat-form-field appearance="outline" class="full"><mat-label>WhatsApp message</mat-label><textarea matInput rows="8" maxlength="4000" [(ngModel)]="settings().whatsAppTemplate"></textarea></mat-form-field>
-    <mat-form-field appearance="outline" class="full"><mat-label>SMS message</mat-label><textarea matInput rows="4" maxlength="1000" [(ngModel)]="settings().smsTemplate"></textarea></mat-form-field>
+    <mat-form-field appearance="outline" class="full"><mat-label>WhatsApp message</mat-label><textarea matInput rows="8" maxlength="4000" [(ngModel)]="settings().whatsAppTemplate" [disabled]="!features().whatsAppEnabled"></textarea></mat-form-field>
+    <mat-form-field appearance="outline" class="full"><mat-label>SMS message</mat-label><textarea matInput rows="4" maxlength="1000" [(ngModel)]="settings().smsTemplate" [disabled]="!features().smsEnabled"></textarea></mat-form-field>
     <div class="actions"><button mat-flat-button color="primary" (click)="save()"><span class="material-symbols-rounded">save</span>Save</button><button mat-stroked-button (click)="reset()">Reset</button>@if(saved()){<app-status-chip label="Saved" tone="success" />}</div>
   </section>
   <section class="card history"><h2>Notification history</h2>

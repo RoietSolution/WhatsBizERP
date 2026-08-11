@@ -1,6 +1,23 @@
 :host {
   display: block;
 }
+:host ::ng-deep app-action-toolbar .mdc-button__label,
+:host ::ng-deep app-page-header .mdc-button__label,
+:host ::ng-deep app-data-table [empty-action] .mdc-button__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  line-height: 1.2;
+}
+:host ::ng-deep app-action-toolbar .material-symbols-rounded,
+:host ::ng-deep app-page-header .material-symbols-rounded,
+:host ::ng-deep app-data-table [empty-action] .material-symbols-rounded {
+  flex: 0 0 auto;
+  font-size: 23px;
+  font-weight: 600;
+  font-variation-settings: 'FILL' 0, 'wght' 600, 'GRAD' 0, 'opsz' 24;
+  line-height: 1;
+}
 .master-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -9,6 +9,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 import { ProductApiService } from './product-api.service';
 import { UnitOfMeasure } from './product.models';
+import { finalize } from 'rxjs';
 @Component({
   selector: 'app-unit-management',
   imports: [
@@ -26,6 +27,7 @@ import { UnitOfMeasure } from './product.models';
         grid-template-columns: 320px 1fr;
         gap: 1.5rem;
       }
+      .page-heading,.page-actions{display:flex;align-items:center}.page-heading{justify-content:space-between;gap:1rem}.page-actions{gap:.5rem;flex-wrap:wrap}.page-actions .material-symbols-rounded{font-size:21px;margin-right:5px;vertical-align:middle}
       form {
         display: grid;
       }
@@ -50,6 +52,8 @@ import { UnitOfMeasure } from './product.models';
 })
 export class UnitManagementComponent {
   private readonly fb = inject(FormBuilder);
+  readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
+  readonly importing = signal(false);
   readonly items = signal<UnitOfMeasure[]>([]);
   editingId?: string;
   readonly form = this.fb.group({
@@ -115,4 +119,16 @@ export class UnitManagementComponent {
           });
       });
   }
+  export(): void { this.api.exportUnits().subscribe((file) => download(file, 'units-of-measure.xlsx')); }
+  template(): void { this.api.unitTemplate().subscribe((file) => download(file, 'unit-import-template.xlsx')); }
+  upload(event: Event): void {
+    const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file) return;
+    this.importing.set(true);
+    this.api.importUnits(file).pipe(finalize(() => { this.importing.set(false); input.value = ''; })).subscribe({
+      next: (result) => { const suffix = result.errors.length ? ` ${result.errors.length} row(s) skipped.` : ''; this.snack.open(`Imported ${result.importedCount} unit(s).${suffix}`, 'Close', { duration: 5000 }); this.load(); },
+      error: () => this.snack.open('Unit import failed.', 'Dismiss', { duration: 4000 }),
+    });
+  }
 }
+
+function download(file: Blob, name: string): void { const url = URL.createObjectURL(file); const anchor = document.createElement('a'); anchor.href = url; anchor.download = name; anchor.click(); URL.revokeObjectURL(url); }

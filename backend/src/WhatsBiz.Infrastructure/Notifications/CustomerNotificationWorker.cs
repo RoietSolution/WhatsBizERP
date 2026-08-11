@@ -2,11 +2,13 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace WhatsBiz.Infrastructure.Notifications;
 
 internal sealed class CustomerNotificationWorker(
     IConfiguration configuration,
+    IOptionsMonitor<FeatureOptions> features,
     IEnumerable<ICustomerMessageProvider> providers,
     ILogger<CustomerNotificationWorker> logger) : BackgroundService
 {
@@ -31,19 +33,25 @@ internal sealed class CustomerNotificationWorker(
 
     private async Task<bool> ProcessOne(CancellationToken token)
     {
+        var featureState = features.CurrentValue;
+        if (!featureState.WhatsApp.Enabled && !featureState.Sms.Enabled) return false;
         await using var connection = new SqlConnection(ConnectionString); await connection.OpenAsync(token);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(token);
         await using var claim = new SqlCommand("""
             ;WITH candidate AS
             (
                 SELECT TOP(1) * FROM integration.CustomerNotifications WITH(UPDLOCK,READPAST,ROWLOCK)
-                WHERE (Status=N'PENDING' AND NextAttemptOn<=SYSUTCDATETIME())
+                WHERE ((Channel=N'WHATSAPP' AND @whatsAppEnabled=1) OR (Channel=N'SMS' AND @smsEnabled=1))
+                  AND ((Status=N'PENDING' AND NextAttemptOn<=SYSUTCDATETIME())
                    OR (Status=N'PROCESSING' AND LastAttemptOn<DATEADD(minute,-5,SYSUTCDATETIME()))
+                  )
                 ORDER BY CreatedOn
             )
             UPDATE candidate SET Status=N'PROCESSING',AttemptCount=AttemptCount+1,LastAttemptOn=SYSUTCDATETIME()
             OUTPUT inserted.CustomerNotificationId,inserted.Channel,inserted.Recipient,inserted.Message,inserted.AttemptCount;
             """, connection, transaction);
+        claim.Parameters.AddWithValue("@whatsAppEnabled", featureState.WhatsApp.Enabled);
+        claim.Parameters.AddWithValue("@smsEnabled", featureState.Sms.Enabled);
         await using var reader = await claim.ExecuteReaderAsync(token);
         if (!await reader.ReadAsync(token)) { await reader.CloseAsync(); await transaction.CommitAsync(token); return false; }
         var item = new WorkItem(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4));

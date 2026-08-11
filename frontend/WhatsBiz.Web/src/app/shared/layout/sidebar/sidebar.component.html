@@ -59,7 +59,7 @@
     }
   </nav>
   <div class="sidebar-user">
-    <div class="avatar">{{ initials() }}</div>
+    <div class="avatar">@if (photo()) { <img [src]="photo()" alt="Profile picture" /> } @else { {{ initials() }} }</div>
     @if (!collapsed()) {
       <div>
         <strong>{{ user()?.username ?? 'User' }}</strong

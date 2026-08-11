@@ -11,6 +11,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { CurrentUserService } from '../../../core/services/current-user.service';
 import { PermissionService } from '../../../core/services/permission.service';
 import { NavigationItem } from '../../models/navigation.model';
+import { ProfilePhotoService } from '../../services/profile-photo.service';
 
 const navigation: NavigationItem[] = [
   { label: 'Overview', icon: 'space_dashboard', route: '/dashboard', permission: 'dashboard.view' },
@@ -273,6 +274,7 @@ export class SidebarComponent {
   readonly navigate = output<void>();
   private readonly permissions = inject(PermissionService);
   private readonly currentUser = inject(CurrentUserService);
+  private readonly profilePhoto = inject(ProfilePhotoService);
   readonly user = this.currentUser.user;
   readonly expanded = signal(new Set<string>(['Products']));
   readonly items = computed(() =>
@@ -290,6 +292,7 @@ export class SidebarComponent {
       ),
   );
   readonly initials = computed(() => (this.user()?.username ?? 'U').slice(0, 2).toUpperCase());
+  readonly photo = this.profilePhoto.photo;
   toggle(label: string): void {
     if (this.collapsed()) {
       this.collapseToggle.emit();

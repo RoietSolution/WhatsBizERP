@@ -6,3 +6,5 @@ export * from './models/navigation.model';
 export * from './pipes/fallback.pipe';
 export * from './services/layout-state.service';
 export * from './services/notification.service';
+export * from './services/feature-state.service';
+export * from './services/profile-photo.service';

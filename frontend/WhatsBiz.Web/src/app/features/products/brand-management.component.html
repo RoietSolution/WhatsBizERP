@@ -1,4 +1,8 @@
-<h1>Brands</h1>
+<div class="page-heading"><h1>Brands</h1><div class="page-actions">
+  <button mat-stroked-button type="button" (click)="template()"><span class="material-symbols-rounded">download</span>Template</button>
+  <button mat-stroked-button type="button" [disabled]="importing()" (click)="fileInput.click()"><span class="material-symbols-rounded">upload</span>{{ importing() ? 'Importing…' : 'Import' }}</button>
+  <button mat-stroked-button type="button" (click)="export()"><span class="material-symbols-rounded">download</span>Export</button>
+</div></div><input #fileInput hidden type="file" accept=".xlsx" (change)="upload($event)" />
 <div class="layout">
   <form [formGroup]="form" (ngSubmit)="save()">
     <h2>{{ editingId ? 'Edit' : 'New' }} brand</h2>

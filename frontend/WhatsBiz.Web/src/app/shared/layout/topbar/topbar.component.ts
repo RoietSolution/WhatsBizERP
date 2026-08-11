@@ -8,6 +8,7 @@ import { NotificationPanelComponent } from '../../components/notification-panel/
 import { SearchBoxComponent } from '../../components/search-box/search-box.component';
 import { LayoutStateService } from '../../services/layout-state.service';
 import { NotificationService } from '../../services/notification.service';
+import { ProfilePhotoService } from '../../services/profile-photo.service';
 
 @Component({
   selector: 'app-topbar',
@@ -28,8 +29,10 @@ export class TopbarComponent {
   readonly layout = inject(LayoutStateService);
   private readonly currentUser = inject(CurrentUserService);
   private readonly notifications = inject(NotificationService);
+  private readonly profilePhoto = inject(ProfilePhotoService);
   readonly user = this.currentUser.user;
   readonly initials = computed(() => (this.user()?.username ?? 'U').slice(0, 2).toUpperCase());
+  readonly photo = this.profilePhoto.photo;
   readonly unread = computed(
     () => this.notifications.notifications().filter((item) => !item.read).length,
   );

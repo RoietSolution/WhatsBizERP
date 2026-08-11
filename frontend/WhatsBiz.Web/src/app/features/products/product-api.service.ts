@@ -84,6 +84,9 @@ export class ProductApiService {
   deleteCategory(id: string): Observable<void> {
     return this.http.delete<void>(`/api/productcategories/${id}`);
   }
+  exportCategories(): Observable<Blob> { return this.http.get('/api/productcategories/export', { responseType: 'blob' }); }
+  categoryTemplate(): Observable<Blob> { return this.http.get('/api/productcategories/import-template', { responseType: 'blob' }); }
+  importCategories(file: File): Observable<ImportResult> { return this.importMaster('/api/productcategories/import', file); }
   brands(): Observable<Brand[]> {
     return this.http.get<Brand[]>('/api/brands');
   }
@@ -96,6 +99,9 @@ export class ProductApiService {
   deleteBrand(id: string): Observable<void> {
     return this.http.delete<void>(`/api/brands/${id}`);
   }
+  exportBrands(): Observable<Blob> { return this.http.get('/api/brands/export', { responseType: 'blob' }); }
+  brandTemplate(): Observable<Blob> { return this.http.get('/api/brands/import-template', { responseType: 'blob' }); }
+  importBrands(file: File): Observable<ImportResult> { return this.importMaster('/api/brands/import', file); }
   units(): Observable<UnitOfMeasure[]> {
     return this.http.get<UnitOfMeasure[]>('/api/uom');
   }
@@ -108,4 +114,8 @@ export class ProductApiService {
   deleteUnit(id: string): Observable<void> {
     return this.http.delete<void>(`/api/uom/${id}`);
   }
+  exportUnits(): Observable<Blob> { return this.http.get('/api/uom/export', { responseType: 'blob' }); }
+  unitTemplate(): Observable<Blob> { return this.http.get('/api/uom/import-template', { responseType: 'blob' }); }
+  importUnits(file: File): Observable<ImportResult> { return this.importMaster('/api/uom/import', file); }
+  private importMaster(url: string, file: File): Observable<ImportResult> { const data = new FormData(); data.append('file', file); return this.http.post<ImportResult>(url, data); }
 }

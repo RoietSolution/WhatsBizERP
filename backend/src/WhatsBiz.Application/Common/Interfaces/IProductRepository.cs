@@ -38,3 +38,20 @@ public interface IProductSpreadsheetService
 }
 
 public sealed record ProductImportRow(int RowNumber, string ProductCode, string? Barcode, string ProductName, string CategoryCode, string BrandCode, string UnitCode, decimal GSTPercentage, decimal PurchasePrice, decimal SellingPrice, decimal MRP, bool IsActive, string BarcodeType);
+
+public interface IProductMasterSpreadsheetService
+{
+    byte[] ExportCategories(IReadOnlyCollection<ProductCategory> rows);
+    byte[] ExportBrands(IReadOnlyCollection<Brand> rows);
+    byte[] ExportUnits(IReadOnlyCollection<UnitOfMeasure> rows);
+    byte[] CategoryTemplate();
+    byte[] BrandTemplate();
+    byte[] UnitTemplate();
+    IReadOnlyCollection<CategoryImportRow> ReadCategories(byte[] content);
+    IReadOnlyCollection<BrandImportRow> ReadBrands(byte[] content);
+    IReadOnlyCollection<UnitImportRow> ReadUnits(byte[] content);
+}
+
+public sealed record CategoryImportRow(int RowNumber, string Code, string Name, string? Description, int DisplayOrder, string? ParentCode, bool IsActive);
+public sealed record BrandImportRow(int RowNumber, string Code, string Name, string? Description, string? Logo, bool IsActive);
+public sealed record UnitImportRow(int RowNumber, string Code, string Name, string ShortName, int DecimalPlaces, bool IsActive);

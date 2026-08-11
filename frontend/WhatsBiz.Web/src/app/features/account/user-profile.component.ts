@@ -9,6 +9,7 @@ import { AuthenticationService } from '../../core/services/authentication.servic
 import { CurrentUserService } from '../../core/services/current-user.service';
 import { PageContainerComponent } from '../../shared/components/page-container/page-container.component';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
+import { ProfilePhotoService } from '../../shared/services/profile-photo.service';
 
 @Component({
   selector: 'app-user-profile',
@@ -31,9 +32,10 @@ export class UserProfileComponent {
   private readonly currentUser = inject(CurrentUserService);
   private readonly authentication = inject(AuthenticationService);
   private readonly snack = inject(MatSnackBar);
+  private readonly profilePhoto = inject(ProfilePhotoService);
   readonly user = this.currentUser.user;
   readonly saving = signal(false);
-  readonly photo = signal(localStorage.getItem('khatadhari.profile.photo'));
+  readonly photo = this.profilePhoto.photo;
   readonly initials = computed(() => (this.user()?.username ?? 'U').slice(0, 2).toUpperCase());
   readonly email = new FormControl(this.user()?.email ?? '', {
     nonNullable: true,
@@ -73,8 +75,7 @@ export class UserProfileComponent {
     const reader = new FileReader();
     reader.onload = () => {
       const value = String(reader.result);
-      localStorage.setItem('khatadhari.profile.photo', value);
-      this.photo.set(value);
+      this.profilePhoto.set(value);
       this.snack.open('Profile picture updated.', 'Close', {
         duration: 3000,
         panelClass: 'wb-success',

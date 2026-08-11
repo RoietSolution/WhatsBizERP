@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -11,6 +11,7 @@ import { MatTableModule } from '@angular/material/table';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 import { ProductApiService } from './product-api.service';
 import { Category } from './product.models';
+import { finalize } from 'rxjs';
 
 @Component({
   selector: 'app-category-management',
@@ -31,6 +32,7 @@ import { Category } from './product.models';
         grid-template-columns: 320px 1fr;
         gap: 1.5rem;
       }
+      .page-heading,.page-actions{display:flex;align-items:center}.page-heading{justify-content:space-between;gap:1rem}.page-actions{gap:.5rem;flex-wrap:wrap}.page-actions .material-symbols-rounded{font-size:21px;margin-right:5px;vertical-align:middle}
       form {
         display: grid;
         gap: 0.25rem;
@@ -52,6 +54,8 @@ import { Category } from './product.models';
 })
 export class CategoryManagementComponent {
   private readonly fb = inject(FormBuilder);
+  readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
+  readonly importing = signal(false);
   readonly columns = ['code', 'name', 'status', 'actions'];
   readonly items = signal<Category[]>([]);
   readonly flat = signal<Category[]>([]);
@@ -124,7 +128,19 @@ export class CategoryManagementComponent {
           });
       });
   }
+  export(): void { this.api.exportCategories().subscribe((file) => download(file, 'product-categories.xlsx')); }
+  template(): void { this.api.categoryTemplate().subscribe((file) => download(file, 'product-category-import-template.xlsx')); }
+  upload(event: Event): void {
+    const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file) return;
+    this.importing.set(true);
+    this.api.importCategories(file).pipe(finalize(() => { this.importing.set(false); input.value = ''; })).subscribe({
+      next: (result) => { const suffix = result.errors.length ? ` ${result.errors.length} row(s) skipped.` : ''; this.snack.open(`Imported ${result.importedCount} categor${result.importedCount === 1 ? 'y' : 'ies'}.${suffix}`, 'Close', { duration: 5000 }); this.load(); },
+      error: () => this.snack.open('Category import failed.', 'Dismiss', { duration: 4000 }),
+    });
+  }
   private flatten(items: Category[]): Category[] {
     return items.flatMap((item) => [item, ...this.flatten(item.children)]);
   }
 }
+
+function download(file: Blob, name: string): void { const url = URL.createObjectURL(file); const anchor = document.createElement('a'); anchor.href = url; anchor.download = name; anchor.click(); URL.revokeObjectURL(url); }

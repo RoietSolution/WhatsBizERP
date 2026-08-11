@@ -16,3 +16,4 @@ public sealed record UnitOfMeasureDto(Guid UnitId, string UnitCode, string UnitN
 public sealed record UnitOfMeasureInput(string UnitCode, string UnitName, string ShortName, byte DecimalPlaces, bool IsActive);
 public sealed record ProductImageDto(Guid ProductImageId, Guid ProductId, string FileName, string ContentType, bool IsPrimary, string Url);
 public sealed record ImportProductsResult(int ImportedCount, IReadOnlyCollection<string> Errors);
+public sealed record ImportProductMasterResult(int ImportedCount, IReadOnlyCollection<string> Errors);

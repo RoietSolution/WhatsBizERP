@@ -6,12 +6,14 @@ using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using WhatsBiz.Application.Common.Interfaces;
+using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Application.Features.CustomerNotifications;
 
 namespace WhatsBiz.Infrastructure.Notifications;
 
-public sealed class CustomerNotificationService(IConfiguration configuration, ILogger<CustomerNotificationService> logger) : ICustomerNotificationService
+public sealed class CustomerNotificationService(IConfiguration configuration, IOptionsMonitor<FeatureOptions> features, ILogger<CustomerNotificationService> logger) : ICustomerNotificationService
 {
     public const string DefaultWhatsAppTemplate = "Thank you for shopping with {{company_name}}!\n\nInvoice: {{invoice_no}}\nAmount: {{currency}}{{total_amount}}\n\nWe appreciate your business.\nVisit us again!";
     public const string DefaultSmsTemplate = "Thank you for shopping with {{company_name}}. Invoice {{invoice_no}}, Amount {{currency}}{{total_amount}}. We appreciate your business.";
@@ -19,6 +21,12 @@ public sealed class CustomerNotificationService(IConfiguration configuration, IL
 
     public async Task QueueInvoice(Guid invoiceId, string eventType, CancellationToken token)
     {
+        var featureState = features.CurrentValue;
+        if (!featureState.WhatsApp.Enabled && !featureState.Sms.Enabled)
+        {
+            NotificationLogs.AllChannelsDisabled(logger);
+            return;
+        }
         try
         {
             await using var connection = new SqlConnection(ConnectionString);
@@ -43,8 +51,10 @@ public sealed class CustomerNotificationService(IConfiguration configuration, IL
                 reader.IsDBNull(11) ? null : reader.GetString(11), reader.GetString(12), reader.GetString(13), reader.GetString(14));
             await reader.CloseAsync();
             var recipient = PhoneNumberNormalizer.Normalize(data.Mobile, data.CompanyCountry.Equals("India", StringComparison.OrdinalIgnoreCase) ? "91" : null);
-            if (settings.WhatsAppEnabled) await Insert(connection, data, eventType, "WHATSAPP", recipient, settings.WhatsAppTemplate, token);
-            if (settings.SmsEnabled) await Insert(connection, data, eventType, "SMS", recipient, settings.SmsTemplate, token);
+            if (settings.WhatsAppEnabled && featureState.WhatsApp.Enabled) await Insert(connection, data, eventType, "WHATSAPP", recipient, settings.WhatsAppTemplate, token);
+            else if (settings.WhatsAppEnabled) NotificationLogs.ChannelDisabled(logger, "WhatsApp");
+            if (settings.SmsEnabled && featureState.Sms.Enabled) await Insert(connection, data, eventType, "SMS", recipient, settings.SmsTemplate, token);
+            else if (settings.SmsEnabled) NotificationLogs.ChannelDisabled(logger, "SMS");
         }
         catch (Exception exception)
         {
@@ -88,10 +98,11 @@ public sealed class CustomerNotificationService(IConfiguration configuration, IL
     public async Task Retry(Guid notificationId, string? user, CancellationToken token)
     {
         await using var connection = new SqlConnection(ConnectionString); await connection.OpenAsync(token);
-        await using var lookup = new SqlCommand("SELECT c.Mobile,co.Country FROM integration.CustomerNotifications n JOIN sales.Customers c ON c.CustomerId=n.CustomerId CROSS JOIN(SELECT TOP(1) Country FROM admin.Companies WHERE IsActive=1 ORDER BY CreatedOn)co WHERE n.CustomerNotificationId=@id AND n.Status=N'FAILED';", connection);
+        await using var lookup = new SqlCommand("SELECT c.Mobile,co.Country,n.Channel FROM integration.CustomerNotifications n JOIN sales.Customers c ON c.CustomerId=n.CustomerId CROSS JOIN(SELECT TOP(1) Country FROM admin.Companies WHERE IsActive=1 ORDER BY CreatedOn)co WHERE n.CustomerNotificationId=@id AND n.Status=N'FAILED';", connection);
         lookup.Parameters.AddWithValue("@id", notificationId); await using var reader = await lookup.ExecuteReaderAsync(token);
         if (!await reader.ReadAsync(token)) throw new ArgumentException("Only failed notifications can be retried.");
-        var mobile = reader.IsDBNull(0) ? null : reader.GetString(0); var country = reader.GetString(1); await reader.CloseAsync();
+        var mobile = reader.IsDBNull(0) ? null : reader.GetString(0); var country = reader.GetString(1); var channel = reader.GetString(2); await reader.CloseAsync();
+        if (!ChannelEnabled(channel)) throw new BusinessRuleException($"{channel} notifications are currently disabled.");
         var recipient = PhoneNumberNormalizer.Normalize(mobile, country.Equals("India", StringComparison.OrdinalIgnoreCase) ? "91" : null);
         if (recipient is null) throw new ArgumentException("The customer mobile number is still missing or invalid.");
         await using var command = new SqlCommand("UPDATE integration.CustomerNotifications SET Recipient=@recipient,Status=N'PENDING',AttemptCount=0,NextAttemptOn=SYSUTCDATETIME(),ErrorMessage=NULL,ProviderMessageId=NULL,SentOn=NULL,ModifiedBy=@user WHERE CustomerNotificationId=@id AND Status=N'FAILED';", connection);
@@ -100,9 +111,10 @@ public sealed class CustomerNotificationService(IConfiguration configuration, IL
 
     public Task<NotificationConfigurationStatusDto> ConfigurationStatus(CancellationToken token)
     {
-        var whatsApp = ProviderConfigured("WhatsApp"); var sms = ProviderConfigured("Sms");
-        return Task.FromResult(new NotificationConfigurationStatusDto(whatsApp, sms, whatsApp || sms ? "Configured channels are available. No test message was sent." : "Provider endpoint and token are not configured. No test message was sent."));
+        var whatsApp = features.CurrentValue.WhatsApp.Enabled && ProviderConfigured("WhatsApp"); var sms = features.CurrentValue.Sms.Enabled && ProviderConfigured("Sms");
+        return Task.FromResult(new NotificationConfigurationStatusDto(whatsApp, sms, whatsApp || sms ? "Enabled and configured channels are available. No test message was sent." : "Channels are disabled or provider configuration is incomplete. No test message was sent."));
     }
+    private bool ChannelEnabled(string channel) => channel.Equals("WHATSAPP", StringComparison.OrdinalIgnoreCase) ? features.CurrentValue.WhatsApp.Enabled : channel.Equals("SMS", StringComparison.OrdinalIgnoreCase) && features.CurrentValue.Sms.Enabled;
     private bool ProviderConfigured(string channel) => Uri.TryCreate(configuration[$"CustomerNotifications:{channel}:Endpoint"], UriKind.Absolute, out _) && !string.IsNullOrWhiteSpace(configuration[$"CustomerNotifications:{channel}:AccessToken"]);
 
     private static IEnumerable<(string Key, string Value, string Type)> Settings(CustomerNotificationSettingsInput x)
@@ -144,19 +156,25 @@ internal static partial class MessageTemplateRenderer
 
 internal sealed record ProviderResult(bool Succeeded, string? ProviderMessageId, string? ErrorMessage);
 internal interface ICustomerMessageProvider { string Channel { get; } Task<ProviderResult> Send(string recipient, string message, Guid notificationId, CancellationToken token); }
-internal abstract class HttpCustomerMessageProvider(IHttpClientFactory clients, IConfiguration configuration, ILogger logger, string channel) : ICustomerMessageProvider
+internal abstract class HttpCustomerMessageProvider(IHttpClientFactory clients, IConfiguration configuration, IOptionsMonitor<FeatureOptions> features, ILogger logger, string channel) : ICustomerMessageProvider
 {
     public string Channel => channel;
     public async Task<ProviderResult> Send(string recipient, string message, Guid notificationId, CancellationToken token)
     {
+        var enabled = channel.Equals("WhatsApp", StringComparison.OrdinalIgnoreCase) ? features.CurrentValue.WhatsApp.Enabled : features.CurrentValue.Sms.Enabled;
+        if (!enabled)
+        {
+            NotificationLogs.ChannelDisabled(logger, channel);
+            return new(false, null, $"FEATURE_DISABLED: {channel} notifications are currently disabled.");
+        }
         var endpoint = configuration[$"CustomerNotifications:{channel}:Endpoint"]; var accessToken = configuration[$"CustomerNotifications:{channel}:AccessToken"];
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(accessToken)) return new(false, null, "NOT_CONFIGURED: provider endpoint or access token is missing.");
-        try { using var request = new HttpRequestMessage(HttpMethod.Post, uri); request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken); request.Content = JsonContent.Create(new { recipient, message, referenceId = notificationId }); using var response = await clients.CreateClient("CustomerNotifications").SendAsync(request, token); if (!response.IsSuccessStatusCode) return new(false, null, $"Provider returned HTTP {(int)response.StatusCode}."); var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: token); var id = json.ValueKind == JsonValueKind.Object && json.TryGetProperty("messageId", out var property) ? property.GetString() : null; return new(true, id, null); }
+        try { using var request = new HttpRequestMessage(HttpMethod.Post, uri); request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken); request.Content = JsonContent.Create(new { recipient, message, referenceId = notificationId }); using var response = await clients.CreateClient("CustomerNotifications").SendAsync(request, token); if (!response.IsSuccessStatusCode) { NotificationLogs.ProviderFailed(logger, channel, notificationId, $"HTTP_{(int)response.StatusCode}"); return new(false, null, $"Provider returned HTTP {(int)response.StatusCode}."); } var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: token); var id = json.ValueKind == JsonValueKind.Object && json.TryGetProperty("messageId", out var property) ? property.GetString() : null; return new(true, id, null); }
         catch (Exception exception) { NotificationLogs.ProviderFailed(logger, channel, notificationId, exception.GetType().Name); return new(false, null, "Provider request failed."); }
     }
 }
-internal sealed class WhatsAppProvider(IHttpClientFactory clients, IConfiguration configuration, ILogger<WhatsAppProvider> logger) : HttpCustomerMessageProvider(clients, configuration, logger, "WhatsApp");
-internal sealed class SmsProvider(IHttpClientFactory clients, IConfiguration configuration, ILogger<SmsProvider> logger) : HttpCustomerMessageProvider(clients, configuration, logger, "Sms");
+internal sealed class WhatsAppProvider(IHttpClientFactory clients, IConfiguration configuration, IOptionsMonitor<FeatureOptions> features, ILogger<WhatsAppProvider> logger) : HttpCustomerMessageProvider(clients, configuration, features, logger, "WhatsApp");
+internal sealed class SmsProvider(IHttpClientFactory clients, IConfiguration configuration, IOptionsMonitor<FeatureOptions> features, ILogger<SmsProvider> logger) : HttpCustomerMessageProvider(clients, configuration, features, logger, "Sms");
 
 internal static partial class NotificationLogs
 {
@@ -168,4 +186,10 @@ internal static partial class NotificationLogs
 
     [LoggerMessage(1003, LogLevel.Error, "Customer notification worker iteration failed.")]
     public static partial void WorkerFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(1004, LogLevel.Debug, "{Channel} notification skipped because the feature is disabled.")]
+    public static partial void ChannelDisabled(ILogger logger, string channel);
+
+    [LoggerMessage(1005, LogLevel.Debug, "Customer notification queueing skipped because WhatsApp and SMS features are disabled.")]
+    public static partial void AllChannelsDisabled(ILogger logger);
 }

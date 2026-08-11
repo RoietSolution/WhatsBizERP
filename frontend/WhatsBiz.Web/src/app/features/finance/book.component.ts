@@ -72,28 +72,28 @@ export class FinanceBookComponent {
   readonly summaries = computed(() => [
     {
       label: "Today's collection",
-      value: this.totalIn(),
+      value: this.money(this.totalIn()),
       subtitle: 'Cash inflow',
       icon: 'south_west',
       tone: 'success' as const,
     },
     {
       label: "Today's payments",
-      value: this.totalOut(),
+      value: this.money(this.totalOut()),
       subtitle: 'Cash outflow',
       icon: 'north_east',
       tone: 'danger' as const,
     },
     {
       label: this.kind === 'bank' ? 'Bank balance' : 'Cash in hand',
-      value: this.balance(),
+      value: this.money(this.balance()),
       subtitle: 'Running balance',
       icon: this.kind === 'bank' ? 'account_balance' : 'payments',
       tone: 'primary' as const,
     },
     {
       label: 'Net cash flow',
-      value: this.balance(),
+      value: this.money(this.balance()),
       subtitle: 'Inflow less outflow',
       icon: 'account_balance_wallet',
       tone: 'info' as const,
@@ -109,9 +109,24 @@ export class FinanceBookComponent {
     { field: 'transactionType', headerName: 'Transaction' },
     { field: 'referenceNumber', headerName: 'Reference', minWidth: 180 },
     { field: 'mode', headerName: 'Payment mode' },
-    { field: 'amountIn', headerName: 'In / Debit' },
-    { field: 'amountOut', headerName: 'Out / Credit' },
-    { field: 'balance', headerName: 'Running balance' },
+    {
+      field: 'amountIn',
+      headerName: 'In / Debit',
+      valueGetter: (p: any) => p.data?.amountIn ?? p.data?.debitTotal ?? 0,
+      valueFormatter: (p: any) => this.money(p.value),
+    },
+    {
+      field: 'amountOut',
+      headerName: 'Out / Credit',
+      valueGetter: (p: any) => p.data?.amountOut ?? p.data?.creditTotal ?? 0,
+      valueFormatter: (p: any) => this.money(p.value),
+    },
+    {
+      field: 'balance',
+      headerName: 'Running balance',
+      valueGetter: (p: any) => p.data?.balance ?? ((p.data?.debitTotal ?? 0) - (p.data?.creditTotal ?? 0)),
+      valueFormatter: (p: any) => this.money(p.value),
+    },
   ];
   constructor(
     private api: FinanceApiService,
@@ -130,6 +145,10 @@ export class FinanceBookComponent {
   print() {
     window.print();
   }
+  money(value: unknown): string {
+    const amount = Number(value ?? 0);
+    return Number.isFinite(amount) ? amount.toFixed(2) : '0.00';
+  }
   exportCsv() {
     const data = this.rows();
     if (!data.length) return;
@@ -137,7 +156,12 @@ export class FinanceBookComponent {
       csv = [
         keys.join(','),
         ...data.map((x) =>
-          keys.map((k) => `"${String(x[k] ?? '').replaceAll('"', '""')}"`).join(','),
+          keys.map((k) => {
+            const value = ['amountIn', 'amountOut', 'balance', 'debitTotal', 'creditTotal'].includes(k)
+              ? this.money(x[k])
+              : x[k] ?? '';
+            return `"${String(value).replaceAll('"', '""')}"`;
+          }).join(','),
         ),
       ].join('\n'),
       a = document.createElement('a');

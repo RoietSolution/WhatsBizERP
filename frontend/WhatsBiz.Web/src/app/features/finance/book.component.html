@@ -45,7 +45,7 @@
         <dt>Voucher</dt>
         <dd>{{ x.entryType || x.transactionType || '—' }}</dd>
         <dt>Balance</dt>
-        <dd>{{ x.balance || 0 }}</dd>
+        <dd>{{ money(x.balance ?? (x.debitTotal ?? 0) - (x.creditTotal ?? 0)) }}</dd>
         <dt>Mode</dt>
         <dd>{{ x.mode || '—' }}</dd>
       </dl>

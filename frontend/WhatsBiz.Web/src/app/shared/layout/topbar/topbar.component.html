@@ -45,7 +45,7 @@
         <span class="notification-count">{{ unread() > 9 ? '9+' : unread() }}</span>
       }</button
     ><button class="user-button" mat-button type="button" [matMenuTriggerFor]="userMenu">
-      <span class="avatar">{{ initials() }}</span
+      <span class="avatar">@if (photo()) { <img [src]="photo()" alt="Profile picture" /> } @else { {{ initials() }} }</span
       ><span class="user-copy"
         ><strong>{{ user()?.username ?? 'User' }}</strong
         ><small>{{ user()?.roles?.[0] ?? 'Team member' }}</small></span

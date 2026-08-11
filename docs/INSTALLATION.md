@@ -15,7 +15,7 @@
 3. Apply `Scripts/V1_ReleaseHardening.sql` once all module objects are deployed.
 4. Run `DBCC CHECKCONSTRAINTS` and `DBCC CHECKDB('WhatsBizERP')`.
 
-The development connection is in `appsettings.Development.json`. Production configuration must be supplied externally.
+The development connection is in `appsettings.Development.json`. The development JWT signing key is stored with ASP.NET Core User Secrets for the API project and is not committed. Run `dotnet user-secrets set "Jwt:SigningKey" <random-secret> --project backend/src/WhatsBiz.Api/WhatsBiz.Api.csproj` when configuring a new workstation. Production configuration must be supplied externally.
 
 ## Backend
 

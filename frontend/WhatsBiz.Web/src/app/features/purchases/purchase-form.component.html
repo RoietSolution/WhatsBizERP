@@ -30,19 +30,26 @@
           }
         </mat-select></mat-form-field
       ><mat-form-field appearance="outline"
-        ><mat-label>Due Date</mat-label><input matInput type="date" [(ngModel)]="dueDate"
+        ><mat-label>Due Date</mat-label><input matInput [matDatepicker]="duePicker" [(ngModel)]="dueDate"
+        /><mat-datepicker-toggle matIconSuffix [for]="duePicker" /><mat-datepicker #duePicker
       /></mat-form-field>
       <h3><span class="material-symbols-rounded">attach_file</span>Attachments</h3>
-      <button mat-stroked-button type="button">
+      <button mat-stroked-button type="button" (click)="attachmentInput.click()">
         <span class="material-symbols-rounded">upload</span>Add Attachment
-      </button>
+      </button><input #attachmentInput hidden type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx" (change)="selectAttachments($event)" />
+      @for (file of attachments(); track $index; let i = $index) {
+        <div class="attachment"><span class="material-symbols-rounded">description</span><span>{{ file.name }}</span><button mat-icon-button type="button" aria-label="Remove attachment" (click)="removeAttachment(i)"><span class="material-symbols-rounded">close</span></button></div>
+      }
     </aside>
     <main class="items-panel">
       <div class="lookup">
         <mat-form-field appearance="outline" subscriptSizing="dynamic"
           ><mat-label>Barcode or product</mat-label
           ><span matPrefix class="material-symbols-rounded">barcode_scanner</span
-          ><input matInput [(ngModel)]="lookup" (keyup.enter)="find()" /></mat-form-field
+          ><input matInput [(ngModel)]="lookup" [matAutocomplete]="productAuto" [matAutocompleteDisabled]="false" (ngModelChange)="searchProducts($event)" (keyup.enter)="find()" />
+          <mat-autocomplete #productAuto="matAutocomplete" [displayWith]="displayProduct" (optionSelected)="selectProduct($event)">
+            @for (p of productOptions(); track p.productId) { <mat-option [value]="p"><strong>{{ p.productName }}</strong> · {{ p.productCode }} @if (p.barcode) { · {{ p.barcode }} }</mat-option> }
+          </mat-autocomplete></mat-form-field
         ><button mat-flat-button color="primary" (click)="find()">
           <span class="material-symbols-rounded">add</span>Add Item
         </button>
@@ -61,11 +68,7 @@
                 ><strong>{{ x.productName }}</strong
                 ><small>{{ x.barcode || 'No barcode' }}</small></span
               ></span
-            ><input aria-label="Batch" [(ngModel)]="x.batchNo" /><input
-              aria-label="Expiry"
-              type="date"
-              [(ngModel)]="x.expiryDate"
-            /><input aria-label="Quantity" type="number" [(ngModel)]="x.quantity" /><input
+            ><input aria-label="Batch" [(ngModel)]="x.batchNo" /><mat-form-field class="grid-date" subscriptSizing="dynamic"><input matInput aria-label="Expiry" [matDatepicker]="expiryPicker" [(ngModel)]="x.expiryDate" /><mat-datepicker-toggle matIconSuffix [for]="expiryPicker" /><mat-datepicker #expiryPicker /></mat-form-field><input aria-label="Quantity" type="number" [(ngModel)]="x.quantity" /><input
               aria-label="Free quantity"
               type="number"
               [(ngModel)]="x.freeQuantity"

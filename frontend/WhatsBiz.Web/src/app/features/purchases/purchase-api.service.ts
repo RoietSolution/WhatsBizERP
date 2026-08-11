@@ -45,6 +45,11 @@ export class PurchaseApiService {
   warehouses() {
     return this.http.get<any[]>('/api/warehouses/dropdown');
   }
+  uploadAttachment(purchaseId: string, file: File) {
+    const data = new FormData();
+    data.append('file', file);
+    return this.http.post(`/api/purchases/${purchaseId}/attachments`, data);
+  }
   export() {
     return this.http.get('/api/purchases/export', { responseType: 'blob' });
   }

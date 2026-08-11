@@ -4,8 +4,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using WhatsBiz.Application.Common.Exceptions;
 
 namespace WhatsBiz.Infrastructure.Persistence;
@@ -19,11 +19,21 @@ internal static class IdempotencyKeyReader
     }
 }
 
-public sealed class SqlIdempotencyExecutor(ApplicationDbContext db)
+public sealed class SqlIdempotencyExecutor
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private string ConnectionString => db.Database.GetConnectionString()
-        ?? throw new InvalidOperationException("Database connection unavailable.");
+    private readonly string connectionString;
+
+    public SqlIdempotencyExecutor(IConfiguration configuration)
+    {
+        connectionString = configuration.GetConnectionString("DefaultConnection")
+            ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException(
+                "Connection string 'DefaultConnection' is missing or empty. " +
+                "Configure ConnectionStrings:DefaultConnection before using database operations.");
+    }
 
     public async Task<T> Execute<T>(Guid? key, string operation, object request, string? user,
         Func<SqlConnection, SqlTransaction, CancellationToken, Task<T>> action, CancellationToken token)
@@ -32,7 +42,7 @@ public sealed class SqlIdempotencyExecutor(ApplicationDbContext db)
             throw new BusinessRuleException("An idempotency key is required.");
 
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(request, JsonOptions)));
-        await using var connection = new SqlConnection(ConnectionString);
+        await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(token);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, token);
         try

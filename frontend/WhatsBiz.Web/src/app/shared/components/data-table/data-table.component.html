@@ -9,9 +9,21 @@
         (click)="exportCsv()"
       >
         <span class="material-symbols-rounded">download</span></button
-      ><button mat-icon-button type="button" aria-label="Choose columns" (click)="openColumns()">
+      ><button mat-icon-button type="button" aria-label="Choose visible columns" [matMenuTriggerFor]="columnsMenu">
         <span class="material-symbols-rounded">view_column</span>
       </button>
+      <mat-menu #columnsMenu="matMenu">
+        <div class="column-menu-title" (click)="$event.stopPropagation()">Visible columns</div>
+        @for (column of columns(); track column.colId || column.field || column.headerName) {
+          <button mat-menu-item type="button" (click)="toggleColumn(column)">
+            <span class="material-symbols-rounded">{{ columnVisible(column) ? 'check_box' : 'check_box_outline_blank' }}</span>
+            <span>{{ columnLabel(column) }}</span>
+          </button>
+        }
+        <button mat-menu-item type="button" (click)="showAllColumns()">
+          <span class="material-symbols-rounded">select_all</span><span>Show all columns</span>
+        </button>
+      </mat-menu>
     </div>
   </header>
   @if (rows().length) {

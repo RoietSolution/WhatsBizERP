@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { AgGridAngular } from 'ag-grid-angular';
 import {
   AllCommunityModule,
@@ -13,6 +13,7 @@ import {
   themeQuartz,
 } from 'ag-grid-community';
 import { MatButtonModule } from '@angular/material/button';
+import { MatMenuModule } from '@angular/material/menu';
 import { SearchBoxComponent } from '../search-box/search-box.component';
 import { EmptyStateComponent } from '../empty-state/empty-state.component';
 
@@ -27,7 +28,7 @@ export interface GridSort {
 ModuleRegistry.registerModules([AllCommunityModule]);
 @Component({
   selector: 'app-data-table',
-  imports: [AgGridAngular, MatButtonModule, SearchBoxComponent, EmptyStateComponent],
+  imports: [AgGridAngular, MatButtonModule, MatMenuModule, SearchBoxComponent, EmptyStateComponent],
   templateUrl: './data-table.component.html',
   styleUrl: './data-table.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -93,9 +94,11 @@ export class DataTableComponent<T extends object> {
       cellRenderer: (params: { data?: T }) => this.actionRenderer(params.data),
     },
   ]);
+  private readonly columnStateVersion = signal(0);
   private api?: GridApi<T>;
   gridReady(event: GridReadyEvent<T>): void {
     this.api = event.api;
+    this.columnStateVersion.update((value) => value + 1);
   }
   search(value: string): void {
     this.api?.setGridOption('quickFilterText', value);
@@ -104,8 +107,25 @@ export class DataTableComponent<T extends object> {
   exportCsv(): void {
     this.api?.exportDataAsCsv();
   }
-  openColumns(): void {
-    this.api?.showColumnChooser();
+  columnLabel(column: ColDef<any>): string {
+    return column.headerName || String(column.field || column.colId || 'Column');
+  }
+  columnVisible(column: ColDef<any>): boolean {
+    this.columnStateVersion();
+    const id = this.columnId(column);
+    return id ? (this.api?.getColumn(id)?.isVisible() ?? column.hide !== true) : true;
+  }
+  toggleColumn(column: ColDef<any>): void {
+    const id = this.columnId(column);
+    if (!id || !this.api) return;
+    this.api.setColumnsVisible([id], !this.columnVisible(column));
+    this.columnStateVersion.update((value) => value + 1);
+  }
+  showAllColumns(): void {
+    if (!this.api) return;
+    const ids = this.columns().map((column) => this.columnId(column)).filter((id): id is string => !!id);
+    this.api.setColumnsVisible(ids, true);
+    this.columnStateVersion.update((value) => value + 1);
   }
   emitSelection(): void {
     this.selectionChange.emit(this.api?.getSelectedRows() ?? []);
@@ -119,6 +139,9 @@ export class DataTableComponent<T extends object> {
   }
   contextRow(event: CellContextMenuEvent<T>): void {
     if (event.data) this.rowAction.emit({ action: 'view', row: event.data });
+  }
+  private columnId(column: ColDef<any>): string | undefined {
+    return column.colId || (typeof column.field === 'string' ? column.field : undefined);
   }
   private actionRenderer(row?: T): HTMLElement {
     const host = document.createElement('div');

@@ -21,6 +21,14 @@ header > div {
   display: flex;
   gap: 4px;
 }
+.column-menu-title {
+  padding: 10px 16px 6px;
+  color: var(--wb-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 ag-grid-angular {
   display: block;
   width: 100%;

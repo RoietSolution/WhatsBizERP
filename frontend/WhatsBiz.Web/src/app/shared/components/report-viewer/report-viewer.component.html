@@ -10,11 +10,7 @@
       </button>
     </div>
     <div>
-      <button mat-icon-button aria-label="Group report">
-        <span class="material-symbols-rounded">account_tree</span></button
-      ><button mat-icon-button aria-label="Choose report columns">
-        <span class="material-symbols-rounded">view_column</span></button
-      ><button
+      <button
         mat-icon-button
         [attr.aria-label]="fullscreen() ? 'Exit fullscreen' : 'Open fullscreen'"
         (click)="toggleFullscreen()"

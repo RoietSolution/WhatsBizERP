@@ -1,8 +1,10 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { OperationsWorkspaceComponent } from '../../shared/components/operations-workspace/operations-workspace.component';
 import { StatusChipComponent } from '../../shared/components/status-chip/status-chip.component';
+import { forkJoin } from 'rxjs';
+import { GstApiService } from './gst-api.service';
 @Component({
   imports: [RouterLink, MatButtonModule, OperationsWorkspaceComponent, StatusChipComponent],
   templateUrl: './gst-dashboard.component.html',
@@ -80,78 +82,103 @@ import { StatusChipComponent } from '../../shared/components/status-chip/status-
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GstDashboardComponent {
-  readonly summaries = [
+  private readonly api = inject(GstApiService);
+  readonly loading = signal(true);
+  readonly loaded = signal(false);
+  readonly metrics = signal({ sales: 0, purchases: 0, gstr1: 0, gstr3b: 0 });
+  readonly summaries = computed(() => [
     {
       label: 'Sales Register',
-      value: 'GST Ready',
+      value: this.metrics().sales,
       subtitle: 'Outward supplies',
       icon: 'receipt_long',
       tone: 'primary' as const,
     },
     {
       label: 'Purchase Register',
-      value: 'GST Ready',
+      value: this.metrics().purchases,
       subtitle: 'Input supplies',
       icon: 'shopping_cart',
       tone: 'info' as const,
     },
     {
       label: 'GSTR-1',
-      value: 'Generated on demand',
+      value: this.metrics().gstr1,
       subtitle: 'Return summary',
       icon: 'description',
       tone: 'success' as const,
     },
     {
       label: 'GSTR-3B',
-      value: 'Generated on demand',
+      value: this.metrics().gstr3b,
       subtitle: 'Tax liability',
       icon: 'account_balance',
       tone: 'warning' as const,
     },
-  ];
+  ]);
   readonly reports = [
     {
       title: 'Sales Register',
       path: '/gst/sales-register',
       text: 'B2B and B2C outward supplies with tax breakup.',
       icon: 'point_of_sale',
-      status: 'GST Ready',
     },
     {
       title: 'Purchase Register',
       path: '/gst/purchase-register',
       text: 'Input supplies and available input tax credit.',
       icon: 'shopping_bag',
-      status: 'GST Ready',
     },
     {
       title: 'HSN Summary',
       path: '/gst/hsn-summary',
       text: 'Quantity and tax values grouped by HSN and GST rate.',
       icon: 'category',
-      status: 'Generated',
     },
     {
       title: 'GSTR-1',
       path: '/gst/gstr1',
       text: 'B2B and B2C outward-supply summary.',
       icon: 'description',
-      status: 'GST Ready',
     },
     {
       title: 'GSTR-3B',
       path: '/gst/gstr3b',
       text: 'Output liability, eligible ITC and net payable.',
       icon: 'account_balance',
-      status: 'GST Ready',
     },
     {
       title: 'Tax Summary',
       path: '/gst/tax-summary',
       text: 'CGST, SGST, IGST and CESS reconciliation.',
       icon: 'percent',
-      status: 'Generated',
     },
   ];
+  constructor() {
+    const now = new Date();
+    const filter = {
+      from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
+      to: new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString(),
+    };
+    forkJoin({
+      sales: this.api.report('sales-register', filter),
+      purchases: this.api.report('purchase-register', filter),
+      gstr1: this.api.report('gstr1', filter),
+      gstr3b: this.api.report('gstr3b', filter),
+    }).subscribe({
+      next: (rows) => {
+        const tax = (values: typeof rows.sales) =>
+          values.reduce((sum, row) => sum + (Number(row.totalTax) || 0), 0);
+        this.metrics.set({
+          sales: rows.sales.reduce((sum, row) => sum + (Number(row.taxableAmount) || 0), 0),
+          purchases: rows.purchases.reduce((sum, row) => sum + (Number(row.taxableAmount) || 0), 0),
+          gstr1: tax(rows.gstr1),
+          gstr3b: rows.gstr3b.reduce((sum, row) => sum + (Number(row.netTaxPayable) || 0), 0),
+        });
+        this.loaded.set(true);
+        this.loading.set(false);
+      },
+      error: () => this.loading.set(false),
+    });
+  }
 }

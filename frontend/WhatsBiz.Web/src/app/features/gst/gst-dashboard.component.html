@@ -2,8 +2,8 @@
   eyebrow="Business intelligence"
   title="GST Reports Center"
   description="Registers, statutory summaries, tax liability, and reconciliation-ready reporting."
-  [summaries]="summaries"
-  statusText="GST reporting ready"
+  [summaries]="summaries()"
+  [statusText]="loading() ? 'Loading GST data' : loaded() ? 'Live database data' : 'GST data unavailable'"
   ><a workspace-header-actions mat-flat-button color="primary" routerLink="/gst/tax-summary"
     ><span class="material-symbols-rounded">assessment</span>Tax Summary</a
   >
@@ -20,8 +20,8 @@
         <div>
           <span class="material-symbols-rounded">{{ x.icon }}</span
           ><app-status-chip
-            [label]="x.status"
-            [tone]="x.status === 'GST Ready' ? 'success' : 'info'"
+            [label]="loading() ? 'Loading' : loaded() ? 'Available' : 'Unavailable'"
+            [tone]="loaded() ? 'success' : 'info'"
           />
         </div>
         <h2>{{ x.title }}</h2>
@@ -34,7 +34,7 @@
   </section>
   <section workspace-context class="insight">
     <h3>GST Export Status</h3>
-    <app-status-chip label="GST Ready" tone="success" />
+    <app-status-chip [label]="loaded() ? 'Database data available' : loading() ? 'Loading' : 'Unavailable'" [tone]="loaded() ? 'success' : 'info'" />
     <p>Generate reports and export them to Excel, PDF, or CSV from the report viewer.</p>
   </section>
   <section workspace-context class="insight">

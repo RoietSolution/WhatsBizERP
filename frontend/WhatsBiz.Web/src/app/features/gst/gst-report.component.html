@@ -4,7 +4,7 @@
   description="Statutory GST figures sourced from posted sales and purchases."
   [summaries]="summaries()"
   [statusText]="rows().length + ' records generated'"
-  ><app-status-chip workspace-header-actions label="GST Ready" tone="success" />
+  ><app-status-chip workspace-header-actions [label]="loading() ? 'Loading' : rows().length ? 'Database data loaded' : 'No records'" [tone]="rows().length ? 'success' : 'info'" />
   <div workspace-toolbar-actions class="actions">
     <button mat-button (click)="download('xlsx')">
       <span class="material-symbols-rounded">table_view</span>Excel</button

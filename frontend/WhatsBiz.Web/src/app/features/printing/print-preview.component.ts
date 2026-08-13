@@ -59,6 +59,9 @@ export class PrintPreviewComponent implements OnDestroy {
   paper: PaperSize = DEFAULT_PAPER_SIZE;
   template = '';
   printer = '';
+  documentNumber = '';
+  title = '';
+  bodyHtml = '';
   constructor(
     private api: PrintApiService,
     private safe: DomSanitizer,
@@ -78,10 +81,9 @@ export class PrintPreviewComponent implements OnDestroy {
     this.api
       .document({
         documentType: this.type,
-        documentNumber: 'PREVIEW-001',
-        title: this.type.replaceAll('_', ' '),
-        bodyHtml:
-          '<h2>Document preview</h2><table><tr><th>Description</th><th>Amount</th></tr><tr><td>Sample item</td><td>100.00</td></tr></table>',
+        documentNumber: this.documentNumber,
+        title: this.title || this.type.replaceAll('_', ' '),
+        bodyHtml: this.bodyHtml,
         paperType: this.paper,
         output: 'html',
         templateCode: this.template || null,

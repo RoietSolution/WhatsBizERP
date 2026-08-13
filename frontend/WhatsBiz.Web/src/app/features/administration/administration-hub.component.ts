@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -6,6 +6,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { OperationsWorkspaceComponent } from '../../shared/components/operations-workspace/operations-workspace.component';
 import { StatusChipComponent } from '../../shared/components/status-chip/status-chip.component';
+import { forkJoin } from 'rxjs';
+import { AdminApiService } from './admin-api.service';
 type SettingLink = {
   title: string;
   description: string;
@@ -140,39 +142,42 @@ type SettingGroup = { title: string; icon: string; items: SettingLink[] };
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AdministrationHubComponent {
+  private readonly api = inject(AdminApiService);
   query = '';
   readonly category = signal('Organization');
   readonly selected = signal<SettingLink | null>(null);
-  readonly summaries = [
+  readonly loading = signal(true);
+  readonly adminMetrics = signal({ company: '', branches: 0, backup: '', audits: 0 });
+  readonly summaries = computed(() => [
     {
       label: 'Organization',
-      value: 'Configured',
+      value: this.adminMetrics().company || 'Not configured',
       subtitle: 'Company and branches',
       icon: 'business',
       tone: 'primary' as const,
     },
     {
-      label: 'System Health',
-      value: 'Online',
-      subtitle: 'Application available',
+      label: 'Active Branches',
+      value: this.adminMetrics().branches,
+      subtitle: 'Database records',
       icon: 'monitor_heart',
       tone: 'success' as const,
     },
     {
       label: 'Backup',
-      value: 'Available',
-      subtitle: 'Manual and restore',
+      value: this.adminMetrics().backup || 'No backup',
+      subtitle: 'Latest database backup',
       icon: 'backup',
       tone: 'info' as const,
     },
     {
       label: 'Audit Logs',
-      value: 'Active',
-      subtitle: 'Activity monitoring',
+      value: this.adminMetrics().audits,
+      subtitle: 'Recorded activities',
       icon: 'policy',
       tone: 'warning' as const,
     },
-  ];
+  ]);
   readonly groups: SettingGroup[] = [
     {
       title: 'Organization',
@@ -397,6 +402,28 @@ export class AdministrationHubComponent {
       ],
     },
   ];
+  constructor() {
+    forkJoin({
+      company: this.api.company(),
+      branches: this.api.branches(),
+      backups: this.api.backups(),
+      audits: this.api.audit(),
+    }).subscribe({
+      next: ({ company, branches, backups, audits }) => {
+        const latest = backups.slice().sort((a, b) =>
+          b.startedOn.localeCompare(a.startedOn),
+        )[0];
+        this.adminMetrics.set({
+          company: company.companyName,
+          branches: branches.filter((branch) => branch.isActive).length,
+          backup: latest?.status ?? '',
+          audits: audits.length,
+        });
+        this.loading.set(false);
+      },
+      error: () => this.loading.set(false),
+    });
+  }
   readonly visible = computed(() => {
     const q = this.query.trim().toLowerCase(),
       group = this.groups.find((x) => x.title === this.category()) ?? this.groups[0];

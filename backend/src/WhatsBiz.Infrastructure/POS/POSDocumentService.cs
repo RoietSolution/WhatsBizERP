@@ -21,27 +21,27 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
         """;
     public string InvoiceHtml(SalesInvoice invoice, string paper)
     {
-        var logo = configuration["Printing:InvoiceLogoUrl"] ?? DemoLogo;
-        var storeName = configuration["Printing:StoreName"] ?? "KhataDhari Retail Store";
-        var tagline = configuration["Printing:Tagline"] ?? "Smart billing. Simple business.";
+        var logo = configuration["Printing:InvoiceLogoUrl"];
+        var storeName = configuration["Printing:StoreName"] ?? invoice.Warehouse.WarehouseName;
+        var tagline = configuration["Printing:Tagline"];
         var address = configuration["Printing:Address"] ?? invoice.Warehouse.WarehouseName;
-        var city = configuration["Printing:City"] ?? "India";
+        var city = configuration["Printing:City"];
         var phone = configuration["Printing:Phone"];
         var email = configuration["Printing:Email"];
         var gstin = configuration["Printing:GSTIN"];
         var fssai = configuration["Printing:FSSAI"];
-        var cashier = invoice.CreatedBy ?? "POS Cashier";
-        var counter = invoice.CounterId?.ToString("N")[..6] ?? "Main";
+        var cashier = invoice.CreatedBy ?? "";
+        var counter = invoice.CounterId?.ToString("N")[..6] ?? "";
         var paymentMode = string.Join(", ", invoice.Payments.Select(x => x.PaymentMethod.MethodName));
         var qr = Convert.ToBase64String(printing.QrCode(new QRCodeInput($"{invoice.InvoiceNumber}|{invoice.GrandTotal:0.00}", 4)).Data);
         var body = new StringBuilder($"""
                     <style>{ReceiptCss}</style>
             <main class="receipt">
               <header class="receipt-header">
-                <img class="receipt-logo" src="{EncodeAttribute(logo)}" alt="Store logo" />
+                {(string.IsNullOrWhiteSpace(logo) ? "" : $"<img class=\"receipt-logo\" src=\"{EncodeAttribute(logo)}\" alt=\"Store logo\" />")}
                 <h2 class="store-name">{Encode(storeName)}</h2>
-                <p class="tagline">{Encode(tagline)}</p>
-                <p>{Encode(address)}<br />{Encode(city)}</p>
+                {(string.IsNullOrWhiteSpace(tagline) ? "" : $"<p class=\"tagline\">{Encode(tagline ?? "")}</p>")}
+                <p>{Encode(address)}{(string.IsNullOrWhiteSpace(city) ? "" : $"<br />{Encode(city ?? "")}")}</p>
                 {OptionalLine(phone, email)}
                 {OptionalLine(gstin is null ? null : "GSTIN: " + gstin, null)}
                 {OptionalLine(fssai is null ? null : "FSSAI: " + fssai, null)}
@@ -54,7 +54,7 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
               <hr class="separator" />
               <section class="meta" aria-label="Invoice information">
                 <div><div class="meta-row"><span class="meta-label">Date</span><span>{invoice.InvoiceDate:dd-MMM-yyyy}</span></div><div class="meta-row"><span class="meta-label">Time</span><span>{invoice.InvoiceDate:HH:mm}</span></div><div class="meta-row"><span class="meta-label">Cashier</span><span>{Encode(cashier)}</span></div><div class="meta-row"><span class="meta-label">Customer</span><span>{Encode(invoice.Customer?.CustomerName ?? "Walk-in")}</span></div></div>
-                <div><div class="meta-row"><span class="meta-label">Counter</span><span>{Encode(counter)}</span></div><div class="meta-row"><span class="meta-label">Receipt No</span><span>{Encode(invoice.InvoiceNumber)}</span></div><div class="meta-row"><span class="meta-label">Payment</span><span>{Encode(string.IsNullOrWhiteSpace(paymentMode) ? "Cash" : paymentMode)}</span></div><div class="meta-row"><span class="meta-label">Terminal</span><span>{Encode(configuration["Printing:Terminal"] ?? "POS")}</span></div></div>
+                <div><div class="meta-row"><span class="meta-label">Counter</span><span>{Encode(counter)}</span></div><div class="meta-row"><span class="meta-label">Receipt No</span><span>{Encode(invoice.InvoiceNumber)}</span></div><div class="meta-row"><span class="meta-label">Payment</span><span>{Encode(string.IsNullOrWhiteSpace(paymentMode) ? "Unpaid" : paymentMode)}</span></div><div class="meta-row"><span class="meta-label">Terminal</span><span>{Encode(configuration["Printing:Terminal"] ?? "")}</span></div></div>
               </section>
               <hr class="separator" />
               <table class="items"><thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>GST%</th><th>GST</th><th>Amount</th></tr></thead><tbody>
@@ -138,5 +138,4 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
     }
     private static string Encode(string value) => WebUtility.HtmlEncode(value);
     private static string EncodeAttribute(string value) => WebUtility.HtmlEncode(value);
-    private const string DemoLogo = "data:image/svg+xml,%3Csvg xmlns=%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox=%270 0 160 48%27%3E%3Crect width=%27160%27 height=%2748%27 rx=%278%27 fill=%27%231d4ed8%27%2F%3E%3Ctext x=%2780%27 y=%2731%27 text-anchor=%27middle%27 font-family=%27Arial%27 font-size=%2720%27 font-weight=%27bold%27 fill=%27white%27%3EWhatsBiz%3C%2Ftext%3E%3C%2Fsvg%3E";
 }

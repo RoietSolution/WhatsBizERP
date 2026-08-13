@@ -3,7 +3,7 @@
   title="Purchase Workspace"
   description="Manage purchasing, receipts, supplier obligations, and operational follow-up."
   [summaries]="summaries()"
-  statusText="Purchase services available"
+  [statusText]="data() ? 'Database data loaded' : 'Loading purchase data'"
   ><a workspace-header-actions mat-flat-button color="primary" routerLink="/purchases/create"
     ><span class="material-symbols-rounded">add</span>Create Purchase</a
   >

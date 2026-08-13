@@ -92,28 +92,28 @@ export class InventoryDashboardComponent {
     return [
       {
         label: 'Inventory value',
-        value: x?.totalStockValue ?? 0,
+        value: x ? x.totalStockValue : 'Loading',
         subtitle: 'Current stock',
         icon: 'currency_rupee',
         tone: 'primary' as const,
       },
       {
         label: 'Low stock',
-        value: x?.lowStockProducts ?? 0,
+        value: x ? x.lowStockProducts : 'Loading',
         subtitle: 'Needs attention',
         icon: 'warning',
         tone: 'warning' as const,
       },
       {
         label: 'Out of stock',
-        value: x?.outOfStockProducts ?? 0,
+        value: x ? x.outOfStockProducts : 'Loading',
         subtitle: 'Unavailable',
         icon: 'remove_shopping_cart',
         tone: 'danger' as const,
       },
       {
         label: 'Reserved stock',
-        value: x?.reservedStock ?? 0,
+        value: x ? x.reservedStock : 'Loading',
         subtitle: 'Committed',
         icon: 'lock',
         tone: 'info' as const,

@@ -3,7 +3,7 @@
   title="Inventory Workspace"
   description="Monitor stock availability, warehouse movements, replenishment, and inventory risk."
   [summaries]="summaries()"
-  statusText="Inventory synchronized"
+  [statusText]="summary() ? 'Database data loaded' : 'Loading inventory data'"
   ><a workspace-header-actions mat-flat-button color="primary" routerLink="/inventory/adjustment"
     ><span class="material-symbols-rounded">tune</span>Adjust Stock</a
   >

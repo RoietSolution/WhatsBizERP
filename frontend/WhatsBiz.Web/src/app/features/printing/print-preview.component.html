@@ -8,6 +8,10 @@
   </div>
 </header>
 <section class="controls">
+  <label>Document number<input [(ngModel)]="documentNumber" /></label
+  ><label>Title<input [(ngModel)]="title" /></label
+  ><label>Document content<textarea rows="4" [(ngModel)]="bodyHtml"></textarea></label
+  >
   <label
     >Document type<select [(ngModel)]="type">
       <option>SALES_INVOICE</option>
@@ -38,7 +42,7 @@
         <option [value]="x.id">{{ x.displayName }}</option>
       }
     </select></label
-  ><button mat-flat-button (click)="preview()">Generate preview</button>
+  ><button mat-flat-button [disabled]="!documentNumber.trim() || !bodyHtml.trim()" (click)="preview()">Generate preview</button>
 </section>
 <div class="stage">
   @if (url()) {

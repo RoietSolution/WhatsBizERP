@@ -77,28 +77,28 @@ export class PurchaseDashboardComponent {
     return [
       {
         label: 'Purchase today',
-        value: x?.todayPurchases ?? 0,
+        value: x ? x.todayPurchases : 'Loading',
         subtitle: 'Today',
         icon: 'shopping_cart',
         tone: 'primary' as const,
       },
       {
         label: 'Pending orders',
-        value: x?.todayCount ?? 0,
+        value: x ? x.todayCount : 'Loading',
         subtitle: 'Invoices today',
         icon: 'pending_actions',
         tone: 'warning' as const,
       },
       {
         label: 'Outstanding',
-        value: x?.outstanding ?? 0,
+        value: x ? x.outstanding : 'Loading',
         subtitle: 'Supplier payable',
         icon: 'account_balance_wallet',
         tone: 'danger' as const,
       },
       {
         label: 'Month purchases',
-        value: x?.monthPurchases ?? 0,
+        value: x ? x.monthPurchases : 'Loading',
         subtitle: 'Current month',
         icon: 'calendar_month',
         tone: 'info' as const,

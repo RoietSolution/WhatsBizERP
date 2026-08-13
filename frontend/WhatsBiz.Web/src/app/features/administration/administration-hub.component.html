@@ -2,8 +2,8 @@
   eyebrow="Enterprise administration"
   title="Administration Center"
   description="Manage organization, security, system configuration, printing, backup, and monitoring."
-  [summaries]="summaries"
-  statusText="Administration services available"
+  [summaries]="summaries()"
+  [statusText]="loading() ? 'Loading administration data' : 'Database data loaded'"
   ><a workspace-header-actions mat-flat-button color="primary" routerLink="/admin/company"
     ><span class="material-symbols-rounded">business</span>Company Profile</a
   >

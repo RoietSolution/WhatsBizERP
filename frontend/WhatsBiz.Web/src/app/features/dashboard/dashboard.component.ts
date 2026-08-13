@@ -97,7 +97,7 @@ export class DashboardComponent {
     { label: 'Stock Adjustment', icon: 'tune', route: '/inventory/adjustment' },
     { label: 'Reports', icon: 'analytics', route: '/analytics/sales' },
   ];
-  readonly userName = computed(() => this.currentUser.user()?.username ?? 'Administrator');
+  readonly userName = computed(() => this.currentUser.user()?.username ?? 'User');
   readonly greeting = computed(() => {
     const hour = new Date().getHours();
     return hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
@@ -137,7 +137,7 @@ export class DashboardComponent {
         value: s.todayPurchase,
         icon: 'shopping_cart',
         tone: 'info',
-        comparison: 'Selected period',
+        comparison: `Expense ${this.money(s.todayExpense)}`,
         positive: true,
         sparkline: this.sparkline(this.purchase()?.daily ?? []),
       },

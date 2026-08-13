@@ -1,12 +1,17 @@
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { CurrencyPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { OperationsWorkspaceComponent } from '../../shared/components/operations-workspace/operations-workspace.component';
 import { FilterPanelComponent } from '../../shared/components/filter-panel/filter-panel.component';
 import { StatusChipComponent } from '../../shared/components/status-chip/status-chip.component';
+import { forkJoin } from 'rxjs';
+import { DashboardApiService } from '../dashboard/dashboard-api.service';
+import { GstApiService } from '../gst/gst-api.service';
 @Component({
   imports: [
     RouterLink,
+    CurrencyPipe,
     MatButtonModule,
     OperationsWorkspaceComponent,
     FilterPanelComponent,
@@ -114,37 +119,42 @@ import { StatusChipComponent } from '../../shared/components/status-chip/status-
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReportsCenterComponent {
+  private readonly dashboardApi = inject(DashboardApiService);
+  private readonly gstApi = inject(GstApiService);
   readonly favorites = signal<string[]>([]);
-  readonly summaries = [
+  readonly loading = signal(true);
+  readonly lastRefreshed = signal<Date | null>(null);
+  readonly reportMetrics = signal({ sales: 0, purchases: 0, inventory: 0, gst: 0 });
+  readonly summaries = computed(() => [
     {
-      label: "Today's sales",
-      value: 'Open report',
+      label: 'Current month sales',
+      value: this.reportMetrics().sales,
       subtitle: 'Sales performance',
       icon: 'point_of_sale',
       tone: 'primary' as const,
     },
     {
-      label: 'Purchase value',
-      value: 'Open report',
+      label: 'Current month purchases',
+      value: this.reportMetrics().purchases,
       subtitle: 'Purchase analytics',
       icon: 'shopping_cart',
       tone: 'info' as const,
     },
     {
       label: 'Inventory value',
-      value: 'Open report',
+      value: this.reportMetrics().inventory,
       subtitle: 'Stock valuation',
       icon: 'inventory_2',
       tone: 'success' as const,
     },
     {
       label: 'GST liability',
-      value: 'Open report',
+      value: this.reportMetrics().gst,
       subtitle: 'Tax center',
       icon: 'percent',
       tone: 'warning' as const,
     },
-  ];
+  ]);
   readonly categories = [
     {
       title: 'Sales Reports',
@@ -219,6 +229,32 @@ export class ReportsCenterComponent {
       ],
     },
   ];
+  constructor() {
+    this.load();
+  }
+  load(): void {
+    this.loading.set(true);
+    const today = new Date();
+    const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+    const to = new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString();
+    forkJoin({
+      summary: this.dashboardApi.summary({ from, to, refresh: true }),
+      inventory: this.dashboardApi.inventory(true),
+      gst: this.gstApi.report('tax-summary', { from, to }),
+    }).subscribe({
+      next: ({ summary, inventory, gst }) => {
+        this.reportMetrics.set({
+          sales: summary.todaySales,
+          purchases: summary.todayPurchase,
+          inventory: inventory.totalInventoryValue,
+          gst: gst.reduce((total, row) => total + (Number(row.totalTax) || 0), 0),
+        });
+        this.lastRefreshed.set(new Date());
+        this.loading.set(false);
+      },
+      error: () => this.loading.set(false),
+    });
+  }
   favorite(title: string) {
     this.favorites.update((x) =>
       x.includes(title) ? x.filter((v) => v !== title) : [...x, title],

@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { permissionGuard } from './core/guards/permission.guard';
+import { featureGuard } from './core/guards/feature.guard';
 const productView = { permission: 'product.view' },
   productCreate = { permission: 'product.create' },
   productEdit = { permission: 'product.edit' };
@@ -409,6 +410,24 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/administration/customer-notifications.component').then(
             (m) => m.CustomerNotificationsComponent,
+          ),
+      },
+      {
+        path: 'admin/whatsapp',
+        canActivate: [permissionGuard, featureGuard],
+        data: { ...adminSettings, feature: 'WHATSAPP_COMMERCE', title: 'WhatsApp Business Connection' },
+        loadComponent: () =>
+          import('./features/whatsapp/whatsapp-configuration.component').then(
+            (m) => m.WhatsAppConfigurationComponent,
+          ),
+      },
+      {
+        path: 'admin/whatsapp-demo',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permission: 'pos.view', feature: 'WHATSAPP_COMMERCE', title: 'WhatsApp Commerce Demo' },
+        loadComponent: () =>
+          import('./features/whatsapp/whatsapp-commerce-demo.component').then(
+            (m) => m.WhatsAppCommerceDemoComponent,
           ),
       },
       {

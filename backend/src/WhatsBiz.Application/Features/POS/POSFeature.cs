@@ -110,7 +110,8 @@ public sealed record POSInvoiceListDto(
     decimal GrandTotal,
     decimal PaidAmount,
     decimal BalanceAmount,
-    string Status);
+    string Status,
+    string? SourceChannel);
 
 public sealed record PagedPOSInvoices(IReadOnlyCollection<POSInvoiceListDto> Items, int TotalCount, int PageNumber, int PageSize);
 
@@ -268,9 +269,10 @@ public sealed class POSHandlers(
     public async Task<PagedPOSInvoices> Handle(GetPOSInvoices q, CancellationToken t)
     {
         var (x, n) = await repository.Invoices(q.Search, q.Status, q.From, q.To, q.Page, q.Size, t);
+        var sources = await repository.SourceChannels(x.Select(a => a.InvoiceId).ToArray(), t);
 
         return new(
-            x.Select(a => new POSInvoiceListDto(a.InvoiceId, a.InvoiceNumber, a.InvoiceDate, a.Customer?.CustomerName, a.GrandTotal, a.PaidAmount, a.BalanceAmount, a.Status)).ToArray(),
+            x.Select(a => new POSInvoiceListDto(a.InvoiceId, a.InvoiceNumber, a.InvoiceDate, a.Customer?.CustomerName, a.GrandTotal, a.PaidAmount, a.BalanceAmount, a.Status, sources.GetValueOrDefault(a.InvoiceId))).ToArray(),
             n,
             q.Page,
             q.Size);

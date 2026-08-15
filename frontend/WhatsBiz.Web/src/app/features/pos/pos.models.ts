@@ -42,7 +42,8 @@ export interface InvoiceList {
   grandTotal: number;
   paidAmount: number;
   balanceAmount: number;
-  status: string;
+    status: string;
+    sourceChannel?: string;
 }
 export interface PagedInvoices {
   items: InvoiceList[];

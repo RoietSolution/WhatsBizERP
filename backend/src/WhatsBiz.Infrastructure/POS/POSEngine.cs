@@ -33,14 +33,29 @@ public sealed class POSEngine(
                         ("@Status", r.Status), ("@InterState", r.InterState),
                         ("@DiscountAuthorizedBy", r.DiscountAuthorizedBy), ("@CreatedBy", r.User)
                     ]);
-                    await using var reader = await command.ExecuteReaderAsync(ct);
-                    if (!await reader.ReadAsync(ct)) throw new InvalidOperationException("Invoice post returned no result.");
-                    return new POSPostResult(
-                        reader.GetGuid(reader.GetOrdinal("InvoiceId")),
-                        reader.GetString(reader.GetOrdinal("InvoiceNumber")),
-                        reader.GetDecimal(reader.GetOrdinal("GrandTotal")),
-                        reader.GetDecimal(reader.GetOrdinal("PaidAmount")),
-                        reader.GetString(reader.GetOrdinal("Status")));
+                    POSPostResult result;
+                    await using (var reader = await command.ExecuteReaderAsync(ct))
+                    {
+                        if (!await reader.ReadAsync(ct)) throw new InvalidOperationException("Invoice post returned no result.");
+                        result = new POSPostResult(
+                            reader.GetGuid(reader.GetOrdinal("InvoiceId")),
+                            reader.GetString(reader.GetOrdinal("InvoiceNumber")),
+                            reader.GetDecimal(reader.GetOrdinal("GrandTotal")),
+                            reader.GetDecimal(reader.GetOrdinal("PaidAmount")),
+                            reader.GetString(reader.GetOrdinal("Status")));
+                    }
+                    if (r.TenantId.HasValue && !string.IsNullOrWhiteSpace(r.SourceChannel))
+                    {
+                        await using var source = new SqlCommand("INSERT integration.WhatsAppCommerceOrders(WhatsAppCommerceOrderId,TenantId,InvoiceId,SourceChannel,ProviderMode,LastNotifiedErpStatus,LastNotifiedOn,CreatedBy) VALUES(NEWID(),@tenant,@invoice,@channel,@mode,@status,SYSUTCDATETIME(),@user);", connection, transaction);
+                        source.Parameters.AddWithValue("@tenant", r.TenantId.Value);
+                        source.Parameters.AddWithValue("@invoice", result.InvoiceId);
+                        source.Parameters.AddWithValue("@channel", r.SourceChannel);
+                        source.Parameters.AddWithValue("@mode", r.SourceChannel == "WHATSAPP_DEMO" ? "MOCK" : "LIVE");
+                        source.Parameters.AddWithValue("@status", result.Status);
+                        source.Parameters.AddWithValue("@user", r.User ?? (object)DBNull.Value);
+                        await source.ExecuteNonQueryAsync(ct);
+                    }
+                    return result;
                 }, token);
         }
         catch (SqlException ex) when (ex.Number >= 51100)

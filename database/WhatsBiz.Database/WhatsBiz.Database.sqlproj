@@ -10,6 +10,10 @@
     <None Include="Scripts\RCDEV008-RuntimeObjects.sql"/>
     <None Include="Scripts\RCDEV009-PrintingPaperSize.sql"/>
     <None Include="Scripts\RCDEV010-CustomerNotifications.sql"/>
+    <None Include="Scripts\V2-FeatureEntitlements.sql"/>
+    <None Include="Scripts\V2-WC001-WhatsAppConfiguration.sql"/>
+    <None Include="Scripts\V2-WhatsAppCommerceDemoProvider.sql"/>
+    <None Include="Scripts\V2-WC-DEMO-002-ReadinessLifecycle.sql"/>
     <PostDeploy Include="Scripts\PostDeployment.sql"/>
   </ItemGroup>
 </Project>

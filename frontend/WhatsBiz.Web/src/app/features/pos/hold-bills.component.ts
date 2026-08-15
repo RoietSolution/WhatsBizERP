@@ -1,6 +1,5 @@
 import { Component, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { Router } from '@angular/router';
 import { POSApiService } from './pos-api.service';
 import { InvoiceList } from './pos.models';
 @Component({
@@ -14,6 +13,8 @@ import { InvoiceList } from './pos.models';
         padding: 1rem;
         border-bottom: 1px solid var(--mat-sys-outline-variant);
       }
+      .source-badge { margin-left:.5rem;padding:.2rem .45rem;border-radius:999px;background:#dcfce7;color:#166534;font-size:.75rem; }
+      section>span:last-child { display:flex;gap:.4rem; }
     `,
   ],
 })
@@ -21,15 +22,10 @@ export class HoldBillsComponent {
   readonly bills = signal<InvoiceList[]>([]);
   constructor(
     private readonly api: POSApiService,
-    private readonly router: Router,
   ) {
-    api.invoices('HELD').subscribe((x) => this.bills.set(x.items));
+    this.load();
   }
-  resume(x: InvoiceList) {
-    this.api
-      .resume(x.invoiceId)
-      .subscribe(
-        () => void this.router.navigate(['/pos'], { queryParams: { resume: x.invoiceId } }),
-      );
-  }
+  load(){this.api.invoices('HELD').subscribe((x) => this.bills.set(x.items));}
+  complete(x:InvoiceList){this.api.completeHeld(x.invoiceId).subscribe(()=>this.load());}
+  cancel(x:InvoiceList){this.api.cancelHeld(x.invoiceId).subscribe(()=>this.load());}
 }

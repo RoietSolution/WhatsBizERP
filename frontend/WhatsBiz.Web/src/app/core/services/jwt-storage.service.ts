@@ -40,8 +40,10 @@ export interface AuthSession {
 }
 export interface CurrentUser {
   userId: string;
+  tenantId: string;
   username: string;
   email: string;
   roles: string[];
   permissions: string[];
+  features: Record<string, boolean>;
 }

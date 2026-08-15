@@ -10,6 +10,7 @@ import {
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { CurrentUserService } from '../../../core/services/current-user.service';
 import { PermissionService } from '../../../core/services/permission.service';
+import { FeatureService } from '../../../core/services/feature.service';
 import { NavigationItem } from '../../models/navigation.model';
 import { ProfilePhotoService } from '../../services/profile-photo.service';
 
@@ -273,6 +274,7 @@ export class SidebarComponent {
   readonly collapseToggle = output<void>();
   readonly navigate = output<void>();
   private readonly permissions = inject(PermissionService);
+  private readonly features = inject(FeatureService);
   private readonly currentUser = inject(CurrentUserService);
   private readonly profilePhoto = inject(ProfilePhotoService);
   readonly user = this.currentUser.user;
@@ -282,12 +284,13 @@ export class SidebarComponent {
       .map((item) => ({
         ...item,
         children: item.children?.filter(
-          (child) => !child.permission || this.permissions.has(child.permission),
+          (child) => (!child.permission || this.permissions.has(child.permission)) && (!child.feature || this.features.hasFeature(child.feature)),
         ),
       }))
       .filter(
         (item) =>
           (!item.permission || this.permissions.has(item.permission)) &&
+          (!item.feature || this.features.hasFeature(item.feature)) &&
           (!item.children || item.children.length > 0),
       ),
   );

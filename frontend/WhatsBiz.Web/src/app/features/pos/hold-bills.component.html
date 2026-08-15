@@ -1,9 +1,8 @@
-<h1>Hold Bills</h1>
+<h1>Held Bills</h1>
 @for (x of bills(); track x.invoiceId) {
   <section>
-    <span
-      ><strong>{{ x.invoiceNumber }}</strong> · {{ x.invoiceDate }} · {{ x.grandTotal }}</span
-    ><button mat-flat-button (click)="resume(x)">Resume</button>
+    <span><strong>{{ x.invoiceNumber }}</strong> · {{ x.invoiceDate }} · {{ x.grandTotal }} @if(x.sourceChannel){<b class="source-badge">{{x.sourceChannel}}</b>}</span>
+    <span><button mat-flat-button (click)="complete(x)">Complete</button><button mat-button (click)="cancel(x)">Cancel</button></span>
   </section>
 } @empty {
   <p>No held bills.</p>

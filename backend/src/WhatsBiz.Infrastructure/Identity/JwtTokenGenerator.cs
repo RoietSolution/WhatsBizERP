@@ -23,6 +23,7 @@ public sealed class JwtTokenGenerator(IOptions<JwtOptions> options)
             new(ClaimTypes.Name, user.UserName ?? string.Empty),
             new(ClaimTypes.Email, user.Email ?? string.Empty)
         };
+        if (user.TenantId is Guid tenantId) claims.Add(new Claim(CustomClaimTypes.TenantId, tenantId.ToString()));
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
         claims.AddRange(permissions.Select(permission => new Claim(CustomClaimTypes.Permission, permission)));
 

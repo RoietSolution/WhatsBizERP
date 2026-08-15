@@ -12,6 +12,10 @@ using WhatsBiz.Infrastructure.Notifications;
 using WhatsBiz.Infrastructure.Administration;
 using WhatsBiz.Infrastructure.Products;
 using Microsoft.AspNetCore.HttpOverrides;
+using WhatsBiz.Infrastructure.Features;
+using Microsoft.AspNetCore.Authorization;
+using WhatsBiz.Api.Authorization;
+using WhatsBiz.Infrastructure.WhatsApp;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console(formatProvider: CultureInfo.InvariantCulture).CreateBootstrapLogger();
 
@@ -21,11 +25,14 @@ try
     builder.Host.UseSerilog((context, services, configuration) => configuration.ReadFrom.Configuration(context.Configuration).ReadFrom.Services(services).Enrich.FromLogContext());
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
+    builder.Services.AddWhatsAppIntegration(builder.Configuration);
     builder.Services.AddSingleton<IProductMasterSpreadsheetService, ProductMasterSpreadsheetService>();
     builder.Services.AddCustomerNotifications(builder.Configuration);
     builder.Services.AddScoped<IInventoryOperationsRepository, InventoryOperationsRepository>();
     builder.Services.AddScoped<IReceivablesRepository, ReceivablesRepository>();
     builder.Services.AddMemoryCache(options => options.SizeLimit = 1024);
+    builder.Services.AddScoped<IFeatureService, FeatureService>();
+    builder.Services.AddScoped<IAuthorizationHandler, FeatureAuthorizationHandler>();
     builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
     builder.Services.AddScoped<IGstRepository, GstRepository>();
     builder.Services.AddSingleton<IGstExportService, GstExportService>();

@@ -24,6 +24,7 @@ export const apiErrorInterceptor: HttpInterceptorFn = (request, next) => {
     '/api/inventory/transfer',
     '/api/inventory/transfers',
     '/api/inventory/verification',
+    '/api/whatsapp-commerce/demo/orders',
   ];
   const needsIdempotency =
     request.method === 'POST' && idempotentPaths.some((path) => request.url === path);

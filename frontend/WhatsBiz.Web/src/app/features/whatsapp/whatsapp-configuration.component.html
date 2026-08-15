@@ -1,0 +1,29 @@
+<app-page-container>
+  <app-page-header eyebrow="WhatsApp Commerce" title="WhatsApp Business Connection" description="Connect this tenant to its Meta WhatsApp Business Platform account.">
+    <a mat-button routerLink="/admin"><span class="material-symbols-rounded">arrow_back</span>Admin Center</a>
+    <app-status-chip [label]="model().connectionStatus" [tone]="tone()" />
+  </app-page-header>
+  <section class="card">
+    <div class="notice">MOCK runs entirely inside WhatsBiz without Meta registration or external calls. META_TEST and LIVE are reserved for provider implementations. Saved secrets are never displayed again.</div>
+    <div class="meta">
+      <span>Business: <strong>{{ model().businessDisplayName || 'Not validated' }}</strong></span>
+      <span>Phone: <strong>{{ model().displayPhoneNumber || 'Not validated' }}</strong></span>
+      <span>Last validated: <strong>{{ (model().lastValidatedDate | date:'medium') || 'Never' }}</strong></span>
+    </div>
+    <div class="grid">
+      <mat-form-field appearance="outline"><mat-label>Provider mode</mat-label><mat-select [(ngModel)]="model().providerMode"><mat-option value="MOCK">MOCK — WhatsBiz simulator</mat-option><mat-option value="META_TEST">META_TEST — not implemented</mat-option><mat-option value="LIVE">LIVE — reserved</mat-option></mat-select></mat-form-field>
+      <mat-slide-toggle [(ngModel)]="model().isEnabled">Enable this connection</mat-slide-toggle>
+      @if (model().providerMode !== 'MOCK') {
+      <mat-form-field appearance="outline"><mat-label>WhatsApp Business Account ID</mat-label><input matInput [(ngModel)]="model().whatsAppBusinessAccountId" inputmode="numeric" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Phone Number ID</mat-label><input matInput [(ngModel)]="model().phoneNumberId" inputmode="numeric" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Graph API version</mat-label><input matInput [(ngModel)]="model().apiVersion" placeholder="vNN.N" /><mat-hint>Choose a currently supported version in Meta documentation.</mat-hint></mat-form-field>
+      <mat-form-field class="wide" appearance="outline"><mat-label>Access token</mat-label><input matInput type="password" [(ngModel)]="accessToken" autocomplete="new-password" [placeholder]="model().hasAccessToken ? 'Saved — enter only to replace' : 'Required'" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Webhook verify token</mat-label><input matInput type="password" [(ngModel)]="webhookVerifyToken" autocomplete="new-password" [placeholder]="model().hasWebhookVerifyToken ? 'Saved — enter only to replace' : 'Required'" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Meta app secret</mat-label><input matInput type="password" [(ngModel)]="appSecret" autocomplete="new-password" [placeholder]="model().hasAppSecret ? 'Saved — enter only to replace' : 'Required for webhook signatures'" /></mat-form-field>
+      }
+    </div>
+    @if (model().lastError) { <p class="error">{{ model().lastError }}</p> }
+    @if (message()) { <p>{{ message() }}</p> }
+    <footer>@if (model().providerMode !== 'MOCK') { <button mat-stroked-button (click)="validate()" [disabled]="saving() || !model().hasAccessToken && !accessToken">Test Connection</button> }<button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">Save</button></footer>
+  </section>
+</app-page-container>

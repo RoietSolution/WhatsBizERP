@@ -10,6 +10,7 @@ using WhatsBiz.Application.Features.Authentication.DTOs;
 using WhatsBiz.Application.Features.Authentication.Login;
 using WhatsBiz.Application.Features.Authentication.Logout;
 using WhatsBiz.Application.Features.Authentication.RefreshToken;
+using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Infrastructure.Identity;
 namespace WhatsBiz.Api.Controllers;
 [ApiController]
@@ -75,7 +76,9 @@ public sealed class AuthController(ISender sender, UserManager<ApplicationUser> 
         if (!result.Succeeded) return BadRequest(new ProblemDetails { Title = "Profile update failed", Detail = string.Join("; ", result.Errors.Select(error => error.Description)) });
         var roles = await users.GetRolesAsync(user);
         var permissions = User.FindAll(CustomClaimTypes.Permission).Select(claim => claim.Value).ToArray();
-        return new CurrentUserDto(user.Id, user.UserName ?? string.Empty, user.Email ?? string.Empty, roles.ToArray(), permissions);
+        var tenantId = user.TenantId ?? throw new UnauthorizedAccessException("User is not assigned to a tenant.");
+        var features = await HttpContext.RequestServices.GetRequiredService<IFeatureService>().GetEffectiveFeaturesAsync(tenantId, HttpContext.RequestAborted);
+        return new CurrentUserDto(user.Id, tenantId, user.UserName ?? string.Empty, user.Email ?? string.Empty, roles.ToArray(), permissions, features);
     }
 
     private async Task<ApplicationUser> GetAuthenticatedUser()

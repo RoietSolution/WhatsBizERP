@@ -3,5 +3,6 @@ export interface NavigationItem {
   icon: string;
   route?: string;
   permission?: string;
+  feature?: string;
   children?: NavigationItem[];
 }

@@ -1,0 +1,42 @@
+<app-page-container>
+  <app-page-header eyebrow="WhatsApp Commerce" title="Commerce Demo" description="A WhatsBiz MOCK simulator. No message is sent to WhatsApp or Meta.">
+    <a mat-button routerLink="/admin"><span class="material-symbols-rounded">arrow_back</span>Admin Center</a>
+    <app-status-chip label="MOCK · DEMO MODE" tone="warning" />
+  </app-page-header>
+
+  @if (readiness(); as ready) {
+    <section class="readiness" [class.ready]="ready.ready">
+      <div class="readiness-title"><div><h3>Demo readiness</h3><strong>Mode: MOCK · Status: {{ready.ready?'Ready':'Setup required'}}</strong></div></div>
+      @for(check of ready.checks;track check.key){
+        <div><span [class.check-ok]="check.ready">{{check.ready?'✓':'✕'}} {{check.label}}</span>@if(!check.ready&&check.setupRoute){<a mat-button [routerLink]="check.setupRoute">Open setup</a>}</div>
+      }
+      @if(ready.ready&&!started()){<button class="start" mat-flat-button (click)="start()" [disabled]="!setup()||busy()">Start Demo</button>}
+      @if(!ready.ready){<p>Demo cannot start until the required setup is complete.</p><button mat-stroked-button (click)="checkReadiness()">Check again</button>}
+    </section>
+  }
+
+  @if (setup(); as data) {
+    @if(started()) {
+      <section class="demo-controls"><div><strong>Store: {{data.storeName}}</strong><span>Provider: {{data.providerMode}}</span></div>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Customer</mat-label><mat-select [(ngModel)]="customerId">@for(x of data.customers;track x.customerId){<mat-option [value]="x.customerId">{{x.customerName}} · {{x.mobile||x.customerCode}}</mat-option>}</mat-select></mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Warehouse</mat-label><mat-select [(ngModel)]="warehouseId" (selectionChange)="changeWarehouse()">@for(x of data.warehouses;track x.warehouseId){<mat-option [value]="x.warehouseId">{{x.warehouseName}}</mat-option>}</mat-select></mat-form-field>
+        <button mat-stroked-button (click)="reset()">Reset Demo</button>
+      </section>
+      <div class="phone"><header><span class="avatar">W</span><div><strong>{{data.storeName}}</strong><small>WhatsBiz mock simulator</small></div><span class="material-symbols-rounded">more_vert</span></header>
+        <main><div class="demo-label">DEMO / MOCK · NOT CONNECTED TO WHATSAPP</div>
+          @for(message of messages();track $index){<article class="bubble" [class.customer]="message.sender==='CUSTOMER'"><span>{{message.text}}</span><time>now {{message.sender==='CUSTOMER'?'✓✓':''}}</time></article>}
+          @if(showProducts()){
+              <section class="catalogue">@for(product of data.products;track product.productId){<article class="product">@if(product.imageUrl){<img [src]="product.imageUrl" [alt]="product.productName" />}@else{<div class="placeholder material-symbols-rounded">inventory_2</div>}<div><strong>{{product.productName}}</strong><small>{{product.productCode}}</small><b>{{product.sellingPrice|currency:'INR'}}</b></div><span class="product-actions"><button (click)="view(product)">View</button><button (click)="add(product)">Add</button></span></article>}@empty{<p class="empty">No products are available for this warehouse.</p>}</section>
+            @if(selectedProduct();as product){<article class="product-detail"><button class="close" (click)="selectedProduct.set(null)">×</button>@if(product.imageUrl){<img class="detail-image" [src]="product.imageUrl" [alt]="product.productName" />}@else{<div class="detail-image detail-placeholder material-symbols-rounded">inventory_2</div>}<strong>{{product.productName}}</strong><span>{{product.description||'Available from the WhatsBiz product catalogue.'}}</span><small>SKU {{product.productCode}}</small><b>{{product.sellingPrice|currency:'INR'}}</b><button (click)="add(product)">Add to Cart</button></article>}
+            <nav class="quick"><button (click)="openCart()">View Cart</button></nav>
+          }
+          @if(showCart()){<section class="cart">@for(line of cart()?.items||[];track line.productId){<article><div><strong>{{line.productName}}</strong><small>{{line.unitPrice|currency:'INR'}} + {{line.taxPercentage}}% tax</small></div><div class="qty"><button (click)="quantity(line.productId,-1)">−</button><span>{{line.quantity}}</span><button (click)="quantity(line.productId,1)">+</button><button class="remove" (click)="remove(line.productId)">×</button></div></article>}@empty{<p class="empty">Your cart is empty. Browse products to add an item.</p>}@if(cart()?.items?.length){<div class="totals"><span>Subtotal <b>{{cart()!.subtotal|currency:'INR'}}</b></span><span>Tax <b>{{cart()!.taxAmount|currency:'INR'}}</b></span><span>Total <b>{{cart()!.grandTotal|currency:'INR'}}</b></span></div><button class="place" (click)="place()" [disabled]="busy()||!customerId">{{busy()?'Creating ERP order…':'Place Order'}}</button>}</section>}
+          @if(order();as placed){<article class="order-success"><strong>Order confirmed ✓</strong><span>#{{placed.orderNumber}} · {{placed.grandTotal|currency:'INR'}}</span></article><nav class="quick"><button (click)="myOrders()">My Orders</button><button (click)="refreshStatuses()">Refresh ERP Status</button></nav>}
+          @if(showOrders()){<section class="cart"><div class="status-actions"><strong>My Orders</strong><button (click)="refreshStatuses()">Refresh ERP Status</button></div>@for(x of orders();track x.orderId){<article><div><strong>#{{x.orderNumber}}</strong><small>{{x.orderDate|date:'medium'}} · {{x.displayStatus}}</small></div><div><b>{{x.grandTotal|currency:'INR'}}</b><button (click)="openOrder(x)">View</button></div></article>}@empty{<p class="empty">No WhatsApp Commerce orders for this customer.</p>}@if(orderDetails();as details){<div class="totals"><strong>#{{details.order.orderNumber}} · {{details.order.displayStatus}}</strong>@for(line of details.items;track line.productId){<span>{{line.productName}} × {{line.quantity}} <b>{{line.lineTotal|currency:'INR'}}</b></span>}</div>}</section>}
+          <nav class="quick persistent"><button (click)="browse()">Browse Products</button><button (click)="openCart()">My Cart ({{cart()?.items?.length||0}})</button><button (click)="myOrders()">My Orders</button></nav>
+          @if(error()){<p class="error">{{error()}}</p>}
+        </main><footer><span class="material-symbols-rounded">sentiment_satisfied</span><input aria-label="Demo message" placeholder="Type a message" [(ngModel)]="draftMessage" (keydown.enter)="sendMessage()" /><button type="button" aria-label="Send message" (click)="sendMessage()" [disabled]="!draftMessage.trim()"><span class="material-symbols-rounded send">send</span></button></footer>
+      </div>
+    }
+  } @else if(error()){<section class="load-error">{{error()}} <a mat-button routerLink="/admin/whatsapp">Open configuration</a></section>}
+</app-page-container>

@@ -8,4 +8,8 @@ public sealed record ResetPasswordRequest(string UserId, string Token, string Ne
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public sealed record UpdateProfileRequest(string Email);
 public sealed record AuthResponse(string AccessToken, string RefreshToken, DateTimeOffset ExpiresOnUtc, CurrentUserDto User);
-public sealed record CurrentUserDto(Guid UserId, string Username, string Email, IReadOnlyCollection<string> Roles, IReadOnlyCollection<string> Permissions);
+public sealed record CurrentUserDto(Guid UserId, Guid TenantId, string Username, string Email, IReadOnlyCollection<string> Roles, IReadOnlyCollection<string> Permissions, IReadOnlyDictionary<string, bool> Features)
+{
+    public CurrentUserDto(Guid userId, string username, string email, IReadOnlyCollection<string> roles, IReadOnlyCollection<string> permissions)
+        : this(userId, Guid.Empty, username, email, roles, permissions, new Dictionary<string, bool>()) { }
+}

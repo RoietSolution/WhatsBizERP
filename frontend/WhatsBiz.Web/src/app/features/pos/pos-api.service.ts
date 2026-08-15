@@ -45,6 +45,8 @@ export class POSApiService {
       headers: { 'Content-Type': 'application/json' },
     });
   }
+  completeHeld(id:string){return this.http.post<void>(`/api/pos/invoice/${id}/complete-held`,null);}
+  cancelHeld(id:string){return this.http.post<void>(`/api/pos/invoice/${id}/cancel-held`,null);}
   get(id: string) {
     return this.http.get<Invoice>(`/api/pos/invoice/${id}`);
   }

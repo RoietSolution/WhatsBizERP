@@ -10,7 +10,7 @@ using WhatsBiz.Application.Features.Warehouses;
 using WhatsBiz.SharedKernel;
 namespace WhatsBiz.Api.Controllers;
 [ApiController, Route("api/pos")]
-public sealed class POSController(ISender sender, IConfiguration configuration, ICurrentUserService currentUser, ICustomerNotificationService notifications) : ControllerBase
+public sealed class POSController(ISender sender, IConfiguration configuration, ICurrentUserService currentUser, ICustomerNotificationService notifications, IPOSLifecycleService lifecycle) : ControllerBase
 {
     [HttpGet("products"), HasPermission(Permissions.POS.View)] public Task<IReadOnlyCollection<POSProductDto>> Products([FromQuery] string? search, [FromQuery] string? barcode, [FromQuery] int size = 20, CancellationToken token = default) => sender.Send(new SearchPOSProducts(search, barcode, size), token);
     [HttpGet("customers"), HasPermission(Permissions.POS.View)] public Task<IReadOnlyCollection<POSCustomerDto>> Customers([FromQuery] string? search, [FromQuery] int size = 20, CancellationToken token = default) => sender.Send(new SearchPOSCustomers(search, size), token);
@@ -28,6 +28,8 @@ public sealed class POSController(ISender sender, IConfiguration configuration, 
     [HttpGet("invoices"), HasPermission(Permissions.POS.View)] public Task<PagedPOSInvoices> Invoices([FromQuery] string? search, [FromQuery] string? status, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, CancellationToken token = default) => sender.Send(new GetPOSInvoices(search, status, from, to, pageNumber, pageSize), token);
     [HttpPost("hold"), HasPermission(Permissions.POS.Edit)] public Task<PostedInvoiceDto> Hold(POSInvoiceInput input, CancellationToken token) => sender.Send(new PostInvoice(input, "HELD"), token);
     [HttpPost("resume"), HasPermission(Permissions.POS.Edit)] public Task<POSInvoiceDto> Resume([FromBody] Guid invoiceId, CancellationToken token) => sender.Send(new ResumeInvoice(invoiceId), token);
+    [HttpPost("invoice/{id:guid}/complete-held"), HasPermission(Permissions.POS.Create)] public async Task<IActionResult> CompleteHeld(Guid id, CancellationToken token) { await lifecycle.TransitionHeldAsync(id, "COMPLETE", currentUser.Username, token); return NoContent(); }
+    [HttpPost("invoice/{id:guid}/cancel-held"), HasPermission(Permissions.POS.Edit)] public async Task<IActionResult> CancelHeld(Guid id, CancellationToken token) { await lifecycle.TransitionHeldAsync(id, "CANCEL", currentUser.Username, token); return NoContent(); }
     [HttpPost("return"), HasPermission(Permissions.POS.Return)] public async Task<IActionResult> Return(POSReturnInput input, CancellationToken token) { await sender.Send(new ReturnInvoice(input), token); return Ok(); }
     [HttpPost("payment"), HasPermission(Permissions.POS.Create)] public async Task<IActionResult> Payment(AddPaymentInput input, CancellationToken token)
     {

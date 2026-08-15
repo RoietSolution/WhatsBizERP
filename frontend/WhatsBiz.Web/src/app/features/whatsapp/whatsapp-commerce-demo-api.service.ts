@@ -1,10 +1,11 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 export interface DemoMessage { sender:string; kind:string; text:string; }
-export interface DemoProduct { productId:string; productCode:string; barcode?:string; productName:string; description?:string; imageUrl?:string; sellingPrice:number; taxPercentage:number; availableQuantity:number; }
+export interface DemoProduct { productId:string; productCode:string; barcode?:string; productName:string; description?:string; imageUrl?:string; imageUrls?:string[]; sellingPrice:number; mrp:number; taxPercentage:number; availableQuantity:number; categoryId:string; categoryName:string; }
+export interface DemoCategory { categoryId:string; categoryName:string; description?:string; productCount:number; imageProductId?:string; imageUrl?:string; }
 export interface DemoCustomer { customerId:string; customerCode:string; customerName:string; mobile?:string; }
 export interface DemoWarehouse { warehouseId:string; warehouseCode:string; warehouseName:string; }
-export interface DemoSetup { providerMode:string; storeName:string; customers:DemoCustomer[]; warehouses:DemoWarehouse[]; products:DemoProduct[]; messages:DemoMessage[]; }
+export interface DemoSetup { providerMode:string; storeName:string; customers:DemoCustomer[]; warehouses:DemoWarehouse[]; categories:DemoCategory[]; products:DemoProduct[]; messages:DemoMessage[]; }
 export interface CartLine extends DemoProduct { quantity:number; unitPrice:number; taxAmount:number; lineTotal:number; }
 export interface DemoCart { warehouseId:string; items:CartLine[]; subtotal:number; taxAmount:number; grandTotal:number; }
 export interface DemoOrder { orderId:string; orderNumber:string; erpStatus:string; grandTotal:number; messages:DemoMessage[]; }
@@ -24,4 +25,5 @@ export class WhatsAppCommerceDemoApiService {
   orderDetails(orderId:string,customerId:string){return this.http.get<OrderDetails>(`${this.root}/orders/${orderId}`,{params:new HttpParams().set('customerId',customerId)});}
   notifications(customerId:string){return this.http.post<DemoMessage[]>(`${this.root}/status-notifications`,null,{params:new HttpParams().set('customerId',customerId)});}
   productImage(productId:string){return this.http.get(`/api/products/${productId}/image`,{responseType:'blob'});}
+  productImageUrl(url:string){return this.http.get(url,{responseType:'blob'});}
 }

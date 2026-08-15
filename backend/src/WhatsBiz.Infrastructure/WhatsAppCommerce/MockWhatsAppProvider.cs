@@ -23,6 +23,10 @@ public sealed class MockWhatsAppProvider : IWhatsAppCommerceProvider
         };
         return Task.FromResult<IReadOnlyCollection<WhatsAppCommerceMessage>>([new("WHATS_BIZ", "ORDER_STATUS", text)]);
     }
+    public Task<WhatsAppProviderConnectionResult> ValidateConnectionAsync(WhatsAppProviderConnectionRequest request, CancellationToken token) =>
+        throw new BusinessRuleException("MOCK mode does not use a Meta connection.");
+    public Task<WhatsAppProviderTestMessageResult> SendTestMessageAsync(WhatsAppProviderTestMessageRequest request, CancellationToken token) =>
+        throw new BusinessRuleException("MOCK mode does not send external messages.");
 }
 
 public sealed class WhatsAppCommerceProviderResolver(IEnumerable<IWhatsAppCommerceProvider> providers) : IWhatsAppCommerceProviderResolver

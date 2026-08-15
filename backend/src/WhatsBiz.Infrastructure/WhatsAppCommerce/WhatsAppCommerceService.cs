@@ -27,7 +27,11 @@ public sealed class WhatsAppCommerceService(IConfiguration configuration, IPOSEn
         await using (var reader = await command.ExecuteReaderAsync(token)) while (await reader.ReadAsync(token)) warehouses.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2)));
         var selectedWarehouse = warehouseId ?? warehouses.FirstOrDefault()?.WarehouseId;
         var products = selectedWarehouse.HasValue ? await Products(connection, selectedWarehouse.Value, token) : [];
-        return new(mode, storeName, customers, warehouses, products, await provider.SendWelcomeAsync(storeName, token));
+        var categories = products.GroupBy(x => new { x.CategoryId, x.CategoryName })
+            .Select(x => new WhatsAppCommerceCategory(x.Key.CategoryId, x.Key.CategoryName, null, x.Count(),
+                x.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p.ImageUrl))?.ProductId.ToString()))
+            .OrderBy(x => x.CategoryName).ToArray();
+        return new(mode, storeName, customers, warehouses, categories, products, await provider.SendWelcomeAsync(storeName, token));
     }
 
     public async Task<WhatsAppCommerceCart> CalculateCartAsync(Guid tenantId, Guid warehouseId, IReadOnlyCollection<WhatsAppCommerceCartItem> items, CancellationToken token)
@@ -134,15 +138,26 @@ public sealed class WhatsAppCommerceService(IConfiguration configuration, IPOSEn
     {
         var rows = new List<WhatsAppCommerceProduct>();
         await using var command = new SqlCommand("""
-            SELECT p.ProductId,p.ProductCode,p.Barcode,p.ProductName,p.ShortDescription,p.ImageUrl,p.SellingPrice,p.GSTPercentage,
-                   ISNULL(SUM(b.QuantityAvailable),0) AvailableQuantity
-            FROM master.Products p LEFT JOIN inventory.InventoryBalances b ON b.ProductId=p.ProductId AND b.WarehouseId=@warehouse
+            SELECT p.ProductId,p.ProductCode,p.Barcode,p.ProductName,p.ShortDescription,p.ImageUrl,p.SellingPrice,p.MRP,p.GSTPercentage,
+                   ISNULL(SUM(b.QuantityAvailable),0) AvailableQuantity,p.CategoryId,c.CategoryName
+            FROM master.Products p JOIN master.ProductCategories c ON c.ProductCategoryId=p.CategoryId
+            LEFT JOIN inventory.InventoryBalances b ON b.ProductId=p.ProductId AND b.WarehouseId=@warehouse
             WHERE p.IsActive=1 AND p.IsDeleted=0
-            GROUP BY p.ProductId,p.ProductCode,p.Barcode,p.ProductName,p.ShortDescription,p.ImageUrl,p.SellingPrice,p.GSTPercentage
+              AND c.IsActive=1 AND c.IsDeleted=0
+            GROUP BY p.ProductId,p.ProductCode,p.Barcode,p.ProductName,p.ShortDescription,p.ImageUrl,p.SellingPrice,p.MRP,p.GSTPercentage,p.CategoryId,c.CategoryName
             HAVING ISNULL(SUM(b.QuantityAvailable),0)>0 ORDER BY p.ProductName;
             """, connection);
         command.Parameters.AddWithValue("@warehouse", warehouseId); await using var reader = await command.ExecuteReaderAsync(token);
-        while (await reader.ReadAsync(token)) rows.Add(new(reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5), reader.GetDecimal(6), reader.GetDecimal(7), reader.GetDecimal(8)));
+        while (await reader.ReadAsync(token)) rows.Add(new(reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5), reader.GetDecimal(6), reader.GetDecimal(7), reader.GetDecimal(8), reader.GetDecimal(9), reader.GetGuid(10), reader.GetString(11), []));
+        foreach (var product in rows.ToArray())
+        {
+            await using var images = new SqlCommand("SELECT TOP(5) ProductImageId FROM master.ProductImages WHERE ProductId=@product AND IsActive=1 AND IsDeleted=0 ORDER BY IsPrimary DESC,CreatedOn;", connection);
+            images.Parameters.AddWithValue("@product", product.ProductId);
+            await using var imageReader = await images.ExecuteReaderAsync(token);
+            var urls = new List<string>();
+            while (await imageReader.ReadAsync(token)) urls.Add($"/api/products/{product.ProductId}/images/{imageReader.GetGuid(0)}");
+            rows[rows.IndexOf(product)] = product with { ImageUrls = urls, ImageUrl = urls.FirstOrDefault() ?? product.ImageUrl };
+        }
         return rows;
     }
     private static async Task<string> ProviderMode(SqlConnection connection, Guid tenantId, CancellationToken token)

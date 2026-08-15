@@ -38,6 +38,8 @@ public sealed class ProductRepository(ApplicationDbContext context) : IProductRe
     public Task<bool> UnitHasProductsAsync(Guid id, CancellationToken cancellationToken) => context.Products.AnyAsync(x => !x.IsDeleted && x.UnitId == id, cancellationToken);
     public void Add(UnitOfMeasure unit) => context.UnitsOfMeasure.Add(unit);
     public Task<ProductImage?> GetImageAsync(Guid productId, bool tracking, CancellationToken cancellationToken) { var query = context.ProductImages.Where(x => x.ProductId == productId && !x.IsDeleted && x.IsActive); if (!tracking) query = query.AsNoTracking(); return query.OrderByDescending(x => x.IsPrimary).FirstOrDefaultAsync(cancellationToken); }
+    public async Task<IReadOnlyCollection<ProductImage>> GetImagesAsync(Guid productId, bool tracking, CancellationToken cancellationToken) { IQueryable<ProductImage> query = context.ProductImages.Where(x => x.ProductId == productId && !x.IsDeleted && x.IsActive).OrderByDescending(x => x.IsPrimary).ThenBy(x => x.CreatedOn); if (!tracking) query = query.AsNoTracking(); return await query.ToArrayAsync(cancellationToken); }
+    public Task<ProductImage?> GetImageByIdAsync(Guid productId, Guid imageId, bool tracking, CancellationToken cancellationToken) { var query = context.ProductImages.Where(x => x.ProductId == productId && x.ProductImageId == imageId && !x.IsDeleted && x.IsActive); if (!tracking) query = query.AsNoTracking(); return query.SingleOrDefaultAsync(cancellationToken); }
     public void Add(ProductImage image) => context.ProductImages.Add(image);
     public Task SaveChangesAsync(CancellationToken cancellationToken) => context.SaveChangesAsync(cancellationToken);
 }

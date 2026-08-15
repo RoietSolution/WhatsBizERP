@@ -25,6 +25,7 @@ export interface Product extends ProductInput {
   unitName: string;
   imageUrl?: string;
 }
+export interface ProductImage { productImageId: string; productId: string; fileName: string; contentType: string; isPrimary: boolean; url: string; }
 export interface ProductInput {
   productCode: string;
   barcode: string | null;

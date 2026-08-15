@@ -12,7 +12,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { finalize, forkJoin, of } from 'rxjs';
 import { ProductApiService } from './product-api.service';
-import { Brand, Category, ProductInput, UnitOfMeasure } from './product.models';
+import { Brand, Category, ProductImage, ProductInput, UnitOfMeasure } from './product.models';
 
 @Component({
   selector: 'app-product-form',
@@ -67,6 +67,8 @@ import { Brand, Category, ProductInput, UnitOfMeasure } from './product.models';
         object-fit: contain;
         border-radius: 8px;
       }
+      .gallery { display:flex; gap:12px; flex-wrap:wrap; }
+      .gallery > div { display:flex; flex-direction:column; gap:4px; align-items:center; }
       .loading {
         display: grid;
         place-items: center;
@@ -101,8 +103,10 @@ export class ProductFormComponent {
   readonly units = signal<UnitOfMeasure[]>([]);
   readonly flatCategories = signal<Category[]>([]);
   readonly imagePreview = signal<string | null>(null);
+  readonly images = signal<ProductImage[]>([]);
+  selectedImagesCount = () => this.selectedImages.length;
   readonly productId: string | null;
-  private selectedImage?: File;
+  private selectedImages: File[] = [];
   readonly form = this.formBuilder.group(
     {
       productCode: ['', [Validators.required, Validators.maxLength(50)]],
@@ -159,10 +163,7 @@ export class ProductFormComponent {
           this.units.set(data.units.filter((x) => x.isActive));
           if (data.product) {
             this.form.patchValue(data.product);
-            if (data.product.imageUrl)
-              this.api
-                .image(data.product.productId)
-                .subscribe((blob) => this.imagePreview.set(URL.createObjectURL(blob)));
+            this.api.images(data.product.productId).subscribe((images) => { this.images.set(images); if (images[0]) this.imagePreview.set(images[0].url); });
           }
         },
         error: () =>
@@ -181,11 +182,9 @@ export class ProductFormComponent {
       : this.api.create(input);
     request.subscribe({
       next: (product) => {
-        const upload = this.selectedImage
-          ? this.api.uploadImage(product.productId, this.selectedImage)
-          : null;
-        if (upload)
-          upload.pipe(finalize(() => this.finish(product.productId))).subscribe({
+        const uploads = this.selectedImages.map((file) => this.api.uploadImage(product.productId, file));
+        if (uploads.length)
+          forkJoin(uploads).pipe(finalize(() => this.finish(product.productId))).subscribe({
             error: () =>
               this.snackBar.open('Product saved, but the image upload failed.', 'Dismiss', {
                 duration: 5000,
@@ -204,19 +203,20 @@ export class ProductFormComponent {
     });
   }
   selectImage(event: Event): void {
-    const file = (event.target as HTMLInputElement).files?.[0];
-    if (!file) return;
-    this.selectedImage = file;
+    const files = Array.from((event.target as HTMLInputElement).files ?? []);
+    if (!files.length) return;
+    if ((this.images().length + this.selectedImages.length + files.length) > 5) { this.snackBar.open('A product can have a maximum of 5 images.', 'Dismiss', { duration: 4000 }); return; }
+    this.selectedImages.push(...files);
     const reader = new FileReader();
     reader.onload = () => this.imagePreview.set(reader.result as string);
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(files[0]);
   }
-  deleteImage(): void {
+  deleteImage(image: ProductImage): void {
     if (!this.productId) return;
-    this.api.deleteImage(this.productId).subscribe({
+    this.api.deleteProductImage(this.productId, image.productImageId).subscribe({
       next: () => {
-        this.imagePreview.set(null);
-        this.selectedImage = undefined;
+        this.images.update((items) => items.filter((x) => x.productImageId !== image.productImageId));
+        this.imagePreview.set(this.images()[0]?.url ?? null);
         this.snackBar.open('Image deleted.', undefined, { duration: 2500 });
       },
       error: () => this.snackBar.open('Image could not be deleted.', 'Dismiss', { duration: 4000 }),

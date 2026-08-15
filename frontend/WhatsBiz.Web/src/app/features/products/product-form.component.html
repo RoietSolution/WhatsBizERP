@@ -115,26 +115,21 @@
       </mat-card-content></mat-card
     >
     <mat-card
-      ><mat-card-header><mat-card-title>Product image</mat-card-title></mat-card-header
+      ><mat-card-header><mat-card-title>Product images (up to 5)</mat-card-title></mat-card-header
       ><mat-card-content class="media">
-        @if (imagePreview()) {
-          <img [src]="imagePreview()" alt="Product image preview" />
-        }
+        <div class="gallery">@for (image of images(); track image.productImageId) {<div><img [src]="image.url" [alt]="image.fileName" /><button type="button" mat-button color="warn" (click)="deleteImage(image)">Delete</button></div>} @if (imagePreview() && !images().length) {<img [src]="imagePreview()" alt="Product image preview" />}</div>
         <div>
           <button type="button" mat-stroked-button (click)="imageInput.click()">
-            {{ imagePreview() ? 'Replace image' : 'Choose image' }}</button
+            Add images</button
           ><input
             #imageInput
             hidden
             type="file"
+            multiple
             accept="image/png,image/jpeg,image/webp"
             (change)="selectImage($event)"
           />
-          @if (productId && imagePreview()) {
-            <button type="button" mat-button color="warn" (click)="deleteImage()">
-              Delete image
-            </button>
-          }
+          <p>Choose up to {{ 5 - images().length - selectedImagesCount() }} more images. The first image is used as the primary catalog image.</p>
         </div></mat-card-content
       ></mat-card
     >

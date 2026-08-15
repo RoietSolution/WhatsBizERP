@@ -6,6 +6,7 @@
     <Build Remove="Scripts\RCDEV008-RuntimeObjects.sql"/>
     <Build Remove="Scripts\RCDEV009-PrintingPaperSize.sql"/>
     <Build Remove="Scripts\RCDEV010-CustomerNotifications.sql"/>
+    <Build Remove="Scripts\V2-WC-DEMO-003-DemoTenantEnablement.sql"/>
     <None Include="SeedData\DemoData.sql"/><None Include="Scripts\VerifyPOS.sql"/><None Include="Scripts\VerifyPurchase.sql"/><None Include="Scripts\V1_ReleaseHardening.sql"/>
     <None Include="Scripts\RCDEV008-RuntimeObjects.sql"/>
     <None Include="Scripts\RCDEV009-PrintingPaperSize.sql"/>
@@ -14,6 +15,9 @@
     <None Include="Scripts\V2-WC001-WhatsAppConfiguration.sql"/>
     <None Include="Scripts\V2-WhatsAppCommerceDemoProvider.sql"/>
     <None Include="Scripts\V2-WC-DEMO-002-ReadinessLifecycle.sql"/>
+    <None Include="Scripts\V2-WC-DEMO-003-DemoTenantEnablement.sql"/>
+    <None Include="Scripts\V2-WC003-MetaTestTransport.sql"/>
+    <None Include="Scripts\V2-WC003A-MetaTestReadiness.sql"/>
     <PostDeploy Include="Scripts\PostDeployment.sql"/>
   </ItemGroup>
 </Project>

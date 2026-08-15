@@ -26,6 +26,8 @@ public interface IProductRepository
     Task<bool> UnitHasProductsAsync(Guid id, CancellationToken cancellationToken);
     void Add(UnitOfMeasure unit);
     Task<ProductImage?> GetImageAsync(Guid productId, bool tracking, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<ProductImage>> GetImagesAsync(Guid productId, bool tracking, CancellationToken cancellationToken);
+    Task<ProductImage?> GetImageByIdAsync(Guid productId, Guid imageId, bool tracking, CancellationToken cancellationToken);
     void Add(ProductImage image);
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

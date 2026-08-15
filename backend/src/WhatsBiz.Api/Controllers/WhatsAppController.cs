@@ -20,6 +20,13 @@ public sealed class WhatsAppController(IWhatsAppService service, ICurrentUserSer
     [HttpPost("configuration/validate"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.WhatsAppCommerce)]
     public Task<WhatsAppConnectionResult> Validate(ValidateWhatsAppConnectionInput? input, CancellationToken token) => service.ValidateConnectionAsync(TenantId(), input?.AccessToken, token);
 
+    [HttpPost("configuration/test-message"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.WhatsAppCommerce)]
+    public Task<WhatsAppTestMessageResult> SendTestMessage(SendWhatsAppTestMessageInput input, CancellationToken token) =>
+        service.SendTestMessageAsync(TenantId(), input, token);
+
+    [HttpGet("configuration/diagnostics"), HasPermission(Permissions.Admin.View), RequireFeature(FeatureKeys.WhatsAppCommerce)]
+    public Task<WhatsAppMetaTestDiagnosticsDto> Diagnostics(CancellationToken token) => service.GetDiagnosticsAsync(TenantId(), token);
+
     [AllowAnonymous, HttpGet("webhook")]
     public async Task<IActionResult> VerifyWebhook([FromQuery(Name = "hub.mode")] string mode,
         [FromQuery(Name = "hub.verify_token")] string verifyToken,
@@ -28,7 +35,7 @@ public sealed class WhatsAppController(IWhatsAppService service, ICurrentUserSer
 
     [AllowAnonymous, HttpPost("webhook")]
     public async Task<IActionResult> ReceiveWebhook(CancellationToken token)
-    { using var stream = new MemoryStream(); await Request.Body.CopyToAsync(stream, token); var accepted = await service.ReceiveWebhookAsync(Request.Headers["X-Hub-Signature-256"].FirstOrDefault(), stream.ToArray(), token); return accepted ? Ok() : Unauthorized(); }
+    { if (Request.ContentLength > 1_048_576) return StatusCode(StatusCodes.Status413PayloadTooLarge); using var stream = new MemoryStream(); await Request.Body.CopyToAsync(stream, token); if (stream.Length > 1_048_576) return StatusCode(StatusCodes.Status413PayloadTooLarge); var accepted = await service.ReceiveWebhookAsync(Request.Headers["X-Hub-Signature-256"].FirstOrDefault(), stream.ToArray(), token); return accepted ? Ok() : Unauthorized(); }
 
     private Guid TenantId() => currentUser.TenantId ?? throw new UnauthorizedAccessException("A tenant context is required.");
 }

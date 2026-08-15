@@ -424,7 +424,7 @@ export const routes: Routes = [
       {
         path: 'admin/whatsapp-demo',
         canActivate: [permissionGuard, featureGuard],
-        data: { permission: 'pos.view', feature: 'WHATSAPP_COMMERCE', title: 'WhatsApp Commerce Demo' },
+        data: { permission: 'pos.view', feature: 'WHATSAPP_COMMERCE', title: 'Commerce Catalog Preview' },
         loadComponent: () =>
           import('./features/whatsapp/whatsapp-commerce-demo.component').then(
             (m) => m.WhatsAppCommerceDemoComponent,

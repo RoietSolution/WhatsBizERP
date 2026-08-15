@@ -9,6 +9,7 @@ import {
   Product,
   ProductInput,
   ProductListItem,
+  ProductImage,
   UnitOfMeasure,
 } from './product.models';
 
@@ -69,6 +70,9 @@ export class ProductApiService {
   deleteImage(id: string): Observable<void> {
     return this.http.delete<void>(`/api/products/${id}/image`);
   }
+  images(id: string): Observable<ProductImage[]> { return this.http.get<ProductImage[]>(`/api/products/${id}/images`); }
+  imageByUrl(url: string): Observable<Blob> { return this.http.get(url, { responseType: 'blob' }); }
+  deleteProductImage(productId: string, imageId: string): Observable<void> { return this.http.delete<void>(`/api/products/${productId}/images/${imageId}`); }
   categories(): Observable<Category[]> {
     return this.http.get<Category[]>('/api/productcategories');
   }

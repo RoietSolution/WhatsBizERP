@@ -1,14 +1,26 @@
 namespace WhatsBiz.Application.Features.WhatsAppCommerce;
 
 public sealed record WhatsAppCommerceMessage(string Sender, string Kind, string Text);
+public sealed record WhatsAppProviderConnectionRequest(string ApiVersion, string WhatsAppBusinessAccountId,
+    string PhoneNumberId, string AccessToken);
+public sealed record WhatsAppProviderConnectionResult(bool Succeeded, string? DisplayPhoneNumber,
+    string? BusinessDisplayName, string? SafeMessage);
+public sealed record WhatsAppProviderTestMessageRequest(string ApiVersion, string PhoneNumberId,
+    string AccessToken, string RecipientNumber, string Message);
+public sealed record WhatsAppProviderTestMessageResult(bool Succeeded, string? ProviderMessageId,
+    DateTimeOffset AttemptedAt, string? SafeMessage);
 public sealed record WhatsAppCommerceProduct(Guid ProductId, string ProductCode, string? Barcode,
-    string ProductName, string? Description, string? ImageUrl, decimal SellingPrice,
-    decimal TaxPercentage, decimal AvailableQuantity);
+    string ProductName, string? Description, string? ImageUrl, decimal SellingPrice, decimal Mrp,
+    decimal TaxPercentage, decimal AvailableQuantity, Guid CategoryId, string CategoryName,
+    IReadOnlyCollection<string> ImageUrls);
+public sealed record WhatsAppCommerceCategory(Guid CategoryId, string CategoryName, string? Description,
+    int ProductCount, string? ImageProductId);
 public sealed record WhatsAppCommerceCustomer(Guid CustomerId, string CustomerCode, string CustomerName, string? Mobile);
 public sealed record WhatsAppCommerceWarehouse(Guid WarehouseId, string WarehouseCode, string WarehouseName);
 public sealed record WhatsAppCommerceSetup(string ProviderMode, string StoreName,
     IReadOnlyCollection<WhatsAppCommerceCustomer> Customers,
     IReadOnlyCollection<WhatsAppCommerceWarehouse> Warehouses,
+    IReadOnlyCollection<WhatsAppCommerceCategory> Categories,
     IReadOnlyCollection<WhatsAppCommerceProduct> Products,
     IReadOnlyCollection<WhatsAppCommerceMessage> Messages);
 public sealed record WhatsAppCommerceCartItem(Guid ProductId, decimal Quantity);
@@ -34,6 +46,8 @@ public interface IWhatsAppCommerceProvider
     Task<IReadOnlyCollection<WhatsAppCommerceMessage>> SendWelcomeAsync(string storeName, CancellationToken token);
     Task<IReadOnlyCollection<WhatsAppCommerceMessage>> SendOrderConfirmationAsync(string orderNumber, decimal amount, CancellationToken token);
     Task<IReadOnlyCollection<WhatsAppCommerceMessage>> SendOrderStatusAsync(string orderNumber, string status, CancellationToken token);
+    Task<WhatsAppProviderConnectionResult> ValidateConnectionAsync(WhatsAppProviderConnectionRequest request, CancellationToken token);
+    Task<WhatsAppProviderTestMessageResult> SendTestMessageAsync(WhatsAppProviderTestMessageRequest request, CancellationToken token);
 }
 public interface IWhatsAppCommerceProviderResolver { IWhatsAppCommerceProvider Resolve(string mode); }
 public interface IWhatsAppCommerceService

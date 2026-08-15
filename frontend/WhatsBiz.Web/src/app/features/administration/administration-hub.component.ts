@@ -320,8 +320,8 @@ export class AdministrationHubComponent {
           feature: 'WHATSAPP_COMMERCE',
         },
         {
-          title: 'WhatsApp Commerce Demo',
-          description: 'Run the customer catalogue, cart, and order journey in MOCK mode.',
+          title: 'Preview Commerce Catalog',
+          description: 'Preview the customer catalog, products, cart, and order journey in MOCK mode.',
           icon: 'forum',
           route: '/admin/whatsapp-demo',
           feature: 'WHATSAPP_COMMERCE',

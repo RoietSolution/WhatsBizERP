@@ -22,6 +22,7 @@ public static class WhatsAppDependencyInjection
         services.AddScoped<IWhatsAppCommerceService, WhatsAppCommerceService>();
         services.AddScoped<IPOSLifecycleService, POSLifecycleService>();
         services.AddSingleton<IWhatsAppCommerceProvider, MockWhatsAppProvider>();
+        services.AddSingleton<IWhatsAppCommerceProvider, MetaCloudApiWhatsAppProvider>();
         services.AddSingleton<IWhatsAppCommerceProviderResolver, WhatsAppCommerceProviderResolver>();
         services.AddHttpClient("MetaWhatsApp", client =>
         {

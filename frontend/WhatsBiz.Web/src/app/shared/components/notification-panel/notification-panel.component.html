@@ -21,8 +21,8 @@
     <article
       tabindex="0"
       [class.notification--unread]="!item.read"
-      (click)="notifications.markRead(item.id)"
-      (keydown.enter)="notifications.markRead(item.id)"
+      (click)="$event.stopPropagation(); toggle(item.id)"
+      (keydown.enter)="$event.stopPropagation(); toggle(item.id)"
     >
       <span class="material-symbols-rounded" [attr.data-tone]="item.type">{{
         item.type === 'success'
@@ -37,6 +37,14 @@
         <strong>{{ item.title }}</strong>
         <p>{{ item.message }}</p>
         <small>{{ item.createdAt | date: 'short' }}</small>
+        @if (expanded() === item.id) {
+          <div class="notification-details"><strong>Details</strong>
+            @for (part of detailParts(item.message); track part) {
+              @if (part.startsWith('Expiry date:')) { <strong class="notification-expiry">{{ part }}</strong> } @else { <span>{{ part }}</span> }
+            }
+            <small>Source: {{ item.referenceType || 'Dashboard alert' }} · This alert remains in your notification history after being read.</small>
+          </div>
+        }
       </div>
       <button
         mat-icon-button

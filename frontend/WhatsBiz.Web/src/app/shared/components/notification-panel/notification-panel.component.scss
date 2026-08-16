@@ -51,6 +51,10 @@ p {
   color: var(--wb-text-secondary);
   font-size: 0.8125rem;
 }
+.notification-details { margin-top: 8px; padding: 8px; background: var(--wb-surface-alt, #f8fafc); border-left: 3px solid var(--wb-primary); border-radius: 4px; }
+.notification-details strong { font-size: .75rem; }
+.notification-details > span, .notification-details > strong { display: block; margin-top: 3px; font-size: .75rem; }
+.notification-details .notification-expiry { color: var(--wb-danger); font-weight: 800; }
 .notification-empty {
   display: grid;
   min-height: 220px;

@@ -8,6 +8,8 @@ export interface AppNotification {
   createdAt: Date;
   read: boolean;
   type: 'info' | 'success' | 'warning' | 'danger';
+  referenceType?: string;
+  referenceId?: string;
 }
 interface ApiNotification {
   id: string;
@@ -16,6 +18,8 @@ interface ApiNotification {
   generatedOn: string;
   isRead: boolean;
   severity: string;
+  referenceType?: string;
+  referenceId?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -39,22 +43,13 @@ export class NotificationService {
               createdAt: new Date(item.generatedOn),
               read: item.isRead,
               type: this.tone(item.severity),
+              referenceType: item.referenceType,
+              referenceId: item.referenceId,
             })),
           );
           this.loading.set(false);
         },
         error: () => {
-          if (!this.notifications().length)
-            this.notifications.set([
-              {
-                id: 'welcome',
-                title: 'Welcome to KhataDhari ERP',
-                message: 'Your notification center is ready. New business alerts will appear here.',
-                createdAt: new Date(),
-                read: false,
-                type: 'info',
-              },
-            ]);
           this.loading.set(false);
         },
       });

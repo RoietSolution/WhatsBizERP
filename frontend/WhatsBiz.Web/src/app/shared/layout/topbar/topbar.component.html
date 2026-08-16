@@ -9,7 +9,19 @@
     <span class="material-symbols-rounded">menu</span>
   </button>
   <div class="global-search">
-    <app-search-box placeholder="Search modules, records and actions" ariaLabel="Global search" />
+    <app-search-box placeholder="Search products, customers and suppliers" ariaLabel="Global search" (searchChange)="onSearch($event)" />
+    @if (globalSearch.results().length || globalSearch.loading()) {
+      <div class="global-search-results" role="listbox">
+        @if (globalSearch.loading()) { <div class="search-status">Searching live records…</div> }
+        @for (result of globalSearch.results(); track result.type + result.id) {
+          <a [routerLink]="result.route" role="option" (click)="clearSearch()">
+            <span class="material-symbols-rounded">{{ result.type === 'Product' ? 'inventory_2' : result.type === 'Customer' ? 'person' : result.type === 'Supplier' ? 'local_shipping' : 'receipt_long' }}</span>
+            <span><strong>{{ result.label }}</strong><small>{{ result.type }} · {{ result.detail }}</small></span>
+          </a>
+        }
+        @if (!globalSearch.loading() && !globalSearch.results().length) { <div class="search-status">No matching records found.</div> }
+      </div>
+    }
   </div>
   <div class="business-context" aria-label="Current business context">
     <span

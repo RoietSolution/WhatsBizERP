@@ -9,6 +9,7 @@ import { SearchBoxComponent } from '../../components/search-box/search-box.compo
 import { LayoutStateService } from '../../services/layout-state.service';
 import { NotificationService } from '../../services/notification.service';
 import { ProfilePhotoService } from '../../services/profile-photo.service';
+import { GlobalSearchService } from '../../services/global-search.service';
 
 @Component({
   selector: 'app-topbar',
@@ -30,10 +31,13 @@ export class TopbarComponent {
   private readonly currentUser = inject(CurrentUserService);
   private readonly notifications = inject(NotificationService);
   private readonly profilePhoto = inject(ProfilePhotoService);
+  readonly globalSearch = inject(GlobalSearchService);
   readonly user = this.currentUser.user;
   readonly initials = computed(() => (this.user()?.username ?? 'U').slice(0, 2).toUpperCase());
   readonly photo = this.profilePhoto.photo;
   readonly unread = computed(
     () => this.notifications.notifications().filter((item) => !item.read).length,
   );
+  onSearch(value: string): void { this.globalSearch.search(value); }
+  clearSearch(): void { this.globalSearch.clear(); }
 }

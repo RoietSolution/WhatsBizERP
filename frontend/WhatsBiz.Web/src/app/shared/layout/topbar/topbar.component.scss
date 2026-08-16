@@ -11,14 +11,24 @@ header {
   display: none;
 }
 .global-search {
+  position: relative;
   width: min(460px, 42vw);
 }
+.global-search-results { position: absolute; z-index: 20; top: calc(var(--wb-header-height) - 4px); width: min(460px, 42vw); overflow: hidden; background: var(--wb-surface); border: 1px solid var(--wb-border); border-radius: 10px; box-shadow: var(--wb-shadow-lg); }
+.global-search-results a, .search-status { display: flex; gap: 10px; align-items: center; padding: 10px 12px; }
+.global-search-results a { color: inherit; text-decoration: none; }
+.global-search-results a:hover { background: var(--wb-primary-soft); }
+.global-search-results a > span:last-child { min-width: 0; }
+.global-search-results strong, .global-search-results small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.global-search-results small, .search-status { color: var(--wb-text-secondary); font-size: .75rem; }
 .business-context {
   display: flex;
   margin-left: auto;
   align-items: center;
   gap: 14px;
 }
+/* Branch and financial-year values are not shown until loaded from the tenant API. */
+.business-context { display: none; }
 .business-context > span {
   display: flex;
   align-items: center;
@@ -107,11 +117,15 @@ header {
   font-weight: 700;
   place-items: center;
   overflow: hidden;
+  flex: 0 0 34px;
+  aspect-ratio: 1;
 }
 .avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
+  display: block;
 }
 .user-copy {
   display: block;

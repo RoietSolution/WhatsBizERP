@@ -147,8 +147,11 @@ public sealed class WhatsAppCommerceService(IConfiguration configuration, IPOSEn
             GROUP BY p.ProductId,p.ProductCode,p.Barcode,p.ProductName,p.ShortDescription,p.ImageUrl,p.SellingPrice,p.MRP,p.GSTPercentage,p.CategoryId,c.CategoryName
             HAVING ISNULL(SUM(b.QuantityAvailable),0)>0 ORDER BY p.ProductName;
             """, connection);
-        command.Parameters.AddWithValue("@warehouse", warehouseId); await using var reader = await command.ExecuteReaderAsync(token);
-        while (await reader.ReadAsync(token)) rows.Add(new(reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5), reader.GetDecimal(6), reader.GetDecimal(7), reader.GetDecimal(8), reader.GetDecimal(9), reader.GetGuid(10), reader.GetString(11), []));
+        command.Parameters.AddWithValue("@warehouse", warehouseId);
+        await using (var reader = await command.ExecuteReaderAsync(token))
+        {
+            while (await reader.ReadAsync(token)) rows.Add(new(reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5), reader.GetDecimal(6), reader.GetDecimal(7), reader.GetDecimal(8), reader.GetDecimal(9), reader.GetGuid(10), reader.GetString(11), []));
+        }
         foreach (var product in rows.ToArray())
         {
             await using var images = new SqlCommand("SELECT TOP(5) ProductImageId FROM master.ProductImages WHERE ProductId=@product AND IsActive=1 AND IsDeleted=0 ORDER BY IsPrimary DESC,CreatedOn;", connection);

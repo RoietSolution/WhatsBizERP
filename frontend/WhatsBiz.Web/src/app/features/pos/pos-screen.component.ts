@@ -11,7 +11,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { MatButtonModule } from '@angular/material/button';
-import { MatDialog } from '@angular/material/dialog';
+import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -29,6 +29,7 @@ import { CartItem, PaymentMethod, POSCustomer, POSProduct } from './pos.models';
     FormsModule,
     ScrollingModule,
     MatButtonModule,
+    MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -145,6 +146,11 @@ export class POSScreenComponent {
     this.customer.set(x);
     this.customers.set([]);
     this.customerSearch = x.customerName;
+  }
+  quickCustomer() {
+    this.dialog.open(QuickCustomerDialogComponent, { width: '420px', maxWidth: '94vw' }).afterClosed().subscribe((x: POSCustomer | undefined) => {
+      if (x) this.selectCustomer(x);
+    });
   }
   add(x: POSProduct) {
     const existing = this.cart().find((y) => y.productId === x.productId);
@@ -301,4 +307,15 @@ export class POSScreenComponent {
     }
     return error.message?.trim() || fallback;
   }
+}
+
+@Component({
+  standalone: true,
+  imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatDialogModule],
+  template: `<h2 mat-dialog-title>Quick customer</h2><mat-dialog-content><mat-form-field appearance="outline"><mat-label>Customer name</mat-label><input matInput [(ngModel)]="name" required /></mat-form-field><mat-form-field appearance="outline"><mat-label>Mobile (optional)</mat-label><input matInput [(ngModel)]="mobile" /></mat-form-field><mat-form-field appearance="outline"><mat-label>GSTIN (optional)</mat-label><input matInput [(ngModel)]="gstin" /></mat-form-field></mat-dialog-content><mat-dialog-actions align="end"><button mat-button mat-dialog-close>Cancel</button><button mat-flat-button color="primary" [disabled]="!name.trim()" (click)="save()">Create customer</button></mat-dialog-actions>`,
+})
+class QuickCustomerDialogComponent {
+  name = ''; mobile = ''; gstin = '';
+  constructor(private readonly api: POSApiService, private readonly ref: MatDialogRef<QuickCustomerDialogComponent>, private readonly snack: MatSnackBar) {}
+  save() { this.api.quickCustomer({ customerName: this.name.trim(), mobile: this.mobile.trim() || null, gstin: this.gstin.trim() || null }).subscribe({ next: x => this.ref.close(x), error: () => this.snack.open('Quick customer could not be created.', 'Dismiss', { duration: 4000 }) }); }
 }

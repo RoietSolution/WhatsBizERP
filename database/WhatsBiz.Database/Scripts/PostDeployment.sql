@@ -8,3 +8,5 @@
 :r .\RCDEV008-RuntimeObjects.sql
 :r .\RCDEV009-PrintingPaperSize.sql
 :r .\RCDEV010-CustomerNotifications.sql
+:r .\V3-ProductImageOptimization.sql
+:r .\V4-DashboardNotificationDetails.sql

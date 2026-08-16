@@ -22,6 +22,8 @@
     <None Include="Scripts\V2-WC003A-MetaTestReadiness.sql"/>
     <None Include="Scripts\V3-ProductImageOptimization.sql"/>
     <None Include="Scripts\V4-DashboardNotificationDetails.sql"/>
+    <None Include="Scripts\Onboarding_Retailer.sql"/>
+    <None Include="Scripts\Deboarding_Retailer.sql"/>
     <PostDeploy Include="Scripts\PostDeployment.sql"/>
   </ItemGroup>
 </Project>

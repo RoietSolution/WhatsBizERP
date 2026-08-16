@@ -60,6 +60,7 @@ p {
   gap: 8px;
   margin-bottom: 16px;
 }
+.quick-help { flex-basis: 100%; color: var(--wb-text-secondary); font-size: .75rem; }
 .payment-list {
   min-height: 70px;
   border-top: 1px solid var(--wb-border);

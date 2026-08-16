@@ -101,11 +101,13 @@ header {
   place-items: center;
 }
 .user-button {
+  display: inline-flex;
   height: 48px;
   margin-left: 4px;
   padding-inline: 6px 8px;
   align-items: center;
 }
+.user-button .mdc-button__label { display: inline-flex; align-items: center; }
 .avatar {
   display: grid;
   width: 34px;
@@ -119,6 +121,8 @@ header {
   overflow: hidden;
   flex: 0 0 34px;
   aspect-ratio: 1;
+  position: relative;
+  top: 0;
 }
 .avatar img {
   width: 100%;

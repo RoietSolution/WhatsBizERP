@@ -775,6 +775,13 @@ export const routes: Routes = [
           import('./features/pos/hold-bills.component').then((m) => m.HoldBillsComponent),
       },
       {
+        path: 'pos/invoice/:id',
+        canActivate: [permissionGuard],
+        data: posView,
+        loadComponent: () =>
+          import('./features/pos/invoice-detail.component').then((m) => m.InvoiceDetailComponent),
+      },
+      {
         path: 'pos/history',
         canActivate: [permissionGuard],
         data: posView,

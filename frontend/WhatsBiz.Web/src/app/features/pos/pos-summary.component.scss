@@ -116,6 +116,7 @@ dd input {
   padding: 0;
   font-size: 11px;
 }
+.quick-amount-help { flex-basis: 100%; color: var(--wb-text-secondary); font-size: .7rem; }
 @media (max-width: 1199px) {
   .summary-card {
     position: static;

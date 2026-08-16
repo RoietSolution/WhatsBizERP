@@ -77,28 +77,28 @@ export class PurchaseDashboardComponent {
     return [
       {
         label: 'Purchase today',
-        value: x ? x.todayPurchases : 'Loading',
+        value: x ? this.formatAmount(x.todayPurchases) : 'Loading',
         subtitle: 'Today',
         icon: 'shopping_cart',
         tone: 'primary' as const,
       },
       {
         label: 'Pending orders',
-        value: x ? x.todayCount : 'Loading',
+        value: x ? this.formatAmount(x.todayCount) : 'Loading',
         subtitle: 'Invoices today',
         icon: 'pending_actions',
         tone: 'warning' as const,
       },
       {
         label: 'Outstanding',
-        value: x ? x.outstanding : 'Loading',
+        value: x ? this.formatAmount(x.outstanding) : 'Loading',
         subtitle: 'Supplier payable',
         icon: 'account_balance_wallet',
         tone: 'danger' as const,
       },
       {
         label: 'Month purchases',
-        value: x ? x.monthPurchases : 'Loading',
+        value: x ? this.formatAmount(x.monthPurchases) : 'Loading',
         subtitle: 'Current month',
         icon: 'calendar_month',
         tone: 'info' as const,
@@ -107,5 +107,9 @@ export class PurchaseDashboardComponent {
   });
   constructor(api: PurchaseApiService) {
     api.dashboard().subscribe((x) => this.data.set(x));
+  }
+
+  private formatAmount(value: number): string {
+    return Number(value || 0).toFixed(2);
   }
 }

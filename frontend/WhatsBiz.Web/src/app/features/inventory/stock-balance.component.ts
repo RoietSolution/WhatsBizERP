@@ -1,3 +1,4 @@
+import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -5,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatSelectModule } from '@angular/material/select';
+import { ValueFormatterParams } from 'ag-grid-community';
 import { OperationsWorkspaceComponent } from '../../shared/components/operations-workspace/operations-workspace.component';
 import { FilterPanelComponent } from '../../shared/components/filter-panel/filter-panel.component';
 import { DataTableComponent } from '../../shared/components/data-table/data-table.component';
@@ -13,6 +15,7 @@ import { Balance, ProductOption, WarehouseOption } from './inventory.models';
 @Component({
   imports: [
     ReactiveFormsModule,
+    DecimalPipe,
     RouterLink,
     MatButtonModule,
     MatFormFieldModule,
@@ -101,7 +104,7 @@ export class StockBalanceComponent {
     },
     {
       label: 'Stock value',
-      value: this.value(),
+      value: this.value().toFixed(2),
       subtitle: 'Visible value',
       icon: 'currency_rupee',
       tone: 'warning' as const,
@@ -116,7 +119,11 @@ export class StockBalanceComponent {
     { field: 'quantityOnHand', headerName: 'On hand' },
     { field: 'quantityReserved', headerName: 'Reserved' },
     { field: 'quantityAvailable', headerName: 'Available' },
-    { field: 'stockValue', headerName: 'Stock value' },
+    {
+      field: 'stockValue',
+      headerName: 'Stock value',
+      valueFormatter: (params: ValueFormatterParams<Balance>) => Number(params.value ?? 0).toFixed(2),
+    },
   ];
   page = 1;
   size = 20;

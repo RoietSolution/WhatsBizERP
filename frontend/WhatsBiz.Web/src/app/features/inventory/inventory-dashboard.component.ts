@@ -92,28 +92,28 @@ export class InventoryDashboardComponent {
     return [
       {
         label: 'Inventory value',
-        value: x ? x.totalStockValue : 'Loading',
+        value: x ? this.formatAmount(x.totalStockValue) : 'Loading',
         subtitle: 'Current stock',
         icon: 'currency_rupee',
         tone: 'primary' as const,
       },
       {
         label: 'Low stock',
-        value: x ? x.lowStockProducts : 'Loading',
+        value: x ? this.formatAmount(x.lowStockProducts) : 'Loading',
         subtitle: 'Needs attention',
         icon: 'warning',
         tone: 'warning' as const,
       },
       {
         label: 'Out of stock',
-        value: x ? x.outOfStockProducts : 'Loading',
+        value: x ? this.formatAmount(x.outOfStockProducts) : 'Loading',
         subtitle: 'Unavailable',
         icon: 'remove_shopping_cart',
         tone: 'danger' as const,
       },
       {
         label: 'Reserved stock',
-        value: x ? x.reservedStock : 'Loading',
+        value: x ? this.formatAmount(x.reservedStock) : 'Loading',
         subtitle: 'Committed',
         icon: 'lock',
         tone: 'info' as const,
@@ -127,5 +127,9 @@ export class InventoryDashboardComponent {
   }
   load() {
     this.api.summary(this.warehouseId || undefined).subscribe((x) => this.summary.set(x));
+  }
+
+  private formatAmount(value: number): string {
+    return Number(value || 0).toFixed(2);
   }
 }

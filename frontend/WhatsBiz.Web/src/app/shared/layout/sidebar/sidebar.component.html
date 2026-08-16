@@ -1,9 +1,17 @@
 <aside [class.sidebar--collapsed]="collapsed()">
   <div class="brand">
-    <img class="brand__logo" src="/assets/images/khatadhari-logo.png" alt="KhataDhari logo" />
-    <!-- @if (!collapsed()) {
-      <div class="brand__copy"><strong>KhataDhari</strong><span>KhataDhari ERP</span></div>
-    } -->
+    @if(!collapsed()) {
+      <img class="brand__logo" src="/assets/images/khatadhari-logo.png" alt="KhataDhari logo" />
+    }
+    @else {
+      <img class="brand__logo" src="/assets/images/khatadhari-logo.png" alt="KhataDhari logo" />  
+    }
+    
+    @if (!collapsed()) {
+      <div class="brand__copy">
+        <!-- <strong>KhataDhari</strong><span>KhataDhari ERP</span> -->
+      </div>
+    }
     <button
       type="button"
       [attr.aria-label]="collapsed() ? `Expand sidebar` : `Collapse sidebar`"

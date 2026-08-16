@@ -128,28 +128,28 @@ export class ReportsCenterComponent {
   readonly summaries = computed(() => [
     {
       label: 'Current month sales',
-      value: this.reportMetrics().sales,
+      value: this.formatAmount(this.reportMetrics().sales),
       subtitle: 'Sales performance',
       icon: 'point_of_sale',
       tone: 'primary' as const,
     },
     {
       label: 'Current month purchases',
-      value: this.reportMetrics().purchases,
+      value: this.formatAmount(this.reportMetrics().purchases),
       subtitle: 'Purchase analytics',
       icon: 'shopping_cart',
       tone: 'info' as const,
     },
     {
       label: 'Inventory value',
-      value: this.reportMetrics().inventory,
+      value: this.formatAmount(this.reportMetrics().inventory),
       subtitle: 'Stock valuation',
       icon: 'inventory_2',
       tone: 'success' as const,
     },
     {
       label: 'GST liability',
-      value: this.reportMetrics().gst,
+      value: this.formatAmount(this.reportMetrics().gst),
       subtitle: 'Tax center',
       icon: 'percent',
       tone: 'warning' as const,
@@ -260,4 +260,9 @@ export class ReportsCenterComponent {
       x.includes(title) ? x.filter((v) => v !== title) : [...x, title],
     );
   }
+
+  private formatAmount(value: number): string {
+    return Number(value || 0).toFixed(2);
+  }
+
 }

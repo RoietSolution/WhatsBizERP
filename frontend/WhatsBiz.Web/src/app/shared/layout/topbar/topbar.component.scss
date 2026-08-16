@@ -108,6 +108,7 @@ header {
   align-items: center;
 }
 .user-button .mdc-button__label { display: inline-flex; align-items: center; }
+.user-identity { display: inline-flex; align-items: center; min-height: 34px; }
 .avatar {
   display: grid;
   width: 34px;
@@ -121,8 +122,8 @@ header {
   overflow: hidden;
   flex: 0 0 34px;
   aspect-ratio: 1;
-  position: relative;
-  top: 0;
+  position: static;
+  align-self: center;
 }
 .avatar img {
   width: 100%;

@@ -27,7 +27,10 @@
             "polyfills": [],
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
-            "assets": [{ "glob": "**/*", "input": "public" }],
+            "assets": [
+              { "glob": "**/*", "input": "public" },
+              { "glob": "**/*", "input": "src/assets/commerce", "output": "assets/commerce" }
+            ],
             "styles": ["src/styles.scss"]
           },
           "configurations": {
@@ -58,7 +61,10 @@
             "polyfills": ["zone.js", "zone.js/testing"],
             "tsConfig": "tsconfig.spec.json",
             "inlineStyleLanguage": "scss",
-            "assets": [{ "glob": "**/*", "input": "public" }],
+            "assets": [
+              { "glob": "**/*", "input": "public" },
+              { "glob": "**/*", "input": "src/assets/commerce", "output": "assets/commerce" }
+            ],
             "styles": ["src/styles.scss"]
           }
         }

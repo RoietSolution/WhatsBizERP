@@ -205,6 +205,12 @@ export class ProductFormComponent {
   selectImage(event: Event): void {
     const files = Array.from((event.target as HTMLInputElement).files ?? []);
     if (!files.length) return;
+    const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    const invalid = files.find((file) => !allowed.has(file.type.toLowerCase()) || file.size > 5 * 1024 * 1024);
+    if (invalid) {
+      this.snackBar.open(`${invalid.name}: choose a valid JPEG, PNG, or WebP image up to 5 MB.`, 'Dismiss', { duration: 5000 });
+      return;
+    }
     if ((this.images().length + this.selectedImages.length + files.length) > 5) { this.snackBar.open('A product can have a maximum of 5 images.', 'Dismiss', { duration: 4000 }); return; }
     this.selectedImages.push(...files);
     const reader = new FileReader();

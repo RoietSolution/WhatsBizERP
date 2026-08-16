@@ -25,6 +25,7 @@ try
     builder.Host.UseSerilog((context, services, configuration) => configuration.ReadFrom.Configuration(context.Configuration).ReadFrom.Services(services).Enrich.FromLogContext());
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
+    builder.Services.AddSingleton<IProductImageOptimizer, ProductImageOptimizer>();
     builder.Services.AddWhatsAppIntegration(builder.Configuration);
     builder.Services.AddSingleton<IProductMasterSpreadsheetService, ProductMasterSpreadsheetService>();
     builder.Services.AddCustomerNotifications(builder.Configuration);

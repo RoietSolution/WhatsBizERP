@@ -26,7 +26,7 @@ public sealed class WhatsAppCommerceService(IConfiguration configuration, IPOSEn
         await using (var command = new SqlCommand("SELECT WarehouseId,WarehouseCode,WarehouseName FROM inventory.Warehouses WHERE IsActive=1 AND IsDeleted=0 ORDER BY IsDefault DESC,WarehouseName;", connection))
         await using (var reader = await command.ExecuteReaderAsync(token)) while (await reader.ReadAsync(token)) warehouses.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2)));
         var selectedWarehouse = warehouseId ?? warehouses.FirstOrDefault()?.WarehouseId;
-        var products = selectedWarehouse.HasValue ? await Products(connection, selectedWarehouse.Value, token) : [];
+        var products = selectedWarehouse.HasValue ? await Products(connection, selectedWarehouse.Value, tenantId, token) : [];
         var categories = products.GroupBy(x => new { x.CategoryId, x.CategoryName })
             .Select(x => new WhatsAppCommerceCategory(x.Key.CategoryId, x.Key.CategoryName, null, x.Count(),
                 x.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p.ImageUrl))?.ProductId.ToString()))
@@ -39,7 +39,7 @@ public sealed class WhatsAppCommerceService(IConfiguration configuration, IPOSEn
         if (items.Count == 0) return new(warehouseId, [], 0, 0, 0);
         if (items.Any(x => x.ProductId == Guid.Empty || x.Quantity <= 0)) throw new BusinessRuleException("Cart quantities must be greater than zero.");
         await using var connection = new SqlConnection(ConnectionString); await connection.OpenAsync(token); _ = await ProviderMode(connection, tenantId, token);
-        var catalogue = (await Products(connection, warehouseId, token)).ToDictionary(x => x.ProductId);
+        var catalogue = (await Products(connection, warehouseId, tenantId, token)).ToDictionary(x => x.ProductId);
         var lines = new List<WhatsAppCommerceCartLine>();
         foreach (var item in items.GroupBy(x => x.ProductId).Select(x => new WhatsAppCommerceCartItem(x.Key, x.Sum(y => y.Quantity))))
         {
@@ -134,7 +134,7 @@ public sealed class WhatsAppCommerceService(IConfiguration configuration, IPOSEn
     public static string DisplayStatus(string status) => status.ToUpperInvariant() switch { "HELD" or "SUSPENDED" => "Order Confirmed", "COMPLETED" => "Completed", "CANCELLED" or "VOID" => "Cancelled", "RETURNED" => "Returned", "PARTIALLY_RETURNED" => "Partially Returned", _ => status };
     private static string NotificationStatus(string status) => status.ToUpperInvariant().Replace('_',' ');
 
-    private static async Task<IReadOnlyCollection<WhatsAppCommerceProduct>> Products(SqlConnection connection, Guid warehouseId, CancellationToken token)
+    private static async Task<IReadOnlyCollection<WhatsAppCommerceProduct>> Products(SqlConnection connection, Guid warehouseId, Guid tenantId, CancellationToken token)
     {
         var rows = new List<WhatsAppCommerceProduct>();
         await using var command = new SqlCommand("""
@@ -143,11 +143,12 @@ public sealed class WhatsAppCommerceService(IConfiguration configuration, IPOSEn
             FROM master.Products p JOIN master.ProductCategories c ON c.ProductCategoryId=p.CategoryId
             LEFT JOIN inventory.InventoryBalances b ON b.ProductId=p.ProductId AND b.WarehouseId=@warehouse
             WHERE p.IsActive=1 AND p.IsDeleted=0
-              AND c.IsActive=1 AND c.IsDeleted=0
+              AND c.IsActive=1 AND c.IsDeleted=0 AND p.TenantId=@tenant
             GROUP BY p.ProductId,p.ProductCode,p.Barcode,p.ProductName,p.ShortDescription,p.ImageUrl,p.SellingPrice,p.MRP,p.GSTPercentage,p.CategoryId,c.CategoryName
             HAVING ISNULL(SUM(b.QuantityAvailable),0)>0 ORDER BY p.ProductName;
             """, connection);
         command.Parameters.AddWithValue("@warehouse", warehouseId);
+        command.Parameters.AddWithValue("@tenant", tenantId);
         await using (var reader = await command.ExecuteReaderAsync(token))
         {
             while (await reader.ReadAsync(token)) rows.Add(new(reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5), reader.GetDecimal(6), reader.GetDecimal(7), reader.GetDecimal(8), reader.GetDecimal(9), reader.GetGuid(10), reader.GetString(11), []));

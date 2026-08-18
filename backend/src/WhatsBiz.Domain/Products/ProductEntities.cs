@@ -1,5 +1,18 @@
 namespace WhatsBiz.Domain.Products;
 
+public static class BarcodeTypes
+{
+    public const string Code128 = "CODE128";
+    public const string Ean13 = "EAN13";
+    public const string Ean8 = "EAN8";
+    public const string Upc = "UPC";
+    public const string Code39 = "CODE39";
+    public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        Code128, Ean13, Ean8, Upc, Code39
+    };
+}
+
 public abstract class ProductMasterEntity
 {
     public DateTimeOffset CreatedOn { get; set; } = DateTimeOffset.UtcNow;
@@ -43,8 +56,10 @@ public sealed class UnitOfMeasure : ProductMasterEntity
 public sealed class Product : ProductMasterEntity
 {
     public Guid ProductId { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
     public string ProductCode { get; set; } = string.Empty;
     public string? Barcode { get; set; }
+    public string BarcodeType { get; set; } = BarcodeTypes.Code128;
     public string ProductName { get; set; } = string.Empty;
     public string? ShortDescription { get; set; }
     public string? LongDescription { get; set; }
@@ -75,10 +90,17 @@ public sealed class Product : ProductMasterEntity
 public sealed class ProductImage : ProductMasterEntity
 {
     public Guid ProductImageId { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
     public Guid ProductId { get; set; }
     public string FileName { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;
     public byte[] ImageData { get; set; } = [];
+    public byte[] ThumbnailData { get; set; } = [];
+    public string ThumbnailContentType { get; set; } = "image/webp";
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public int ThumbnailWidth { get; set; }
+    public int ThumbnailHeight { get; set; }
     public bool IsPrimary { get; set; }
 }
 

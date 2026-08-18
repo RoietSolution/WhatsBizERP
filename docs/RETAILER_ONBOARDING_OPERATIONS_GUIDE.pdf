@@ -1,0 +1,578 @@
+%PDF-1.4
+%
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R 6 0 R 7 0 R] /Count 5 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 3493 >>
+stream
+BT
+/F1 10 Tf
+45 770 Td
+/F1 9 Tf (WhatsBizERP Retailer Onboarding, Feature Administration and Deboarding) Tj
+0 -15 Td
+/F1 9 Tf (Guide) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Document version: 1.0) Tj
+0 -15 Td
+/F1 9 Tf (Application: WhatsBizERP) Tj
+0 -15 Td
+/F1 9 Tf (Database baseline: V2 feature entitlements, RCDEV runtime objects, RCDEV009 printing, RCDEV010 customer) Tj
+0 -15 Td
+/F1 9 Tf (notifications, V3 product images, V4 dashboard notifications) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (1. Scope and architecture) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (This guide covers feature access, database setup, configuration, imports, and onboarding/deboarding) Tj
+0 -15 Td
+/F1 9 Tf (checklists for retailers.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (The current application is multi-tenant. A retailer is represented by a tenant in the shared WhatsBizERP) Tj
+0 -15 Td
+/F1 9 Tf (database. The supported flow creates a tenant and associates users, subscriptions, feature entitlements,) Tj
+0 -15 Td
+/F1 9 Tf (company settings, warehouses, printers, and master data with that tenant. The current code does not) Tj
+0 -15 Td
+/F1 9 Tf (automatically create one physical SQL database per retailer.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (If separate physical database isolation is required, provision an empty database from the SQL project,) Tj
+0 -15 Td
+/F1 9 Tf (deploy the complete post-deployment baseline, configure a separate API connection string, and run this) Tj
+0 -15 Td
+/F1 9 Tf (checklist against that database. That is an infrastructure decision, not automatic application behavior) Tj
+0 -15 Td
+/F1 9 Tf (today.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (2. Enable or disable features) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (2.1 Tenant feature entitlement) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Feature enablement is tenant-level. The effective decision is resolved from the active tenant assignment,) Tj
+0 -15 Td
+/F1 9 Tf (plan feature, release state, and date window.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (1. Create or identify the retailer tenant.) Tj
+0 -15 Td
+/F1 9 Tf (2. Confirm the feature exists in core.Features with ReleaseState = ACTIVE.) Tj
+0 -15 Td
+/F1 9 Tf (3. Assign it in core.TenantFeatures with IsEnabled = 1, or use the administration/API workflow.) Tj
+0 -15 Td
+/F1 9 Tf (4. If plan-controlled, confirm core.PlanFeatures.IsEnabled = 1 for the subscribed plan.) Tj
+0 -15 Td
+/F1 9 Tf (5. Sign out/in or refresh the session so the current-user feature snapshot is rebuilt.) Tj
+0 -15 Td
+/F1 9 Tf (6. Verify the administration hub, route, and API permission.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (To disable a feature, set the tenant assignment IsEnabled = 0, set an EndDate, or disable the plan) Tj
+0 -15 Td
+/F1 9 Tf (feature. Set the related integration/configuration inactive where applicable. Disabling access does not) Tj
+0 -15 Td
+/F1 9 Tf (delete historical transactions.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (2.2 User access) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Feature entitlement and user authorization are separate:) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (- core.TenantFeatures: is the feature available to this retailer?) Tj
+0 -15 Td
+/F1 9 Tf (- Identity roles, role claims, and user-role membership: may this user perform the operation?) Tj
+0 -15 Td
+/F1 9 Tf (- API permission attributes and frontend permission guards: enforce access at both layers.) Tj
+0 -15 Td
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 8 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 3596 >>
+stream
+BT
+/F1 10 Tf
+45 770 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (To enable a feature for one user, enable it for the tenant, then assign a role containing the required) Tj
+0 -15 Td
+/F1 9 Tf (permissions. To disable it for one user, remove the role or permission claim. Do not rely on) Tj
+0 -15 Td
+/F1 9 Tf (frontend-only changes.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Flow: active tenant feature + active release/plan + user permission + route/API authorization = usable) Tj
+0 -15 Td
+/F1 9 Tf (feature.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (3. Tables, versions, and flow) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf ( |  Area  |  Table  |  Purpose  | ) Tj
+0 -15 Td
+/F1 9 Tf ( | --- | --- | --- | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Tenant  |  core.Tenants  |  Retailer identity and lifecycle anchor.  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Feature catalog  |  core.Features  |  Feature key, name, module, release state, active flag.  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Plans  |  core.Plans  |  Commercial plan definition.  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Plan mapping  |  core.PlanFeatures  |  Features included by a plan.  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Subscription  |  core.Subscriptions  |  Tenant-to-plan subscription and dates.  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Tenant override  |  core.TenantFeatures  |  Tenant enablement, dates, reason, active state.  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  User identity  |  core.Users  |  Application user and tenant ownership.  | ) Tj
+0 -15 Td
+/F1 9 Tf (|  User roles  |  Identity role/user-role/role-claim tables  |  User membership and permission claims.) Tj
+0 -15 Td
+/F1 9 Tf (| ) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Feature schema and seed flow: database/WhatsBiz.Database/Scripts/V2-FeatureEntitlements.sql.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf ( |  Configuration area  |  Tables  | ) Tj
+0 -15 Td
+/F1 9 Tf ( | --- | --- | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Company/admin  |  admin.Companies, admin.ApplicationSettings, admin.PrinterSettings  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Printers  |  printing.PrinterConfigurations, printing.PaperSizes  | ) Tj
+0 -15 Td
+/F1 9 Tf (|  WhatsApp  |  integration.WhatsAppConfigurations, integration.WhatsAppWebhookEvents,) Tj
+0 -15 Td
+/F1 9 Tf (integration.WhatsAppCommerceOrders  | ) Tj
+0 -15 Td
+/F1 9 Tf (|  Dashboard alerts  |  dashboard.DashboardNotifications, inventory.InventoryAlerts,) Tj
+0 -15 Td
+/F1 9 Tf (inventory.ReorderSuggestions  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Product images  |  master.ProductImages, master.Products tenant/image columns from V3  | ) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Version/deployment flow) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (1. Publish the SQL project baseline and post-deployment scripts.) Tj
+0 -15 Td
+/F1 9 Tf (2. Apply V2 feature entitlement objects and feature catalog seed.) Tj
+0 -15 Td
+/F1 9 Tf (3. Apply RCDEV runtime, printing, and customer-notification changes.) Tj
+0 -15 Td
+/F1 9 Tf (4. Apply V3 product-image tenant/optimized-image schema.) Tj
+0 -15 Td
+/F1 9 Tf (5. Apply V4 dashboard notification procedures.) Tj
+0 -15 Td
+/F1 9 Tf (6. Deploy the matching API and frontend.) Tj
+0 -15 Td
+/F1 9 Tf (7. Create tenant and administrator.) Tj
+0 -15 Td
+/F1 9 Tf (8. Configure company, financial year, branches, warehouses, printers, integrations, users, roles, and) Tj
+0 -15 Td
+/F1 9 Tf (feature assignments.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (The deployment source of truth is database/WhatsBiz.Database/Scripts/PostDeployment.sql and its) Tj
+0 -15 Td
+/F1 9 Tf (referenced scripts. Do not manually create only a subset of production tables.) Tj
+0 -15 Td
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 11 0 R >> >> /Contents 10 0 R >>
+endobj
+10 0 obj
+<< /Length 3597 >>
+stream
+BT
+/F1 10 Tf
+45 770 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Two standalone runbooks are included for retailer lifecycle operations:) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (- database/WhatsBiz.Database/Scripts/Onboarding_Retailer.sql creates a tenant, subscription, initial) Tj
+0 -15 Td
+/F1 9 Tf (tenant feature rows, and company shell after placeholders are replaced. It does not create a password or) Tj
+0 -15 Td
+/F1 9 Tf (silently enable every feature.) Tj
+0 -15 Td
+/F1 9 Tf (- database/WhatsBiz.Database/Scripts/Deboarding_Retailer.sql disables the tenant, subscriptions,) Tj
+0 -15 Td
+/F1 9 Tf (features, users, and WhatsApp configuration without deleting business history. Export, backup,) Tj
+0 -15 Td
+/F1 9 Tf (reconciliation, retention approval, and any purge/anonymization remain mandatory follow-up steps.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (These scripts are for the current shared-database model. They must be run by an authorized database) Tj
+0 -15 Td
+/F1 9 Tf (operator after approval and after the pre-execution checklist below is complete.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (4. Blank database and retailer configuration) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (For a new physical database, create an empty SQL Server database and publish) Tj
+0 -15 Td
+/F1 9 Tf (database/WhatsBiz.Database/WhatsBiz.Database.sqlproj. Execute post-deployment scripts in order. Do not) Tj
+0 -15 Td
+/F1 9 Tf (use SeedData/DemoData.sql as a blank production step; it is demo data.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Required deployment configuration:) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (- SQL Server instance and database name.) Tj
+0 -15 Td
+/F1 9 Tf (- API ConnectionStrings:DefaultConnection.) Tj
+0 -15 Td
+/F1 9 Tf (- Encryption, trust-certificate, and CORS policy.) Tj
+0 -15 Td
+/F1 9 Tf (- JWT issuer, audience, signing key, access expiry, and refresh expiry.) Tj
+0 -15 Td
+/F1 9 Tf (- Data-protection application name and persistent key storage.) Tj
+0 -15 Td
+/F1 9 Tf (- Logging destination and retention.) Tj
+0 -15 Td
+/F1 9 Tf (- Backup/file locations and permissions.) Tj
+0 -15 Td
+/F1 9 Tf (- Email provider settings for production password-reset delivery.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Retailer administration records:) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (- Legal/trade name, address, GST/tax identifiers, currency, timezone, and contacts.) Tj
+0 -15 Td
+/F1 9 Tf (- Financial year and numbering series for sales, purchases, returns, payments, and receipts.) Tj
+0 -15 Td
+/F1 9 Tf (- Branches, warehouses, types, zones, bins, and default warehouse.) Tj
+0 -15 Td
+/F1 9 Tf (- Roles, permissions, first administrator, and tenant association.) Tj
+0 -15 Td
+/F1 9 Tf (- Payment methods, settlement accounts, tax/GST settings, and rates.) Tj
+0 -15 Td
+/F1 9 Tf (- Printer configurations for thermal 58MM/80MM, A4, barcode, and document mappings.) Tj
+0 -15 Td
+/F1 9 Tf (- Notification settings, dashboard refresh policy, WhatsApp provider mode, and backups.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Printer configuration) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Register each printer in printing.PrinterConfigurations with name, type, document type, paper size,) Tj
+0 -15 Td
+/F1 9 Tf (connection details, and active/default status. Configure default mappings in admin.PrinterSettings. Test) Tj
+0 -15 Td
+/F1 9 Tf (a sale invoice, purchase document, payment receipt, barcode label, and A4 report.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (5. Modules with import functionality) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+ET
+endstream
+endobj
+11 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 14 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 3168 >>
+stream
+BT
+/F1 10 Tf
+45 770 Td
+/F1 9 Tf (Always download and use the module's own template. Review skipped rows after each import.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf ( |  Module  |  Records  | ) Tj
+0 -15 Td
+/F1 9 Tf ( | --- | --- | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Products  |  Product master; referenced categories, brands, and units must exist.  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Product Categories  |  Category hierarchy.  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Brands  |  Brand master.  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Units of Measure  |  Units used by products.  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Customers  |  Customer master, payment terms, opening balances.  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Suppliers  |  Supplier master, payment terms, opening balances.  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Warehouses  |  Warehouse master; warehouse type must exist.  | ) Tj
+0 -15 Td
+/F1 9 Tf ( |  Purchases  |  Purchase invoices/items, supplier, warehouse, product, tax, batch, expiry.  | ) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Recommended order: units, categories, brands, warehouses, products, customers, suppliers, opening) Tj
+0 -15 Td
+/F1 9 Tf (purchases, then opening financial balances. Sales/POS invoices should normally use the operational) Tj
+0 -15 Td
+/F1 9 Tf (workflow unless an approved migration utility is used.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (6. Retailer onboarding checklist) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Before running Onboarding_Retailer.sql) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (- [ ] SQL baseline and all required migrations are applied.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Tenant key, retailer name, plan key, company code, company name, and operator identity are filled) Tj
+0 -15 Td
+/F1 9 Tf (in.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Tenant key and company code uniqueness has been checked.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Commercial approval identifies which plan features may be enabled.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Backup/restore point is recorded.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (After running Onboarding_Retailer.sql) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Commercial and security) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Scope, plan, enabled modules, support contacts, and data ownership confirmed.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Tenant key and retailer identity created.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Administrator created with unique email and strong password.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Least-privilege roles and permissions reviewed.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Password-reset email configuration confirmed where applicable.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Database and application) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Backup/restore point recorded.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] SQL project and post-deployment scripts applied.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] API connection string and secrets configured.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Health endpoint and authenticated login verified.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Tenant isolation tested with two users/tenants.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Master data and validation) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+ET
+endstream
+endobj
+14 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+15 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 17 0 R >> >> /Contents 16 0 R >>
+endobj
+16 0 obj
+<< /Length 3587 >>
+stream
+BT
+/F1 10 Tf
+45 770 Td
+/F1 9 Tf (- [ ] Company, tax, currency, timezone, financial year, and numbering configured.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Branches, warehouses, zones, bins, payment methods, and rates configured.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Printers, paper sizes, default mappings, and test prints completed.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Import templates downloaded and master data imported.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Import error reports reviewed and corrected.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] POS sale, payment, invoice print, return, and invoice search tested.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Purchase, payment, receipt, outstanding reports, dashboard values, and notifications tested.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Feature routes and denied routes tested for each role.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Backup, restore, audit, and support escalation tested.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (7. Retailer deboarding checklist) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (Before running Deboarding_Retailer.sql) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Termination approval, effective date, retention period, export scope, and legal hold are recorded.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Tenant key is verified against the correct retailer; do not use a display name or guess an ID.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Final backup is generated and a restore test is completed.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Customers, suppliers, products, stock, invoices, purchases, payments, reports, audit logs, and) Tj
+0 -15 Td
+/F1 9 Tf (configuration are exported.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Receivables, payables, stock, cash, bank, and pending orders are reconciled.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Provider credentials, webhook ownership, and active sessions are identified.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (After running Deboarding_Retailer.sql) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Termination date, retention period, export scope, and legal hold confirmed.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Login disabled and active sessions/refresh tokens revoked.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Tenant feature assignments and integrations, including WhatsApp/webhooks, disabled.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Users disabled and external credentials/secrets revoked.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Operational posting stopped at the agreed cut-off.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Customers, suppliers, products, stock, invoices, purchases, payments, reports, audit logs, and) Tj
+0 -15 Td
+/F1 9 Tf (configuration exported.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Final backup generated, checksum recorded, and restore test completed.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Receivables, payables, stock, cash, bank, and pending orders reconciled.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Data removed/anonymized only after retention/legal approval.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Printers, API keys, webhooks, and support access deactivated.) Tj
+0 -15 Td
+/F1 9 Tf (- [ ] Approver, operator, timestamps, exported artifacts, and final status recorded.) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (8. Ownership) Tj
+0 -15 Td
+/F1 9 Tf () Tj
+0 -15 Td
+/F1 9 Tf (The implementation team owns deployment and initial configuration. The retailer administrator owns master) Tj
+0 -15 Td
+/F1 9 Tf (data, users, roles, and daily configuration. The platform/database administrator owns backups, secrets,) Tj
+0 -15 Td
+/F1 9 Tf (SQL deployment, monitoring, and deboarding evidence. Production changes must use versioned scripts or) Tj
+0 -15 Td
+/F1 9 Tf (approved administration APIs and be recorded in the change log.) Tj
+0 -15 Td
+ET
+endstream
+endobj
+17 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 18
+0000000000 65535 f 
+0000000011 00000 n 
+0000000060 00000 n 
+0000000141 00000 n 
+0000000267 00000 n 
+0000003812 00000 n 
+0000003882 00000 n 
+0000004008 00000 n 
+0000007656 00000 n 
+0000007726 00000 n 
+0000007854 00000 n 
+0000011504 00000 n 
+0000011575 00000 n 
+0000011704 00000 n 
+0000014925 00000 n 
+0000014996 00000 n 
+0000015125 00000 n 
+0000018765 00000 n 
+trailer
+<< /Size 18 /Root 1 0 R >>
+startxref
+18836
+%%EOF

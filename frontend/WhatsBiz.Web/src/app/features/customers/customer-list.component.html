@@ -1,0 +1,14 @@
+<app-master-page
+  [config]="config"
+  [rows]="items()"
+  [total]="total()"
+  [loading]="loading()"
+  [pageIndex]="page - 1"
+  [pageSize]="size"
+  [summaries]="summaries()"
+  (searchChange)="search = $event; page = 1; load()"
+  (statusChange)="status = $event; page = 1; load()"
+  (pageChange)="paged($event)"
+  (sortChange)="sorted($event)"
+  (action)="handle($event)"
+/><input #file hidden type="file" accept=".xlsx" (change)="upload($event)" />

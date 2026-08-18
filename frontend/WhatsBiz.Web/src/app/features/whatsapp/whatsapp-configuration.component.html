@@ -1,0 +1,59 @@
+<app-page-container>
+  <app-page-header eyebrow="WhatsApp Commerce" title="WhatsApp Business Connection" description="Connect this tenant to its Meta WhatsApp Business Platform account.">
+    <a mat-button routerLink="/admin"><span class="material-symbols-rounded">arrow_back</span>Admin Center</a>
+    <app-status-chip [label]="model().connectionStatus" [tone]="tone()" />
+  </app-page-header>
+  <section class="card">
+    <div class="notice">MOCK runs entirely inside WhatsBiz. META_TEST uses the official Meta Cloud API for connection, test-message, and webhook transport checks. LIVE remains reserved. Saved secrets are never displayed again.</div>
+    <div class="meta">
+      <span>Business: <strong>{{ model().businessDisplayName || 'Not validated' }}</strong></span>
+      <span>Phone: <strong>{{ model().displayPhoneNumber || 'Not validated' }}</strong></span>
+      <span>Last validated: <strong>{{ (model().lastValidatedDate | date:'medium') || 'Never' }}</strong></span>
+    </div>
+    <div class="grid">
+      <mat-form-field appearance="outline"><mat-label>Provider mode</mat-label><mat-select [(ngModel)]="model().providerMode"><mat-option value="MOCK">MOCK — WhatsBiz simulator</mat-option><mat-option value="META_TEST">META_TEST — Meta Cloud API test</mat-option><mat-option value="LIVE">LIVE — reserved</mat-option></mat-select></mat-form-field>
+      <mat-slide-toggle [(ngModel)]="model().isEnabled">Enable this connection</mat-slide-toggle>
+      @if (model().providerMode !== 'MOCK') {
+      <mat-form-field appearance="outline"><mat-label>Meta App ID</mat-label><input matInput [(ngModel)]="model().metaAppId" inputmode="numeric" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>WhatsApp Business Account ID</mat-label><input matInput [(ngModel)]="model().whatsAppBusinessAccountId" inputmode="numeric" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Phone Number ID</mat-label><input matInput [(ngModel)]="model().phoneNumberId" inputmode="numeric" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Graph API version</mat-label><input matInput [(ngModel)]="model().apiVersion" placeholder="vNN.N" /><mat-hint>Choose a currently supported version in Meta documentation.</mat-hint></mat-form-field>
+      <mat-form-field class="wide" appearance="outline"><mat-label>Access token</mat-label><input matInput type="password" [(ngModel)]="accessToken" autocomplete="new-password" [placeholder]="model().hasAccessToken ? 'Configured ✓ — enter only to replace' : 'Required'" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Webhook verify token</mat-label><input matInput type="password" [(ngModel)]="webhookVerifyToken" autocomplete="new-password" [placeholder]="model().hasWebhookVerifyToken ? 'Configured ✓ — enter only to replace' : 'Required'" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Meta app secret</mat-label><input matInput type="password" [(ngModel)]="appSecret" autocomplete="new-password" [placeholder]="model().hasAppSecret ? 'Configured ✓ — enter only to replace' : 'Required for webhook signatures'" /></mat-form-field>
+      }
+      @if(model().providerMode === 'META_TEST') {
+      <mat-form-field appearance="outline"><mat-label>Permitted test recipient</mat-label><input matInput [(ngModel)]="recipientNumber" inputmode="tel" placeholder="Country code and number" /><mat-hint>Use a recipient allowed in Meta's test-number setup.</mat-hint></mat-form-field>
+      <mat-form-field class="wide" appearance="outline"><mat-label>Test message</mat-label><input matInput [(ngModel)]="testMessage" maxlength="1000" /></mat-form-field>
+      }
+    </div>
+    @if(model().providerMode === 'META_TEST') {
+    <section class="readiness">
+      <h3>META_TEST Setup — {{ setupReady() ? 'Ready' : 'Setup Required' }}</h3>
+      <div class="checks">
+        <span class="ok">✓ WhatsApp Commerce entitlement</span>
+        <span [class.ok]="model().isEnabled" [class.missing]="!model().isEnabled">{{ model().isEnabled ? '✓' : '✕' }} Configuration enabled</span>
+        <span [class.ok]="!!model().metaAppId" [class.missing]="!model().metaAppId">{{ model().metaAppId ? '✓' : '✕' }} Meta App ID</span>
+        <span [class.ok]="!!model().apiVersion" [class.missing]="!model().apiVersion">{{ model().apiVersion ? '✓' : '✕' }} Graph API version</span>
+        <span [class.ok]="!!model().whatsAppBusinessAccountId" [class.missing]="!model().whatsAppBusinessAccountId">{{ model().whatsAppBusinessAccountId ? '✓' : '✕' }} WABA ID</span>
+        <span [class.ok]="!!model().phoneNumberId" [class.missing]="!model().phoneNumberId">{{ model().phoneNumberId ? '✓' : '✕' }} Phone Number ID</span>
+        <span [class.ok]="model().hasAccessToken" [class.missing]="!model().hasAccessToken">{{ model().hasAccessToken ? '✓' : '✕' }} Access Token</span>
+        <span [class.ok]="model().hasAppSecret" [class.missing]="!model().hasAppSecret">{{ model().hasAppSecret ? '✓' : '✕' }} App Secret</span>
+        <span [class.ok]="model().hasWebhookVerifyToken" [class.missing]="!model().hasWebhookVerifyToken">{{ model().hasWebhookVerifyToken ? '✓' : '✕' }} Webhook Verify Token</span>
+        <span [class.ok]="model().connectionStatus==='CONNECTED'" [class.missing]="model().connectionStatus!=='CONNECTED'">{{ model().connectionStatus==='CONNECTED' ? '✓' : '✕' }} Meta connection validated</span>
+        <span [class.ok]="!!diagnostics()?.lastWebhookVerifiedOn" [class.missing]="!diagnostics()?.lastWebhookVerifiedOn">{{ diagnostics()?.lastWebhookVerifiedOn ? '✓' : '✕' }} Webhook verified</span>
+        <span [class.ok]="!!model().testRecipientNumber" [class.missing]="!model().testRecipientNumber">{{ model().testRecipientNumber ? '✓' : '✕' }} Test recipient saved</span>
+      </div>
+      <p><strong>Webhook path:</strong> <code>{{ diagnostics()?.webhookPath || '/api/whatsapp/webhook' }}</code></p>
+      <p><strong>Callback URL:</strong> <code>{{ diagnostics()?.webhookCallbackUrl || 'Public HTTPS webhook URL required' }}</code></p>
+      <p>Subscribe the WhatsApp Business Account to the <code>messages</code> webhook field for inbound messages and message delivery/read statuses.</p>
+      <p><strong>Last webhook:</strong> {{ (diagnostics()?.lastWebhookReceivedOn | date:'medium') || 'Never' }} · {{ diagnostics()?.lastInboundEventType || 'No event' }} · Meta ID {{ diagnostics()?.lastMetaMessageId || 'None' }}</p>
+      <p><strong>Tenant resolution:</strong> {{ diagnostics()?.tenantResolutionSucceeded ? 'Succeeded' : 'Not yet observed' }} · <strong>Duplicates rejected:</strong> {{ diagnostics()?.duplicateWebhookCount || 0 }}</p>
+      <p><strong>Last test send:</strong> {{ (diagnostics()?.lastTestMessageOn | date:'medium') || 'Never' }} · Meta ID {{ diagnostics()?.lastTestMessageId || 'None' }}</p>
+    </section>
+    }
+    @if (model().lastError) { <p class="error">{{ model().lastError }}</p> }
+    @if (message()) { <p>{{ message() }}</p> }
+    <footer>@if (model().providerMode === 'META_TEST') { <button mat-stroked-button (click)="sendTestMessage()" [disabled]="saving() || !recipientNumber || model().connectionStatus!=='CONNECTED'">Send Test Message</button><button mat-stroked-button (click)="validate()" [disabled]="saving() || (!model().hasAccessToken && !accessToken)">Validate Meta Connection</button> }<button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">Save Configuration</button></footer>
+  </section>
+</app-page-container>

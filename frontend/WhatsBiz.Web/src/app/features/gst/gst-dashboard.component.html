@@ -1,0 +1,48 @@
+<app-operations-workspace
+  eyebrow="Business intelligence"
+  title="GST Reports Center"
+  description="Registers, statutory summaries, tax liability, and reconciliation-ready reporting."
+  [summaries]="summaries()"
+  [statusText]="loading() ? 'Loading GST data' : loaded() ? 'Live database data' : 'GST data unavailable'"
+  ><a workspace-header-actions mat-flat-button color="primary" routerLink="/gst/tax-summary"
+    ><span class="material-symbols-rounded">assessment</span>Tax Summary</a
+  >
+  <div workspace-toolbar-actions>
+    <a mat-button routerLink="/reports"
+      ><span class="material-symbols-rounded">arrow_back</span>Reports Center</a
+    ><a mat-button routerLink="/gst/configuration"
+      ><span class="material-symbols-rounded">settings</span>GST Configuration</a
+    >
+  </div>
+  <section class="gst-grid">
+    @for (x of reports; track x.path) {
+      <article>
+        <div>
+          <span class="material-symbols-rounded">{{ x.icon }}</span
+          ><app-status-chip
+            [label]="loading() ? 'Loading' : loaded() ? 'Available' : 'Unavailable'"
+            [tone]="loaded() ? 'success' : 'info'"
+          />
+        </div>
+        <h2>{{ x.title }}</h2>
+        <p>{{ x.text }}</p>
+        <a mat-flat-button color="primary" [routerLink]="x.path"
+          >Open Report<span class="material-symbols-rounded">arrow_forward</span></a
+        >
+      </article>
+    }
+  </section>
+  <section workspace-context class="insight">
+    <h3>GST Export Status</h3>
+    <app-status-chip [label]="loaded() ? 'Database data available' : loading() ? 'Loading' : 'Unavailable'" [tone]="loaded() ? 'success' : 'info'" />
+    <p>Generate reports and export them to Excel, PDF, or CSV from the report viewer.</p>
+  </section>
+  <section workspace-context class="insight">
+    <h3>Quick Actions</h3>
+    <nav>
+      <a routerLink="/gst/gstr1">Prepare GSTR-1</a><a routerLink="/gst/gstr3b">Review GSTR-3B</a
+      ><a routerLink="/gst/hsn-summary">HSN Summary</a
+      ><a routerLink="/gst/tax-summary">Tax Reconciliation</a>
+    </nav>
+  </section></app-operations-workspace
+>

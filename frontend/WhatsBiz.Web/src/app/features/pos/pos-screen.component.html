@@ -1,13 +1,146 @@
 <app-page-container wide>
-  <header class="pos-header"><div><span class="material-symbols-rounded">point_of_sale</span><div><h1>Retail POS</h1><p>New Sale <strong>#DRAFT</strong></p></div></div><div class="status"><span class="online"><i></i>Online</span><span><span class="material-symbols-rounded">person</span>Admin</span><span><span class="material-symbols-rounded">storefront</span>Counter 01</span><span><span class="material-symbols-rounded">schedule</span>Current Shift</span></div></header>
-  <main><section class="workspace">
-    <section class="customer-card"><div class="customer-icon material-symbols-rounded">person</div><div><small>Billing customer</small><strong>{{customer()?.customerName||'Walk-in Customer'}}</strong><span>{{customer()?.mobile||'No mobile linked'}} · Balance ₹0.00 · Membership —</span></div><div class="customer-search"><mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Search customer</mat-label><input #customerInput matInput [(ngModel)]="customerSearch" (input)="findCustomers()" autocomplete="off"><span matSuffix class="material-symbols-rounded">search</span></mat-form-field>@if(customers().length){<div class="lookup-results">@for(x of customers();track x.customerId){<button type="button" (click)="selectCustomer(x)"><strong>{{x.customerName}}</strong><small>{{x.mobile||x.customerCode}}</small></button>}</div>}</div><button mat-stroked-button type="button"><span class="material-symbols-rounded">person_add</span>Quick Customer</button></section>
-    <section class="search-panel">
-      <mat-form-field class="barcode-field" appearance="outline" subscriptSizing="dynamic"><mat-label>Scan barcode</mat-label><span matPrefix class="material-symbols-rounded">barcode_scanner</span><input #barcodeInput matInput [(ngModel)]="barcode" (keyup.enter)="scan()" autocomplete="off" aria-label="Scan product barcode"><span matSuffix class="scan-state">READY</span></mat-form-field>
-      <div class="product-lookup"><mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Search product</mat-label><span matPrefix class="material-symbols-rounded">search</span><input #productInput matInput [(ngModel)]="search" (input)="findProducts()" autocomplete="off"></mat-form-field>@if(products().length){<cdk-virtual-scroll-viewport itemSize="56" class="product-results"><button *cdkVirtualFor="let x of products();trackBy:trackProduct" type="button" (click)="add(x)"><span class="material-symbols-rounded">inventory_2</span><span><strong>{{x.productName}}</strong><small>{{x.productCode}} · {{x.barcode||'No barcode'}}</small></span><b>₹{{x.sellingPrice}}</b></button></cdk-virtual-scroll-viewport>}</div>
-      <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Category</mat-label><mat-select value="all"><mat-option value="all">All categories</mat-option></mat-select></mat-form-field><mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Brand</mat-label><mat-select value="all"><mat-option value="all">All brands</mat-option></mat-select></mat-form-field><mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Warehouse</mat-label><mat-select [(ngModel)]="warehouseId">@for(x of warehouses();track x.warehouseId){<mat-option [value]="x.warehouseId">{{x.warehouseName}}</mat-option>}</mat-select></mat-form-field>
+  <header class="pos-header">
+    <div>
+      <span class="material-symbols-rounded">point_of_sale</span>
+      <div>
+        <h1>Retail POS</h1>
+        <p>New Sale <strong>#DRAFT</strong></p>
+      </div>
+    </div>
+    <div class="status">
+      <span class="online"><i></i>Online</span
+      ><span><span class="material-symbols-rounded">person</span>Admin</span
+      ><span><span class="material-symbols-rounded">storefront</span>Counter 01</span
+      ><span><span class="material-symbols-rounded">schedule</span>Current Shift</span>
+    </div>
+  </header>
+  <main>
+    <section class="workspace">
+      <section class="customer-card">
+        <div class="customer-icon material-symbols-rounded">person</div>
+        <div>
+          <small>Billing customer</small
+          ><strong>{{ customer()?.customerName || 'Walk-in Customer' }}</strong
+          ><span
+            >{{ customer()?.mobile || 'No mobile linked' }} · Balance ₹0.00 · Membership —</span
+          >
+        </div>
+        <div class="customer-search">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic"
+            ><mat-label>Search customer</mat-label
+            ><input
+              #customerInput
+              matInput
+              [(ngModel)]="customerSearch"
+              (input)="findCustomers()"
+              autocomplete="off"
+            /><span matSuffix class="material-symbols-rounded">search</span></mat-form-field
+          >
+          @if (customers().length) {
+            <div class="lookup-results">
+              @for (x of customers(); track x.customerId) {
+                <button type="button" (click)="selectCustomer(x)">
+                  <strong>{{ x.customerName }}</strong
+                  ><small>{{ x.mobile || x.customerCode }}</small>
+                </button>
+              }
+            </div>
+          }
+        </div>
+        <button mat-stroked-button type="button" (click)="quickCustomer()">
+          <span class="material-symbols-rounded">person_add</span>Quick Customer
+        </button>
+      </section>
+      <section class="search-panel">
+        <mat-form-field class="barcode-field" appearance="outline" subscriptSizing="dynamic"
+          ><mat-label>Scan barcode</mat-label
+          ><span matPrefix class="material-symbols-rounded">barcode_scanner</span
+          ><input
+            #barcodeInput
+            matInput
+            [(ngModel)]="barcode"
+            (keyup.enter)="scan()"
+            autocomplete="off"
+            aria-label="Scan product barcode"
+          /><span matSuffix class="scan-state">READY</span></mat-form-field
+        >
+        <div class="product-lookup">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic"
+            ><mat-label>Search product</mat-label
+            ><span matPrefix class="material-symbols-rounded">search</span
+            ><input
+              #productInput
+              matInput
+              [(ngModel)]="search"
+              (input)="findProducts()"
+              autocomplete="off"
+          /></mat-form-field>
+          @if (products().length) {
+            <cdk-virtual-scroll-viewport itemSize="56" class="product-results"
+              ><button
+                *cdkVirtualFor="let x of products(); trackBy: trackProduct"
+                type="button"
+                (click)="add(x)"
+              >
+                <span class="material-symbols-rounded">inventory_2</span
+                ><span
+                  ><strong>{{ x.productName }}</strong
+                  ><small>{{ x.productCode }} · {{ x.barcode || 'No barcode' }}</small></span
+                ><b>₹{{ x.sellingPrice }}</b>
+              </button></cdk-virtual-scroll-viewport
+            >
+          }
+        </div>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"
+          ><mat-label>Category</mat-label
+          ><mat-select value="all"
+            ><mat-option value="all">All categories</mat-option></mat-select
+          ></mat-form-field
+        ><mat-form-field appearance="outline" subscriptSizing="dynamic"
+          ><mat-label>Brand</mat-label
+          ><mat-select value="all"
+            ><mat-option value="all">All brands</mat-option></mat-select
+          ></mat-form-field
+        ><mat-form-field appearance="outline" subscriptSizing="dynamic"
+          ><mat-label>Warehouse</mat-label
+          ><mat-select [(ngModel)]="warehouseId">
+            @for (x of warehouses(); track x.warehouseId) {
+              <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
+            }
+          </mat-select></mat-form-field
+        >
+      </section>
+      <app-pos-cart-grid
+        [items]="cart()"
+        (changed)="refresh()"
+        (remove)="remove($event)"
+        (duplicate)="duplicate($event)"
+      /><mat-form-field class="remarks" appearance="outline"
+        ><mat-label>Bill remarks</mat-label
+        ><textarea matInput rows="2" [(ngModel)]="remarks"></textarea>
+      </mat-form-field>
     </section>
-    <app-pos-cart-grid [items]="cart()" (changed)="refresh()" (remove)="remove($event)" (duplicate)="duplicate($event)"/><mat-form-field class="remarks" appearance="outline"><mat-label>Bill remarks</mat-label><textarea matInput rows="2" [(ngModel)]="remarks"></textarea></mat-form-field>
-  </section><app-pos-summary [subtotal]="subtotal()" [itemDiscount]="itemDiscount()" [tax]="tax()" [total]="total()" [itemCount]="itemCount()" [billDiscount]="billDiscount" [selectedMethod]="paymentMethod" (billDiscountChange)="billDiscount=$event;refresh()" (methodChange)="paymentMethod=$event" (quickAmount)="quickAmount=$event" (pay)="payment()"/></main>
-  <footer class="shortcut-bar" aria-label="POS keyboard shortcuts">@for(x of shortcuts;track x.key){<button type="button" (click)="run(x.key)"><kbd>{{x.key}}</kbd><span class="material-symbols-rounded">{{x.icon}}</span>{{x.label}}</button>}</footer>
+    <app-pos-summary
+      [subtotal]="subtotal()"
+      [itemDiscount]="itemDiscount()"
+      [tax]="tax()"
+      [total]="total()"
+      [itemCount]="itemCount()"
+      [billDiscount]="billDiscount"
+      [selectedMethod]="paymentMethod"
+      (billDiscountChange)="billDiscount = $event; refresh()"
+      (methodChange)="paymentMethod = $event"
+      (quickAmount)="quickAmount = $event"
+      (pay)="payment()"
+    />
+  </main>
+  <footer class="shortcut-bar" aria-label="POS keyboard shortcuts">
+    @for (x of shortcuts; track x.key) {
+      <button type="button" (click)="run(x.key)">
+        <kbd>{{ x.key }}</kbd
+        ><span class="material-symbols-rounded">{{ x.icon }}</span
+        >{{ x.label }}
+      </button>
+    }
+  </footer>
 </app-page-container>

@@ -1,0 +1,49 @@
+<app-operations-workspace
+  eyebrow="Backup & restore"
+  [title]="restoreMode ? 'Restore Center' : 'Backup Center'"
+  description="Review backup history, create verified backups, and validate restore readiness."
+  [summaries]="summaries()"
+  [statusText]="items().length + ' backup records'"
+  ><a workspace-header-actions mat-button routerLink="/admin"
+    ><span class="material-symbols-rounded">arrow_back</span>Admin Center</a
+  >
+  <div workspace-toolbar-actions class="actions">
+    @if (!restoreMode) {
+      <button mat-flat-button color="primary" (click)="create()">
+        <span class="material-symbols-rounded">backup</span>Manual Backup
+      </button>
+    }
+    <button mat-button (click)="load()">
+      <span class="material-symbols-rounded">refresh</span>Refresh</button
+    ><button mat-button disabled>
+      <span class="material-symbols-rounded">schedule</span>Schedule Backup
+    </button>
+  </div>
+  <app-data-table
+    [rows]="items()"
+    [columns]="columns"
+    [actions]="restoreMode ? ['view'] : ['view', 'history']"
+    searchPlaceholder="Search backup history"
+    (rowAction)="action($event)"
+  />
+  <section workspace-context class="context">
+    <h3>Storage Status</h3>
+    <app-status-chip label="Available" tone="success" />
+    <dl>
+      <dt>Backup files</dt>
+      <dd>{{ items().length }}</dd>
+      <dt>Verified</dt>
+      <dd>{{ verified() }}</dd>
+      <dt>Total storage</dt>
+      <dd>{{ storageMb() }} MB</dd>
+    </dl>
+  </section>
+  <section workspace-context class="context">
+    <h3>Quick Help</h3>
+    <p>
+      Restore validation checks backup integrity without replacing the live database. Full restore
+      requires planned maintenance.
+    </p>
+    <a mat-stroked-button routerLink="/admin/audit">Audit History</a>
+  </section></app-operations-workspace
+>

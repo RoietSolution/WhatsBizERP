@@ -5,10 +5,39 @@
   border-radius: var(--wb-radius-md);
   box-shadow: var(--wb-shadow-sm);
 }
-.wb-table-scroll { overflow: auto; max-width: 100%; }
-table { width: 100%; border-collapse: collapse; }
-th, td { padding: 12px 16px; border-bottom: 1px solid var(--wb-border); text-align: left; }
-th { color: #374151; background: #f9fafb; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-tbody tr { transition: background var(--wb-motion); }
-tbody tr:hover { background: #f8fafc; }
-.ag-theme-quartz { --ag-font-family: Inter, 'Segoe UI', sans-serif; --ag-font-size: 13px; --ag-border-color: var(--wb-border); --ag-header-background-color: #f9fafb; --ag-row-hover-color: #f8fafc; --ag-selected-row-background-color: var(--wb-primary-soft); }
+.wb-table-scroll {
+  overflow: auto;
+  max-width: 100%;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th,
+td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--wb-border);
+  text-align: left;
+}
+th {
+  color: #374151;
+  background: #f9fafb;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+tbody tr {
+  transition: background var(--wb-motion);
+}
+tbody tr:hover {
+  background: #f8fafc;
+}
+.ag-theme-quartz {
+  --ag-font-family: Inter, 'Segoe UI', sans-serif;
+  --ag-font-size: 13px;
+  --ag-border-color: var(--wb-border);
+  --ag-header-background-color: #f9fafb;
+  --ag-row-hover-color: #f8fafc;
+  --ag-selected-row-background-color: var(--wb-primary-soft);
+}

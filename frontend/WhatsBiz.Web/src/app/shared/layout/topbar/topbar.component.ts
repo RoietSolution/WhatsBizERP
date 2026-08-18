@@ -1,12 +1,43 @@
-import { ChangeDetectionStrategy, Component, HostListener, computed, inject, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
+import { RouterLink } from '@angular/router';
 import { AuthenticationService } from '../../../core/services/authentication.service';
 import { CurrentUserService } from '../../../core/services/current-user.service';
-import { NotificationService } from '../../services/notification.service';
-import { SearchBoxComponent } from '../../components/search-box/search-box.component';
 import { NotificationPanelComponent } from '../../components/notification-panel/notification-panel.component';
+import { SearchBoxComponent } from '../../components/search-box/search-box.component';
 import { LayoutStateService } from '../../services/layout-state.service';
+import { NotificationService } from '../../services/notification.service';
+import { ProfilePhotoService } from '../../services/profile-photo.service';
+import { GlobalSearchService } from '../../services/global-search.service';
 
-@Component({ selector: 'app-topbar', imports: [MatButtonModule, MatMenuModule, SearchBoxComponent, NotificationPanelComponent], template: '<header><button class="mobile-menu" mat-icon-button type="button" aria-label="Open navigation" (click)="menuToggle.emit()"><span class="material-symbols-rounded">menu</span></button><div class="global-search"><app-search-box placeholder="Search modules, records and actions" ariaLabel="Global search" /></div><div class="business-context" aria-label="Current business context"><span><span class="material-symbols-rounded">account_tree</span><span><small>Branch</small><strong>Main Branch</strong></span></span><span><span class="material-symbols-rounded">calendar_month</span><span><small>Financial Year</small><strong>FY 2026–27</strong></span></span></div><div class="topbar-actions"><button class="company-switch" mat-button type="button" [matMenuTriggerFor]="companyMenu"><span class="material-symbols-rounded">domain</span><span>KhataDhari</span><span class="material-symbols-rounded chevron">expand_more</span></button><button mat-icon-button type="button" aria-label="Dark mode coming soon" title="Dark mode coming soon"><span class="material-symbols-rounded">dark_mode</span></button><button class="notification-button" mat-icon-button type="button" aria-label="Notifications" [matMenuTriggerFor]="notificationMenu"><span class="material-symbols-rounded">notifications</span>@if (unread()) { <span class="notification-count">{{ unread() > 9 ? "9+" : unread() }}</span> }</button><button class="user-button" mat-button type="button" [matMenuTriggerFor]="userMenu"><span class="avatar">{{ initials() }}</span><span class="user-copy"><strong>{{ user()?.username ?? "User" }}</strong><small>{{ user()?.roles?.[0] ?? "Team member" }}</small></span><span class="material-symbols-rounded chevron">expand_more</span></button></div></header><mat-menu #companyMenu="matMenu"><button mat-menu-item disabled><span class="material-symbols-rounded">domain</span><span>Company switching coming soon</span></button><button mat-menu-item disabled><span class="material-symbols-rounded">account_tree</span><span>Main Branch</span></button><button mat-menu-item disabled><span class="material-symbols-rounded">calendar_month</span><span>FY 2026–27</span></button></mat-menu><mat-menu #notificationMenu="matMenu" class="notification-menu"><app-notification-panel /></mat-menu><mat-menu #userMenu="matMenu"><button mat-menu-item type="button"><span class="material-symbols-rounded">person</span><span>My profile</span></button><button mat-menu-item type="button"><span class="material-symbols-rounded">tune</span><span>Preferences</span></button><button mat-menu-item type="button" (click)="authentication.logout()"><span class="material-symbols-rounded">logout</span><span>Sign out</span></button></mat-menu>', styleUrl: './topbar.component.scss', changeDetection: ChangeDetectionStrategy.OnPush })
-export class TopbarComponent { readonly menuToggle = output<void>(); readonly authentication = inject(AuthenticationService); private readonly currentUser = inject(CurrentUserService); private readonly notifications = inject(NotificationService); private readonly layout = inject(LayoutStateService); readonly user = this.currentUser.user; readonly initials = computed(() => (this.user()?.username ?? 'U').slice(0, 2).toUpperCase()); readonly unread = computed(() => this.notifications.notifications().filter((item) => !item.read).length); @HostListener('click',['$event']) handleThemeClick(event:MouseEvent):void { const button=(event.target as HTMLElement).closest('button'); if(button?.getAttribute('aria-label')?.startsWith('Dark mode')) { this.layout.toggleTheme(); button.setAttribute('aria-label',this.layout.darkMode()?'Use light mode':'Use dark mode'); button.setAttribute('title',button.getAttribute('aria-label')??'Toggle theme'); const icon=button.querySelector('.material-symbols-rounded'); if(icon) icon.textContent=this.layout.darkMode()?'light_mode':'dark_mode'; } } }
+@Component({
+  selector: 'app-topbar',
+  imports: [
+    MatButtonModule,
+    MatMenuModule,
+    RouterLink,
+    SearchBoxComponent,
+    NotificationPanelComponent,
+  ],
+  templateUrl: './topbar.component.html',
+  styleUrl: './topbar.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class TopbarComponent {
+  readonly menuToggle = output<void>();
+  readonly authentication = inject(AuthenticationService);
+  readonly layout = inject(LayoutStateService);
+  private readonly currentUser = inject(CurrentUserService);
+  private readonly notifications = inject(NotificationService);
+  private readonly profilePhoto = inject(ProfilePhotoService);
+  readonly globalSearch = inject(GlobalSearchService);
+  readonly user = this.currentUser.user;
+  readonly initials = computed(() => (this.user()?.username ?? 'U').slice(0, 2).toUpperCase());
+  readonly photo = this.profilePhoto.photo;
+  readonly unread = computed(
+    () => this.notifications.notifications().filter((item) => !item.read).length,
+  );
+  onSearch(value: string): void { this.globalSearch.search(value); }
+  clearSearch(): void { this.globalSearch.clear(); }
+}

@@ -1,0 +1,27 @@
+<app-page-container wide
+  ><app-page-header [eyebrow]="eyebrow()" [title]="title()" [description]="description()"
+    ><ng-content select="[workspace-header-actions]"
+  /></app-page-header>
+  <section class="workspace-kpis" [attr.aria-label]="title() + ' summary'">
+    @for (card of summaries(); track card.label) {
+      <app-summary-card
+        [label]="card.label"
+        [value]="card.value"
+        [icon]="card.icon"
+        [tone]="card.tone"
+      />
+    }
+  </section>
+  <app-action-toolbar sticky
+    ><ng-content select="[workspace-toolbar-start]" /><ng-content
+      select="[workspace-toolbar-actions]" /></app-action-toolbar
+  ><ng-content select="[workspace-filters]" />
+  <div class="workspace-grid">
+    <main><ng-content /></main>
+    <aside aria-label="Context information"><ng-content select="[workspace-context]" /></aside>
+  </div>
+  <footer class="workspace-status">
+    <span><i></i>System online</span><span>{{ statusText() }}</span
+    ><span>Last refreshed: {{ lastRefreshed() }}</span>
+  </footer></app-page-container
+>

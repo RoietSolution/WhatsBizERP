@@ -1,2 +1,104 @@
-import{ChangeDetectionStrategy,Component,signal}from'@angular/core';import{FormBuilder,ReactiveFormsModule,Validators}from'@angular/forms';import{RouterLink}from'@angular/router';import{MatButtonModule}from'@angular/material/button';import{MatCheckboxModule}from'@angular/material/checkbox';import{MatDialog}from'@angular/material/dialog';import{MatFormFieldModule}from'@angular/material/form-field';import{MatInputModule}from'@angular/material/input';import{MatSnackBar}from'@angular/material/snack-bar';import{ConfirmDialogComponent}from'../../shared/confirm-dialog.component';import{WarehouseApiService}from'./warehouse-api.service';import{WarehouseType}from'./warehouse.models';
-@Component({imports:[ReactiveFormsModule,RouterLink,MatButtonModule,MatCheckboxModule,MatFormFieldModule,MatInputModule],template:`<header><h1>Warehouse Types</h1><a mat-button routerLink="/warehouses">Warehouses</a></header><form [formGroup]="form" (ngSubmit)="save()" class="grid"><mat-form-field><mat-label>Type code</mat-label><input matInput formControlName="typeCode"></mat-form-field><mat-form-field><mat-label>Type name</mat-label><input matInput formControlName="typeName"></mat-form-field><mat-form-field><mat-label>Description</mat-label><input matInput formControlName="description"></mat-form-field><mat-checkbox formControlName="isActive">Active</mat-checkbox><button mat-flat-button type="submit" [disabled]="form.invalid">{{editingId?'Update':'Add'}} type</button><button mat-button type="button" (click)="clear()">Clear</button></form>@for(x of types();track x.warehouseTypeId){<section><div><strong>{{x.typeCode}} — {{x.typeName}}</strong><p>{{x.description}}</p></div><span>{{x.isActive?'Active':'Inactive'}}</span><button mat-button (click)="edit(x)">Edit</button><button mat-button (click)="remove(x)">Delete</button></section>}`,styles:[`header,section,.grid{display:flex;gap:1rem;align-items:center;flex-wrap:wrap}header{justify-content:space-between}.grid{padding:1rem 0}section{padding:.75rem;border-bottom:1px solid var(--mat-sys-outline-variant)}section div{flex:1}p{margin:.25rem 0}`],changeDetection:ChangeDetectionStrategy.OnPush})export class WarehouseTypeManagementComponent{readonly types=signal<WarehouseType[]>([]);editingId:string|null=null;readonly form;constructor(private readonly api:WarehouseApiService,fb:FormBuilder,private readonly snack:MatSnackBar,private readonly dialog:MatDialog){this.form=fb.group({typeCode:['',Validators.required],typeName:['',Validators.required],description:[''],isActive:[true]});this.load()}load(){this.api.types().subscribe(x=>this.types.set(x))}edit(x:WarehouseType){this.editingId=x.warehouseTypeId;this.form.patchValue(x)}clear(){this.editingId=null;this.form.reset({typeCode:'',typeName:'',description:'',isActive:true})}save(){if(this.form.invalid)return;const value=this.form.getRawValue() as Omit<WarehouseType,'warehouseTypeId'>;(this.editingId?this.api.updateType(this.editingId,value):this.api.createType(value)).subscribe(()=>{this.snack.open('Warehouse type saved.',undefined,{duration:2500});this.clear();this.load()})}remove(x:WarehouseType){this.dialog.open(ConfirmDialogComponent,{data:{title:'Delete warehouse type',message:`Delete ${x.typeName}?`}}).afterClosed().subscribe(ok=>{if(ok)this.api.deleteType(x.warehouseTypeId).subscribe(()=>this.load())})}}
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDialog } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
+import { WarehouseApiService } from './warehouse-api.service';
+import { WarehouseType } from './warehouse.models';
+@Component({
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    MatButtonModule,
+    MatCheckboxModule,
+    MatFormFieldModule,
+    MatInputModule,
+  ],
+  templateUrl: './warehouse-type-management.component.html',
+  styles: [
+    `
+      header,
+      section,
+      .grid {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      header {
+        justify-content: space-between;
+      }
+      .grid {
+        padding: 1rem 0;
+      }
+      section {
+        padding: 0.75rem;
+        border-bottom: 1px solid var(--mat-sys-outline-variant);
+      }
+      section div {
+        flex: 1;
+      }
+      p {
+        margin: 0.25rem 0;
+      }
+    `,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class WarehouseTypeManagementComponent {
+  readonly types = signal<WarehouseType[]>([]);
+  editingId: string | null = null;
+  readonly form;
+  constructor(
+    private readonly api: WarehouseApiService,
+    fb: FormBuilder,
+    private readonly snack: MatSnackBar,
+    private readonly dialog: MatDialog,
+  ) {
+    this.form = fb.group({
+      typeCode: ['', Validators.required],
+      typeName: ['', Validators.required],
+      description: [''],
+      isActive: [true],
+    });
+    this.load();
+  }
+  load() {
+    this.api.types().subscribe((x) => this.types.set(x));
+  }
+  edit(x: WarehouseType) {
+    this.editingId = x.warehouseTypeId;
+    this.form.patchValue(x);
+  }
+  clear() {
+    this.editingId = null;
+    this.form.reset({ typeCode: '', typeName: '', description: '', isActive: true });
+  }
+  save() {
+    if (this.form.invalid) return;
+    const value = this.form.getRawValue() as Omit<WarehouseType, 'warehouseTypeId'>;
+    (this.editingId
+      ? this.api.updateType(this.editingId, value)
+      : this.api.createType(value)
+    ).subscribe(() => {
+      this.snack.open('Warehouse type saved.', undefined, { duration: 2500 });
+      this.clear();
+      this.load();
+    });
+  }
+  remove(x: WarehouseType) {
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: { title: 'Delete warehouse type', message: `Delete ${x.typeName}?` },
+      })
+      .afterClosed()
+      .subscribe((ok) => {
+        if (ok) this.api.deleteType(x.warehouseTypeId).subscribe(() => this.load());
+      });
+  }
+}

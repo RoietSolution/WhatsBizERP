@@ -1,0 +1,24 @@
+<h1>Branch Management</h1>
+<form (ngSubmit)="save()">
+  <input required name="code" placeholder="Branch code" [(ngModel)]="model.branchCode" /><input
+    required
+    name="name"
+    placeholder="Branch name"
+    [(ngModel)]="model.branchName"
+  /><input name="phone" placeholder="Phone" [(ngModel)]="model.phone" /><input
+    name="city"
+    placeholder="City"
+    [(ngModel)]="model.city"
+  /><label><input type="checkbox" name="default" [(ngModel)]="model.isDefault" />Default</label
+  ><button mat-flat-button>Add branch</button>
+</form>
+<section>
+  @for (x of branches(); track x.branchId) {
+    <article>
+      <h2>{{ x.branchName }}</h2>
+      <b>{{ x.branchCode }}</b>
+      <p>{{ x.city }} · {{ x.phone }}</p>
+      <span>{{ x.isDefault ? 'Default branch' : 'Active' }}</span>
+    </article>
+  }
+</section>

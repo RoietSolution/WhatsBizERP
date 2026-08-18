@@ -3,5 +3,29 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MasterDetailField } from '../master.models';
 
-@Component({selector:'app-master-detail-drawer',imports:[MatButtonModule,MatTabsModule],template:`@if(open()){<div class="drawer-backdrop" (click)="dismiss()" aria-hidden="true"></div><aside role="dialog" aria-modal="true" [attr.aria-label]="title()"><header><div><span class="material-symbols-rounded">{{icon()}}</span><div><small>Quick View</small><h2>{{title()}}</h2></div></div><button mat-icon-button type="button" aria-label="Close details" (click)="dismiss()"><span class="material-symbols-rounded">close</span></button></header><mat-tab-group animationDuration="200ms"><mat-tab label="General"><div class="drawer-content">@for(field of fields();track field.key){<div class="detail-field"><span>{{field.label}}</span><strong>{{display(field.key)}}</strong></div>}</div></mat-tab><mat-tab label="Quick Edit"><div class="drawer-state"><span class="material-symbols-rounded">edit_note</span><p>Open the full form to edit this record safely.</p><button mat-flat-button color="primary" type="button" (click)="edit.emit()">Edit Record</button></div></mat-tab><mat-tab label="Audit"><div class="drawer-state"><span class="material-symbols-rounded">history</span><p>Audit history will appear here when available.</p></div></mat-tab><mat-tab label="Attachments"><div class="drawer-state"><span class="material-symbols-rounded">attach_file</span><p>Attachments associated with this record will appear here.</p></div></mat-tab></mat-tab-group></aside>}`,styleUrl:'./master-detail-drawer.component.scss',changeDetection:ChangeDetectionStrategy.OnPush})
-export class MasterDetailDrawerComponent<T extends object>{readonly open=input(false);readonly title=input('Record details');readonly icon=input('description');readonly record=input<T|null>(null);readonly fields=input<MasterDetailField<T>[]>([]);readonly close=output<void>();readonly closed=output<void>();readonly edit=output<void>();dismiss(){this.close.emit();this.closed.emit()}display(key:keyof T):unknown{const value=this.record()?.[key];if(typeof value==='boolean')return value?'Yes':'No';return value??'—'}}
+@Component({
+  selector: 'app-master-detail-drawer',
+  imports: [MatButtonModule, MatTabsModule],
+  templateUrl: './master-detail-drawer.component.html',
+  styleUrl: './master-detail-drawer.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class MasterDetailDrawerComponent<T extends object> {
+  readonly open = input(false);
+  readonly title = input('Record details');
+  readonly icon = input('description');
+  readonly record = input<T | null>(null);
+  readonly fields = input<MasterDetailField<T>[]>([]);
+  readonly close = output<void>();
+  readonly closed = output<void>();
+  readonly edit = output<void>();
+  dismiss() {
+    this.close.emit();
+    this.closed.emit();
+  }
+  display(key: keyof T): unknown {
+    const value = this.record()?.[key];
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    return value ?? '—';
+  }
+}

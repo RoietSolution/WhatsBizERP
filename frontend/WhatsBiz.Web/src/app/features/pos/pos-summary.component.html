@@ -1,0 +1,63 @@
+<aside class="summary-card" aria-label="Bill summary">
+  <header>
+    <span class="material-symbols-rounded">receipt_long</span>
+    <div>
+      <strong>Bill Summary</strong><small>{{ itemCount() }} item(s)</small>
+    </div>
+  </header>
+  <dl>
+    <dt>Subtotal</dt>
+    <dd>{{ subtotal() | currency: 'INR' }}</dd>
+    <dt>Item discount</dt>
+    <dd class="discount">− {{ itemDiscount() | currency: 'INR' }}</dd>
+    <dt>Bill discount</dt>
+    <dd>
+      <input
+        aria-label="Bill discount"
+        type="number"
+        min="0"
+        [ngModel]="billDiscount()"
+        (ngModelChange)="billDiscountChange.emit(+$event)"
+      />
+    </dd>
+    <dt>GST</dt>
+    <dd>{{ tax() | currency: 'INR' }}</dd>
+    <dt>Round off</dt>
+    <dd>{{ 0 | currency: 'INR' }}</dd>
+    <dt>Outstanding</dt>
+    <dd>{{ total() | currency: 'INR' }}</dd>
+  </dl>
+  <div class="grand">
+    <span>Grand Total</span><strong>{{ total() | currency: 'INR' : 'symbol' : '1.2-2' }}</strong>
+  </div>
+  <div class="payments" aria-label="Payment methods">
+    @for (method of methods; track method.code) {
+      <button
+        type="button"
+        [class.active]="selectedMethod() === method.code"
+        (click)="methodChange.emit(method.code)"
+      >
+        <span class="material-symbols-rounded">{{ method.icon }}</span
+        >{{ method.label }}
+      </button>
+    }
+  </div>
+  <button
+    class="pay"
+    mat-flat-button
+    color="primary"
+    type="button"
+    [disabled]="!itemCount()"
+    (click)="pay.emit()"
+  >
+    <span class="material-symbols-rounded">payments</span>Pay {{ total() | currency: 'INR' }}
+    <kbd>F5</kbd>
+  </button>
+  <div class="quick-amounts">
+    <small class="quick-amount-help">Quick amount fills the payment value; confirm it in the payment dialog.</small>
+    <button mat-stroked-button (click)="quickAmount.emit(500)">₹500</button
+    ><button mat-stroked-button (click)="quickAmount.emit(1000)">₹1000</button
+    ><button mat-stroked-button (click)="quickAmount.emit(2000)">₹2000</button
+    ><button mat-stroked-button (click)="quickAmount.emit(total())">Exact</button>
+  </div>
+</aside>

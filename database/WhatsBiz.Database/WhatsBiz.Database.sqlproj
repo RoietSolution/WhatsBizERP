@@ -3,7 +3,27 @@
   <ItemGroup>
     <Build Remove="SeedData\SupplierPaymentTerms.sql"/><Build Remove="SeedData\CustomerPaymentTerms.sql"/><Build Remove="SeedData\WarehouseTypes.sql"/><Build Remove="SeedData\InventorySettings.sql"/><Build Remove="SeedData\PaymentMethods.sql"/><Build Remove="SeedData\InvoiceSeries.sql"/><Build Remove="SeedData\PurchaseSeries.sql"/><Build Remove="SeedData\DemoData.sql"/>
     <Build Remove="Scripts\VerifyPOS.sql"/><Build Remove="Scripts\VerifyPurchase.sql"/><Build Remove="Scripts\V1_ReleaseHardening.sql"/>
+    <Build Remove="Scripts\RCDEV008-RuntimeObjects.sql"/>
+    <Build Remove="Scripts\RCDEV009-PrintingPaperSize.sql"/>
+    <Build Remove="Scripts\RCDEV010-CustomerNotifications.sql"/>
+    <Build Remove="Scripts\V2-WC-DEMO-003-DemoTenantEnablement.sql"/>
+    <Build Remove="Scripts\V3-ProductImageOptimization.sql"/>
+    <Build Remove="Scripts\V4-DashboardNotificationDetails.sql"/>
     <None Include="SeedData\DemoData.sql"/><None Include="Scripts\VerifyPOS.sql"/><None Include="Scripts\VerifyPurchase.sql"/><None Include="Scripts\V1_ReleaseHardening.sql"/>
+    <None Include="Scripts\RCDEV008-RuntimeObjects.sql"/>
+    <None Include="Scripts\RCDEV009-PrintingPaperSize.sql"/>
+    <None Include="Scripts\RCDEV010-CustomerNotifications.sql"/>
+    <None Include="Scripts\V2-FeatureEntitlements.sql"/>
+    <None Include="Scripts\V2-WC001-WhatsAppConfiguration.sql"/>
+    <None Include="Scripts\V2-WhatsAppCommerceDemoProvider.sql"/>
+    <None Include="Scripts\V2-WC-DEMO-002-ReadinessLifecycle.sql"/>
+    <None Include="Scripts\V2-WC-DEMO-003-DemoTenantEnablement.sql"/>
+    <None Include="Scripts\V2-WC003-MetaTestTransport.sql"/>
+    <None Include="Scripts\V2-WC003A-MetaTestReadiness.sql"/>
+    <None Include="Scripts\V3-ProductImageOptimization.sql"/>
+    <None Include="Scripts\V4-DashboardNotificationDetails.sql"/>
+    <None Include="Scripts\Onboarding_Retailer.sql"/>
+    <None Include="Scripts\Deboarding_Retailer.sql"/>
     <PostDeploy Include="Scripts\PostDeployment.sql"/>
   </ItemGroup>
 </Project>

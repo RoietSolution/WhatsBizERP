@@ -1,0 +1,11 @@
+<h1>Template Manager</h1>
+<div class="grid">
+  @for (x of templates(); track x.id) {
+    <article>
+      <h2>{{ x.name }}</h2>
+      <p>{{ x.documentType }} · {{ x.paperType }}</p>
+      <code>{{ x.code }}</code
+      ><span>{{ x.isDefault ? 'Default' : 'Available' }}</span>
+    </article>
+  }
+</div>

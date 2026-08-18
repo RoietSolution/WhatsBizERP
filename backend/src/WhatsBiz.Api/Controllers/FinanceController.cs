@@ -1,3 +1,31 @@
-using MediatR;using Microsoft.AspNetCore.Mvc;using WhatsBiz.Api.Authorization;using WhatsBiz.Application.Features.Finance;using WhatsBiz.SharedKernel;
+using MediatR;
+using Microsoft.AspNetCore.Mvc;
+using WhatsBiz.Api.Authorization;
+using WhatsBiz.Application.Features.Finance;
+using WhatsBiz.SharedKernel;
+
 namespace WhatsBiz.Api.Controllers;
-[ApiController]public sealed class FinanceController(ISender sender):ControllerBase{[HttpGet("api/ledger/customer/{id:guid}"),HasPermission(Permissions.Finance.LedgerView)]public Task<IReadOnlyCollection<LedgerRowDto>>Customer(Guid id,[FromQuery]DateTimeOffset? from,[FromQuery]DateTimeOffset? to,CancellationToken token)=>sender.Send(new GetCustomerLedger(id,from,to),token);[HttpGet("api/ledger/supplier/{id:guid}"),HasPermission(Permissions.Finance.LedgerView)]public Task<IReadOnlyCollection<LedgerRowDto>>Supplier(Guid id,[FromQuery]DateTimeOffset? from,[FromQuery]DateTimeOffset? to,CancellationToken token)=>sender.Send(new GetSupplierLedger(id,from,to),token);[HttpGet("api/cashbook"),HasPermission(Permissions.Finance.CashBookView)]public Task<IReadOnlyCollection<BookRowDto>>Cash([FromQuery]DateTimeOffset? from,[FromQuery]DateTimeOffset? to,CancellationToken token)=>sender.Send(new GetCashBook(from,to),token);[HttpGet("api/bankbook"),HasPermission(Permissions.Finance.BankBookView)]public Task<IReadOnlyCollection<BookRowDto>>Bank([FromQuery]DateTimeOffset? from,[FromQuery]DateTimeOffset? to,CancellationToken token)=>sender.Send(new GetBankBook(from,to),token);[HttpGet("api/daybook"),HasPermission(Permissions.Finance.LedgerView)]public Task<IReadOnlyCollection<DayBookRowDto>>Day([FromQuery]DateTimeOffset? from,[FromQuery]DateTimeOffset? to,CancellationToken token)=>sender.Send(new GetDayBook(from,to),token);[HttpPost("api/receipt"),HasPermission(Permissions.Finance.ReceiptCreate)]public Task<PostedFinanceDto>Receipt(PartyTransactionInput input,CancellationToken token)=>sender.Send(new CreateReceipt(input),token);[HttpPost("api/payment"),HasPermission(Permissions.Finance.PaymentCreate)]public Task<PostedFinanceDto>Payment(PartyTransactionInput input,CancellationToken token)=>sender.Send(new CreatePayment(input),token);}
+
+[ApiController]
+public sealed class FinanceController(ISender sender) : ControllerBase
+{
+    [HttpGet("api/ledger/customer/{id:guid}"), HasPermission(Permissions.Finance.LedgerView)]
+    public Task<IReadOnlyCollection<LedgerRowDto>> Customer(Guid id, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, CancellationToken token) =>
+        sender.Send(new GetCustomerLedger(id, from, to), token);
+
+    [HttpGet("api/ledger/supplier/{id:guid}"), HasPermission(Permissions.Finance.LedgerView)]
+    public Task<IReadOnlyCollection<LedgerRowDto>> Supplier(Guid id, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, CancellationToken token) =>
+        sender.Send(new GetSupplierLedger(id, from, to), token);
+
+    [HttpGet("api/cashbook"), HasPermission(Permissions.Finance.CashBookView)]
+    public Task<IReadOnlyCollection<BookRowDto>> Cash([FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, CancellationToken token) =>
+        sender.Send(new GetCashBook(from, to), token);
+
+    [HttpGet("api/bankbook"), HasPermission(Permissions.Finance.BankBookView)]
+    public Task<IReadOnlyCollection<BookRowDto>> Bank([FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, CancellationToken token) =>
+        sender.Send(new GetBankBook(from, to), token);
+
+    [HttpGet("api/daybook"), HasPermission(Permissions.Finance.LedgerView)]
+    public Task<IReadOnlyCollection<DayBookRowDto>> Day([FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, CancellationToken token) =>
+        sender.Send(new GetDayBook(from, to), token);
+}

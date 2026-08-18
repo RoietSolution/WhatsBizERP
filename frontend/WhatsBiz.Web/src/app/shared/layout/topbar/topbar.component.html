@@ -1,0 +1,89 @@
+<header>
+  <button
+    class="mobile-menu"
+    mat-icon-button
+    type="button"
+    aria-label="Open navigation"
+    (click)="menuToggle.emit()"
+  >
+    <span class="material-symbols-rounded">menu</span>
+  </button>
+  <div class="global-search">
+    <app-search-box placeholder="Search products, customers and suppliers" ariaLabel="Global search" (searchChange)="onSearch($event)" />
+    @if (globalSearch.results().length || globalSearch.loading()) {
+      <div class="global-search-results" role="listbox">
+        @if (globalSearch.loading()) { <div class="search-status">Searching live records…</div> }
+        @for (result of globalSearch.results(); track result.type + result.id) {
+          <a [routerLink]="result.route" role="option" (click)="clearSearch()">
+            <span class="material-symbols-rounded">{{ result.type === 'Product' ? 'inventory_2' : result.type === 'Customer' ? 'person' : result.type === 'Supplier' ? 'local_shipping' : 'receipt_long' }}</span>
+            <span><strong>{{ result.label }}</strong><small>{{ result.type }} · {{ result.detail }}</small></span>
+          </a>
+        }
+        @if (!globalSearch.loading() && !globalSearch.results().length) { <div class="search-status">No matching records found.</div> }
+      </div>
+    }
+  </div>
+  <div class="business-context" aria-label="Current business context">
+    <span
+      ><span class="material-symbols-rounded">account_tree</span
+      ><span><small>Branch</small><strong>Main Branch</strong></span></span
+    ><span
+      ><span class="material-symbols-rounded">calendar_month</span
+      ><span><small>Financial Year</small><strong>FY 2026–27</strong></span></span
+    >
+  </div>
+  <div class="topbar-actions">
+    <button class="company-switch" mat-button type="button" [matMenuTriggerFor]="companyMenu">
+      <span class="material-symbols-rounded">domain</span><span>KhataDhari</span
+      ><span class="material-symbols-rounded chevron">expand_more</span></button
+    ><button
+      mat-icon-button
+      type="button"
+      [attr.aria-label]="layout.darkMode() ? `Use light mode` : `Use dark mode`"
+      (click)="layout.toggleTheme()"
+    >
+      <span class="material-symbols-rounded">{{
+        layout.darkMode() ? 'light_mode' : 'dark_mode'
+      }}</span></button
+    ><button
+      class="notification-button"
+      mat-icon-button
+      type="button"
+      aria-label="Notifications"
+      [matMenuTriggerFor]="notificationMenu"
+    >
+      <span class="material-symbols-rounded">notifications</span>
+      @if (unread()) {
+        <span class="notification-count">{{ unread() > 9 ? '9+' : unread() }}</span>
+      }</button
+    ><button class="user-button" mat-button type="button" [matMenuTriggerFor]="userMenu">
+      <span class="user-identity"
+        ><span class="avatar">@if (photo()) { <img [src]="photo()" alt="Profile picture" /> } @else { {{ initials() }} }</span
+        ><span class="user-copy"
+          ><strong>{{ user()?.username ?? 'User' }}</strong
+          ><small>{{ user()?.roles?.[0] ?? 'Team member' }}</small></span
+      ></span
+      ><span class="material-symbols-rounded chevron">expand_more</span>
+    </button>
+  </div>
+</header>
+<mat-menu #companyMenu="matMenu"
+  ><button mat-menu-item disabled>
+    <span class="material-symbols-rounded">domain</span
+    ><span>Company switching coming soon</span></button
+  ><button mat-menu-item disabled>
+    <span class="material-symbols-rounded">account_tree</span><span>Main Branch</span></button
+  ><button mat-menu-item disabled>
+    <span class="material-symbols-rounded">calendar_month</span><span>FY 2026–27</span>
+  </button></mat-menu
+><mat-menu #notificationMenu="matMenu" class="notification-menu"
+  ><app-notification-panel /></mat-menu
+><mat-menu #userMenu="matMenu"
+  ><a mat-menu-item routerLink="/profile"
+    ><span class="material-symbols-rounded">person</span><span>My profile</span></a
+  ><a mat-menu-item routerLink="/preferences"
+    ><span class="material-symbols-rounded">tune</span><span>Preferences</span></a
+  ><button mat-menu-item type="button" (click)="authentication.logout()">
+    <span class="material-symbols-rounded">logout</span><span>Sign out</span>
+  </button></mat-menu
+>

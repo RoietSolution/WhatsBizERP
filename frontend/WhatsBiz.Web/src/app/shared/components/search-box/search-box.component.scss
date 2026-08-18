@@ -1,6 +1,47 @@
-label { display: flex; align-items: center; width: 100%; min-width: 200px; height: 40px; padding: 0 10px; background: #f8fafc; border: 1px solid var(--wb-border); border-radius: 8px; transition: border-color var(--wb-motion), box-shadow var(--wb-motion); }
-label:focus-within { background: #fff; border-color: var(--wb-primary); box-shadow: var(--wb-focus-ring); }
-.material-symbols-rounded { color: var(--wb-text-secondary); font-size: 20px; }
-input { flex: 1; min-width: 0; padding: 0 8px; color: var(--wb-text); background: transparent; border: 0; outline: 0; }
-button { display: grid; padding: 2px; background: transparent; border: 0; cursor: pointer; place-items: center; }
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+label {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 200px;
+  height: 40px;
+  padding: 0 10px;
+  background: #f8fafc;
+  border: 1px solid var(--wb-border);
+  border-radius: 8px;
+  transition:
+    border-color var(--wb-motion),
+    box-shadow var(--wb-motion);
+}
+label:focus-within {
+  background: #fff;
+  border-color: var(--wb-primary);
+  box-shadow: var(--wb-focus-ring);
+}
+.material-symbols-rounded {
+  color: var(--wb-text-secondary);
+  font-size: 20px;
+}
+input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+  color: var(--wb-text);
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+button {
+  display: grid;
+  padding: 2px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  place-items: center;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}

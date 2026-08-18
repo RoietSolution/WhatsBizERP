@@ -3,6 +3,7 @@ namespace WhatsBiz.Infrastructure.Identity;
 
 public sealed class ApplicationUser : IdentityUser<Guid>
 {
+    public Guid? TenantId { get; set; }
     public DateTimeOffset CreatedOn { get; set; } = DateTimeOffset.UtcNow;
     public string? CreatedBy { get; set; }
     public DateTimeOffset? ModifiedOn { get; set; }

@@ -1,1 +1,64 @@
-import{Component,signal}from'@angular/core';import{FormsModule}from'@angular/forms';import{MatButtonModule}from'@angular/material/button';import{MatSnackBar,MatSnackBarModule}from'@angular/material/snack-bar';import{PrintApiService,Printer}from'./print-api.service';@Component({imports:[FormsModule,MatButtonModule,MatSnackBarModule],template:`<h1>Printer Configuration</h1><form (ngSubmit)="save()"><input required name="name" placeholder="System printer name" [(ngModel)]="model.printerName"><input required name="display" placeholder="Display name" [(ngModel)]="model.displayName"><select name="type" [(ngModel)]="model.printerType"><option>THERMAL</option><option>A4</option><option>LABEL</option></select><select name="paper" [(ngModel)]="model.paperSize"><option>58MM</option><option>80MM</option><option>A4</option><option>CUSTOM</option></select><label><input type="checkbox" name="default" [(ngModel)]="model.isDefault"> Default</label><label><input type="checkbox" name="cut" [(ngModel)]="model.autoCut"> Auto cut</label><button mat-flat-button>Save printer</button></form><table><tr><th>Printer</th><th>Type</th><th>Paper</th><th>Mapping</th></tr>@for(x of printers();track x.id){<tr><td>{{x.displayName}} {{x.isDefault?'(Default)':''}}</td><td>{{x.printerType}}</td><td>{{x.paperSize}}</td><td>{{x.documentType||'All documents'}}</td></tr>}</table>`,styles:[`form{display:flex;gap:.7rem;flex-wrap:wrap;background:#fff;padding:1rem}input,select{padding:.6rem}table{margin-top:1rem;width:100%;border-collapse:collapse}th,td{padding:.7rem;border-bottom:1px solid #ddd;text-align:left}`]})export class PrinterConfigurationComponent{printers=signal<Printer[]>([]);model={printerName:'',displayName:'',printerType:'THERMAL',paperSize:'80MM',isDefault:false,autoCut:true,isActive:true};constructor(private api:PrintApiService,private snack:MatSnackBar){this.load()}load(){this.api.printers().subscribe(x=>this.printers.set(x))}save(){this.api.savePrinter(this.model).subscribe(()=>{this.snack.open('Printer saved','Close',{duration:2000});this.load()})}}
+import { Component, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { PrintApiService, Printer } from './print-api.service';
+import { DEFAULT_PAPER_SIZE, PAPER_SIZES } from './paper-size';
+@Component({
+  imports: [FormsModule, MatButtonModule, MatSnackBarModule],
+  templateUrl: './printer-configuration.component.html',
+  styles: [
+    `
+      form {
+        display: flex;
+        gap: 0.7rem;
+        flex-wrap: wrap;
+        background: #fff;
+        padding: 1rem;
+      }
+      input,
+      select {
+        padding: 0.6rem;
+      }
+      table {
+        margin-top: 1rem;
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 0.7rem;
+        border-bottom: 1px solid #ddd;
+        text-align: left;
+      }
+    `,
+  ],
+})
+export class PrinterConfigurationComponent {
+  readonly paperSizes = PAPER_SIZES;
+  printers = signal<Printer[]>([]);
+  model = {
+    printerName: '',
+    displayName: '',
+    printerType: 'THERMAL',
+    paperSize: DEFAULT_PAPER_SIZE,
+    isDefault: true,
+    autoCut: true,
+    isActive: true,
+  };
+  constructor(
+    private api: PrintApiService,
+    private snack: MatSnackBar,
+  ) {
+    this.load();
+  }
+  load() {
+    this.api.printers().subscribe((x) => this.printers.set(x));
+  }
+  save() {
+    this.api.savePrinter(this.model).subscribe(() => {
+      this.snack.open('Printer saved', 'Close', { duration: 2000 });
+      this.load();
+    });
+  }
+}

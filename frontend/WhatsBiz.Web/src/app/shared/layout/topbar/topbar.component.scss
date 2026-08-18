@@ -1,24 +1,186 @@
-header { display: flex; height: var(--wb-header-height); align-items: center; gap: 16px; padding: 0 20px; background: var(--wb-surface); border-bottom: 1px solid var(--wb-border); }
-.mobile-menu { display: none; }
-.global-search { width: min(460px, 42vw); }
-.business-context { display: flex; margin-left: auto; align-items: center; gap: 14px; }
-.business-context > span { display: flex; align-items: center; gap: 6px; }
-.business-context > span > .material-symbols-rounded { color: var(--wb-primary); font-size: 18px; }
-.business-context small, .business-context strong { display: block; white-space: nowrap; line-height: 1.15; }
-.business-context small { font-size: .5625rem; font-weight: 500; }
-.business-context strong { color: #374151; font-size: .6875rem; font-weight: 600; }
-.topbar-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
-.company-switch { max-width: 220px; }
-.company-switch > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
-.chevron { font-size: 18px; }
-.notification-button { position: relative; }
-.notification-count { position: absolute; top: 4px; right: 3px; display: grid; min-width: 16px; height: 16px; padding: 0 3px; color: #fff; background: var(--wb-danger); border: 2px solid #fff; border-radius: 8px; font-size: 9px; font-weight: 700; place-items: center; }
-.user-button { height: 48px; margin-left: 4px; padding-inline: 6px 8px; }
-.avatar { display: grid; width: 34px; height: 34px; color: #1e3a8a; background: #dbeafe; border-radius: 50%; font-size: .75rem; font-weight: 700; place-items: center; }
-.user-copy { display: block; margin-inline: 8px 12px; text-align: left; line-height: 1.2; }
-.user-copy strong, .user-copy small { display: block; }
-.user-copy strong { font-size: .8125rem; }
-.user-copy small { margin-top: 2px; font-size: .6875rem; font-weight: 400; }
-@media(max-width:1399px) { .business-context { display: none; } }
-@media(max-width:1199px) { .mobile-menu { display: inline-flex; } .company-switch span:not(.material-symbols-rounded) { display: none; } }
-@media(max-width:767px) { header { gap: 4px; padding: 0 8px; } .global-search { flex: 1; width: auto; } .company-switch, .topbar-actions > button[title], .user-copy, .user-button .chevron { display: none; } .user-button { display: inline-flex; min-width: 40px; margin: 0; } }
+header {
+  display: flex;
+  height: var(--wb-header-height);
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  background: var(--wb-surface);
+  border-bottom: 1px solid var(--wb-border);
+}
+.mobile-menu {
+  display: none;
+}
+.global-search {
+  position: relative;
+  width: min(460px, 42vw);
+}
+.global-search-results { position: absolute; z-index: 20; top: calc(var(--wb-header-height) - 4px); width: min(460px, 42vw); overflow: hidden; background: var(--wb-surface); border: 1px solid var(--wb-border); border-radius: 10px; box-shadow: var(--wb-shadow-lg); }
+.global-search-results a, .search-status { display: flex; gap: 10px; align-items: center; padding: 10px 12px; }
+.global-search-results a { color: inherit; text-decoration: none; }
+.global-search-results a:hover { background: var(--wb-primary-soft); }
+.global-search-results a > span:last-child { min-width: 0; }
+.global-search-results strong, .global-search-results small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.global-search-results small, .search-status { color: var(--wb-text-secondary); font-size: .75rem; }
+.business-context {
+  display: flex;
+  margin-left: auto;
+  align-items: center;
+  gap: 14px;
+}
+/* Branch and financial-year values are not shown until loaded from the tenant API. */
+.business-context { display: none; }
+.business-context > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.business-context > span > .material-symbols-rounded {
+  color: var(--wb-primary);
+  font-size: 18px;
+}
+.business-context small,
+.business-context strong {
+  display: block;
+  white-space: nowrap;
+  line-height: 1.15;
+}
+.business-context small {
+  font-size: 0.5625rem;
+  font-weight: 500;
+}
+.business-context strong {
+  color: #374151;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.topbar-actions > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+.topbar-actions .material-symbols-rounded {
+  display: inline-flex;
+  line-height: 1;
+  align-items: center;
+  justify-content: center;
+}
+.company-switch {
+  max-width: 220px;
+}
+.company-switch > span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chevron {
+  font-size: 18px;
+}
+.notification-button {
+  position: relative;
+}
+.notification-count {
+  position: absolute;
+  top: 4px;
+  right: 3px;
+  display: grid;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  color: #fff;
+  background: var(--wb-danger);
+  border: 2px solid #fff;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 700;
+  place-items: center;
+}
+.user-button {
+  display: inline-flex;
+  height: 48px;
+  margin-left: 4px;
+  padding-inline: 6px 8px;
+  align-items: center;
+}
+.user-button .mdc-button__label { display: inline-flex; align-items: center; }
+.user-identity { display: inline-flex; align-items: center; min-height: 34px; }
+.avatar {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  color: #1e3a8a;
+  background: #dbeafe;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  place-items: center;
+  overflow: hidden;
+  flex: 0 0 34px;
+  aspect-ratio: 1;
+  position: static;
+  align-self: center;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+.user-copy {
+  display: block;
+  margin-inline: 8px 12px;
+  text-align: left;
+  line-height: 1.2;
+}
+.user-copy strong,
+.user-copy small {
+  display: block;
+}
+.user-copy strong {
+  font-size: 0.8125rem;
+}
+.user-copy small {
+  margin-top: 2px;
+  font-size: 0.6875rem;
+  font-weight: 400;
+}
+@media (max-width: 1399px) {
+  .business-context {
+    display: none;
+  }
+}
+@media (max-width: 1199px) {
+  .mobile-menu {
+    display: inline-flex;
+  }
+  .company-switch span:not(.material-symbols-rounded) {
+    display: none;
+  }
+}
+@media (max-width: 767px) {
+  header {
+    gap: 4px;
+    padding: 0 8px;
+  }
+  .global-search {
+    flex: 1;
+    width: auto;
+  }
+  .company-switch,
+  .topbar-actions > button[title],
+  .user-copy,
+  .user-button .chevron {
+    display: none;
+  }
+  .user-button {
+    display: inline-flex;
+    min-width: 40px;
+    margin: 0;
+  }
+}

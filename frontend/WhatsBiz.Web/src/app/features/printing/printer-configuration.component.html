@@ -1,0 +1,41 @@
+<h1>Printer Configuration</h1>
+<form (ngSubmit)="save()">
+  <input
+    required
+    name="name"
+    placeholder="System printer name"
+    [(ngModel)]="model.printerName"
+  /><input
+    required
+    name="display"
+    placeholder="Display name"
+    [(ngModel)]="model.displayName"
+  /><select name="type" [(ngModel)]="model.printerType">
+    <option>THERMAL</option>
+    <option>A4</option>
+    <option>LABEL</option></select
+  ><label>Paper Size<select name="paper" [(ngModel)]="model.paperSize">
+    @for (paper of paperSizes; track paper.value) {
+      <option [value]="paper.value">{{ paper.label }} — {{ paper.description }}</option>
+    }
+  </select></label
+  ><label><input type="checkbox" name="default" [(ngModel)]="model.isDefault" /> Default</label
+  ><label><input type="checkbox" name="cut" [(ngModel)]="model.autoCut" /> Auto cut</label
+  ><button mat-flat-button>Save printer</button>
+</form>
+<table>
+  <tr>
+    <th>Printer</th>
+    <th>Type</th>
+    <th>Paper</th>
+    <th>Mapping</th>
+  </tr>
+  @for (x of printers(); track x.id) {
+    <tr>
+      <td>{{ x.displayName }} {{ x.isDefault ? '(Default)' : '' }}</td>
+      <td>{{ x.printerType }}</td>
+      <td>{{ x.paperSize }}</td>
+      <td>{{ x.documentType || 'All documents' }}</td>
+    </tr>
+  }
+</table>

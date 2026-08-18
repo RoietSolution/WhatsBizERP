@@ -1,3 +1,209 @@
-import{ChangeDetectionStrategy,Component,ElementRef,computed,signal,viewChild}from'@angular/core';import{FormControl,ReactiveFormsModule}from'@angular/forms';import{Router}from'@angular/router';import{MatDialog}from'@angular/material/dialog';import{MatFormFieldModule}from'@angular/material/form-field';import{MatSelectModule}from'@angular/material/select';import{MatSnackBar}from'@angular/material/snack-bar';import{finalize}from'rxjs';import{ConfirmDialogComponent}from'../../shared/confirm-dialog.component';import{MasterActionEvent,MasterPageComponent,MasterPageConfig,MasterPageEvent,MasterSortEvent}from'../../shared/master/public-api';import{WarehouseApiService}from'./warehouse-api.service';import{WarehouseList,WarehouseType}from'./warehouse.models';
-@Component({selector:'app-warehouse-list',imports:[MasterPageComponent,ReactiveFormsModule,MatFormFieldModule,MatSelectModule],template:`<app-master-page [config]="config" [rows]="items()" [total]="total()" [loading]="loading()" [pageIndex]="page-1" [pageSize]="size" [summaries]="summaries()" (searchChange)="search=$event;page=1;load()" (statusChange)="status=$event;page=1;load()" (pageChange)="paged($event)" (sortChange)="sorted($event)" (action)="handle($event)"><mat-form-field master-filters appearance="outline"><mat-label>Warehouse type</mat-label><mat-select [formControl]="type" (selectionChange)="page=1;load()"><mat-option value="">All types</mat-option>@for(x of types();track x.warehouseTypeId){<mat-option [value]="x.warehouseTypeId">{{x.typeName}}</mat-option>}</mat-select></mat-form-field></app-master-page><input #file hidden type="file" accept=".xlsx" (change)="upload($event)">`,changeDetection:ChangeDetectionStrategy.OnPush})export class WarehouseListComponent{readonly file=viewChild<ElementRef<HTMLInputElement>>('file');readonly items=signal<WarehouseList[]>([]);readonly types=signal<WarehouseType[]>([]);readonly total=signal(0);readonly loading=signal(false);readonly type=new FormControl('',{nonNullable:true});readonly summaries=computed(()=>cards(this.total(),this.items()));search='';status:'all'|'active'|'inactive'='all';page=1;size=20;sortBy='warehouseName';descending=false;readonly config:MasterPageConfig<WarehouseList>={title:'Warehouses',singular:'Warehouse',description:'Manage storage locations, capacity, managers, and warehouse availability.',icon:'warehouse',newRoute:'/warehouses/new',importEnabled:true,exportEnabled:true,rowId:'warehouseId',rowName:'warehouseName',columns:[{field:'warehouseCode',headerName:'Code'},{field:'warehouseName',headerName:'Warehouse name',minWidth:220},{field:'typeName',headerName:'Type'},{field:'managerName',headerName:'Manager'},{field:'capacity',headerName:'Capacity'},{field:'isDefault',headerName:'Default',valueFormatter:p=>p.value?'Yes':'No'},{field:'isActive',headerName:'Status',valueFormatter:p=>p.value?'Active':'Inactive'}],detailFields:[{label:'Warehouse code',key:'warehouseCode'},{label:'Warehouse name',key:'warehouseName'},{label:'Type',key:'typeName'},{label:'Manager',key:'managerName'},{label:'Mobile',key:'mobile'},{label:'Capacity',key:'capacity'},{label:'Default',key:'isDefault'},{label:'Active',key:'isActive'}]};constructor(private api:WarehouseApiService,private snack:MatSnackBar,private dialog:MatDialog,private router:Router){api.types().subscribe(x=>this.types.set(x));this.load()}load(){this.loading.set(true);this.api.search({search:this.search||undefined,isActive:this.status==='all'?undefined:this.status==='active',warehouseTypeId:this.type.value||undefined,sortBy:this.sortBy,descending:this.descending,pageNumber:this.page,pageSize:this.size}).pipe(finalize(()=>this.loading.set(false))).subscribe({next:x=>{this.items.set(x.items);this.total.set(x.totalCount)},error:()=>this.snack.open('Unable to load warehouses.','Dismiss',{duration:4000})})}paged(e:MasterPageEvent){this.page=e.pageIndex+1;this.size=e.pageSize;this.load()}sorted(e:MasterSortEvent){this.sortBy=e.field||'warehouseName';this.descending=e.direction==='desc';this.page=1;this.load()}handle(e:MasterActionEvent<WarehouseList>){if(e.action==='refresh')this.load();else if(e.action==='import')this.file()?.nativeElement.click();else if(e.action==='export')this.api.export().subscribe(b=>download(b,'warehouses.xlsx'));else if(e.action==='print')window.print();else if(e.action==='edit'&&e.row)this.router.navigate(['/warehouses',e.row.warehouseId,'edit']);else if(e.action==='delete'&&e.rows?.length)this.remove(e.rows);else this.snack.open(`${e.action} is ready for the selected warehouse(s).`,undefined,{duration:2500})}remove(rows:WarehouseList[]){this.dialog.open(ConfirmDialogComponent,{data:{title:'Delete warehouses',message:`Delete ${rows.length} selected warehouse(s)?`}}).afterClosed().subscribe(ok=>{if(ok)rows.forEach((x,i)=>this.api.delete(x.warehouseId).subscribe({complete:()=>{if(i===rows.length-1)this.load()}}))})}upload(e:Event){const input=e.target as HTMLInputElement,f=input.files?.[0];if(!f)return;this.api.import(f).subscribe(x=>{input.value='';this.snack.open(`Imported ${x.importedCount} warehouse(s).`,undefined,{duration:3000});this.load()})}}
-function cards<T extends{isActive:boolean}>(total:number,items:T[]){return[{label:'Total records',value:total,subtitle:'All records',icon:'database',tone:'primary' as const},{label:'Active',value:items.filter(x=>x.isActive).length,subtitle:'Visible page',icon:'check_circle',tone:'success' as const},{label:'Inactive',value:items.filter(x=>!x.isActive).length,subtitle:'Visible page',icon:'pause_circle',tone:'warning' as const},{label:'Recently loaded',value:items.length,subtitle:'Current page',icon:'schedule',tone:'info' as const}]}function download(b:Blob,n:string){const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=n;a.click();URL.revokeObjectURL(u)}
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  computed,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { finalize } from 'rxjs';
+import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
+import {
+  MasterActionEvent,
+  MasterPageComponent,
+  MasterPageConfig,
+  MasterPageEvent,
+  MasterSortEvent,
+} from '../../shared/master/public-api';
+import { WarehouseApiService } from './warehouse-api.service';
+import { WarehouseList, WarehouseType } from './warehouse.models';
+@Component({
+  selector: 'app-warehouse-list',
+  imports: [MasterPageComponent, ReactiveFormsModule, MatFormFieldModule, MatSelectModule],
+  templateUrl: './warehouse-list.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class WarehouseListComponent {
+  readonly file = viewChild<ElementRef<HTMLInputElement>>('file');
+  readonly items = signal<WarehouseList[]>([]);
+  readonly types = signal<WarehouseType[]>([]);
+  readonly total = signal(0);
+  readonly loading = signal(false);
+  readonly type = new FormControl('', { nonNullable: true });
+  readonly summaries = computed(() => cards(this.total(), this.items()));
+  search = '';
+  status: 'all' | 'active' | 'inactive' = 'all';
+  page = 1;
+  size = 20;
+  sortBy = 'warehouseName';
+  descending = false;
+  readonly config: MasterPageConfig<WarehouseList> = {
+    title: 'Warehouses',
+    singular: 'Warehouse',
+    description: 'Manage storage locations, capacity, managers, and warehouse availability.',
+    icon: 'warehouse',
+    newRoute: '/warehouses/new',
+    importEnabled: true,
+    exportEnabled: true,
+    rowId: 'warehouseId',
+    rowName: 'warehouseName',
+    columns: [
+      { field: 'warehouseCode', headerName: 'Code' },
+      { field: 'warehouseName', headerName: 'Warehouse name', minWidth: 220 },
+      { field: 'typeName', headerName: 'Type' },
+      { field: 'managerName', headerName: 'Manager' },
+      { field: 'capacity', headerName: 'Capacity' },
+      {
+        field: 'isDefault',
+        headerName: 'Default',
+        valueFormatter: (p) => (p.value ? 'Yes' : 'No'),
+      },
+      {
+        field: 'isActive',
+        headerName: 'Status',
+        valueFormatter: (p) => (p.value ? 'Active' : 'Inactive'),
+      },
+    ],
+    detailFields: [
+      { label: 'Warehouse code', key: 'warehouseCode' },
+      { label: 'Warehouse name', key: 'warehouseName' },
+      { label: 'Type', key: 'typeName' },
+      { label: 'Manager', key: 'managerName' },
+      { label: 'Mobile', key: 'mobile' },
+      { label: 'Capacity', key: 'capacity' },
+      { label: 'Default', key: 'isDefault' },
+      { label: 'Active', key: 'isActive' },
+    ],
+  };
+  constructor(
+    private api: WarehouseApiService,
+    private snack: MatSnackBar,
+    private dialog: MatDialog,
+    private router: Router,
+  ) {
+    api.types().subscribe((x) => this.types.set(x));
+    this.load();
+  }
+  load() {
+    this.loading.set(true);
+    this.api
+      .search({
+        search: this.search || undefined,
+        isActive: this.status === 'all' ? undefined : this.status === 'active',
+        warehouseTypeId: this.type.value || undefined,
+        sortBy: this.sortBy,
+        descending: this.descending,
+        pageNumber: this.page,
+        pageSize: this.size,
+      })
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: (x) => {
+          this.items.set(x.items);
+          this.total.set(x.totalCount);
+        },
+        error: () => this.snack.open('Unable to load warehouses.', 'Dismiss', { duration: 4000 }),
+      });
+  }
+  paged(e: MasterPageEvent) {
+    this.page = e.pageIndex + 1;
+    this.size = e.pageSize;
+    this.load();
+  }
+  sorted(e: MasterSortEvent) {
+    this.sortBy = e.field || 'warehouseName';
+    this.descending = e.direction === 'desc';
+    this.page = 1;
+    this.load();
+  }
+  handle(e: MasterActionEvent<WarehouseList>) {
+    if (e.action === 'refresh') this.load();
+    else if (e.action === 'import') this.file()?.nativeElement.click();
+    else if (e.action === 'export')
+      this.api.export().subscribe((b) => download(b, 'warehouses.xlsx'));
+    else if (e.action === 'print') window.print();
+    else if (e.action === 'edit' && e.row)
+      this.router.navigate(['/warehouses', e.row.warehouseId, 'edit']);
+    else if (e.action === 'delete' && e.rows?.length) this.remove(e.rows);
+    else
+      this.snack.open(`${e.action} is ready for the selected warehouse(s).`, undefined, {
+        duration: 2500,
+      });
+  }
+  remove(rows: WarehouseList[]) {
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Delete warehouses',
+          message: `Delete ${rows.length} selected warehouse(s)?`,
+        },
+      })
+      .afterClosed()
+      .subscribe((ok) => {
+        if (ok)
+          rows.forEach((x, i) =>
+            this.api.delete(x.warehouseId).subscribe({
+              complete: () => {
+                if (i === rows.length - 1) this.load();
+              },
+            }),
+          );
+      });
+  }
+  upload(e: Event) {
+    const input = e.target as HTMLInputElement,
+      f = input.files?.[0];
+    if (!f) return;
+    this.api.import(f).subscribe((x) => {
+      input.value = '';
+      this.snack.open(`Imported ${x.importedCount} warehouse(s).`, undefined, { duration: 3000 });
+      this.load();
+    });
+  }
+}
+function cards<T extends { isActive: boolean }>(total: number, items: T[]) {
+  return [
+    {
+      label: 'Total records',
+      value: total,
+      subtitle: 'All records',
+      icon: 'database',
+      tone: 'primary' as const,
+    },
+    {
+      label: 'Active',
+      value: items.filter((x) => x.isActive).length,
+      subtitle: 'Visible page',
+      icon: 'check_circle',
+      tone: 'success' as const,
+    },
+    {
+      label: 'Inactive',
+      value: items.filter((x) => !x.isActive).length,
+      subtitle: 'Visible page',
+      icon: 'pause_circle',
+      tone: 'warning' as const,
+    },
+    {
+      label: 'Recently loaded',
+      value: items.length,
+      subtitle: 'Current page',
+      icon: 'schedule',
+      tone: 'info' as const,
+    },
+  ];
+}
+function download(b: Blob, n: string) {
+  const u = URL.createObjectURL(b),
+    a = document.createElement('a');
+  a.href = u;
+  a.download = n;
+  a.click();
+  URL.revokeObjectURL(u);
+}

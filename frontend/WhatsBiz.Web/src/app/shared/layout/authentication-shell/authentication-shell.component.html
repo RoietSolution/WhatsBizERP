@@ -1,0 +1,79 @@
+<main class="auth-shell">
+  <aside class="auth-brand" aria-label="KhataDhari ERP overview">
+    <div class="auth-brand__orb auth-brand__orb--one"></div>
+    <div class="auth-brand__orb auth-brand__orb--two"></div>
+    <span class="material-symbols-rounded auth-brand__illustration" aria-hidden="true"
+      >storefront</span
+    ><img class="auth-brand__logo" src="/assets/images/khatadhari-logo.png" alt="KhataDhari" />
+    <div class="auth-brand__message">
+      <p class="auth-brand__eyebrow">KhataDhari ERP</p>
+      <h1>
+        Smart Business.<br />
+        Simplified Operations.
+      </h1>
+      <p>
+        KhataDhari ERP helps retailers manage inventory, billing, finance, GST compliance and
+        reporting.
+      </p>
+      <div class="feature-grid" aria-label="Product capabilities">
+        <div>
+          <span class="material-symbols-rounded">inventory_2</span><strong>Inventory</strong>
+        </div>
+        <div>
+          <span class="material-symbols-rounded">receipt_long</span><strong>Billing</strong>
+        </div>
+        <div>
+          <span class="material-symbols-rounded">account_balance</span><strong>Finance</strong>
+        </div>
+        <div><span class="material-symbols-rounded">percent</span><strong>GST</strong></div>
+        <div>
+          <span class="material-symbols-rounded">space_dashboard</span><strong>Dashboard</strong>
+        </div>
+        <div>
+          <span class="material-symbols-rounded">monitoring</span><strong>Analytics</strong>
+        </div>
+      </div>
+    </div>
+    <div class="trust-row" aria-label="Platform qualities">
+      <span><span class="material-symbols-rounded">shield_lock</span>Security</span
+      ><span><span class="material-symbols-rounded">verified</span>Reliable</span
+      ><span><span class="material-symbols-rounded">bolt</span>Fast</span
+      ><span><span class="material-symbols-rounded">cloud_done</span>Cloud Ready</span>
+    </div>
+  </aside>
+  <section class="auth-workspace">
+    <header class="auth-tools">
+      <button
+        mat-button
+        type="button"
+        [matMenuTriggerFor]="languageMenu"
+        aria-label="Select language"
+      >
+        <span class="material-symbols-rounded">language</span> English
+        <span class="material-symbols-rounded auth-tools__chevron">expand_more</span></button
+      ><button
+        mat-icon-button
+        type="button"
+        aria-label="Theme switch coming soon"
+        title="Theme switch coming soon"
+      >
+        <span class="material-symbols-rounded">light_mode</span>
+      </button>
+    </header>
+    <div class="auth-workspace__content">
+      <section class="auth-card"><router-outlet /></section>
+    </div>
+    <footer>
+      <span>© 2026 KhataDhari</span>
+      <nav aria-label="Legal links">
+        <a href="#privacy">Privacy Policy</a><a href="#terms">Terms of Service</a
+        ><span>v1.0.0</span>
+      </nav>
+    </footer>
+  </section>
+</main>
+<mat-menu #languageMenu="matMenu"
+  ><button mat-menu-item type="button">
+    <span class="material-symbols-rounded">check</span><span>English</span></button
+  ><button mat-menu-item type="button" disabled><span>हिन्दी — coming soon</span></button></mat-menu
+>

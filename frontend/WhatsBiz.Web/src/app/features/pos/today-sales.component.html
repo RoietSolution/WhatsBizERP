@@ -1,0 +1,27 @@
+<header>
+  <h1>Today's Sales</h1>
+  <button mat-button (click)="export()">Export Daily Summary</button>
+</header>
+@if (data(); as x) {
+  <div class="cards">
+    <mat-card
+      ><h2>{{ x.grossSales }}</h2>
+      <p>Gross Sales</p></mat-card
+    ><mat-card
+      ><h2>{{ x.invoiceCount }}</h2>
+      <p>Invoices</p></mat-card
+    ><mat-card
+      ><h2>{{ x.collections }}</h2>
+      <p>Collections</p></mat-card
+    ><mat-card
+      ><h2>{{ x.cash }}</h2>
+      <p>Cash</p></mat-card
+    ><mat-card
+      ><h2>{{ x.upi }}</h2>
+      <p>UPI</p></mat-card
+    ><mat-card
+      ><h2>{{ x.card }}</h2>
+      <p>Card</p></mat-card
+    >
+  </div>
+}

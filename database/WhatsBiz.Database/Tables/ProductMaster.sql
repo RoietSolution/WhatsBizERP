@@ -18,12 +18,12 @@ GO
 CREATE UNIQUE INDEX [UX_UnitsOfMeasure_UnitCode] ON [master].[UnitsOfMeasure]([UnitCode]) WHERE [IsDeleted] = 0;
 GO
 CREATE TABLE [master].[Products] (
-    [ProductId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, [ProductCode] NVARCHAR(50) NOT NULL, [Barcode] NVARCHAR(100) NULL, [ProductName] NVARCHAR(250) NOT NULL, [ShortDescription] NVARCHAR(500) NULL, [LongDescription] NVARCHAR(MAX) NULL,
+    [ProductId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, [ProductCode] NVARCHAR(50) NOT NULL, [Barcode] NVARCHAR(100) NULL, [BarcodeType] NVARCHAR(20) NOT NULL CONSTRAINT [DF_Products_BarcodeType] DEFAULT ('CODE128'), [ProductName] NVARCHAR(250) NOT NULL, [ShortDescription] NVARCHAR(500) NULL, [LongDescription] NVARCHAR(MAX) NULL,
     [CategoryId] UNIQUEIDENTIFIER NOT NULL, [BrandId] UNIQUEIDENTIFIER NOT NULL, [UnitId] UNIQUEIDENTIFIER NOT NULL, [HSNCode] NVARCHAR(20) NULL, [SACCode] NVARCHAR(20) NULL, [GSTPercentage] DECIMAL(5,2) NOT NULL,
     [PurchasePrice] DECIMAL(18,4) NOT NULL, [SellingPrice] DECIMAL(18,4) NOT NULL, [MRP] DECIMAL(18,4) NOT NULL, [MinimumStock] DECIMAL(18,4) NOT NULL, [MaximumStock] DECIMAL(18,4) NOT NULL, [ReorderLevel] DECIMAL(18,4) NOT NULL,
     [Weight] DECIMAL(18,4) NULL, [Length] DECIMAL(18,4) NULL, [Width] DECIMAL(18,4) NULL, [Height] DECIMAL(18,4) NULL, [ImageUrl] NVARCHAR(500) NULL, [IsBatchManaged] BIT NOT NULL, [IsSerialManaged] BIT NOT NULL,
     [CreatedOn] DATETIMEOFFSET NOT NULL, [CreatedBy] NVARCHAR(256) NULL, [ModifiedOn] DATETIMEOFFSET NULL, [ModifiedBy] NVARCHAR(256) NULL, [IsActive] BIT NOT NULL, [IsDeleted] BIT NOT NULL, [RowVersion] ROWVERSION NOT NULL,
-    CONSTRAINT [FK_Products_Categories] FOREIGN KEY ([CategoryId]) REFERENCES [master].[ProductCategories]([ProductCategoryId]), CONSTRAINT [FK_Products_Brands] FOREIGN KEY ([BrandId]) REFERENCES [master].[Brands]([BrandId]), CONSTRAINT [FK_Products_Units] FOREIGN KEY ([UnitId]) REFERENCES [master].[UnitsOfMeasure]([UnitId]));
+    CONSTRAINT [FK_Products_Categories] FOREIGN KEY ([CategoryId]) REFERENCES [master].[ProductCategories]([ProductCategoryId]), CONSTRAINT [FK_Products_Brands] FOREIGN KEY ([BrandId]) REFERENCES [master].[Brands]([BrandId]), CONSTRAINT [FK_Products_Units] FOREIGN KEY ([UnitId]) REFERENCES [master].[UnitsOfMeasure]([UnitId]), CONSTRAINT [CK_Products_BarcodeType] CHECK ([BarcodeType] IN ('CODE128','EAN13','EAN8','UPC','CODE39')));
 GO
 CREATE UNIQUE INDEX [UX_Products_ProductCode] ON [master].[Products]([ProductCode]) WHERE [IsDeleted] = 0;
 GO

@@ -1,0 +1,68 @@
+<app-operations-workspace
+  eyebrow="Finance command center"
+  [title]="title"
+  description="Monitor cash flow, banking, vouchers, collections, payments, and daily accounting activity."
+  [summaries]="summaries()"
+  [statusText]="rows().length + ' transactions loaded'"
+  ><a workspace-header-actions mat-flat-button color="primary" routerLink="/finance/receipt"
+    ><span class="material-symbols-rounded">add</span>New Receipt</a
+  >
+  <div workspace-toolbar-actions class="actions">
+    <a mat-button routerLink="/finance/receipt"
+      ><span class="material-symbols-rounded">south_west</span>Receipt</a
+    ><a mat-button routerLink="/finance/payment"
+      ><span class="material-symbols-rounded">north_east</span>Payment</a
+    ><a mat-button routerLink="/finance/customer-ledger"
+      ><span class="material-symbols-rounded">menu_book</span>Ledger</a
+    ><button mat-button (click)="print()">
+      <span class="material-symbols-rounded">print</span>Print</button
+    ><button mat-button (click)="exportCsv()">
+      <span class="material-symbols-rounded">download</span>Export
+    </button>
+  </div>
+  <app-filter-panel
+    workspace-filters
+    title="Finance filters"
+    (apply)="refresh()"
+    (reset)="refresh()"
+    ><div class="filter-placeholders">
+      <button mat-stroked-button>Date Range</button><button mat-stroked-button>Branch</button
+      ><button mat-stroked-button>Ledger</button><button mat-stroked-button>Voucher Type</button
+      ><button mat-stroked-button>Payment Mode</button>
+    </div></app-filter-panel
+  ><app-data-table
+    [rows]="rows()"
+    [columns]="columns"
+    searchPlaceholder="Search voucher, reference, ledger, or payment mode"
+    (selectionChange)="selected.set($event[0] ?? null)"
+  />
+  <section workspace-context class="insight">
+    <h3>Selected Ledger Summary</h3>
+    @if (selected(); as x) {
+      <dl>
+        <dt>Reference</dt>
+        <dd>{{ x.referenceNumber || '—' }}</dd>
+        <dt>Voucher</dt>
+        <dd>{{ x.entryType || x.transactionType || '—' }}</dd>
+        <dt>Balance</dt>
+        <dd>{{ money(x.balance ?? (x.debitTotal ?? 0) - (x.creditTotal ?? 0)) }}</dd>
+        <dt>Mode</dt>
+        <dd>{{ x.mode || '—' }}</dd>
+      </dl>
+    } @else {
+      <p>
+        Select a transaction to view its ledger balance, recent history, notes, and audit
+        information.
+      </p>
+    }
+  </section>
+  <section workspace-context class="insight">
+    <h3>Finance Modules</h3>
+    <nav>
+      <a routerLink="/finance/cashbook">Cash Book</a><a routerLink="/finance/bankbook">Bank Book</a
+      ><a routerLink="/finance/daybook">Day Book</a
+      ><a routerLink="/finance/customer-outstanding">Receivables</a
+      ><a routerLink="/finance/supplier-outstanding">Payables</a>
+    </nav>
+  </section></app-operations-workspace
+>

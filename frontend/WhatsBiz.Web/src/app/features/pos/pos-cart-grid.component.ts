@@ -1,2 +1,22 @@
-import{CurrencyPipe}from'@angular/common';import{ChangeDetectionStrategy,Component,input,output}from'@angular/core';import{FormsModule}from'@angular/forms';import{MatButtonModule}from'@angular/material/button';import{CartItem}from'./pos.models';
-@Component({selector:'app-pos-cart-grid',imports:[CurrencyPipe,FormsModule,MatButtonModule],template:`<section class="cart-card" aria-label="Bill items"><header><div><span class="material-symbols-rounded">shopping_cart</span><strong>Bill Items</strong><small>{{items().length}} line(s)</small></div><span class="keyboard-hint">Tab through quantity and discount</span></header><div class="grid" role="table" aria-label="Current bill items"><div class="grid-head" role="row"><span>Image</span><span>Barcode</span><span>Product</span><span>Qty</span><span>Unit</span><span>MRP</span><span>Discount %</span><span>GST</span><span>Amount</span><span>Actions</span></div>@for(item of items();track item.productId;let i=$index){<div class="grid-row" role="row"><span class="product-image material-symbols-rounded">inventory_2</span><span class="barcode">{{item.barcode||'—'}}</span><span class="product"><strong>{{item.productName}}</strong><small>{{item.productCode}}</small></span><label><span class="mobile-label">Qty</span><input [attr.aria-label]="'Quantity for '+item.productName" type="number" min="0.0001" step="1" [(ngModel)]="item.quantity" (change)="changed.emit()"></label><span>Unit</span><span>{{item.mrp|currency:'INR':'symbol':'1.2-2'}}</span><label><span class="mobile-label">Discount</span><input [attr.aria-label]="'Discount for '+item.productName" type="number" min="0" max="100" [(ngModel)]="item.discountPercentage" (change)="changed.emit()"></label><span>{{item.taxPercentage}}%</span><strong>{{lineTotal(item)|currency:'INR':'symbol':'1.2-2'}}</strong><span class="row-actions"><button mat-icon-button type="button" [attr.aria-label]="'Duplicate '+item.productName" (click)="duplicate.emit(item)"><span class="material-symbols-rounded">content_copy</span></button><button mat-icon-button type="button" [attr.aria-label]="'Delete '+item.productName" (click)="remove.emit(item)"><span class="material-symbols-rounded">delete</span></button></span></div>}@empty{<div class="empty"><span class="material-symbols-rounded">barcode_scanner</span><strong>Ready for your first item</strong><p>Scan a barcode or search for a product to begin billing.</p></div>}</div></section>`,styleUrl:'./pos-cart-grid.component.scss',changeDetection:ChangeDetectionStrategy.OnPush})export class PosCartGridComponent{readonly items=input<CartItem[]>([]);readonly changed=output<void>();readonly remove=output<CartItem>();readonly duplicate=output<CartItem>();lineTotal(x:CartItem){const base=x.quantity*x.unitPrice*(1-x.discountPercentage/100);return base*(1+x.taxPercentage/100)}}
+import { CurrencyPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { CartItem } from './pos.models';
+@Component({
+  selector: 'app-pos-cart-grid',
+  imports: [CurrencyPipe, FormsModule, MatButtonModule],
+  templateUrl: './pos-cart-grid.component.html',
+  styleUrl: './pos-cart-grid.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class PosCartGridComponent {
+  readonly items = input<CartItem[]>([]);
+  readonly changed = output<void>();
+  readonly remove = output<CartItem>();
+  readonly duplicate = output<CartItem>();
+  lineTotal(x: CartItem) {
+    const base = x.quantity * x.unitPrice * (1 - x.discountPercentage / 100);
+    return base * (1 + x.taxPercentage / 100);
+  }
+}

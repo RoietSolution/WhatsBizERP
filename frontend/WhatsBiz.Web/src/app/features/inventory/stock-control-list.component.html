@@ -1,0 +1,86 @@
+<h1>{{ title }}</h1>
+<div class="filters">
+  <mat-form-field
+    ><mat-label>Search</mat-label
+    ><input matInput [(ngModel)]="search" (keyup.enter)="load()" /></mat-form-field
+  ><mat-form-field
+    ><mat-label>Warehouse</mat-label
+    ><mat-select [(ngModel)]="warehouseId" (selectionChange)="load()"
+      ><mat-option value="">All</mat-option>
+      @for (w of warehouses(); track w.warehouseId) {
+        <mat-option [value]="w.warehouseId">{{ w.warehouseName }}</mat-option>
+      }
+    </mat-select></mat-form-field
+  >
+  @if (mode === 'alerts') {
+    <mat-form-field
+      ><mat-label>Stock status</mat-label
+      ><mat-select [(ngModel)]="status" (selectionChange)="load()"
+        ><mat-option value="">All</mat-option>
+        @for (s of alertTypes; track s) {
+          <mat-option [value]="s">{{ s }}</mat-option>
+        }
+      </mat-select></mat-form-field
+    >
+  }
+  <button mat-flat-button (click)="load()">Refresh</button
+  ><button mat-button (click)="exportCsv()">Export CSV</button>
+</div>
+@if (loading()) {
+  <p>Loading inventory data...</p>
+}
+<div class="table">
+  @if (mode === 'movement') {
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Warehouse</th>
+          <th>Movement</th>
+          <th>Quantity</th>
+          <th>Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (x of movements(); track x.stockMovementHistoryId) {
+          <tr>
+            <td>{{ x.productCode }} - {{ x.productName }}</td>
+            <td>{{ x.warehouseName }}</td>
+            <td>
+              <span>{{ x.movementType }}</span>
+            </td>
+            <td>{{ x.quantity }}</td>
+            <td>{{ x.balanceAfter }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  } @else {
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Warehouse</th>
+          <th>Status</th>
+          <th>Current</th>
+          <th>Suggested</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (x of rows(); track x.id) {
+          <tr>
+            <td>{{ x.productCode }} - {{ x.productName }}</td>
+            <td>{{ x.warehouseName }}</td>
+            <td>
+              <span>{{ x.type }}</span>
+            </td>
+            <td>{{ x.currentQuantity }}</td>
+            <td>{{ x.suggestedQuantity }}</td>
+            <td>{{ x.detail }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>

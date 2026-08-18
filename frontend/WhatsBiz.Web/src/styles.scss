@@ -9,7 +9,9 @@ body {
   margin: 0;
   color: var(--wb-text);
   background: var(--wb-background);
-  transition: color var(--wb-motion), background var(--wb-motion);
+  transition:
+    color var(--wb-motion),
+    background var(--wb-motion);
 }
 
 *,
@@ -33,25 +35,86 @@ img {
   max-width: 100%;
 }
 
-button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
-button:not(:disabled), a { transition: color var(--wb-motion), background-color var(--wb-motion), border-color var(--wb-motion), box-shadow var(--wb-motion), transform var(--wb-motion); }
-.mat-mdc-snack-bar-container .mdc-snackbar__surface { color: var(--wb-text); background: var(--wb-surface); border: 1px solid var(--wb-border); border-left: 4px solid var(--wb-info); border-radius: var(--wb-radius-md); box-shadow: var(--wb-shadow-md); }
-.mat-mdc-snack-bar-container.wb-success .mdc-snackbar__surface { border-left-color: var(--wb-success); }
-.mat-mdc-snack-bar-container.wb-error .mdc-snackbar__surface { border-left-color: var(--wb-danger); }
-.mat-mdc-snack-bar-container.wb-warning .mdc-snackbar__surface { border-left-color: var(--wb-warning); }
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+button:not(:disabled),
+a {
+  transition:
+    color var(--wb-motion),
+    background-color var(--wb-motion),
+    border-color var(--wb-motion),
+    box-shadow var(--wb-motion),
+    transform var(--wb-motion);
+}
+.mat-mdc-snack-bar-container .mdc-snackbar__surface {
+  color: var(--wb-text);
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-border);
+  border-left: 4px solid var(--wb-info);
+  border-radius: var(--wb-radius-md);
+  box-shadow: var(--wb-shadow-md);
+}
+.mat-mdc-snack-bar-container.wb-success .mdc-snackbar__surface {
+  border-left-color: var(--wb-success);
+}
+.mat-mdc-snack-bar-container.wb-error .mdc-snackbar__surface {
+  color: var(--wb-text-on-dark);
+  background: var(--wb-primary);
+  border-color: var(--wb-primary);
+  border-left-color: var(--wb-primary-hover);
+}
+.mat-mdc-snack-bar-container.wb-error .mdc-snackbar__label {
+  color: var(--wb-text-on-dark);
+  font-weight: 600;
+}
+.mat-mdc-snack-bar-container.wb-error .mat-mdc-snack-bar-action {
+  color: var(--wb-text-on-dark);
+  font-weight: 700;
+}
+.mat-mdc-snack-bar-container.wb-warning .mdc-snackbar__surface {
+  border-left-color: var(--wb-warning);
+}
 :root[data-theme='dark'] .mat-mdc-dialog-surface,
 :root[data-theme='dark'] .mat-mdc-menu-panel,
-:root[data-theme='dark'] .mat-mdc-select-panel { color: var(--wb-text); background: var(--wb-surface); }
+:root[data-theme='dark'] .mat-mdc-select-panel {
+  color: var(--wb-text);
+  background: var(--wb-surface);
+}
 :root[data-theme='dark'] input,
 :root[data-theme='dark'] textarea,
-:root[data-theme='dark'] select { color: var(--wb-text); background-color: var(--wb-surface); }
+:root[data-theme='dark'] select {
+  color: var(--wb-text);
+  background-color: var(--wb-surface);
+}
 
 @media (forced-colors: active) {
-  :focus-visible { outline: 3px solid Highlight; }
-  button, a, input, select, textarea { border-color: CanvasText; }
-  .material-symbols-rounded { forced-color-adjust: auto; }
+  :focus-visible {
+    outline: 3px solid Highlight;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    border-color: CanvasText;
+  }
+  .material-symbols-rounded {
+    forced-color-adjust: auto;
+  }
 }
 
 .cdk-overlay-container {
   z-index: 1200;
+}
+
+/* One application-wide required-field treatment for Material and shared labels. */
+.mat-mdc-form-field-required-marker,
+.wb-required-marker {
+  color: var(--wb-danger);
+  font-weight: 700;
 }

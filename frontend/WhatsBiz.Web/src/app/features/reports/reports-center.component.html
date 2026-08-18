@@ -1,0 +1,74 @@
+<app-operations-workspace
+  eyebrow="Business intelligence"
+  title="Reports Center"
+  description="Discover, filter, visualize, and export business information from one workspace."
+  [summaries]="summaries()"
+  [statusText]="loading() ? 'Loading report data' : 'Live database data'"
+  [lastRefreshed]="lastRefreshed() ? lastRefreshed()!.toLocaleString('en-IN') : 'Not loaded'"
+  ><a workspace-header-actions mat-flat-button color="primary" routerLink="/gst"
+    ><span class="material-symbols-rounded">assessment</span>Open GST Center</a
+  >
+  <div workspace-toolbar-actions class="actions">
+    <a mat-button routerLink="/reports"><span class="material-symbols-rounded">star</span>Favorites</a
+    ><a mat-button routerLink="/inventory/balance"
+      ><span class="material-symbols-rounded">download</span>Inventory export</a
+    ><a mat-button routerLink="/gst/tax-summary"
+      ><span class="material-symbols-rounded">download</span>GST export</a>
+  </div>
+  <app-filter-panel workspace-filters title="Report discovery filters"
+    ><div class="filters">
+      <span>Date, search, status, branch, warehouse, pagination and sorting filters are available inside each applicable report.</span>
+    </div></app-filter-panel
+  >
+  <section class="category-grid">
+    @for (x of categories; track x.title) {
+      <article>
+        <div>
+          <span class="material-symbols-rounded">{{ x.icon }}</span
+          ><button
+            mat-icon-button
+            [attr.aria-label]="'Favorite ' + x.title"
+            (click)="favorite(x.title)"
+          >
+            <span class="material-symbols-rounded">{{
+              favorites().includes(x.title) ? 'star' : 'star_outline'
+            }}</span>
+          </button>
+        </div>
+        <h3>{{ x.title }}</h3>
+        <p>{{ x.description }}</p>
+        <nav>
+          @for (report of x.reports; track report.label) {
+            <a [routerLink]="report.route"
+              ><span>{{ report.label }}</span
+              ><span class="material-symbols-rounded">arrow_forward</span></a
+            >
+          }
+        </nav>
+      </article>
+    }
+  </section>
+  <section workspace-context class="insight">
+    <h3>Report Summary</h3>
+    <dl>
+      <dt>Current month sales</dt>
+      <dd>{{ reportMetrics().sales | currency: 'INR' : 'symbol' : '1.2-2' }}</dd>
+      <dt>Current month purchases</dt>
+      <dd>{{ reportMetrics().purchases | currency: 'INR' : 'symbol' : '1.2-2' }}</dd>
+      <dt>Inventory value</dt>
+      <dd>{{ reportMetrics().inventory | currency: 'INR' : 'symbol' : '1.2-2' }}</dd>
+      <dt>GST liability</dt>
+      <dd>{{ reportMetrics().gst | currency: 'INR' : 'symbol' : '1.2-2' }}</dd>
+    </dl>
+  </section>
+  <section workspace-context class="insight">
+    <h3>Export Center</h3>
+    <div class="export-actions">
+      <a mat-stroked-button routerLink="/pos/history">Sales</a
+      ><a mat-stroked-button routerLink="/purchases">Purchases</a
+      ><a mat-stroked-button routerLink="/inventory/balance">Inventory</a
+      ><a mat-stroked-button routerLink="/finance/daybook">Finance</a
+      ><a mat-stroked-button routerLink="/gst/tax-summary">GST</a>
+    </div>
+    <app-status-chip [label]="loading() ? 'Loading' : 'Database connected'" [tone]="loading() ? 'info' : 'success'" /></section
+></app-operations-workspace>

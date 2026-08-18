@@ -1,0 +1,35 @@
+<h1>Label Designer</h1>
+<section>
+  <label
+    >Product from database<select [(ngModel)]="selectedProductId" (ngModelChange)="selectProduct()">
+      <option value="">Select product</option>
+      @for (product of products(); track product.productId) {
+        <option [value]="product.productId">{{ product.productCode }} — {{ product.productName }}</option>
+      }
+    </select></label
+  >
+  <label
+    >Label type<select [(ngModel)]="labelType">
+      <option>PRODUCT</option>
+      <option>SHELF</option>
+      <option>PRICE</option>
+      <option>MRP</option>
+      <option>WAREHOUSE</option>
+    </select></label
+  ><label>Product name<input [(ngModel)]="name" /></label
+  ><label>Code<input [(ngModel)]="code" /></label
+  ><label>Barcode<input [(ngModel)]="barcode" /></label
+  ><label>Selling price<input type="number" min="0" [(ngModel)]="price" /></label
+  ><label>MRP<input type="number" min="0" [(ngModel)]="mrp" /></label
+  ><label
+    >Size<select [(ngModel)]="size">
+      <option value="25,15">25 × 15 mm</option>
+      <option value="50,25">50 × 25 mm</option>
+      <option value="100,50">100 × 50 mm</option>
+    </select></label
+  ><label>Quantity<input type="number" min="1" max="500" [(ngModel)]="quantity" /></label
+  ><button mat-flat-button [disabled]="!name.trim()" (click)="preview()">Preview labels</button>
+</section>
+@if (url()) {
+  <iframe [src]="url()"></iframe>
+}

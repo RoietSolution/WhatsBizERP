@@ -9,9 +9,79 @@ import { finalize } from 'rxjs';
 import { ProductApiService } from './product-api.service';
 import { Product } from './product.models';
 
-@Component({ selector: 'app-product-view', imports: [CurrencyPipe, DecimalPipe, RouterLink, MatButtonModule, MatCardModule, MatChipsModule, MatProgressSpinnerModule], template: `
-  @if (loading()) { <mat-spinner /> } @else if (product(); as item) {
-  <header><div><h1>{{ item.productName }}</h1><p>{{ item.productCode }}</p></div><div><a mat-button routerLink="/products">Back</a><a mat-flat-button [routerLink]="['/products', item.productId, 'edit']">Edit</a></div></header>
-  <div class="layout"><mat-card class="image">@if (item.imageUrl) { <img [src]="item.imageUrl" [alt]="item.productName"> } @else { <p>No image</p> }</mat-card><mat-card><mat-card-header><mat-card-title>Product details</mat-card-title></mat-card-header><mat-card-content><dl><dt>Barcode</dt><dd>{{ item.barcode || '—' }}</dd><dt>Category</dt><dd>{{ item.categoryName }}</dd><dt>Brand</dt><dd>{{ item.brandName }}</dd><dt>Unit</dt><dd>{{ item.unitName }}</dd><dt>GST</dt><dd>{{ item.gstPercentage | number:'1.0-2' }}%</dd><dt>Purchase price</dt><dd>{{ item.purchasePrice | currency:'INR' }}</dd><dt>Selling price</dt><dd>{{ item.sellingPrice | currency:'INR' }}</dd><dt>MRP</dt><dd>{{ item.mrp | currency:'INR' }}</dd><dt>Status</dt><dd>{{ item.isActive ? 'Active' : 'Inactive' }}</dd></dl></mat-card-content></mat-card></div>
-  <mat-card><mat-card-header><mat-card-title>Descriptions and inventory</mat-card-title></mat-card-header><mat-card-content><p>{{ item.shortDescription }}</p><p>{{ item.longDescription }}</p><dl><dt>Stock range</dt><dd>{{ item.minimumStock }} – {{ item.maximumStock }}</dd><dt>Reorder level</dt><dd>{{ item.reorderLevel }}</dd><dt>Batch managed</dt><dd>{{ item.isBatchManaged ? 'Yes' : 'No' }}</dd><dt>Serial managed</dt><dd>{{ item.isSerialManaged ? 'Yes' : 'No' }}</dd></dl></mat-card-content></mat-card> }`, styles: [`header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}.layout{display:grid;grid-template-columns:minmax(220px,1fr) 2fr;gap:1rem;margin-bottom:1rem}.image{display:grid;place-items:center;min-height:280px}.image img{max-width:100%;max-height:320px;object-fit:contain}dl{display:grid;grid-template-columns:150px 1fr;gap:.75rem}dt{font-weight:500}dd{margin:0}@media(max-width:700px){.layout{grid-template-columns:1fr}}`], changeDetection: ChangeDetectionStrategy.OnPush })
-export class ProductViewComponent { readonly product = signal<Product | null>(null); readonly loading = signal(true); constructor(api: ProductApiService, route: ActivatedRoute) { api.get(route.snapshot.paramMap.get('id') ?? '').pipe(finalize(() => this.loading.set(false))).subscribe(item => { this.product.set(item); if (item.imageUrl) api.image(item.productId).subscribe(blob => this.product.update(product => product ? { ...product, imageUrl: URL.createObjectURL(blob) } : product)); }); } }
+@Component({
+  selector: 'app-product-view',
+  imports: [
+    CurrencyPipe,
+    DecimalPipe,
+    RouterLink,
+    MatButtonModule,
+    MatCardModule,
+    MatChipsModule,
+    MatProgressSpinnerModule,
+  ],
+  templateUrl: './product-view.component.html',
+  styles: [
+    `
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) 2fr;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+      .image {
+        display: grid;
+        place-items: center;
+        min-height: 280px;
+      }
+      .image img {
+        max-width: 100%;
+        max-height: 320px;
+        object-fit: contain;
+      }
+      dl {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 0.75rem;
+      }
+      dt {
+        font-weight: 500;
+      }
+      dd {
+        margin: 0;
+      }
+      @media (max-width: 700px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+    `,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class ProductViewComponent {
+  readonly product = signal<Product | null>(null);
+  readonly loading = signal(true);
+  constructor(api: ProductApiService, route: ActivatedRoute) {
+    api
+      .get(route.snapshot.paramMap.get('id') ?? '')
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe((item) => {
+        this.product.set(item);
+        if (item.imageUrl)
+          api
+            .image(item.productId)
+            .subscribe((blob) =>
+              this.product.update((product) =>
+                product ? { ...product, imageUrl: URL.createObjectURL(blob) } : product,
+              ),
+            );
+      });
+  }
+}

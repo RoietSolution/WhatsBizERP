@@ -1,0 +1,22 @@
+<main>
+  <section>
+    <img src="/assets/images/khatadhari-logo.png" alt="KhataDhari ERP" />
+    <div class="state-icon">
+      <span class="material-symbols-rounded">{{ state().icon }}</span>
+    </div>
+    <p class="eyebrow">{{ state().eyebrow }}</p>
+    <h1>{{ state().title }}</h1>
+    <p class="description">{{ state().description }}</p>
+    <div class="actions">
+      @if (mode() === '401') {
+        <a mat-flat-button color="primary" routerLink="/login">{{ state().action }}</a>
+      } @else if (mode() === '500' || mode() === 'offline' || mode() === 'maintenance') {
+        <button mat-flat-button color="primary" (click)="retry()">{{ state().action }}</button>
+      } @else {
+        <a mat-flat-button color="primary" routerLink="/dashboard">{{ state().action }}</a>
+      }
+      <button mat-button type="button" (click)="back()">Go Back</button>
+    </div>
+    <small>Error {{ mode().toUpperCase() }} · KhataDhari ERP</small>
+  </section>
+</main>

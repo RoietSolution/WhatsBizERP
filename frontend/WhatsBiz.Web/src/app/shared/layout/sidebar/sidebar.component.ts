@@ -1,71 +1,312 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { CurrentUserService } from '../../../core/services/current-user.service';
 import { PermissionService } from '../../../core/services/permission.service';
+import { FeatureService } from '../../../core/services/feature.service';
 import { NavigationItem } from '../../models/navigation.model';
+import { ProfilePhotoService } from '../../services/profile-photo.service';
 
 const navigation: NavigationItem[] = [
   { label: 'Overview', icon: 'space_dashboard', route: '/dashboard', permission: 'dashboard.view' },
-  { label: 'Point of Sale', icon: 'point_of_sale', permission: 'pos.view', children: [
-    { label: 'New Sale', icon: 'add_shopping_cart', route: '/pos', permission: 'pos.create' },
-    { label: 'Today’s Sales', icon: 'today', route: '/pos/today', permission: 'pos.view' },
-    { label: 'Invoice History', icon: 'receipt_long', route: '/pos/history', permission: 'pos.view' },
-    { label: 'Returns', icon: 'assignment_return', route: '/pos/returns', permission: 'pos.return' },
-  ]},
-  { label: 'Purchases', icon: 'shopping_cart', permission: 'purchase.view', children: [
-    { label: 'Dashboard', icon: 'monitoring', route: '/purchases/dashboard', permission: 'purchase.view' },
-    { label: 'Purchase List', icon: 'list_alt', route: '/purchases', permission: 'purchase.view' },
-    { label: 'Create Purchase', icon: 'add_box', route: '/purchases/create', permission: 'purchase.create' },
-  ]},
-  { label: 'Products', icon: 'inventory_2', permission: 'product.view', children: [
-    { label: 'Product List', icon: 'category', route: '/products', permission: 'product.view' },
-    { label: 'Categories', icon: 'account_tree', route: '/product-categories', permission: 'product.view' },
-    { label: 'Brands', icon: 'sell', route: '/brands', permission: 'product.view' },
-    { label: 'Units', icon: 'straighten', route: '/units', permission: 'product.view' },
-  ]},
-  { label: 'Inventory', icon: 'warehouse', permission: 'inventory.view', children: [
-    { label: 'Overview', icon: 'dashboard', route: '/inventory', permission: 'inventory.view' },
-    { label: 'Stock Balance', icon: 'inventory', route: '/inventory/balance', permission: 'inventory.view' },
-    { label: 'Transactions', icon: 'swap_horiz', route: '/inventory/transactions', permission: 'inventory.view' },
-    { label: 'Adjustments', icon: 'tune', route: '/inventory/adjustment', permission: 'inventory.adjust' },
-    { label: 'Transfers', icon: 'move_up', route: '/inventory/transfer', permission: 'inventory.transfer' },
-    { label: 'Alerts', icon: 'notification_important', route: '/inventory/alerts', permission: 'inventory.alerts' },
-  ]},
-  { label: 'Parties', icon: 'groups', children: [
-    { label: 'Customers', icon: 'person', route: '/customers', permission: 'customer.view' },
-    { label: 'Suppliers', icon: 'local_shipping', route: '/suppliers', permission: 'supplier.view' },
-  ]},
-  { label: 'Finance', icon: 'account_balance', permission: 'ledger.view', children: [
-    { label: 'Day Book', icon: 'menu_book', route: '/finance/daybook', permission: 'ledger.view' },
-    { label: 'Cash Book', icon: 'payments', route: '/finance/cashbook', permission: 'cashbook.view' },
-    { label: 'Bank Book', icon: 'account_balance', route: '/finance/bankbook', permission: 'bankbook.view' },
-    { label: 'Receipts', icon: 'call_received', route: '/finance/receipt', permission: 'receipt.create' },
-    { label: 'Payments', icon: 'call_made', route: '/finance/payment', permission: 'payment.create' },
-  ]},
+  {
+    label: 'Point of Sale',
+    icon: 'point_of_sale',
+    permission: 'pos.view',
+    children: [
+      { label: 'New Sale', icon: 'add_shopping_cart', route: '/pos', permission: 'pos.create' },
+      { label: 'Today’s Sales', icon: 'today', route: '/pos/today', permission: 'pos.view' },
+      {
+        label: 'Invoice History',
+        icon: 'receipt_long',
+        route: '/pos/history',
+        permission: 'pos.view',
+      },
+      {
+        label: 'Returns',
+        icon: 'assignment_return',
+        route: '/pos/returns',
+        permission: 'pos.return',
+      },
+    ],
+  },
+  {
+    label: 'Purchases',
+    icon: 'shopping_cart',
+    permission: 'purchase.view',
+    children: [
+      {
+        label: 'Dashboard',
+        icon: 'monitoring',
+        route: '/purchases/dashboard',
+        permission: 'purchase.view',
+      },
+      {
+        label: 'Purchase List',
+        icon: 'list_alt',
+        route: '/purchases',
+        permission: 'purchase.view',
+      },
+      {
+        label: 'Create Purchase',
+        icon: 'add_box',
+        route: '/purchases/create',
+        permission: 'purchase.create',
+      },
+    ],
+  },
+  {
+    label: 'Products',
+    icon: 'inventory_2',
+    permission: 'product.view',
+    children: [
+      { label: 'Product List', icon: 'category', route: '/products', permission: 'product.view' },
+      {
+        label: 'Categories',
+        icon: 'account_tree',
+        route: '/product-categories',
+        permission: 'product.view',
+      },
+      { label: 'Brands', icon: 'sell', route: '/brands', permission: 'product.view' },
+      { label: 'Units', icon: 'straighten', route: '/units', permission: 'product.view' },
+    ],
+  },
+  {
+    label: 'Inventory',
+    icon: 'warehouse',
+    permission: 'inventory.view',
+    children: [
+      { label: 'Overview', icon: 'dashboard', route: '/inventory', permission: 'inventory.view' },
+      {
+        label: 'Stock Balance',
+        icon: 'inventory',
+        route: '/inventory/balance',
+        permission: 'inventory.view',
+      },
+      {
+        label: 'Transactions',
+        icon: 'swap_horiz',
+        route: '/inventory/transactions',
+        permission: 'inventory.view',
+      },
+      {
+        label: 'Adjustments',
+        icon: 'tune',
+        route: '/inventory/adjustment',
+        permission: 'inventory.adjust',
+      },
+      {
+        label: 'Transfers',
+        icon: 'move_up',
+        route: '/inventory/transfer',
+        permission: 'inventory.transfer',
+      },
+      {
+        label: 'Alerts',
+        icon: 'notification_important',
+        route: '/inventory/alerts',
+        permission: 'inventory.alerts',
+      },
+    ],
+  },
+  {
+    label: 'Printing',
+    icon: 'print',
+    permission: 'print.view',
+    children: [
+      {
+        label: 'Label Designer',
+        icon: 'label',
+        route: '/print/labels',
+        permission: 'print.document',
+      },
+      {
+        label: 'Barcode & QR Generator',
+        icon: 'qr_code_2',
+        route: '/print/barcodes',
+        permission: 'print.barcode',
+      },
+      {
+        label: 'Print Templates',
+        icon: 'description',
+        route: '/print/templates',
+        permission: 'print.view',
+      },
+      {
+        label: 'Printer Configuration',
+        icon: 'print',
+        route: '/print/printers',
+        permission: 'print.settings',
+      },
+    ],
+  },
+  {
+    label: 'Parties',
+    icon: 'groups',
+    children: [
+      { label: 'Customers', icon: 'person', route: '/customers', permission: 'customer.view' },
+      {
+        label: 'Suppliers',
+        icon: 'local_shipping',
+        route: '/suppliers',
+        permission: 'supplier.view',
+      },
+    ],
+  },
+  {
+    label: 'Finance',
+    icon: 'account_balance',
+    permission: 'ledger.view',
+    children: [
+      {
+        label: 'Day Book',
+        icon: 'menu_book',
+        route: '/finance/daybook',
+        permission: 'ledger.view',
+      },
+      {
+        label: 'Cash Book',
+        icon: 'payments',
+        route: '/finance/cashbook',
+        permission: 'cashbook.view',
+      },
+      {
+        label: 'Bank Book',
+        icon: 'account_balance',
+        route: '/finance/bankbook',
+        permission: 'bankbook.view',
+      },
+      {
+        label: 'Receipts',
+        icon: 'call_received',
+        route: '/finance/receipt',
+        permission: 'receipt.create',
+      },
+      {
+        label: 'Payments',
+        icon: 'call_made',
+        route: '/finance/payment',
+        permission: 'payment.create',
+      },
+    ],
+  },
   { label: 'Reports', icon: 'assessment', route: '/reports', permission: 'gst.view' },
   { label: 'GST', icon: 'percent', route: '/gst', permission: 'gst.view' },
-  { label: 'Analytics', icon: 'query_stats', permission: 'analytics.view', children: [
-    { label: 'Sales', icon: 'trending_up', route: '/analytics/sales', permission: 'analytics.view' },
-    { label: 'Purchases', icon: 'shopping_bag', route: '/analytics/purchase', permission: 'analytics.view' },
-    { label: 'Inventory', icon: 'inventory', route: '/analytics/inventory', permission: 'analytics.view' },
-    { label: 'Finance', icon: 'currency_rupee', route: '/analytics/finance', permission: 'analytics.view' },
-  ]},
+  {
+    label: 'Analytics',
+    icon: 'query_stats',
+    permission: 'analytics.view',
+    children: [
+      {
+        label: 'Sales',
+        icon: 'trending_up',
+        route: '/analytics/sales',
+        permission: 'analytics.view',
+      },
+      {
+        label: 'Purchases',
+        icon: 'shopping_bag',
+        route: '/analytics/purchase',
+        permission: 'analytics.view',
+      },
+      {
+        label: 'Inventory',
+        icon: 'inventory',
+        route: '/analytics/inventory',
+        permission: 'analytics.view',
+      },
+      {
+        label: 'Finance',
+        icon: 'currency_rupee',
+        route: '/analytics/finance',
+        permission: 'analytics.view',
+      },
+    ],
+  },
   { label: 'Warehouses', icon: 'factory', route: '/warehouses', permission: 'warehouse.view' },
-  { label: 'Administration', icon: 'admin_panel_settings', permission: 'admin.view', children: [
-    { label: 'Admin Center', icon: 'dashboard', route: '/admin', permission: 'admin.view' },
-    { label: 'Company Profile', icon: 'business', route: '/admin/company', permission: 'admin.company' },
-    { label: 'Branches', icon: 'lan', route: '/admin/branches', permission: 'admin.settings' },
-    { label: 'Settings', icon: 'settings', route: '/admin/settings', permission: 'admin.settings' },
-    { label: 'Audit Log', icon: 'history', route: '/admin/audit', permission: 'admin.audit' },
-    { label: 'Backup', icon: 'backup', route: '/admin/backup', permission: 'admin.backup' },
-  ]},
+  {
+    label: 'Administration',
+    icon: 'admin_panel_settings',
+    permission: 'admin.view',
+    children: [
+      { label: 'Admin Center', icon: 'dashboard', route: '/admin', permission: 'admin.view' },
+      {
+        label: 'Company Profile',
+        icon: 'business',
+        route: '/admin/company',
+        permission: 'admin.company',
+      },
+      { label: 'Branches', icon: 'lan', route: '/admin/branches', permission: 'admin.settings' },
+      {
+        label: 'Settings',
+        icon: 'settings',
+        route: '/admin/settings',
+        permission: 'admin.settings',
+      },
+      {
+        label: 'Printer Configuration',
+        icon: 'print',
+        route: '/admin/printers',
+        permission: 'print.settings',
+      },
+      { label: 'Audit Log', icon: 'history', route: '/admin/audit', permission: 'admin.audit' },
+      { label: 'Backup', icon: 'backup', route: '/admin/backup', permission: 'admin.backup' },
+    ],
+  },
 ];
 
-@Component({ selector: 'app-sidebar', imports: [RouterLink, RouterLinkActive], template: '<aside [class.sidebar--collapsed]="collapsed()"><div class="brand"><img class="brand__logo" src="/assets/images/khatadhari-logo.png" alt="KhataDhari logo">@if (!collapsed()) { <div class="brand__copy"><strong>KhataDhari</strong><span>KhataDhari ERP</span></div> }<button type="button" [attr.aria-label]="collapsed() ? `Expand sidebar` : `Collapse sidebar`" (click)="collapseToggle.emit()"><span class="material-symbols-rounded">{{ collapsed() ? "keyboard_double_arrow_right" : "keyboard_double_arrow_left" }}</span></button></div><nav aria-label="Primary navigation">@for (item of items(); track item.label) { @if (item.route) { <a class="nav-item" [routerLink]="item.route" routerLinkActive="nav-item--active" [attr.title]="collapsed() ? item.label : null" (click)="navigate.emit()"><span class="material-symbols-rounded">{{ item.icon }}</span>@if (!collapsed()) { <span>{{ item.label }}</span> }</a> } @else { <button class="nav-item nav-group" type="button" [class.nav-item--expanded]="isExpanded(item.label)" [attr.aria-expanded]="isExpanded(item.label)" [attr.title]="collapsed() ? item.label : null" (click)="toggle(item.label)"><span class="material-symbols-rounded">{{ item.icon }}</span>@if (!collapsed()) { <span>{{ item.label }}</span><span class="material-symbols-rounded nav-chevron">expand_more</span> }</button>@if (!collapsed() && isExpanded(item.label)) { <div class="nav-children">@for (child of item.children; track child.label) { <a [routerLink]="child.route" routerLinkActive="nav-item--active" (click)="navigate.emit()"><span>{{ child.label }}</span></a> }</div> } } }</nav><div class="sidebar-user"><div class="avatar">{{ initials() }}</div>@if (!collapsed()) { <div><strong>{{ user()?.username ?? "User" }}</strong><span>{{ user()?.roles?.[0] ?? "Team member" }}</span></div> }</div></aside>', styleUrl: './sidebar.component.scss', changeDetection: ChangeDetectionStrategy.OnPush })
+@Component({
+  selector: 'app-sidebar',
+  imports: [RouterLink, RouterLinkActive],
+  templateUrl: './sidebar.component.html',
+  styleUrl: './sidebar.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
 export class SidebarComponent {
-  readonly collapsed = input(false); readonly collapseToggle = output<void>(); readonly navigate = output<void>(); private readonly permissions = inject(PermissionService); private readonly currentUser = inject(CurrentUserService); readonly user = this.currentUser.user; readonly expanded = signal(new Set<string>(['Products']));
-  readonly items = computed(() => navigation.map((item) => ({ ...item, children: item.children?.filter((child) => !child.permission || this.permissions.has(child.permission)) })).filter((item) => (!item.permission || this.permissions.has(item.permission)) && (!item.children || item.children.length > 0)));
+  readonly collapsed = input(false);
+  readonly collapseToggle = output<void>();
+  readonly navigate = output<void>();
+  private readonly permissions = inject(PermissionService);
+  private readonly features = inject(FeatureService);
+  private readonly currentUser = inject(CurrentUserService);
+  private readonly profilePhoto = inject(ProfilePhotoService);
+  readonly user = this.currentUser.user;
+  readonly expanded = signal(new Set<string>(['Products']));
+  readonly items = computed(() =>
+    navigation
+      .map((item) => ({
+        ...item,
+        children: item.children?.filter(
+          (child) => (!child.permission || this.permissions.has(child.permission)) && (!child.feature || this.features.hasFeature(child.feature)),
+        ),
+      }))
+      .filter(
+        (item) =>
+          (!item.permission || this.permissions.has(item.permission)) &&
+          (!item.feature || this.features.hasFeature(item.feature)) &&
+          (!item.children || item.children.length > 0),
+      ),
+  );
   readonly initials = computed(() => (this.user()?.username ?? 'U').slice(0, 2).toUpperCase());
-  toggle(label: string): void { if (this.collapsed()) { this.collapseToggle.emit(); } this.expanded.update((current) => { const next = new Set(current); next.has(label) ? next.delete(label) : next.add(label); return next; }); }
-  isExpanded(label: string): boolean { return this.expanded().has(label); }
+  readonly photo = this.profilePhoto.photo;
+  toggle(label: string): void {
+    if (this.collapsed()) {
+      this.collapseToggle.emit();
+    }
+    this.expanded.update((current) => {
+      const next = new Set(current);
+      next.has(label) ? next.delete(label) : next.add(label);
+      return next;
+    });
+  }
+  isExpanded(label: string): boolean {
+    return this.expanded().has(label);
+  }
 }

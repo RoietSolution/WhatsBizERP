@@ -38,10 +38,14 @@ public sealed class ProductsController(ISender sender) : ControllerBase
 
     [HttpGet("{id:guid}/image"), HasPermission(Permissions.Product.View)]
     public async Task<IActionResult> GetImage(Guid id, CancellationToken cancellationToken) { var image = await sender.Send(new GetProductImageQuery(id), cancellationToken); return image is null ? NotFound() : File(image.Content, image.ContentType, image.FileName); }
+    [HttpGet("{id:guid}/images"), HasPermission(Permissions.Product.View)]
+    public async Task<IReadOnlyCollection<ProductImageDto>> GetImages(Guid id, CancellationToken cancellationToken) { var rows = await sender.Send(new GetProductImagesQuery(id), cancellationToken); return rows; }
+    [HttpGet("{id:guid}/images/{imageId:guid}"), HasPermission(Permissions.Product.View)]
+    public async Task<IActionResult> GetImage(Guid id, Guid imageId, CancellationToken cancellationToken) { var image = await sender.Send(new GetProductImageByIdQuery(id, imageId), cancellationToken); return image is null ? NotFound() : File(image.Content, image.ContentType, image.FileName); }
 
     [HttpPost("{id:guid}/image"), HasPermission(Permissions.Product.Edit), RequestSizeLimit(5 * 1024 * 1024)]
     public async Task<ProductImageDto> UploadImage(Guid id, IFormFile file, CancellationToken cancellationToken) { await using var stream = new MemoryStream(); await file.CopyToAsync(stream, cancellationToken); return await sender.Send(new UploadProductImageCommand(id, file.FileName, file.ContentType, stream.ToArray()), cancellationToken); }
 
-    [HttpDelete("{id:guid}/image"), HasPermission(Permissions.Product.Edit)]
-    public async Task<IActionResult> DeleteImage(Guid id, CancellationToken cancellationToken) { await sender.Send(new DeleteProductImageCommand(id), cancellationToken); return NoContent(); }
+    [HttpDelete("{id:guid}/images/{imageId:guid}"), HasPermission(Permissions.Product.Edit)]
+    public async Task<IActionResult> DeleteImage(Guid id, Guid imageId, CancellationToken cancellationToken) { await sender.Send(new DeleteProductImageCommand(id, imageId), cancellationToken); return NoContent(); }
 }

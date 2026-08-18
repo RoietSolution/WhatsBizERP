@@ -1,1 +1,47 @@
-import{Component,signal}from'@angular/core';import{FormsModule}from'@angular/forms';import{MatButtonModule}from'@angular/material/button';import{AdminApiService,FinancialYear}from'./admin-api.service';@Component({imports:[FormsModule,MatButtonModule],template:`<h1>Financial Years</h1><form (ngSubmit)="save()"><input required name="code" placeholder="2026-27" [(ngModel)]="model.code"><input required type="date" name="start" [(ngModel)]="model.startDate"><input required type="date" name="end" [(ngModel)]="model.endDate"><select name="status" [(ngModel)]="model.status"><option>OPEN</option><option>CLOSED</option><option>LOCKED</option></select><label><input type="checkbox" name="default" [(ngModel)]="model.isDefault">Default</label><button mat-flat-button>Save</button></form><table><tr><th>Year</th><th>Dates</th><th>Status</th><th>Default</th></tr>@for(x of years();track x.id){<tr><td>{{x.code}}</td><td>{{x.startDate}} — {{x.endDate}}</td><td>{{x.status}}</td><td>{{x.isDefault?'Yes':'No'}}</td></tr>}</table>`,styles:[`form{display:flex;gap:.7rem;flex-wrap:wrap;background:#fff;padding:1rem}input,select{padding:.6rem}table{width:100%;margin-top:1rem;border-collapse:collapse}th,td{padding:.7rem;border-bottom:1px solid #ddd;text-align:left}`]})export class FinancialYearComponent{years=signal<FinancialYear[]>([]);model={code:'',startDate:'',endDate:'',status:'OPEN',isDefault:false};constructor(private api:AdminApiService){this.load()}load(){this.api.years().subscribe(x=>this.years.set(x))}save(){this.api.saveYear(this.model).subscribe(()=>this.load())}}
+import { Component, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { AdminApiService, FinancialYear } from './admin-api.service';
+@Component({
+  imports: [FormsModule, MatButtonModule],
+  templateUrl: './financial-year.component.html',
+  styles: [
+    `
+      form {
+        display: flex;
+        gap: 0.7rem;
+        flex-wrap: wrap;
+        background: #fff;
+        padding: 1rem;
+      }
+      input,
+      select {
+        padding: 0.6rem;
+      }
+      table {
+        width: 100%;
+        margin-top: 1rem;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 0.7rem;
+        border-bottom: 1px solid #ddd;
+        text-align: left;
+      }
+    `,
+  ],
+})
+export class FinancialYearComponent {
+  years = signal<FinancialYear[]>([]);
+  model = { code: '', startDate: '', endDate: '', status: 'OPEN', isDefault: false };
+  constructor(private api: AdminApiService) {
+    this.load();
+  }
+  load() {
+    this.api.years().subscribe((x) => this.years.set(x));
+  }
+  save() {
+    this.api.saveYear(this.model).subscribe(() => this.load());
+  }
+}

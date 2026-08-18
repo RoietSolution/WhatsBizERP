@@ -1,1 +1,61 @@
-.workspace-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:20px}.workspace-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;margin-top:16px}.workspace-grid main{min-width:0}.workspace-grid aside{min-width:0}.workspace-status{display:flex;margin-top:16px;padding:10px 4px;color:var(--wb-text-secondary);border-top:1px solid var(--wb-border);align-items:center;justify-content:space-between;font-size:11px}.workspace-status span{display:flex;align-items:center;gap:6px}.workspace-status i{width:7px;height:7px;background:var(--wb-success);border-radius:50%}@media(max-width:1199px){.workspace-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.workspace-grid{grid-template-columns:1fr}.workspace-grid aside{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}}@media(max-width:767px){.workspace-kpis,.workspace-grid aside{grid-template-columns:1fr}.workspace-status span:nth-child(2){display:none}}
+.workspace-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  margin-top: 16px;
+}
+.workspace-grid main {
+  min-width: 0;
+}
+.workspace-grid aside {
+  min-width: 0;
+}
+.workspace-status {
+  display: flex;
+  margin-top: 16px;
+  padding: 10px 4px;
+  color: var(--wb-text-secondary);
+  border-top: 1px solid var(--wb-border);
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+.workspace-status span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.workspace-status i {
+  width: 7px;
+  height: 7px;
+  background: var(--wb-success);
+  border-radius: 50%;
+}
+@media (max-width: 1199px) {
+  .workspace-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+  .workspace-grid aside {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+@media (max-width: 767px) {
+  .workspace-kpis,
+  .workspace-grid aside {
+    grid-template-columns: 1fr;
+  }
+  .workspace-status span:nth-child(2) {
+    display: none;
+  }
+}

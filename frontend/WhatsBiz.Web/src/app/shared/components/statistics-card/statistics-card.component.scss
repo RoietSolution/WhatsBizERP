@@ -1,4 +1,22 @@
-article { height: 100%; background: var(--wb-surface); border: 1px solid var(--wb-border); border-radius: var(--wb-radius-md); box-shadow: var(--wb-shadow-sm); }
-header { display: flex; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--wb-border); }
-p { margin: 0; font-weight: 600; }
-.statistics-card__content { min-height: 160px; padding: 24px; }
+article {
+  height: 100%;
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-md);
+  box-shadow: var(--wb-shadow-sm);
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--wb-border);
+}
+p {
+  margin: 0;
+  font-weight: 600;
+}
+.statistics-card__content {
+  min-height: 160px;
+  padding: 24px;
+}

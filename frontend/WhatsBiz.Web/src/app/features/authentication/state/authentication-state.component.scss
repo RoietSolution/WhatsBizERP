@@ -1,11 +1,58 @@
-:host { display: block; text-align: center; }
-.state-icon { display: grid; width: 72px; height: 72px; margin: 0 auto 20px; color: var(--wb-info); background: #f0f9ff; border-radius: 20px; place-items: center; }
-.state-icon[data-tone='warning'] { color: #b45309; background: #fffbeb; }
-.state-icon[data-tone='danger'] { color: #b91c1c; background: #fef2f2; }
-.state-icon .material-symbols-rounded { font-size: 36px; }
-.state-code { margin-bottom: 8px; color: var(--wb-text-secondary); font-size: .6875rem; font-weight: 700; letter-spacing: .12em; }
-h2 { margin-bottom: 12px; font-size: 1.5rem; letter-spacing: -.02em; }
-.state-message { margin-bottom: 28px; color: var(--wb-text-secondary); line-height: 1.65; }
-.state-actions { display: grid; gap: 8px; }
-.state-support { display: flex; margin: 24px 0 0; color: var(--wb-text-secondary); align-items: center; justify-content: center; gap: 6px; font-size: .6875rem; }
-.state-support .material-symbols-rounded { font-size: 17px; }
+:host {
+  display: block;
+  text-align: center;
+}
+.state-icon {
+  display: grid;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
+  color: var(--wb-info);
+  background: #f0f9ff;
+  border-radius: 20px;
+  place-items: center;
+}
+.state-icon[data-tone='warning'] {
+  color: #b45309;
+  background: #fffbeb;
+}
+.state-icon[data-tone='danger'] {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+.state-icon .material-symbols-rounded {
+  font-size: 36px;
+}
+.state-code {
+  margin-bottom: 8px;
+  color: var(--wb-text-secondary);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+h2 {
+  margin-bottom: 12px;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+.state-message {
+  margin-bottom: 28px;
+  color: var(--wb-text-secondary);
+  line-height: 1.65;
+}
+.state-actions {
+  display: grid;
+  gap: 8px;
+}
+.state-support {
+  display: flex;
+  margin: 24px 0 0;
+  color: var(--wb-text-secondary);
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.6875rem;
+}
+.state-support .material-symbols-rounded {
+  font-size: 17px;
+}

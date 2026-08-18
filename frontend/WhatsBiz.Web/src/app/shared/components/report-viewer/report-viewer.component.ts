@@ -1,2 +1,25 @@
-import{ChangeDetectionStrategy,Component,input,output,signal}from'@angular/core';import{MatButtonModule}from'@angular/material/button';import{DataTableComponent}from'../data-table/data-table.component';import{ChartComponent,DashboardChartConfig}from'../chart/chart.component';
-@Component({selector:'app-report-viewer',imports:[MatButtonModule,DataTableComponent,ChartComponent],templateUrl:'./report-viewer.component.html',styleUrl:'./report-viewer.component.scss',changeDetection:ChangeDetectionStrategy.OnPush})export class ReportViewerComponent<T extends object>{readonly rows=input<T[]>([]);readonly columns=input<any[]>([]);readonly chart=input<DashboardChartConfig|null>(null);readonly chartLabel=input('Interactive report visualization');readonly loading=input(false);readonly emptyTitle=input('No report data found');readonly searchChange=output<string>();readonly view=signal<'grid'|'chart'|'split'>('split');readonly fullscreen=signal(false);toggleFullscreen(){this.fullscreen.update(value=>!value)}}
+import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
+import { DataTableComponent } from '../data-table/data-table.component';
+import { ChartComponent, DashboardChartConfig } from '../chart/chart.component';
+@Component({
+  selector: 'app-report-viewer',
+  imports: [MatButtonModule, DataTableComponent, ChartComponent],
+  templateUrl: './report-viewer.component.html',
+  styleUrl: './report-viewer.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class ReportViewerComponent<T extends object> {
+  readonly rows = input<T[]>([]);
+  readonly columns = input<any[]>([]);
+  readonly chart = input<DashboardChartConfig | null>(null);
+  readonly chartLabel = input('Interactive report visualization');
+  readonly loading = input(false);
+  readonly emptyTitle = input('No report data found');
+  readonly searchChange = output<string>();
+  readonly view = signal<'grid' | 'chart' | 'split'>('split');
+  readonly fullscreen = signal(false);
+  toggleFullscreen() {
+    this.fullscreen.update((value) => !value);
+  }
+}

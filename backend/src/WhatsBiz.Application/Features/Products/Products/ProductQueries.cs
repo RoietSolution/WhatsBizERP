@@ -8,4 +8,6 @@ public sealed record GetProductByIdQuery(Guid ProductId) : IRequest<ProductDto>;
 public sealed record ExportProductsQuery(string? Search = null, bool? IsActive = null) : IRequest<byte[]>;
 public sealed record DownloadProductTemplateQuery : IRequest<byte[]>;
 public sealed record GetProductImageQuery(Guid ProductId) : IRequest<ProductImageFile?>;
+public sealed record GetProductImagesQuery(Guid ProductId) : IRequest<IReadOnlyCollection<ProductImageDto>>;
+public sealed record GetProductImageByIdQuery(Guid ProductId, Guid ImageId) : IRequest<ProductImageFile?>;
 public sealed record ProductImageFile(string FileName, string ContentType, byte[] Content);

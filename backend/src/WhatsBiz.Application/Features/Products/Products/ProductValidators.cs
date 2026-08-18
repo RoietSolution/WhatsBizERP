@@ -1,5 +1,6 @@
 using FluentValidation;
 using WhatsBiz.Application.Features.Products.DTOs;
+using WhatsBiz.Domain.Products;
 
 namespace WhatsBiz.Application.Features.Products.Products;
 
@@ -9,6 +10,19 @@ public sealed class ProductInputValidator : AbstractValidator<ProductInput>
     {
         RuleFor(x => x.ProductCode).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Barcode).MaximumLength(100);
+        RuleFor(x => x.BarcodeType)
+            .NotEmpty()
+            .Must(type => type is not null && BarcodeTypes.All.Contains(type.Trim()))
+            .WithMessage("Barcode type must be CODE128, EAN13, EAN8, UPC, or CODE39.");
+        RuleFor(x => x.Barcode).Matches("^[0-9]{13}$")
+            .When(x => !string.IsNullOrWhiteSpace(x.Barcode) && string.Equals(x.BarcodeType, "EAN13", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("EAN13 barcodes must contain exactly 13 digits.");
+        RuleFor(x => x.Barcode).Matches("^[0-9]{8}$")
+            .When(x => !string.IsNullOrWhiteSpace(x.Barcode) && string.Equals(x.BarcodeType, "EAN8", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("EAN8 barcodes must contain exactly 8 digits.");
+        RuleFor(x => x.Barcode).Matches("^[0-9]{12}$")
+            .When(x => !string.IsNullOrWhiteSpace(x.Barcode) && string.Equals(x.BarcodeType, "UPC", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("UPC barcodes must contain exactly 12 digits.");
         RuleFor(x => x.ProductName).NotEmpty().MaximumLength(250);
         RuleFor(x => x.CategoryId).NotEmpty();
         RuleFor(x => x.BrandId).NotEmpty();

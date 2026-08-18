@@ -3,5 +3,14 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { PageContainerComponent } from '../../components/page-container/page-container.component';
 import { PageHeaderComponent } from '../../components/page-header/page-header.component';
 
-@Component({ selector: 'app-master-form-layout', imports: [MatTabsModule, PageContainerComponent, PageHeaderComponent], template: '<app-page-container><app-page-header [title]="title()" [description]="description()"><ng-content select="[form-actions]" /></app-page-header><section class="form-card"><mat-tab-group animationDuration="200ms"><mat-tab label="General"><div class="tab-content"><ng-content select="[general]" /></div></mat-tab><mat-tab label="Additional Information"><div class="tab-content"><ng-content select="[additional]" /></div></mat-tab><mat-tab label="Audit"><div class="tab-content"><ng-content select="[audit]" /></div></mat-tab><mat-tab label="Attachments"><div class="tab-content"><ng-content select="[attachments]" /></div></mat-tab></mat-tab-group></section></app-page-container>', styleUrl: './master-form-layout.component.scss', changeDetection: ChangeDetectionStrategy.OnPush })
-export class MasterFormLayoutComponent { readonly title = input.required<string>(); readonly description = input(''); }
+@Component({
+  selector: 'app-master-form-layout',
+  imports: [MatTabsModule, PageContainerComponent, PageHeaderComponent],
+  templateUrl: './master-form-layout.component.html',
+  styleUrl: './master-form-layout.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class MasterFormLayoutComponent {
+  readonly title = input.required<string>();
+  readonly description = input('');
+}

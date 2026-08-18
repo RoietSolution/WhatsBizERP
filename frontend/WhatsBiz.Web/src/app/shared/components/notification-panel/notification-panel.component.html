@@ -1,0 +1,65 @@
+<header>
+  <div>
+    <h2>Notifications</h2>
+    <span>{{ unread() }} unread</span>
+  </div>
+  <div>
+    <button
+      mat-icon-button
+      type="button"
+      aria-label="Refresh notifications"
+      (click)="notifications.load(true)"
+    >
+      <span class="material-symbols-rounded">refresh</span></button
+    ><button mat-button type="button" [disabled]="!unread()" (click)="notifications.markAllRead()">
+      Mark all read
+    </button>
+  </div>
+</header>
+<div class="notification-list">
+  @for (item of notifications.notifications(); track item.id) {
+    <article
+      tabindex="0"
+      [class.notification--unread]="!item.read"
+      (click)="$event.stopPropagation(); toggle(item.id)"
+      (keydown.enter)="$event.stopPropagation(); toggle(item.id)"
+    >
+      <span class="material-symbols-rounded" [attr.data-tone]="item.type">{{
+        item.type === 'success'
+          ? 'check_circle'
+          : item.type === 'warning'
+            ? 'warning'
+            : item.type === 'danger'
+              ? 'error'
+              : 'info'
+      }}</span>
+      <div>
+        <strong>{{ item.title }}</strong>
+        <p>{{ item.message }}</p>
+        <small>{{ item.createdAt | date: 'short' }}</small>
+        @if (expanded() === item.id) {
+          <div class="notification-details"><strong>Details</strong>
+            @for (part of detailParts(item.message); track part) {
+              @if (part.startsWith('Expiry date:')) { <strong class="notification-expiry">{{ part }}</strong> } @else { <span>{{ part }}</span> }
+            }
+            <small>Source: {{ item.referenceType || 'Dashboard alert' }} · This alert remains in your notification history after being read.</small>
+          </div>
+        }
+      </div>
+      <button
+        mat-icon-button
+        type="button"
+        aria-label="Dismiss notification"
+        (click)="$event.stopPropagation(); notifications.remove(item.id)"
+      >
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    </article>
+  } @empty {
+    <div class="notification-empty">
+      <span class="material-symbols-rounded">notifications_off</span>
+      <p>You are all caught up.</p>
+      <small>Recent notifications will appear here.</small>
+    </div>
+  }
+</div>

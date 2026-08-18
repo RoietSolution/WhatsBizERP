@@ -1,1 +1,71 @@
-import{Component,signal}from'@angular/core';import{FormsModule}from'@angular/forms';import{DomSanitizer,SafeResourceUrl}from'@angular/platform-browser';import{MatButtonModule}from'@angular/material/button';import{PrintApiService}from'./print-api.service';@Component({imports:[FormsModule,MatButtonModule],template:`<h1>Barcode & QR Generator</h1><section><label>Value<input [(ngModel)]="value"></label><label>Format<select [(ngModel)]="format"><option>CODE128</option><option>EAN13</option><option>EAN8</option><option>UPC</option><option>CODE39</option><option>QR</option></select></label><button mat-flat-button (click)="generate()">Generate</button></section>@if(url()){<article><img [src]="url()"><button mat-button (click)="download()">Download SVG</button></article>}`,styles:[`section{display:flex;gap:1rem;align-items:end;flex-wrap:wrap}label{display:grid}input,select{padding:.65rem}article{margin-top:2rem;background:#fff;padding:2rem;text-align:center}img{display:block;max-width:100%;margin:auto}`]})export class BarcodeGeneratorComponent{value='8901234567897';format='CODE128';url=signal<SafeResourceUrl|null>(null);blob?:Blob;constructor(private api:PrintApiService,private safe:DomSanitizer){}generate(){const call=this.format==='QR'?this.api.qrcode({value:this.value,pixelsPerModule:8}):this.api.barcode({value:this.value,format:this.format,width:400,height:120,showText:true});call.subscribe(b=>{this.blob=b;this.url.set(this.safe.bypassSecurityTrustResourceUrl(URL.createObjectURL(b)))})}download(){if(!this.blob)return;const a=document.createElement('a');a.href=URL.createObjectURL(this.blob);a.download=`${this.format.toLowerCase()}.svg`;a.click();URL.revokeObjectURL(a.href)}}
+import { Component, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { MatButtonModule } from '@angular/material/button';
+import { PrintApiService } from './print-api.service';
+@Component({
+  imports: [FormsModule, MatButtonModule],
+  templateUrl: './barcode-generator.component.html',
+  styles: [
+    `
+      section {
+        display: flex;
+        gap: 1rem;
+        align-items: end;
+        flex-wrap: wrap;
+      }
+      label {
+        display: grid;
+      }
+      input,
+      select {
+        padding: 0.65rem;
+      }
+      article {
+        margin-top: 2rem;
+        background: #fff;
+        padding: 2rem;
+        text-align: center;
+      }
+      img {
+        display: block;
+        max-width: 100%;
+        margin: auto;
+      }
+    `,
+  ],
+})
+export class BarcodeGeneratorComponent {
+  value = '8901234567897';
+  format = 'CODE128';
+  url = signal<SafeResourceUrl | null>(null);
+  blob?: Blob;
+  constructor(
+    private api: PrintApiService,
+    private safe: DomSanitizer,
+  ) {}
+  generate() {
+    const call =
+      this.format === 'QR'
+        ? this.api.qrcode({ value: this.value, pixelsPerModule: 8 })
+        : this.api.barcode({
+            value: this.value,
+            format: this.format,
+            width: 400,
+            height: 120,
+            showText: true,
+          });
+    call.subscribe((b) => {
+      this.blob = b;
+      this.url.set(this.safe.bypassSecurityTrustResourceUrl(URL.createObjectURL(b)));
+    });
+  }
+  download() {
+    if (!this.blob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(this.blob);
+    a.download = `${this.format.toLowerCase()}.svg`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+}

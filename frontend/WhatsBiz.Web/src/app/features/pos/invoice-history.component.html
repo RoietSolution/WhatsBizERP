@@ -1,0 +1,30 @@
+<h1>Invoice History</h1>
+<div class="table">
+  <table mat-table [dataSource]="items()">
+    <ng-container matColumnDef="number"
+      ><th mat-header-cell *matHeaderCellDef>Invoice</th>
+      <td mat-cell *matCellDef="let x">{{ x.invoiceNumber }}</td></ng-container
+    ><ng-container matColumnDef="date"
+      ><th mat-header-cell *matHeaderCellDef>Date</th>
+      <td mat-cell *matCellDef="let x">{{ x.invoiceDate }}</td></ng-container
+    ><ng-container matColumnDef="customer"
+      ><th mat-header-cell *matHeaderCellDef>Customer</th>
+      <td mat-cell *matCellDef="let x">{{ x.customerName || 'Walk-in' }}</td></ng-container
+    ><ng-container matColumnDef="total"
+      ><th mat-header-cell *matHeaderCellDef>Total</th>
+      <td mat-cell *matCellDef="let x">{{ x.grandTotal }}</td></ng-container
+    ><ng-container matColumnDef="status"
+      ><th mat-header-cell *matHeaderCellDef>Status</th>
+      <td mat-cell *matCellDef="let x">{{ x.status }}</td></ng-container
+    ><ng-container matColumnDef="actions"
+      ><th mat-header-cell *matHeaderCellDef></th>
+      <td mat-cell *matCellDef="let x">
+        <button mat-button (click)="print(x, 'A4')">A4</button
+        ><button mat-button (click)="print(x, '58MM')">58mm</button
+        ><button mat-button (click)="print(x, '80MM')">80mm</button>
+      </td></ng-container
+    >
+    <tr mat-header-row *matHeaderRowDef="cols"></tr>
+    <tr mat-row *matRowDef="let row; columns: cols"></tr>
+  </table>
+</div>

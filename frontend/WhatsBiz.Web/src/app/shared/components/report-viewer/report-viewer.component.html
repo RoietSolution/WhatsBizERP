@@ -1,1 +1,48 @@
-<section class="viewer" [class.fullscreen]="fullscreen()"><header><div class="view-switch" role="group" aria-label="Report view"><button mat-button [class.active]="view()==='grid'" (click)="view.set('grid')"><span class="material-symbols-rounded">table_rows</span>Grid</button><button mat-button [class.active]="view()==='chart'" (click)="view.set('chart')"><span class="material-symbols-rounded">bar_chart</span>Chart</button><button mat-button [class.active]="view()==='split'" (click)="view.set('split')"><span class="material-symbols-rounded">vertical_split</span>Split</button></div><div><button mat-icon-button aria-label="Group report"><span class="material-symbols-rounded">account_tree</span></button><button mat-icon-button aria-label="Choose report columns"><span class="material-symbols-rounded">view_column</span></button><button mat-icon-button [attr.aria-label]="fullscreen()?'Exit fullscreen':'Open fullscreen'" (click)="toggleFullscreen()"><span class="material-symbols-rounded">{{fullscreen()?'fullscreen_exit':'fullscreen'}}</span></button></div></header><div class="canvas" [attr.data-view]="view()">@if(view()!=='chart'){<app-data-table [rows]="rows()" [columns]="columns()" [loading]="loading()" [actions]="[]" [emptyTitle]="emptyTitle()" (searchChange)="searchChange.emit($event)"/>}@if(view()!=='grid'){<div class="chart-canvas">@if(chart()){<app-chart [config]="chart()!" [ariaLabel]="chartLabel()"/>}@else{<div class="placeholder"><span class="material-symbols-rounded">monitoring</span><p>Chart visualization will appear when report data is available.</p></div>}</div>}</div></section>
+<section class="viewer" [class.fullscreen]="fullscreen()">
+  <header>
+    <div class="view-switch" role="group" aria-label="Report view">
+      <button mat-button [class.active]="view() === 'grid'" (click)="view.set('grid')">
+        <span class="material-symbols-rounded">table_rows</span>Grid</button
+      ><button mat-button [class.active]="view() === 'chart'" (click)="view.set('chart')">
+        <span class="material-symbols-rounded">bar_chart</span>Chart</button
+      ><button mat-button [class.active]="view() === 'split'" (click)="view.set('split')">
+        <span class="material-symbols-rounded">vertical_split</span>Split
+      </button>
+    </div>
+    <div>
+      <button
+        mat-icon-button
+        [attr.aria-label]="fullscreen() ? 'Exit fullscreen' : 'Open fullscreen'"
+        (click)="toggleFullscreen()"
+      >
+        <span class="material-symbols-rounded">{{
+          fullscreen() ? 'fullscreen_exit' : 'fullscreen'
+        }}</span>
+      </button>
+    </div>
+  </header>
+  <div class="canvas" [attr.data-view]="view()">
+    @if (view() !== 'chart') {
+      <app-data-table
+        [rows]="rows()"
+        [columns]="columns()"
+        [loading]="loading()"
+        [actions]="[]"
+        [emptyTitle]="emptyTitle()"
+        (searchChange)="searchChange.emit($event)"
+      />
+    }
+    @if (view() !== 'grid') {
+      <div class="chart-canvas">
+        @if (chart()) {
+          <app-chart [config]="chart()!" [ariaLabel]="chartLabel()" />
+        } @else {
+          <div class="placeholder">
+            <span class="material-symbols-rounded">monitoring</span>
+            <p>Chart visualization will appear when report data is available.</p>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</section>

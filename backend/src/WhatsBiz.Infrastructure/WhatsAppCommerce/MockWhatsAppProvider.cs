@@ -27,6 +27,11 @@ public sealed class MockWhatsAppProvider : IWhatsAppCommerceProvider
         throw new BusinessRuleException("MOCK mode does not use a Meta connection.");
     public Task<WhatsAppProviderTestMessageResult> SendTestMessageAsync(WhatsAppProviderTestMessageRequest request, CancellationToken token) =>
         throw new BusinessRuleException("MOCK mode does not send external messages.");
+    public Task<WhatsAppCommerceSendResult> SendProductCollectionAsync(WhatsAppCommerceSendRequest request, CancellationToken token)
+    {
+        var text = $"{request.Title}\n\n" + string.Join("\n", request.Products.Select((x, i) => $"{i + 1}. {x.ProductName}  ₹{x.SellingPrice:0.00}"));
+        return Task.FromResult(new WhatsAppCommerceSendResult(true, $"mock-collection-{Guid.NewGuid():N}", DateTimeOffset.UtcNow, false, request.Products.Count, request.RecipientNumber, text));
+    }
 }
 
 public sealed class WhatsAppCommerceProviderResolver(IEnumerable<IWhatsAppCommerceProvider> providers) : IWhatsAppCommerceProviderResolver

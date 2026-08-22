@@ -118,3 +118,17 @@ a {
   color: var(--wb-danger);
   font-weight: 700;
 }
+
+/* Keep reusable Material controls inside responsive grid/flex cells. */
+@media (max-width: 767px) {
+  .mat-mdc-form-field {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .mat-mdc-form-field-infix {
+    min-width: 0;
+  }
+  .page-container {
+    min-width: 0;
+  }
+}

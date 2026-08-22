@@ -10,7 +10,8 @@ namespace WhatsBiz.Infrastructure.POS;
 
 public sealed class POSEngine(
     SqlIdempotencyExecutor idempotency,
-    IHttpContextAccessor httpContext) : IPOSEngine
+    IHttpContextAccessor httpContext,
+    ICurrentUserService currentUser) : IPOSEngine
 {
     public async Task<POSPostResult> Post(POSPostRequest r, CancellationToken token)
     {
@@ -23,6 +24,14 @@ public sealed class POSEngine(
                 r.User,
                 async (connection, transaction, ct) =>
                 {
+                    if (r.CustomerId is Guid customerId)
+                    {
+                        var tenantId = currentUser.TenantId ?? r.TenantId ?? throw new BusinessRuleException("A tenant context is required for customer transactions.");
+                        if (r.TenantId is Guid requestTenant && requestTenant != tenantId) throw new BusinessRuleException("The transaction tenant does not match the authenticated tenant.");
+                        await using var customer = new SqlCommand("SELECT COUNT(1) FROM sales.Customers WHERE CustomerId=@customer AND TenantId=@tenant AND IsDeleted=0;", connection, transaction);
+                        customer.Parameters.AddWithValue("@customer", customerId); customer.Parameters.AddWithValue("@tenant", tenantId);
+                        if (Convert.ToInt32(await customer.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture) != 1) throw new BusinessRuleException("The selected customer is not available in the current tenant.");
+                    }
                     await using var command = Command(connection, transaction, "sales.POS_PostInvoice",
                     [
                         ("@CounterId", r.CounterId), ("@ShiftId", r.ShiftId),

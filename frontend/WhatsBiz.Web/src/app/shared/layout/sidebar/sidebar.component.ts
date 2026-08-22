@@ -68,6 +68,7 @@ const navigation: NavigationItem[] = [
     permission: 'product.view',
     children: [
       { label: 'Product List', icon: 'category', route: '/products', permission: 'product.view' },
+      { label: 'Collections', icon: 'collections_bookmark', route: '/products/collections', permission: 'product.view' },
       {
         label: 'Categories',
         icon: 'account_tree',
@@ -152,6 +153,7 @@ const navigation: NavigationItem[] = [
     icon: 'groups',
     children: [
       { label: 'Customers', icon: 'person', route: '/customers', permission: 'customer.view' },
+      { label: 'Customer Groups', icon: 'group_work', route: '/customer-groups', permission: 'customer.view' },
       {
         label: 'Suppliers',
         icon: 'local_shipping',
@@ -231,6 +233,7 @@ const navigation: NavigationItem[] = [
     ],
   },
   { label: 'Warehouses', icon: 'factory', route: '/warehouses', permission: 'warehouse.view' },
+  { label: 'Delivery Management', icon: 'local_shipping', route: '/admin/whatsapp-deliveries', permission: 'pos.edit', feature: 'WHATSAPP_COMMERCE' },
   {
     label: 'Administration',
     icon: 'admin_panel_settings',

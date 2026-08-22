@@ -1,5 +1,6 @@
 .toolbar {
   display: flex;
+  min-width: 0;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
@@ -19,6 +20,7 @@
 .toolbar__start,
 .toolbar__end {
   display: flex;
+  min-width: 0;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
@@ -30,5 +32,14 @@
   }
   .toolbar__end {
     justify-content: flex-end;
+  }
+  .toolbar__start,
+  .toolbar__end {
+    width: 100%;
+  }
+  .toolbar__start > *,
+  .toolbar__end > * {
+    min-width: 0;
+    max-width: 100%;
   }
 }

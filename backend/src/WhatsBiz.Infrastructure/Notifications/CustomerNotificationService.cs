@@ -13,7 +13,7 @@ using WhatsBiz.Application.Features.CustomerNotifications;
 
 namespace WhatsBiz.Infrastructure.Notifications;
 
-public sealed class CustomerNotificationService(IConfiguration configuration, IOptionsMonitor<FeatureOptions> features, ILogger<CustomerNotificationService> logger) : ICustomerNotificationService
+public sealed class CustomerNotificationService(IConfiguration configuration, IOptionsMonitor<FeatureOptions> features, ILogger<CustomerNotificationService> logger, ICurrentUserService currentUser) : ICustomerNotificationService
 {
     public const string DefaultWhatsAppTemplate = "Thank you for shopping with {{company_name}}!\n\nInvoice: {{invoice_no}}\nAmount: {{currency}}{{total_amount}}\n\nWe appreciate your business.\nVisit us again!";
     public const string DefaultSmsTemplate = "Thank you for shopping with {{company_name}}. Invoice {{invoice_no}}, Amount {{currency}}{{total_amount}}. We appreciate your business.";
@@ -41,9 +41,9 @@ public sealed class CustomerNotificationService(IConfiguration configuration, IO
                        co.Country,COALESCE((SELECT STRING_AGG(pm.MethodName,N', ') FROM sales.SalesPayments p JOIN sales.PaymentMethods pm ON pm.PaymentMethodId=p.PaymentMethodId WHERE p.InvoiceId=i.InvoiceId AND p.Status=N'COMPLETED'),N'')
                 FROM sales.SalesInvoices i JOIN sales.Customers c ON c.CustomerId=i.CustomerId
                 CROSS JOIN (SELECT TOP(1) CompanyName,Phone,AddressLine1,AddressLine2,City,State,PostalCode,Country FROM admin.Companies WHERE IsActive=1 ORDER BY CreatedOn) co
-                WHERE i.InvoiceId=@invoiceId;
+                WHERE i.InvoiceId=@invoiceId AND c.TenantId=@tenant;
                 """, connection);
-            query.Parameters.AddWithValue("@invoiceId", invoiceId);
+            query.Parameters.AddWithValue("@invoiceId", invoiceId); query.Parameters.AddWithValue("@tenant", currentUser.TenantId ?? Guid.Empty);
             await using var reader = await query.ExecuteReaderAsync(token);
             if (!await reader.ReadAsync(token)) return;
             var data = new TemplateData(reader.GetGuid(0), reader.GetString(1), reader.GetDateTimeOffset(2), reader.GetDecimal(3), reader.GetDecimal(4), reader.GetDecimal(5),
@@ -89,8 +89,8 @@ public sealed class CustomerNotificationService(IConfiguration configuration, IO
     public async Task<IReadOnlyCollection<CustomerNotificationHistoryDto>> History(int take, CancellationToken token)
     {
         var rows = new List<CustomerNotificationHistoryDto>(); await using var connection = new SqlConnection(ConnectionString); await connection.OpenAsync(token);
-        await using var command = new SqlCommand("SELECT TOP(@take) n.CustomerNotificationId,n.CreatedOn,c.CustomerName,i.InvoiceNumber,n.EventType,n.Channel,n.Recipient,n.Status,n.AttemptCount,n.ErrorMessage,n.SentOn,n.LastAttemptOn FROM integration.CustomerNotifications n JOIN sales.Customers c ON c.CustomerId=n.CustomerId JOIN sales.SalesInvoices i ON i.InvoiceId=n.DocumentId ORDER BY n.CreatedOn DESC;", connection);
-        command.Parameters.AddWithValue("@take", Math.Clamp(take, 1, 500)); await using var reader = await command.ExecuteReaderAsync(token);
+        await using var command = new SqlCommand("SELECT TOP(@take) n.CustomerNotificationId,n.CreatedOn,c.CustomerName,i.InvoiceNumber,n.EventType,n.Channel,n.Recipient,n.Status,n.AttemptCount,n.ErrorMessage,n.SentOn,n.LastAttemptOn FROM integration.CustomerNotifications n JOIN sales.Customers c ON c.CustomerId=n.CustomerId JOIN sales.SalesInvoices i ON i.InvoiceId=n.DocumentId WHERE c.TenantId=@tenant ORDER BY n.CreatedOn DESC;", connection);
+        command.Parameters.AddWithValue("@take", Math.Clamp(take, 1, 500)); command.Parameters.AddWithValue("@tenant", currentUser.TenantId ?? Guid.Empty); await using var reader = await command.ExecuteReaderAsync(token);
         while (await reader.ReadAsync(token)) rows.Add(new(reader.GetGuid(0), reader.GetDateTimeOffset(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), reader.GetString(7), reader.GetInt32(8), reader.IsDBNull(9) ? null : reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetDateTimeOffset(10), reader.IsDBNull(11) ? null : reader.GetDateTimeOffset(11)));
         return rows;
     }
@@ -98,8 +98,8 @@ public sealed class CustomerNotificationService(IConfiguration configuration, IO
     public async Task Retry(Guid notificationId, string? user, CancellationToken token)
     {
         await using var connection = new SqlConnection(ConnectionString); await connection.OpenAsync(token);
-        await using var lookup = new SqlCommand("SELECT c.Mobile,co.Country,n.Channel FROM integration.CustomerNotifications n JOIN sales.Customers c ON c.CustomerId=n.CustomerId CROSS JOIN(SELECT TOP(1) Country FROM admin.Companies WHERE IsActive=1 ORDER BY CreatedOn)co WHERE n.CustomerNotificationId=@id AND n.Status=N'FAILED';", connection);
-        lookup.Parameters.AddWithValue("@id", notificationId); await using var reader = await lookup.ExecuteReaderAsync(token);
+        await using var lookup = new SqlCommand("SELECT c.Mobile,co.Country,n.Channel FROM integration.CustomerNotifications n JOIN sales.Customers c ON c.CustomerId=n.CustomerId CROSS JOIN(SELECT TOP(1) Country FROM admin.Companies WHERE IsActive=1 ORDER BY CreatedOn)co WHERE n.CustomerNotificationId=@id AND c.TenantId=@tenant AND n.Status=N'FAILED';", connection);
+        lookup.Parameters.AddWithValue("@id", notificationId); lookup.Parameters.AddWithValue("@tenant", currentUser.TenantId ?? Guid.Empty); await using var reader = await lookup.ExecuteReaderAsync(token);
         if (!await reader.ReadAsync(token)) throw new ArgumentException("Only failed notifications can be retried.");
         var mobile = reader.IsDBNull(0) ? null : reader.GetString(0); var country = reader.GetString(1); var channel = reader.GetString(2); await reader.CloseAsync();
         if (!ChannelEnabled(channel)) throw new BusinessRuleException($"{channel} notifications are currently disabled.");

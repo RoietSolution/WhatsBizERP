@@ -52,4 +52,15 @@ public sealed class WhatsAppCommerceDemoTests
         var messages = await new MockWhatsAppProvider().SendOrderStatusAsync("WB-1024", "COMPLETED", default);
         messages.Single().Text.Should().Contain("WB-1024").And.Contain("completed successfully");
     }
+
+    [Fact]
+    public async Task MockProviderSendsCollectionUsingRealProductValues()
+    {
+        var result = await new MockWhatsAppProvider().SendProductCollectionAsync(new("", "", "", "919999999999", "Wedding Collection", [
+            new(Guid.NewGuid(), "Banarasi Silk Saree", "SKU-1", 1299m, null, null, null)], false), default);
+        result.Succeeded.Should().BeTrue();
+        result.NativeUsed.Should().BeFalse();
+        result.ProductsSent.Should().Be(1);
+        result.SafeMessage.Should().Contain("Banarasi Silk Saree").And.Contain("1299.00");
+    }
 }

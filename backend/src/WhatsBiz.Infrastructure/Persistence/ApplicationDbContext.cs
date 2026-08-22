@@ -8,6 +8,7 @@ using WhatsBiz.Domain.Warehouses;
 using WhatsBiz.Domain.Inventory;
 using WhatsBiz.Domain.POS;
 using WhatsBiz.Domain.Purchases;
+using WhatsBiz.Domain.Commerce;
 
 namespace WhatsBiz.Infrastructure.Persistence;
 
@@ -23,6 +24,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<ProductBarcode> ProductBarcodes => Set<ProductBarcode>();
     public DbSet<ProductPrice> ProductPrices => Set<ProductPrice>();
     public DbSet<ProductTaxMapping> ProductTaxMappings => Set<ProductTaxMapping>();
+    public DbSet<CommerceCollection> CommerceCollections => Set<CommerceCollection>();
+    public DbSet<CommerceCollectionProduct> CommerceCollectionProducts => Set<CommerceCollectionProduct>();
+    public DbSet<CustomerGroup> CustomerGroups => Set<CustomerGroup>();
     public DbSet<Supplier> Suppliers => Set<Supplier>(); public DbSet<SupplierContact> SupplierContacts => Set<SupplierContact>(); public DbSet<SupplierAddress> SupplierAddresses => Set<SupplierAddress>(); public DbSet<SupplierBankAccount> SupplierBankAccounts => Set<SupplierBankAccount>(); public DbSet<SupplierDocument> SupplierDocuments => Set<SupplierDocument>(); public DbSet<SupplierPaymentTerm> SupplierPaymentTerms => Set<SupplierPaymentTerm>(); public DbSet<Customer> Customers => Set<Customer>(); public DbSet<CustomerContact> CustomerContacts => Set<CustomerContact>(); public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>(); public DbSet<CustomerBankAccount> CustomerBankAccounts => Set<CustomerBankAccount>(); public DbSet<CustomerDocument> CustomerDocuments => Set<CustomerDocument>(); public DbSet<CustomerPaymentTerm> CustomerPaymentTerms => Set<CustomerPaymentTerm>(); public DbSet<Warehouse> Warehouses => Set<Warehouse>(); public DbSet<WarehouseType> WarehouseTypes => Set<WarehouseType>(); public DbSet<WarehouseAddress> WarehouseAddresses => Set<WarehouseAddress>(); public DbSet<WarehouseContact> WarehouseContacts => Set<WarehouseContact>(); public DbSet<WarehouseZone> WarehouseZones => Set<WarehouseZone>(); public DbSet<WarehouseBin> WarehouseBins => Set<WarehouseBin>(); public DbSet<InventoryBalance> InventoryBalances => Set<InventoryBalance>(); public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>(); public DbSet<InventoryTransactionDetail> InventoryTransactionDetails => Set<InventoryTransactionDetail>(); public DbSet<StockAdjustment> StockAdjustments => Set<StockAdjustment>(); public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>(); public DbSet<StockReservation> StockReservations => Set<StockReservation>(); public DbSet<InventorySettings> InventorySettings => Set<InventorySettings>(); public DbSet<InventoryValuation> InventoryValuations => Set<InventoryValuation>(); public DbSet<SalesInvoice> SalesInvoices => Set<SalesInvoice>(); public DbSet<SalesInvoiceItem> SalesInvoiceItems => Set<SalesInvoiceItem>(); public DbSet<SalesPayment> SalesPayments => Set<SalesPayment>(); public DbSet<SalesTax> SalesTaxes => Set<SalesTax>(); public DbSet<SalesDiscount> SalesDiscounts => Set<SalesDiscount>(); public DbSet<PaymentMethod> PaymentMethods => Set<PaymentMethod>(); public DbSet<SalesInvoiceReturn> SalesInvoiceReturns => Set<SalesInvoiceReturn>();
 
     public DbSet<PurchaseInvoice> PurchaseInvoices => Set<PurchaseInvoice>(); public DbSet<PurchaseInvoiceItem> PurchaseInvoiceItems => Set<PurchaseInvoiceItem>(); public DbSet<PurchasePayment> PurchasePayments => Set<PurchasePayment>(); public DbSet<PurchaseExpense> PurchaseExpenses => Set<PurchaseExpense>(); public DbSet<PurchaseReturn> PurchaseReturns => Set<PurchaseReturn>(); public DbSet<PurchaseAttachment> PurchaseAttachments => Set<PurchaseAttachment>();
@@ -59,8 +63,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         });
 
         ConfigureProductMaster(builder);
+        ConfigureCommerceCollections(builder);
         ConfigureSuppliers(builder);
         ConfigureCustomers(builder);
+        ConfigureCustomerGroups(builder);
+        ConfigureCustomerTenant(builder);
         ConfigureWarehouses(builder);
         ConfigureInventory(builder);
         ConfigurePOS(builder);
@@ -94,6 +101,33 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         builder.Entity<ProductBarcode>(entity => { ConfigureAudit(entity); entity.ToTable("ProductBarcodes", "master"); entity.HasKey(x => x.ProductBarcodeId); entity.Property(x => x.Barcode).HasMaxLength(100); entity.HasIndex(x => x.Barcode).IsUnique().HasFilter("[IsDeleted] = 0"); entity.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade); });
         builder.Entity<ProductPrice>(entity => { ConfigureAudit(entity); entity.ToTable("ProductPrices", "master"); entity.HasKey(x => x.ProductPriceId); entity.Property(x => x.PriceType).HasMaxLength(50); entity.Property(x => x.Amount).HasPrecision(18, 4); entity.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade); });
         builder.Entity<ProductTaxMapping>(entity => { ConfigureAudit(entity); entity.ToTable("ProductTaxMappings", "master"); entity.HasKey(x => x.ProductTaxMappingId); entity.Property(x => x.TaxCode).HasMaxLength(50); entity.Property(x => x.TaxPercentage).HasPrecision(5, 2); entity.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade); });
+    }
+
+    private static void ConfigureCustomerGroups(ModelBuilder b) { b.Entity<CustomerGroup>(e => { e.ToTable("CustomerGroups", "sales"); e.HasKey(x => x.CustomerGroupId); e.Property(x => x.GroupCode).HasMaxLength(50); e.Property(x => x.GroupName).HasMaxLength(150); e.HasIndex(x => new { x.TenantId, x.GroupCode }).IsUnique(); e.HasIndex(x => new { x.TenantId, x.GroupName }).IsUnique(); }); b.Entity<Customer>(e => e.HasOne(x => x.CustomerGroup).WithMany(x => x.Customers).HasForeignKey(x => x.CustomerGroupId).OnDelete(DeleteBehavior.Restrict)); }
+    private static void ConfigureCustomerTenant(ModelBuilder b) { b.Entity<Customer>(e => { e.Property(x => x.TenantId); e.HasIndex(x => new { x.TenantId, x.CustomerId }); e.HasIndex(x => new { x.TenantId, x.Mobile }); }); }
+
+    private static void ConfigureCommerceCollections(ModelBuilder builder)
+    {
+        builder.Entity<CommerceCollection>(entity =>
+        {
+            entity.ToTable("Collections", "commerce"); entity.HasKey(x => x.CollectionId);
+            entity.Property(x => x.Name).HasMaxLength(200); entity.Property(x => x.Slug).HasMaxLength(220);
+            entity.Property(x => x.Description).HasMaxLength(1000); entity.Property(x => x.RowVersion).IsRowVersion();
+            entity.HasIndex(x => new { x.TenantId, x.Name }).IsUnique().HasFilter("[IsDeleted] = 0");
+            entity.HasIndex(x => new { x.TenantId, x.Slug }).IsUnique().HasFilter("[IsDeleted] = 0");
+            entity.HasIndex(x => new { x.TenantId, x.IsActive, x.DisplayOrder, x.Name }).HasFilter("[IsDeleted] = 0");
+            entity.HasMany(x => x.Products).WithOne(x => x.Collection).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Entity<CommerceCollectionProduct>(entity =>
+        {
+            entity.ToTable("CollectionProducts", "commerce"); entity.HasKey(x => x.CollectionProductId);
+            entity.Property(x => x.CreatedBy).HasMaxLength(256); entity.Property(x => x.ModifiedBy).HasMaxLength(256);
+            entity.HasIndex(x => new { x.TenantId, x.CollectionId, x.ProductId }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.CollectionId, x.DisplayOrder, x.ProductId });
+            entity.HasIndex(x => new { x.TenantId, x.ProductId });
+            entity.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Collection).WithMany(x => x.Products).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
     private static void ConfigureAudit<TEntity>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity> entity) where TEntity : ProductMasterEntity

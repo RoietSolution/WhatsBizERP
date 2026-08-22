@@ -424,10 +424,19 @@ export const routes: Routes = [
       {
         path: 'admin/whatsapp-demo',
         canActivate: [permissionGuard, featureGuard],
-        data: { permission: 'pos.view', feature: 'WHATSAPP_COMMERCE', title: 'Commerce Catalog Preview' },
+        data: { permission: 'pos.view', feature: 'WHATSAPP_COMMERCE', title: 'WhatsApp Ecommerce Demo' },
         loadComponent: () =>
           import('./features/whatsapp/whatsapp-commerce-demo.component').then(
             (m) => m.WhatsAppCommerceDemoComponent,
+          ),
+      },
+      {
+        path: 'admin/whatsapp-deliveries',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permission: 'pos.edit', feature: 'WHATSAPP_COMMERCE', title: 'WhatsApp Delivery Management' },
+        loadComponent: () =>
+          import('./features/whatsapp/whatsapp-delivery-management.component').then(
+            (m) => m.WhatsAppDeliveryManagementComponent,
           ),
       },
       {
@@ -490,6 +499,36 @@ export const routes: Routes = [
         data: productView,
         loadComponent: () =>
           import('./features/products/product-list.component').then((m) => m.ProductListComponent),
+      },
+      {
+        path: 'products/collections',
+        canActivate: [permissionGuard],
+        data: productView,
+        loadComponent: () => import('./features/products/collection-list.component').then((m) => m.CollectionListComponent),
+      },
+      {
+        path: 'products/collections/new',
+        canActivate: [permissionGuard],
+        data: productCreate,
+        loadComponent: () => import('./features/products/collection-form.component').then((m) => m.CollectionFormComponent),
+      },
+      {
+        path: 'products/collections/:id/edit',
+        canActivate: [permissionGuard],
+        data: productEdit,
+        loadComponent: () => import('./features/products/collection-form.component').then((m) => m.CollectionFormComponent),
+      },
+      {
+        path: 'products/collections/:id/products',
+        canActivate: [permissionGuard],
+        data: productEdit,
+        loadComponent: () => import('./features/products/collection-products.component').then((m) => m.CollectionProductsComponent),
+      },
+      {
+        path: 'products/collections/:id/send',
+        canActivate: [permissionGuard],
+        data: productEdit,
+        loadComponent: () => import('./features/products/collection-send.component').then((m) => m.CollectionSendComponent),
       },
       {
         path: 'products/new',
@@ -573,6 +612,15 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/suppliers/supplier-view.component').then(
             (m) => m.SupplierViewComponent,
+          ),
+      },
+      {
+        path: 'customer-groups',
+        canActivate: [permissionGuard],
+        data: customerView,
+        loadComponent: () =>
+          import('./features/customers/customer-groups.component').then(
+            (m) => m.CustomerGroupsComponent,
           ),
       },
       {

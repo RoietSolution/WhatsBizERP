@@ -70,6 +70,32 @@ public sealed partial class MetaCloudApiWhatsAppProvider(IHttpClientFactory clie
         catch (JsonException) { return new(false, null, now, "Meta returned an unexpected message response."); }
     }
 
+    public async Task<WhatsAppCommerceSendResult> SendProductCollectionAsync(WhatsAppCommerceSendRequest request, CancellationToken token)
+    {
+        var now = DateTimeOffset.UtcNow;
+        try
+        {
+            object payload;
+            var products = request.Products.Take(10).ToArray();
+            var fallback = request.Title + "\n\n" + string.Join("\n", request.Products.Select((x, i) => $"{i + 1}. {x.ProductName}  {x.SellingPrice:0.00}"));
+            if (request.UseNativeProducts && products.Length == 1 && !string.IsNullOrWhiteSpace(products[0].CatalogId) && !string.IsNullOrWhiteSpace(products[0].ExternalProductId))
+                payload = new Dictionary<string, object?> { ["messaging_product"] = "whatsapp", ["to"] = request.RecipientNumber, ["type"] = "interactive", ["interactive"] = new { type = "product", body = new { text = request.Title }, action = new { catalog_id = products[0].CatalogId, product_retailer_id = products[0].ExternalProductId } } };
+            else if (request.UseNativeProducts && products.Length > 1 && products.All(x => !string.IsNullOrWhiteSpace(x.CatalogId) && !string.IsNullOrWhiteSpace(x.ExternalProductId)) && products.Select(x => x.CatalogId).Distinct(StringComparer.Ordinal).Count() == 1)
+                payload = new Dictionary<string, object?> { ["messaging_product"] = "whatsapp", ["to"] = request.RecipientNumber, ["type"] = "interactive", ["interactive"] = new { type = "product_list", header = new { type = "text", text = request.Title }, body = new { text = "Products available now" }, action = new { catalog_id = products[0].CatalogId, sections = new[] { new { title = request.Title, product_items = products.Select(x => new { product_retailer_id = x.ExternalProductId }).ToArray() } } } } };
+            else
+                payload = new Dictionary<string, object?> { ["messaging_product"] = "whatsapp", ["to"] = request.RecipientNumber, ["type"] = "text", ["text"] = new { preview_url = false, body = fallback } };
+            using var httpRequest = Create(HttpMethod.Post, $"{BaseUrl()}/{Uri.EscapeDataString(request.ApiVersion)}/{Uri.EscapeDataString(request.PhoneNumberId)}/messages", request.AccessToken);
+            httpRequest.Content = JsonContent.Create(payload);
+            using var response = await clients.CreateClient("MetaWhatsApp").SendAsync(httpRequest, token);
+            if (!response.IsSuccessStatusCode) { MetaProviderLogs.RequestRejected(logger, "SEND_COLLECTION", (int)response.StatusCode); return new(false, null, now, false, 0, request.RecipientNumber, SafeFailure(response.StatusCode)); }
+            await using var stream = await response.Content.ReadAsStreamAsync(token); using var document = await JsonDocument.ParseAsync(stream, cancellationToken: token);
+            var id = document.RootElement.TryGetProperty("messages", out var messages) && messages.GetArrayLength() > 0 && messages[0].TryGetProperty("id", out var idNode) ? idNode.GetString() : null;
+            return string.IsNullOrWhiteSpace(id) ? new(false, null, now, request.UseNativeProducts, 0, request.RecipientNumber, "Meta accepted the request but returned no message ID.") : new(true, id, now, request.UseNativeProducts, products.Length, request.RecipientNumber, "Collection accepted by Meta.");
+        }
+        catch (HttpRequestException) { return new(false, null, now, false, 0, request.RecipientNumber, "Meta could not be reached. Check network connectivity and try again."); }
+            catch (JsonException) { return new(false, null, now, false, 0, request.RecipientNumber, "Meta returned an unexpected message response."); }
+    }
+
     private static HttpRequestMessage Create(HttpMethod method, string url, string token)
     { var request = new HttpRequestMessage(method, url); request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token); return request; }
     private string BaseUrl()

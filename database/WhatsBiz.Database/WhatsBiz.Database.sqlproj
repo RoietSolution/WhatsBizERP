@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.Build.Sql/1.0.0">
   <PropertyGroup><TargetFramework>net8.0</TargetFramework><SqlServerVersion>Sql160</SqlServerVersion><DSP>Microsoft.Data.Tools.Schema.Sql.Sql160DatabaseSchemaProvider</DSP><UseTaskHostFactory>false</UseTaskHostFactory><NoWarn>$(NoWarn);CA1016</NoWarn></PropertyGroup>
   <ItemGroup>
-    <Build Remove="SeedData\SupplierPaymentTerms.sql"/><Build Remove="SeedData\CustomerPaymentTerms.sql"/><Build Remove="SeedData\WarehouseTypes.sql"/><Build Remove="SeedData\InventorySettings.sql"/><Build Remove="SeedData\PaymentMethods.sql"/><Build Remove="SeedData\InvoiceSeries.sql"/><Build Remove="SeedData\PurchaseSeries.sql"/><Build Remove="SeedData\DemoData.sql"/>
+    <Build Remove="SeedData\SupplierPaymentTerms.sql"/><Build Remove="SeedData\CustomerPaymentTerms.sql"/><Build Remove="SeedData\WarehouseTypes.sql"/><Build Remove="SeedData\InventorySettings.sql"/><Build Remove="SeedData\PaymentMethods.sql"/><Build Remove="SeedData\InvoiceSeries.sql"/><Build Remove="SeedData\PurchaseSeries.sql"/><Build Remove="SeedData\DemoData.sql"/><Build Remove="SeedData\ApplyRealDemoImages.sql"/>
     <Build Remove="Scripts\VerifyPOS.sql"/><Build Remove="Scripts\VerifyPurchase.sql"/><Build Remove="Scripts\V1_ReleaseHardening.sql"/>
     <Build Remove="Scripts\RCDEV008-RuntimeObjects.sql"/>
     <Build Remove="Scripts\RCDEV009-PrintingPaperSize.sql"/>
@@ -9,7 +9,7 @@
     <Build Remove="Scripts\V2-WC-DEMO-003-DemoTenantEnablement.sql"/>
     <Build Remove="Scripts\V3-ProductImageOptimization.sql"/>
     <Build Remove="Scripts\V4-DashboardNotificationDetails.sql"/>
-    <None Include="SeedData\DemoData.sql"/><None Include="Scripts\VerifyPOS.sql"/><None Include="Scripts\VerifyPurchase.sql"/><None Include="Scripts\V1_ReleaseHardening.sql"/>
+    <None Include="SeedData\DemoData.sql"/><None Include="SeedData\ApplyRealDemoImages.sql"/><None Include="Scripts\VerifyPOS.sql"/><None Include="Scripts\VerifyPurchase.sql"/><None Include="Scripts\V1_ReleaseHardening.sql"/>
     <None Include="Scripts\RCDEV008-RuntimeObjects.sql"/>
     <None Include="Scripts\RCDEV009-PrintingPaperSize.sql"/>
     <None Include="Scripts\RCDEV010-CustomerNotifications.sql"/>
@@ -22,6 +22,13 @@
     <None Include="Scripts\V2-WC003A-MetaTestReadiness.sql"/>
     <None Include="Scripts\V3-ProductImageOptimization.sql"/>
     <None Include="Scripts\V4-DashboardNotificationDetails.sql"/>
+    <None Include="Scripts\V5-CommerceCollections.sql"/>
+    <None Include="Scripts\V6-CommerceProductChannelMappings.sql"/>
+    <None Include="Scripts\V7-CustomerTenantIsolation.sql"/>
+    <None Include="Scripts\V8-CommerceAnalyticsEvents.sql"/>
+    <None Include="Scripts\V9-CustomerGroups.sql"/>
+    <None Include="Scripts\V10-WhatsAppCommerceCheckout.sql"/>
+    <None Include="Scripts\V11-WhatsAppCommerceDeliveryTracking.sql"/>
     <None Include="Scripts\Onboarding_Retailer.sql"/>
     <None Include="Scripts\Deboarding_Retailer.sql"/>
     <PostDeploy Include="Scripts\PostDeployment.sql"/>

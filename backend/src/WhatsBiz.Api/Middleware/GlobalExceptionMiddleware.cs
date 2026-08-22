@@ -13,6 +13,11 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
     public async Task InvokeAsync(HttpContext context)
     {
         try { await next(context); }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            // Browsers may cancel queued image requests while the demo is loading or navigating.
+            // The response can no longer be written, so this is not an application failure.
+        }
         catch (ValidationException exception)
         {
             ValidationFailed(logger, context.Request.Path, exception);

@@ -16,6 +16,7 @@ using WhatsBiz.Infrastructure.Features;
 using Microsoft.AspNetCore.Authorization;
 using WhatsBiz.Api.Authorization;
 using WhatsBiz.Infrastructure.WhatsApp;
+using WhatsBiz.Infrastructure.Analytics;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console(formatProvider: CultureInfo.InvariantCulture).CreateBootstrapLogger();
 
@@ -40,6 +41,9 @@ try
     builder.Services.AddScoped<IPrintRepository, PrintRepository>();
     builder.Services.AddSingleton<IPrintingService, PrintingService>();
     builder.Services.AddScoped<IAdminRepository, AdminRepository>();
+    builder.Services.AddScoped<ICommerceCollectionRepository, CommerceCollectionRepository>();
+    builder.Services.AddScoped<ICustomerGroupRepository, CustomerGroupRepository>();
+    builder.Services.AddScoped<ICommerceAnalyticsService, CommerceAnalyticsService>();
     builder.Services.AddScoped<IDatabaseMaintenanceService, DatabaseMaintenanceService>();
     builder.Services.AddApiServices(builder.Configuration);
     var app = builder.Build();

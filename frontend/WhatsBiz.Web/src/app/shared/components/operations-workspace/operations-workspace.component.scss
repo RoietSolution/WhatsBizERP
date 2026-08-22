@@ -4,6 +4,10 @@
   gap: 16px;
   margin-bottom: 20px;
 }
+.workspace-kpis > *,
+.workspace-grid > * {
+  min-width: 0;
+}
 .workspace-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;

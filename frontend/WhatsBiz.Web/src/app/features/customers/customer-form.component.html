@@ -50,8 +50,7 @@
           ><mat-label>Sales person ID</mat-label
           ><input matInput formControlName="salesPersonId" /></mat-form-field
         ><mat-form-field
-          ><mat-label>Customer group ID</mat-label
-          ><input matInput formControlName="customerGroupId" /></mat-form-field
+          ><mat-label>Customer group</mat-label><mat-select formControlName="customerGroupId"><mat-option [value]="null">No group</mat-option>@for(group of groups(); track group.customerGroupId){<mat-option [value]="group.customerGroupId">{{group.groupName}} ({{group.groupCode}})</mat-option>}</mat-select></mat-form-field
         ><mat-form-field
           ><mat-label>Price list ID</mat-label
           ><input matInput formControlName="priceListId" /></mat-form-field

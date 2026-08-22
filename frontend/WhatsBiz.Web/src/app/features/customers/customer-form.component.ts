@@ -11,6 +11,8 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { forkJoin, of } from 'rxjs';
 import { CustomerApiService } from './customer-api.service';
 import { CustomerInput, PaymentTerm } from './customer.models';
+import { CustomerGroup } from './customer-group.models';
+import { CustomerGroupApiService } from './customer-group-api.service';
 @Component({
   imports: [
     ReactiveFormsModule,
@@ -61,6 +63,7 @@ export class CustomerFormComponent {
   private readonly fb = inject(FormBuilder);
   readonly id: string | null;
   readonly terms = signal<PaymentTerm[]>([]);
+  readonly groups = signal<CustomerGroup[]>([]);
   readonly form = this.fb.group({
     customerCode: ['', Validators.required],
     customerName: ['', Validators.required],
@@ -112,11 +115,13 @@ export class CustomerFormComponent {
     route: ActivatedRoute,
     private readonly router: Router,
     private readonly snack: MatSnackBar,
+    private readonly groupApi: CustomerGroupApiService,
   ) {
     this.id = route.snapshot.paramMap.get('id');
-    forkJoin({ terms: api.terms(), customer: this.id ? api.get(this.id) : of(null) }).subscribe(
+    forkJoin({ terms: api.terms(), groups: groupApi.list(), customer: this.id ? api.get(this.id) : of(null) }).subscribe(
       (x) => {
         this.terms.set(x.terms);
+        this.groups.set(x.groups);
         if (x.customer)
           this.form.patchValue({
             ...x.customer,

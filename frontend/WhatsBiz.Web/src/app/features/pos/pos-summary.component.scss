@@ -1,3 +1,8 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
 .summary-card {
   position: sticky;
   top: 80px;

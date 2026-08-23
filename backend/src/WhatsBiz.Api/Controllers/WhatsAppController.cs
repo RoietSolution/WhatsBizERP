@@ -11,20 +11,20 @@ namespace WhatsBiz.Api.Controllers;
 [ApiController, Route("api/whatsapp")]
 public sealed class WhatsAppController(IWhatsAppService service, ICurrentUserService currentUser) : ControllerBase
 {
-    [HttpGet("configuration"), HasPermission(Permissions.Admin.View), RequireFeature(FeatureKeys.WhatsAppCommerce)]
+    [HttpGet("configuration"), HasPermission(Permissions.Admin.View), RequireFeature(FeatureKeys.WhatsAppConfiguration)]
     public Task<WhatsAppConfigurationDto> Get(CancellationToken token) => service.GetConfigurationAsync(TenantId(), token);
 
-    [HttpPut("configuration"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.WhatsAppCommerce)]
+    [HttpPut("configuration"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.WhatsAppConfiguration)]
     public Task<WhatsAppConfigurationDto> Save(SaveWhatsAppConfigurationInput input, CancellationToken token) => service.SaveConfigurationAsync(TenantId(), input, currentUser.Username, token);
 
-    [HttpPost("configuration/validate"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.WhatsAppCommerce)]
+    [HttpPost("configuration/validate"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.MetaWhatsAppIntegration)]
     public Task<WhatsAppConnectionResult> Validate(ValidateWhatsAppConnectionInput? input, CancellationToken token) => service.ValidateConnectionAsync(TenantId(), input?.AccessToken, token);
 
-    [HttpPost("configuration/test-message"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.WhatsAppCommerce)]
+    [HttpPost("configuration/test-message"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.MetaWhatsAppIntegration)]
     public Task<WhatsAppTestMessageResult> SendTestMessage(SendWhatsAppTestMessageInput input, CancellationToken token) =>
         service.SendTestMessageAsync(TenantId(), input, token);
 
-    [HttpGet("configuration/diagnostics"), HasPermission(Permissions.Admin.View), RequireFeature(FeatureKeys.WhatsAppCommerce)]
+    [HttpGet("configuration/diagnostics"), HasPermission(Permissions.Admin.View), RequireFeature(FeatureKeys.WebhookDiagnostics)]
     public Task<WhatsAppMetaTestDiagnosticsDto> Diagnostics(CancellationToken token) => service.GetDiagnosticsAsync(TenantId(), token);
 
     [AllowAnonymous, HttpGet("webhook")]

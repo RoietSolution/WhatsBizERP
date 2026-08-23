@@ -9,6 +9,7 @@
     <Build Remove="Scripts\V2-WC-DEMO-003-DemoTenantEnablement.sql"/>
     <Build Remove="Scripts\V3-ProductImageOptimization.sql"/>
     <Build Remove="Scripts\V4-DashboardNotificationDetails.sql"/>
+    <Build Update="StoredProcedures\Finance_PostSource.sql"><SuppressTSqlWarnings>71502</SuppressTSqlWarnings></Build>
     <None Include="SeedData\DemoData.sql"/><None Include="SeedData\ApplyRealDemoImages.sql"/><None Include="Scripts\VerifyPOS.sql"/><None Include="Scripts\VerifyPurchase.sql"/><None Include="Scripts\V1_ReleaseHardening.sql"/>
     <None Include="Scripts\RCDEV008-RuntimeObjects.sql"/>
     <None Include="Scripts\RCDEV009-PrintingPaperSize.sql"/>
@@ -29,6 +30,7 @@
     <None Include="Scripts\V9-CustomerGroups.sql"/>
     <None Include="Scripts\V10-WhatsAppCommerceCheckout.sql"/>
     <None Include="Scripts\V11-WhatsAppCommerceDeliveryTracking.sql"/>
+    <None Include="Scripts\V12-HierarchicalFeatureManagement.sql"/>
     <None Include="Scripts\Onboarding_Retailer.sql"/>
     <None Include="Scripts\Deboarding_Retailer.sql"/>
     <PostDeploy Include="Scripts\PostDeployment.sql"/>

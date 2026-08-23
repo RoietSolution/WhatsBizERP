@@ -21,4 +21,5 @@ public static class Permissions
     public static class Users { public const string Manage = "user.manage"; }
     public static class Roles { public const string Manage = "role.manage"; }
     public static class PermissionsManagement { public const string Manage = "permission.manage"; }
+    public static class Features { public const string Manage = "feature.manage"; }
 }

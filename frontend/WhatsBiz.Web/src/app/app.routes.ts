@@ -166,9 +166,16 @@ export const routes: Routes = [
   {
     path: '',
     canActivate: [authGuard],
+    canActivateChild: [featureGuard],
     loadComponent: () =>
       import('./layout/main-layout/main-layout.component').then((m) => m.MainLayoutComponent),
     children: [
+      {
+        path: 'admin/features',
+        canActivate: [permissionGuard],
+        data: { permission: 'feature.manage', title: 'Tenant Feature Management' },
+        loadComponent: () => import('./features/administration/feature-management.component').then(m => m.FeatureManagementComponent),
+      },
       {
         path: 'profile',
         title: 'My Profile | KhataDhari ERP',

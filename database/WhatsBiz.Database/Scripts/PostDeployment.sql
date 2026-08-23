@@ -8,6 +8,9 @@
 :r .\RCDEV008-RuntimeObjects.sql
 :r .\RCDEV009-PrintingPaperSize.sql
 :r .\RCDEV010-CustomerNotifications.sql
+GO
+:r .\V2-FeatureEntitlements.sql
+GO
 :r .\V3-ProductImageOptimization.sql
 GO
 :r .\V4-DashboardNotificationDetails.sql
@@ -25,3 +28,5 @@ GO
 :r .\V10-WhatsAppCommerceCheckout.sql
 GO
 :r .\V11-WhatsAppCommerceDeliveryTracking.sql
+GO
+:r .\V12-HierarchicalFeatureManagement.sql

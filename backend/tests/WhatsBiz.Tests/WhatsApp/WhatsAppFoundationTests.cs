@@ -25,16 +25,16 @@ public sealed class WhatsAppFoundationTests
     }
 
     [Theory]
-    [InlineData(nameof(WhatsAppController.Get))]
-    [InlineData(nameof(WhatsAppController.Save))]
-    [InlineData(nameof(WhatsAppController.Validate))]
-    [InlineData(nameof(WhatsAppController.SendTestMessage))]
-    [InlineData(nameof(WhatsAppController.Diagnostics))]
-    public void ConfigurationEndpointsRequireWhatsAppEntitlement(string methodName)
+    [InlineData(nameof(WhatsAppController.Get), FeatureKeys.WhatsAppConfiguration)]
+    [InlineData(nameof(WhatsAppController.Save), FeatureKeys.WhatsAppConfiguration)]
+    [InlineData(nameof(WhatsAppController.Validate), FeatureKeys.MetaWhatsAppIntegration)]
+    [InlineData(nameof(WhatsAppController.SendTestMessage), FeatureKeys.MetaWhatsAppIntegration)]
+    [InlineData(nameof(WhatsAppController.Diagnostics), FeatureKeys.WebhookDiagnostics)]
+    public void ConfigurationEndpointsRequireWhatsAppEntitlement(string methodName, string featureKey)
     {
         var method = typeof(WhatsAppController).GetMethod(methodName)!;
         method.GetCustomAttributes<RequireFeatureAttribute>().Single().Policy
-            .Should().Be(PermissionPolicyProvider.FeaturePrefix + FeatureKeys.WhatsAppCommerce);
+            .Should().Be(PermissionPolicyProvider.FeaturePrefix + featureKey);
         method.GetCustomAttributes<HasPermissionAttribute>().Should().ContainSingle();
     }
 

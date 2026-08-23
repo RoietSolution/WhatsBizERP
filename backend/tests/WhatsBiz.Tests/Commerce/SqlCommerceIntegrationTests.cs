@@ -55,8 +55,9 @@ public sealed class SqlCommerceIntegrationTests(SqlCommerceFixture fixture)
 
             var collections = setup.Collections;
             collections.Should().ContainSingle(x => x.CollectionId == fixture.CollectionA);
-            collections.Single().ProductIds.Should().Contain(fixture.TShirt399);
-            collections.Single().ProductIds.Should().NotContain(fixture.TenantBProduct);
+            var tenantCollection = collections.Single(x => x.CollectionId == fixture.CollectionA);
+            tenantCollection.ProductIds.Should().Contain(fixture.TShirt399);
+            tenantCollection.ProductIds.Should().NotContain(fixture.TenantBProduct);
 
             var current = new StubCurrentUser(fixture.TenantA);
             await using var db = SqlCommerceFixture.CreateDb();
@@ -237,6 +238,9 @@ public sealed class AlwaysOnFeatures : IFeatureService
 {
     public Task<bool> IsEnabledAsync(Guid tenantId, string featureKey, CancellationToken cancellationToken = default) => Task.FromResult(true);
     public Task<IReadOnlyDictionary<string, bool>> GetEffectiveFeaturesAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<string, bool>>(new Dictionary<string, bool> { [FeatureKeys.WhatsAppCommerce] = true });
+    public Task<TenantFeatureConfiguration> GetTenantConfigurationAsync(Guid tenantId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public Task<IReadOnlyCollection<FeatureTenantSummary>> GetTenantsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public Task<TenantFeatureConfiguration> UpdateTenantConfigurationAsync(Guid tenantId, IReadOnlyCollection<TenantFeatureUpdate> updates, string? changedBy, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public void InvalidateTenant(Guid tenantId) { }
     public void InvalidateAll() { }
 }

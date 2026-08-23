@@ -1,0 +1,22 @@
+<section class="feature-page">
+  <header><div><p class="eyebrow">System Administration</p><h1>Tenant Feature Management</h1><p>Configured settings are preserved independently from effective access.</p></div><button mat-flat-button color="primary" (click)="save()" [disabled]="saving() || loading()">{{ saving() ? 'Saving…' : 'Save changes' }}</button></header>
+  <mat-card class="tenant-card">
+    <label for="tenant">Retailer</label>
+    <select id="tenant" [ngModel]="selectedTenantId()" (ngModelChange)="select($event)" [disabled]="loading()">
+      @for (tenant of tenants(); track tenant.tenantId) { <option [value]="tenant.tenantId">{{ tenant.tenantName }} — {{ tenant.planName || tenant.planKey || 'No active plan' }}</option> }
+    </select>
+    @if (configuration(); as config) { <p><strong>Plan:</strong> {{ config.planName || config.planKey || 'No active plan' }}</p> }
+  </mat-card>
+  @if (error()) { <p class="message error">{{ error() }}</p> } @if (message()) { <p class="message success">{{ message() }}</p> }
+  @if (loading()) { <p>Loading feature configuration…</p> }
+  @for (version of versions(); track version.featureKey) {
+    <mat-card class="version-card">
+      <div class="feature-row version"><div><h2>{{ version.featureName }}</h2><p>Configured: {{ version.configuredEnabled ? 'ON' : 'OFF' }} · Effective: {{ version.effectiveEnabled ? 'ON' : 'OFF' }}</p><small>{{ reason(version) }}</small></div><mat-slide-toggle [(ngModel)]="version.configuredEnabled" [disabled]="saving() || !version.subscriptionAllowed"></mat-slide-toggle></div>
+      <div class="modules" [class.parent-off]="!version.effectiveEnabled">
+        @for (feature of children(version); track feature.featureKey) {
+          <div class="feature-row"><div><h3>{{ feature.featureName }}</h3><p>Configured: {{ feature.configuredEnabled ? 'ON' : 'OFF' }} · Effective: {{ feature.effectiveEnabled ? 'ON' : 'OFF' }}</p><small>{{ reason(feature) }}</small></div><mat-slide-toggle [(ngModel)]="feature.configuredEnabled" [disabled]="saving() || !feature.subscriptionAllowed"></mat-slide-toggle></div>
+        }
+      </div>
+    </mat-card>
+  }
+</section>

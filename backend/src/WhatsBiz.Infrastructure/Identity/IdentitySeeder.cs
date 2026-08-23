@@ -11,6 +11,12 @@ public sealed class IdentitySeeder(IServiceScopeFactory scopeFactory, ILogger<Id
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope(); var roles = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>(); var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(); const string roleName = "Administrator";
+        const string systemRoleName = "SystemAdministrator";
+        var systemRole = await roles.FindByNameAsync(systemRoleName);
+        if (systemRole is null) { systemRole = new ApplicationRole(systemRoleName); EnsureSucceeded(await roles.CreateAsync(systemRole)); }
+        var systemClaims = await roles.GetClaimsAsync(systemRole);
+        if (!systemClaims.Any(x => x.Type == CustomClaimTypes.Permission && x.Value == Permissions.Features.Manage))
+            EnsureSucceeded(await roles.AddClaimAsync(systemRole, new Claim(CustomClaimTypes.Permission, Permissions.Features.Manage)));
         var role = await roles.FindByNameAsync(roleName);
         if (role is null) { role = new ApplicationRole(roleName); var result = await roles.CreateAsync(role); if (!result.Succeeded) throw new InvalidOperationException(string.Join("; ", result.Errors.Select(x => x.Description))); }
         var roleClaims = await roles.GetClaimsAsync(role); foreach (var permission in Permissions.All) if (!roleClaims.Any(x => x.Type == CustomClaimTypes.Permission && x.Value == permission)) EnsureSucceeded(await roles.AddClaimAsync(role, new Claim(CustomClaimTypes.Permission, permission)));

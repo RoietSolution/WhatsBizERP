@@ -33,6 +33,7 @@ try
     builder.Services.AddScoped<IInventoryOperationsRepository, InventoryOperationsRepository>();
     builder.Services.AddScoped<IReceivablesRepository, ReceivablesRepository>();
     builder.Services.AddMemoryCache(options => options.SizeLimit = 1024);
+    builder.Services.AddOptions<GlobalFeatureOptions>().Bind(builder.Configuration.GetSection(GlobalFeatureOptions.SectionName));
     builder.Services.AddScoped<IFeatureService, FeatureService>();
     builder.Services.AddScoped<IAuthorizationHandler, FeatureAuthorizationHandler>();
     builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
@@ -56,6 +57,7 @@ try
     app.UseHttpsRedirection();
     app.UseResponseCompression();
     app.UseAuthentication();
+    app.UseMiddleware<FeatureGateMiddleware>();
     app.UseRateLimiter();
     app.UseCors(ApiServiceCollectionExtensions.CorsPolicyName);
     if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }

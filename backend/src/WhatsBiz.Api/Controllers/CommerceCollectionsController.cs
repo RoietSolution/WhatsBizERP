@@ -4,11 +4,12 @@ using WhatsBiz.Api.Authorization;
 using WhatsBiz.Application.Features.CommerceCollections;
 using WhatsBiz.Application.Features.WhatsAppCommerce;
 using WhatsBiz.Application.Common.Interfaces;
+using WhatsBiz.Application.Common.Features;
 using WhatsBiz.SharedKernel;
 
 namespace WhatsBiz.Api.Controllers;
 
-[ApiController, Route("api/commerce/collections")]
+[ApiController, Route("api/commerce/collections"), RequireFeature(FeatureKeys.CommerceCollections)]
 public sealed class CommerceCollectionsController(ISender sender, IWhatsAppCommerceService commerce, ICurrentUserService currentUser) : ControllerBase
 {
     [HttpGet, HasPermission(Permissions.Product.View)] public Task<PagedCollections> Get([FromQuery] string? search, [FromQuery] bool? isActive, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, CancellationToken token = default) => sender.Send(new GetCollections(search, isActive, pageNumber, pageSize), token);

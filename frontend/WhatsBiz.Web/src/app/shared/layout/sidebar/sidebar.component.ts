@@ -15,11 +15,12 @@ import { NavigationItem } from '../../models/navigation.model';
 import { ProfilePhotoService } from '../../services/profile-photo.service';
 
 const navigation: NavigationItem[] = [
-  { label: 'Overview', icon: 'space_dashboard', route: '/dashboard', permission: 'dashboard.view' },
+  { label: 'Overview', icon: 'space_dashboard', route: '/dashboard', permission: 'dashboard.view', feature: 'DASHBOARD' },
   {
     label: 'Point of Sale',
     icon: 'point_of_sale',
     permission: 'pos.view',
+    feature: 'POS',
     children: [
       { label: 'New Sale', icon: 'add_shopping_cart', route: '/pos', permission: 'pos.create' },
       { label: 'Today’s Sales', icon: 'today', route: '/pos/today', permission: 'pos.view' },
@@ -41,6 +42,7 @@ const navigation: NavigationItem[] = [
     label: 'Purchases',
     icon: 'shopping_cart',
     permission: 'purchase.view',
+    feature: 'PURCHASE',
     children: [
       {
         label: 'Dashboard',
@@ -66,9 +68,10 @@ const navigation: NavigationItem[] = [
     label: 'Products',
     icon: 'inventory_2',
     permission: 'product.view',
+    feature: 'PRODUCTS',
     children: [
       { label: 'Product List', icon: 'category', route: '/products', permission: 'product.view' },
-      { label: 'Collections', icon: 'collections_bookmark', route: '/products/collections', permission: 'product.view' },
+      { label: 'Collections', icon: 'collections_bookmark', route: '/products/collections', permission: 'product.view', feature: 'COMMERCE_COLLECTIONS' },
       {
         label: 'Categories',
         icon: 'account_tree',
@@ -83,6 +86,7 @@ const navigation: NavigationItem[] = [
     label: 'Inventory',
     icon: 'warehouse',
     permission: 'inventory.view',
+    feature: 'INVENTORY',
     children: [
       { label: 'Overview', icon: 'dashboard', route: '/inventory', permission: 'inventory.view' },
       {
@@ -121,6 +125,7 @@ const navigation: NavigationItem[] = [
     label: 'Printing',
     icon: 'print',
     permission: 'print.view',
+    feature: 'PRINTING',
     children: [
       {
         label: 'Label Designer',
@@ -152,13 +157,14 @@ const navigation: NavigationItem[] = [
     label: 'Parties',
     icon: 'groups',
     children: [
-      { label: 'Customers', icon: 'person', route: '/customers', permission: 'customer.view' },
-      { label: 'Customer Groups', icon: 'group_work', route: '/customer-groups', permission: 'customer.view' },
+      { label: 'Customers', icon: 'person', route: '/customers', permission: 'customer.view', feature: 'CUSTOMERS' },
+      { label: 'Customer Groups', icon: 'group_work', route: '/customer-groups', permission: 'customer.view', feature: 'CUSTOMERS' },
       {
         label: 'Suppliers',
         icon: 'local_shipping',
         route: '/suppliers',
         permission: 'supplier.view',
+        feature: 'SUPPLIERS',
       },
     ],
   },
@@ -166,6 +172,7 @@ const navigation: NavigationItem[] = [
     label: 'Finance',
     icon: 'account_balance',
     permission: 'ledger.view',
+    feature: 'FINANCE',
     children: [
       {
         label: 'Day Book',
@@ -199,12 +206,13 @@ const navigation: NavigationItem[] = [
       },
     ],
   },
-  { label: 'Reports', icon: 'assessment', route: '/reports', permission: 'gst.view' },
-  { label: 'GST', icon: 'percent', route: '/gst', permission: 'gst.view' },
+  { label: 'Reports', icon: 'assessment', route: '/reports', permission: 'gst.view', feature: 'REPORTS' },
+  { label: 'GST', icon: 'percent', route: '/gst', permission: 'gst.view', feature: 'GST' },
   {
     label: 'Analytics',
     icon: 'query_stats',
     permission: 'analytics.view',
+    feature: 'ANALYTICS',
     children: [
       {
         label: 'Sales',
@@ -232,12 +240,14 @@ const navigation: NavigationItem[] = [
       },
     ],
   },
-  { label: 'Warehouses', icon: 'factory', route: '/warehouses', permission: 'warehouse.view' },
-  { label: 'Delivery Management', icon: 'local_shipping', route: '/admin/whatsapp-deliveries', permission: 'pos.edit', feature: 'WHATSAPP_COMMERCE' },
+  { label: 'Warehouses', icon: 'factory', route: '/warehouses', permission: 'warehouse.view', feature: 'WAREHOUSES' },
+  { label: 'Delivery Management', icon: 'local_shipping', route: '/admin/whatsapp-deliveries', permission: 'pos.edit', feature: 'COMMERCE_ORDERS' },
+  { label: 'Tenant Features', icon: 'account_tree', route: '/admin/features', permission: 'feature.manage' },
   {
     label: 'Administration',
     icon: 'admin_panel_settings',
     permission: 'admin.view',
+    feature: 'ADMINISTRATION',
     children: [
       { label: 'Admin Center', icon: 'dashboard', route: '/admin', permission: 'admin.view' },
       {

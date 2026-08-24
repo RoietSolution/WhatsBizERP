@@ -33,7 +33,7 @@ import { WhatsAppApiService, WhatsAppConfiguration, WhatsAppMetaTestDiagnostics 
 export class WhatsAppConfigurationComponent {
   readonly loading = signal(true); readonly saving = signal(false); readonly message = signal('');
   readonly diagnostics = signal<WhatsAppMetaTestDiagnostics | null>(null);
-  readonly model = signal<WhatsAppConfiguration>({ providerMode:'MOCK', isEnabled:false, connectionStatus:'NOT_CONFIGURED', hasAccessToken:false, hasWebhookVerifyToken:false, hasAppSecret:false });
+  readonly model = signal<WhatsAppConfiguration>({ providerMode:'MOCK', isEnabled:false, connectionStatus:'NOT_CONFIGURED', hasAccessToken:false, hasWebhookVerifyToken:false, hasAppSecret:false, usesSharedPlatformCredentials:false });
   accessToken = ''; webhookVerifyToken = ''; appSecret = ''; recipientNumber=''; testMessage='WhatsBiz META_TEST connection successful.';
   constructor(private readonly api: WhatsAppApiService) { this.reload(); }
   reload() { this.api.get().subscribe({ next:x=>{this.model.set(x);this.recipientNumber=x.testRecipientNumber??'';this.loading.set(false);if(x.providerMode==='META_TEST')this.reloadDiagnostics();}, error:()=>{this.message.set('Unable to load WhatsApp configuration.');this.loading.set(false);} }); }

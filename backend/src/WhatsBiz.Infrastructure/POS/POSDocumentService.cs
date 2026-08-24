@@ -4,6 +4,7 @@ using System.Net;
 using System.Text;
 using ClosedXML.Excel;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Data.SqlClient;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Printing;
 using WhatsBiz.Domain.POS;
@@ -33,6 +34,7 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
         var cashier = invoice.CreatedBy ?? "";
         var counter = invoice.CounterId?.ToString("N")[..6] ?? "";
         var paymentMode = string.Join(", ", invoice.Payments.Select(x => x.PaymentMethod.MethodName));
+        var loyalty = CoinSummary(invoice.InvoiceId);
         var qr = Convert.ToBase64String(printing.QrCode(new QRCodeInput($"{invoice.InvoiceNumber}|{invoice.GrandTotal:0.00}", 4)).Data);
         var body = new StringBuilder($"""
                     <style>{ReceiptCss}</style>
@@ -74,6 +76,8 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
                 <hr class="separator" />
                 <div class="total-row"><span>Paid</span><span>₹{Money(invoice.PaidAmount)}</span></div>
                 <div class="total-row"><span>Balance</span><span>₹{Money(invoice.BalanceAmount)}</span></div>
+                {(loyalty.Redeemed > 0 ? $"<div class=\"total-row\"><span>Coins redeemed</span><span>{loyalty.Redeemed} (-₹{Money(loyalty.Discount)})</span></div>" : "")}
+                {(loyalty.Earned > 0 ? $"<div class=\"total-row\"><span>Coins earned</span><span>{loyalty.Earned}</span></div>" : "")}
                 <hr class="separator" />
                 <div class="total-row total-amount"><span>Total Amount</span><span>₹{Money(invoice.GrandTotal)}</span></div>
               </section>
@@ -102,6 +106,13 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
     }
 
     private static string Money(decimal value) => value.ToString("0.00", CultureInfo.InvariantCulture);
+    private (int Earned, int Redeemed, decimal Discount) CoinSummary(Guid invoiceId)
+    {
+        using var connection = new SqlConnection(configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable."));
+        connection.Open(); using var command = new SqlCommand("SELECT EarnedCoins,RedeemedCoins,RedemptionDiscount FROM loyalty.OrderCoins WHERE OrderId=@order;", connection);
+        command.Parameters.AddWithValue("@order", invoiceId); using var reader = command.ExecuteReader();
+        return reader.Read() ? (reader.GetInt32(0), reader.GetInt32(1), reader.GetDecimal(2)) : (0, 0, 0);
+    }
     private static string Quantity(decimal value) => value.ToString("0.####", CultureInfo.InvariantCulture);
     private static string OptionalLine(string? first, string? second) => string.IsNullOrWhiteSpace(first) && string.IsNullOrWhiteSpace(second) ? "" : $"<p>{Encode(first ?? "")}{(string.IsNullOrWhiteSpace(second) ? "" : " · " + Encode(second))}</p>";
     private static string AmountInWords(decimal amount)

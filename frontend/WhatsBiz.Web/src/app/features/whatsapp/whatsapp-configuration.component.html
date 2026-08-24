@@ -4,7 +4,7 @@
     <app-status-chip [label]="model().connectionStatus" [tone]="tone()" />
   </app-page-header>
   <section class="card">
-    <div class="notice">MOCK runs entirely inside WhatsBiz. META_TEST uses the official Meta Cloud API for connection, test-message, and webhook transport checks. LIVE remains reserved. Saved secrets are never displayed again.</div>
+    <div class="notice">MOCK runs entirely inside WhatsBiz. Each Meta connection uses this retailer's WABA, phone number ID, business identity, and encrypted access token. @if(model().usesSharedPlatformCredentials){The Meta App ID, App Secret, and webhook verify token are supplied by the shared KhataDhari platform configuration.} Saved secrets are never displayed again.</div>
     <div class="meta">
       <span>Business: <strong>{{ model().businessDisplayName || 'Not validated' }}</strong></span>
       <span>Phone: <strong>{{ model().displayPhoneNumber || 'Not validated' }}</strong></span>
@@ -14,13 +14,14 @@
       <mat-form-field appearance="outline"><mat-label>Provider mode</mat-label><mat-select [(ngModel)]="model().providerMode"><mat-option value="MOCK">MOCK — WhatsBiz simulator</mat-option><mat-option value="META_TEST">META_TEST — Meta Cloud API test</mat-option><mat-option value="LIVE">LIVE — reserved</mat-option></mat-select></mat-form-field>
       <mat-slide-toggle [(ngModel)]="model().isEnabled">Enable this connection</mat-slide-toggle>
       @if (model().providerMode !== 'MOCK') {
-      <mat-form-field appearance="outline"><mat-label>Meta App ID</mat-label><input matInput [(ngModel)]="model().metaAppId" inputmode="numeric" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Meta App ID</mat-label><input matInput [(ngModel)]="model().metaAppId" inputmode="numeric" [disabled]="model().usesSharedPlatformCredentials" /><mat-hint>{{model().usesSharedPlatformCredentials?'Shared KhataDhari Meta App':'Manual META_TEST setup'}}</mat-hint></mat-form-field>
       <mat-form-field appearance="outline"><mat-label>WhatsApp Business Account ID</mat-label><input matInput [(ngModel)]="model().whatsAppBusinessAccountId" inputmode="numeric" /></mat-form-field>
       <mat-form-field appearance="outline"><mat-label>Phone Number ID</mat-label><input matInput [(ngModel)]="model().phoneNumberId" inputmode="numeric" /></mat-form-field>
       <mat-form-field appearance="outline"><mat-label>Graph API version</mat-label><input matInput [(ngModel)]="model().apiVersion" placeholder="vNN.N" /><mat-hint>Choose a currently supported version in Meta documentation.</mat-hint></mat-form-field>
       <mat-form-field class="wide" appearance="outline"><mat-label>Access token</mat-label><input matInput type="password" [(ngModel)]="accessToken" autocomplete="new-password" [placeholder]="model().hasAccessToken ? 'Configured ✓ — enter only to replace' : 'Required'" /></mat-form-field>
+      @if(!model().usesSharedPlatformCredentials){
       <mat-form-field appearance="outline"><mat-label>Webhook verify token</mat-label><input matInput type="password" [(ngModel)]="webhookVerifyToken" autocomplete="new-password" [placeholder]="model().hasWebhookVerifyToken ? 'Configured ✓ — enter only to replace' : 'Required'" /></mat-form-field>
-      <mat-form-field appearance="outline"><mat-label>Meta app secret</mat-label><input matInput type="password" [(ngModel)]="appSecret" autocomplete="new-password" [placeholder]="model().hasAppSecret ? 'Configured ✓ — enter only to replace' : 'Required for webhook signatures'" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Meta app secret</mat-label><input matInput type="password" [(ngModel)]="appSecret" autocomplete="new-password" [placeholder]="model().hasAppSecret ? 'Configured ✓ — enter only to replace' : 'Required for webhook signatures'" /></mat-form-field>}
       }
       @if(model().providerMode === 'META_TEST') {
       <mat-form-field appearance="outline"><mat-label>Permitted test recipient</mat-label><input matInput [(ngModel)]="recipientNumber" inputmode="tel" placeholder="Country code and number" /><mat-hint>Use a recipient allowed in Meta's test-number setup.</mat-hint></mat-form-field>

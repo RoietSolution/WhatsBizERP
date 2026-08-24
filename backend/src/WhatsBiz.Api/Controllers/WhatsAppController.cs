@@ -27,6 +27,15 @@ public sealed class WhatsAppController(IWhatsAppService service, ICurrentUserSer
     [HttpGet("configuration/diagnostics"), HasPermission(Permissions.Admin.View), RequireFeature(FeatureKeys.WebhookDiagnostics)]
     public Task<WhatsAppMetaTestDiagnosticsDto> Diagnostics(CancellationToken token) => service.GetDiagnosticsAsync(TenantId(), token);
 
+    [HttpGet("administration/platform"), HasPermission(Permissions.Features.Manage)]
+    public Task<WhatsAppPlatformConfigurationDto> Platform(CancellationToken token) => service.GetPlatformConfigurationAsync(token);
+
+    [HttpPut("administration/platform"), HasPermission(Permissions.Features.Manage)]
+    public Task<WhatsAppPlatformConfigurationDto> Platform(SaveWhatsAppPlatformConfigurationInput input, CancellationToken token) => service.SavePlatformConfigurationAsync(input,currentUser.Username,token);
+
+    [HttpGet("administration/retailer-connections"), HasPermission(Permissions.Features.Manage)]
+    public Task<IReadOnlyCollection<RetailerWhatsAppConnectionDto>> RetailerConnections(CancellationToken token) => service.GetRetailerConnectionsAsync(token);
+
     [AllowAnonymous, HttpGet("webhook")]
     public async Task<IActionResult> VerifyWebhook([FromQuery(Name = "hub.mode")] string mode,
         [FromQuery(Name = "hub.verify_token")] string verifyToken,

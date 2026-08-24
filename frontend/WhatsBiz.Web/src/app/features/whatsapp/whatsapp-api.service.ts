@@ -17,7 +17,10 @@ export interface WhatsAppConfiguration {
   hasAccessToken: boolean;
   hasWebhookVerifyToken: boolean;
   hasAppSecret: boolean;
+  usesSharedPlatformCredentials: boolean;
 }
+export interface WhatsAppPlatformConfiguration { metaAppId?:string; isEnabled:boolean; hasAppSecret:boolean; hasWebhookVerifyToken:boolean; modifiedOn?:string; }
+export interface RetailerWhatsAppConnection { tenantId:string;tenantKey:string;tenantName:string;tenantIsActive:boolean;providerMode?:string;wabaId?:string;phoneNumberId?:string;displayPhoneNumber?:string;businessDisplayName?:string;configurationIsEnabled:boolean;connectionStatus:string;lastValidatedOn?:string;usesSharedPlatformCredentials:boolean; }
 export interface SaveWhatsAppConfiguration {
   providerMode: 'MOCK' | 'META_TEST' | 'LIVE';
   metaAppId: string;
@@ -53,4 +56,7 @@ export class WhatsAppApiService {
   validate(accessToken?: string) { return this.http.post<WhatsAppConnectionResult>(`${this.root}/configuration/validate`, { accessToken: accessToken || null }); }
   sendTestMessage(recipientNumber:string,message?:string) { return this.http.post<WhatsAppTestMessageResult>(`${this.root}/configuration/test-message`, { recipientNumber, message:message||null }); }
   diagnostics() { return this.http.get<WhatsAppMetaTestDiagnostics>(`${this.root}/configuration/diagnostics`); }
+  platform(){return this.http.get<WhatsAppPlatformConfiguration>(`${this.root}/administration/platform`);}
+  savePlatform(input:{metaAppId:string;isEnabled:boolean;appSecret?:string;webhookVerifyToken?:string}){return this.http.put<WhatsAppPlatformConfiguration>(`${this.root}/administration/platform`,input);}
+  retailerConnections(){return this.http.get<RetailerWhatsAppConnection[]>(`${this.root}/administration/retailer-connections`);}
 }

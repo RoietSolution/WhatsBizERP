@@ -17,6 +17,8 @@ using Microsoft.AspNetCore.Authorization;
 using WhatsBiz.Api.Authorization;
 using WhatsBiz.Infrastructure.WhatsApp;
 using WhatsBiz.Infrastructure.Analytics;
+using WhatsBiz.Infrastructure.Loyalty;
+using WhatsBiz.Application.Features.Loyalty;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console(formatProvider: CultureInfo.InvariantCulture).CreateBootstrapLogger();
 
@@ -45,6 +47,7 @@ try
     builder.Services.AddScoped<ICommerceCollectionRepository, CommerceCollectionRepository>();
     builder.Services.AddScoped<ICustomerGroupRepository, CustomerGroupRepository>();
     builder.Services.AddScoped<ICommerceAnalyticsService, CommerceAnalyticsService>();
+    builder.Services.AddScoped<ILoyaltyService, LoyaltyService>();
     builder.Services.AddScoped<IDatabaseMaintenanceService, DatabaseMaintenanceService>();
     builder.Services.AddApiServices(builder.Configuration);
     var app = builder.Build();

@@ -17,6 +17,21 @@
   }
 
   @if (setup(); as data) {
+    @if (wallet(); as coins) {
+      <section class="checkout-details">
+        <span class="eyebrow">Loyalty wallet</span>
+        <div class="checkout-summary">
+          <strong>{{ coins.availableCoins }} coins available</strong>
+          <span>{{ coins.totalEarned }} earned · {{ coins.totalRedeemed }} redeemed</span>
+        </div>
+        <label>Coins to redeem
+          <input type="number" min="0" [max]="coins.availableCoins" step="1" [(ngModel)]="redeemCoins" />
+        </label>
+        @for (entry of coins.transactions.slice(0, 5); track entry.coinTransactionId) {
+          <small>{{ entry.createdOn | date:'mediumDate' }} · {{ entry.description || entry.transactionType }} · {{ entry.coins > 0 ? '+' : '' }}{{ entry.coins }}</small>
+        }
+      </section>
+    }
     @if (!started()) {
       <section class="demo-welcome">
         <div class="welcome-icon"><span class="material-symbols-rounded">forum</span></div>

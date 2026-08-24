@@ -5,13 +5,15 @@ using Microsoft.Data.SqlClient;
 using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Infrastructure.Persistence;
+using WhatsBiz.Application.Features.Loyalty;
 
 namespace WhatsBiz.Infrastructure.POS;
 
 public sealed class POSEngine(
     SqlIdempotencyExecutor idempotency,
     IHttpContextAccessor httpContext,
-    ICurrentUserService currentUser) : IPOSEngine
+    ICurrentUserService currentUser,
+    ILoyaltyService loyalty) : IPOSEngine
 {
     public async Task<POSPostResult> Post(POSPostRequest r, CancellationToken token)
     {
@@ -64,6 +66,15 @@ public sealed class POSEngine(
                         source.Parameters.AddWithValue("@user", r.User ?? (object)DBNull.Value);
                         await source.ExecuteNonQueryAsync(ct);
                     }
+                    if (r.LoyaltyCoins > 0)
+                    {
+                        if (r.TenantId is not Guid tenantId || r.CustomerId is not Guid loyaltyCustomerId) throw new BusinessRuleException("A tenant and customer are required for coin redemption.");
+                        await using var redeem = new SqlCommand("loyalty.RedeemForOrder", connection, transaction) { CommandType = CommandType.StoredProcedure };
+                        redeem.Parameters.AddWithValue("@TenantId", tenantId); redeem.Parameters.AddWithValue("@CustomerId", loyaltyCustomerId);
+                        redeem.Parameters.AddWithValue("@OrderId", result.InvoiceId); redeem.Parameters.AddWithValue("@Coins", r.LoyaltyCoins);
+                        redeem.Parameters.AddWithValue("@OtherDiscount", r.OtherDiscount); redeem.Parameters.AddWithValue("@CreatedBy", r.User ?? (object)DBNull.Value);
+                        await redeem.ExecuteNonQueryAsync(ct);
+                    }
                     return result;
                 }, token);
         }
@@ -90,6 +101,8 @@ public sealed class POSEngine(
             ("@InvoiceId", r.InvoiceId), ("@ItemsJson", r.ItemsJson),
             ("@Reason", r.Reason), ("@CreatedBy", r.User)
         ], token);
+        if (currentUser.TenantId is Guid tenantId)
+            await loyalty.ProcessOrderAsync(tenantId, r.InvoiceId, "CURRENT", r.User, token);
     }
 
     private async Task ExecuteMutation(

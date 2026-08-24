@@ -36,6 +36,6 @@ public sealed class MockWhatsAppProvider : IWhatsAppCommerceProvider
 
 public sealed class WhatsAppCommerceProviderResolver(IEnumerable<IWhatsAppCommerceProvider> providers) : IWhatsAppCommerceProviderResolver
 {
-    public IWhatsAppCommerceProvider Resolve(string mode) => providers.FirstOrDefault(x => x.Mode.Equals(mode, StringComparison.OrdinalIgnoreCase))
+    public IWhatsAppCommerceProvider Resolve(string mode) => providers.FirstOrDefault(x => x.Mode.Equals(mode.Equals(WhatsAppProviderModes.Live,StringComparison.OrdinalIgnoreCase)?WhatsAppProviderModes.MetaTest:mode, StringComparison.OrdinalIgnoreCase))
         ?? throw new BusinessRuleException($"WhatsApp provider mode {mode} is configured but is not implemented for commerce yet.");
 }

@@ -8,11 +8,13 @@ using WhatsBiz.Application.Common.Features;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.POS;
 using WhatsBiz.Application.Features.WhatsAppCommerce;
+using WhatsBiz.Application.Features.Loyalty;
 
 namespace WhatsBiz.Infrastructure.WhatsAppCommerce;
 
 public sealed partial class WhatsAppCommerceService(IConfiguration configuration, IPOSEngine pos,
-    IWhatsAppCommerceProviderResolver providers, IFeatureService features, IDataProtectionProvider protection) : IWhatsAppCommerceService
+    IWhatsAppCommerceProviderResolver providers, IFeatureService features, IDataProtectionProvider protection,
+    ILoyaltyService? loyalty = null) : IWhatsAppCommerceService
 {
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
 
@@ -87,20 +89,26 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
         { customer.Parameters.AddWithValue("@id", input.CustomerId); customer.Parameters.AddWithValue("@tenant", tenantId); if (Convert.ToInt32(await customer.ExecuteScalarAsync(token), System.Globalization.CultureInfo.InvariantCulture) != 1) throw new BusinessRuleException("An active customer is required."); }
         var cart = await CalculateCartAsync(tenantId, input.WarehouseId, input.Items, token);
         if (cart.Items.Count == 0) throw new BusinessRuleException("The cart is empty.");
+        var redemption = input.RedeemCoins > 0
+            ? await (loyalty ?? throw new BusinessRuleException("The loyalty service is unavailable.")).QuoteRedemptionAsync(tenantId, input.CustomerId, input.RedeemCoins, 0, token)
+            : new CoinRedemptionQuote(0, 0, 0);
+        if (redemption.Discount >= cart.GrandTotal) throw new BusinessRuleException("Coin discount must be less than the order total.");
         var posItems = cart.Items.Select(x => new POSItemInput(x.ProductId, null, x.Quantity, x.UnitPrice, 0, 0, x.TaxPercentage)).ToArray();
         var onlinePayment = input.PaymentType == "ONLINE";
         var paymentReference = onlinePayment ? $"mock_rzp_{Guid.NewGuid():N}" : null;
         var payments = onlinePayment
-            ? JsonSerializer.Serialize(new[] { new { MethodCode = "UPI", Amount = cart.GrandTotal, ReferenceNumber = paymentReference } })
+            ? JsonSerializer.Serialize(new[] { new { MethodCode = "UPI", Amount = cart.GrandTotal - redemption.Discount, ReferenceNumber = paymentReference } })
             : "[]";
         var result = await pos.Post(new(null, null, input.CustomerId, input.WarehouseId, null,
-            JsonSerializer.Serialize(posItems), payments, 0, 0, onlinePayment ? $"WhatsApp Commerce MOCK online payment: {paymentReference}" : "WhatsApp Commerce MOCK cash on delivery order",
-            onlinePayment ? "COMPLETED" : "HELD", false, null, actor, tenantId, "WHATSAPP_DEMO"), token);
+            JsonSerializer.Serialize(posItems), payments, redemption.Discount, 0, onlinePayment ? $"WhatsApp Commerce MOCK online payment: {paymentReference}" : "WhatsApp Commerce MOCK cash on delivery order",
+            onlinePayment ? "COMPLETED" : "HELD", false, null, actor, tenantId, "WHATSAPP_DEMO", redemption.RequestedCoins, 0), token);
         await using (var update = new SqlCommand("UPDATE integration.WhatsAppCommerceOrders SET DeliveryAddress=@address,FulfillmentMethod=@fulfillment,PaymentType=@payment WHERE InvoiceId=@invoice AND TenantId=@tenant;", connection))
         { update.Parameters.AddWithValue("@address", input.DeliveryAddress.Trim()); update.Parameters.AddWithValue("@fulfillment", input.FulfillmentMethod); update.Parameters.AddWithValue("@payment", input.PaymentType); update.Parameters.AddWithValue("@invoice", result.InvoiceId); update.Parameters.AddWithValue("@tenant", tenantId); await update.ExecuteNonQueryAsync(token); }
+        if (onlinePayment && loyalty is not null) await loyalty.ProcessOrderAsync(tenantId, result.InvoiceId, "COMPLETED", actor, token);
         var messages = (await provider.SendOrderConfirmationAsync(result.InvoiceNumber, result.GrandTotal, token)).ToList();
         if (onlinePayment) messages.Add(new("WHATS_BIZ", "PAYMENT", $"Mock Razorpay UPI payment received âœ“\nReference: {paymentReference}\nAmount: â‚¹{result.GrandTotal:0.00}"));
-        return new(result.InvoiceId, result.InvoiceNumber, result.Status, result.GrandTotal, messages);
+        if (redemption.RequestedCoins > 0) messages.Add(new("WHATS_BIZ", "LOYALTY", $"You redeemed {redemption.RequestedCoins} coins for ₹{redemption.Discount:0.00} off."));
+        return new(result.InvoiceId, result.InvoiceNumber, result.Status, result.GrandTotal, redemption.RequestedCoins, redemption.Discount, messages);
     }
 
     public async Task<WhatsAppCommerceReadiness> GetReadinessAsync(Guid tenantId, CancellationToken token)
@@ -178,6 +186,7 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
         await using var command = new SqlCommand("UPDATE integration.WhatsAppCommerceOrders SET DeliveryStatus=@status,CourierName=@courier,TrackingNumber=@tracking,DispatchedOn=CASE WHEN @status IN('DISPATCHED','ON_THE_WAY','DELIVERED') AND DispatchedOn IS NULL THEN SYSUTCDATETIME() ELSE DispatchedOn END,DeliveredOn=CASE WHEN @status='DELIVERED' THEN SYSUTCDATETIME() ELSE DeliveredOn END WHERE TenantId=@tenant AND InvoiceId=@invoice;", connection);
         command.Parameters.AddWithValue("@status", input.DeliveryStatus); command.Parameters.AddWithValue("@courier", (object?)input.CourierName?.Trim() ?? DBNull.Value); command.Parameters.AddWithValue("@tracking", (object?)input.TrackingNumber?.Trim() ?? DBNull.Value); command.Parameters.AddWithValue("@tenant", tenantId); command.Parameters.AddWithValue("@invoice", orderId);
         if (await command.ExecuteNonQueryAsync(token) != 1) throw new EntityNotFoundException("Commerce order was not found.");
+        if (loyalty is not null) await loyalty.ProcessOrderAsync(tenantId, orderId, input.DeliveryStatus, null, token);
         await using var select = new SqlCommand("SELECT i.InvoiceId,i.InvoiceNumber,i.InvoiceDate,i.GrandTotal,i.Status,w.SourceChannel,w.ProviderMode,w.DeliveryStatus,w.CourierName,w.TrackingNumber,w.DispatchedOn,w.DeliveredOn,c.CustomerName,c.Mobile,w.DeliveryAddress,w.FulfillmentMethod,w.PaymentType FROM integration.WhatsAppCommerceOrders w JOIN sales.SalesInvoices i ON i.InvoiceId=w.InvoiceId LEFT JOIN sales.Customers c ON c.CustomerId=i.CustomerId WHERE w.TenantId=@tenant AND i.InvoiceId=@invoice;", connection);
         select.Parameters.AddWithValue("@tenant", tenantId); select.Parameters.AddWithValue("@invoice", orderId); await using var reader = await select.ExecuteReaderAsync(token); if (!await reader.ReadAsync(token)) throw new EntityNotFoundException("Commerce order was not found."); return Summary(reader);
     }
@@ -222,7 +231,7 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
     private sealed record SendProduct(Guid ProductId, string ProductCode, string ProductName, decimal Price, string? ImageUrl, string? CatalogId, string? ExternalProductId);
     private sealed record SendProductSet(string Title, IReadOnlyCollection<SendProduct> Items);
     private static async Task<SendConfig?> SendConfiguration(SqlConnection connection, Guid tenantId, CancellationToken token)
-    { await using var command = new SqlCommand("SELECT TOP(1) ProviderMode,ApiVersion,PhoneNumberId,AccessTokenProtected,TestRecipientNumber FROM integration.WhatsAppConfigurations WHERE TenantId=@tenant AND IsEnabled=1;", connection); command.Parameters.AddWithValue("@tenant", tenantId); await using var reader = await command.ExecuteReaderAsync(token); return await reader.ReadAsync(token) ? new(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4)) : null; }
+    { await using var command = new SqlCommand("SELECT TOP(1) c.ProviderMode,c.ApiVersion,c.PhoneNumberId,c.AccessTokenProtected,c.TestRecipientNumber FROM integration.WhatsAppConfigurations c JOIN core.Tenants t ON t.TenantId=c.TenantId AND t.IsActive=1 LEFT JOIN integration.WhatsAppPlatformConfiguration p ON p.PlatformConfigurationId=1 WHERE c.TenantId=@tenant AND c.IsEnabled=1 AND (c.ProviderMode='MOCK' OR (c.ConnectionStatus='CONNECTED' AND c.PhoneNumberId IS NOT NULL AND c.AccessTokenProtected IS NOT NULL AND (c.ProviderMode='META_TEST' OR (c.ProviderMode='LIVE' AND p.IsEnabled=1))));", connection); command.Parameters.AddWithValue("@tenant", tenantId); await using var reader = await command.ExecuteReaderAsync(token); return await reader.ReadAsync(token) ? new(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4)) : null; }
     private static async Task<CustomerTarget?> Customer(SqlConnection connection, Guid tenantId, Guid customerId, CancellationToken token)
     { await using var command = new SqlCommand("SELECT TOP(1) CustomerName,Mobile FROM sales.Customers WHERE CustomerId=@id AND TenantId=@tenant AND IsActive=1 AND IsDeleted=0;", connection); command.Parameters.AddWithValue("@id", customerId); command.Parameters.AddWithValue("@tenant", tenantId); await using var reader = await command.ExecuteReaderAsync(token); return await reader.ReadAsync(token) ? new(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1)) : null; }
     private static async Task<SendProductSet> CollectionProducts(SqlConnection connection, Guid tenantId, Guid collectionId, CancellationToken token)
@@ -243,7 +252,7 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
     { var map = new Dictionary<Guid,(string Name,string Slug,List<Guid> Products)>(); await using var command = new SqlCommand("SELECT c.CollectionId,c.Name,c.Slug,cp.ProductId FROM commerce.Collections c LEFT JOIN commerce.CollectionProducts cp ON cp.CollectionId=c.CollectionId AND cp.TenantId=c.TenantId LEFT JOIN master.Products p ON p.ProductId=cp.ProductId AND p.TenantId=c.TenantId AND p.IsActive=1 AND p.IsDeleted=0 WHERE c.TenantId=@tenant AND c.IsActive=1 AND c.IsDeleted=0 AND (c.StartDate IS NULL OR c.StartDate<=SYSUTCDATETIME()) AND (c.EndDate IS NULL OR c.EndDate>=SYSUTCDATETIME()) ORDER BY c.DisplayOrder,c.Name;", connection); command.Parameters.AddWithValue("@tenant", tenantId); await using var reader=await command.ExecuteReaderAsync(token); while(await reader.ReadAsync(token)){var id=reader.GetGuid(0);if(!map.TryGetValue(id,out var x)){x=(reader.GetString(1),reader.GetString(2),[]);map[id]=x;}if(!reader.IsDBNull(3)&&eligibleProducts.Contains(reader.GetGuid(3)))x.Products.Add(reader.GetGuid(3));}return map.Select(x=>new WhatsAppCommerceCollection(x.Key,x.Value.Name,x.Value.Slug,x.Value.Products)).ToArray(); }
     [GeneratedRegex("[^0-9]+", RegexOptions.CultureInvariant)] private static partial Regex Digits();
     private static async Task<string> ProviderMode(SqlConnection connection, Guid tenantId, CancellationToken token)
-    { await using var command = new SqlCommand("SELECT ProviderMode FROM integration.WhatsAppConfigurations WHERE TenantId=@tenant AND IsEnabled=1;", connection); command.Parameters.AddWithValue("@tenant", tenantId); return await command.ExecuteScalarAsync(token) as string ?? throw new BusinessRuleException("WhatsApp Commerce is not enabled or configured for this tenant."); }
+    { await using var command = new SqlCommand("SELECT c.ProviderMode FROM integration.WhatsAppConfigurations c JOIN core.Tenants t ON t.TenantId=c.TenantId AND t.IsActive=1 WHERE c.TenantId=@tenant AND c.IsEnabled=1;", connection); command.Parameters.AddWithValue("@tenant", tenantId); return await command.ExecuteScalarAsync(token) as string ?? throw new BusinessRuleException("WhatsApp Commerce is not enabled or configured for this active tenant."); }
     private static async Task<T?> Scalar<T>(SqlConnection connection, string sql, CancellationToken token)
     { await using var command = new SqlCommand(sql, connection); var value = await command.ExecuteScalarAsync(token); return value is null or DBNull ? default : (T)value; }
 }

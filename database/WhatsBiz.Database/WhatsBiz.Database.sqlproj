@@ -31,6 +31,8 @@
     <None Include="Scripts\V10-WhatsAppCommerceCheckout.sql"/>
     <None Include="Scripts\V11-WhatsAppCommerceDeliveryTracking.sql"/>
     <None Include="Scripts\V12-HierarchicalFeatureManagement.sql"/>
+    <None Include="Scripts\V13-LoyaltyCoins.sql"/>
+    <None Include="Scripts\V14-WhatsAppOption3TenantConnections.sql"/>
     <None Include="Scripts\Onboarding_Retailer.sql"/>
     <None Include="Scripts\Deboarding_Retailer.sql"/>
     <PostDeploy Include="Scripts\PostDeployment.sql"/>

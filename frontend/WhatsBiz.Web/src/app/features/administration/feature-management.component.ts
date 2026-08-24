@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -8,7 +9,7 @@ import { FeatureAccessState, FeatureService, FeatureTenantSummary, TenantFeature
 
 @Component({
   selector: 'app-feature-management',
-  imports: [CommonModule, FormsModule, MatButtonModule, MatCardModule, MatSlideToggleModule],
+  imports: [CommonModule, FormsModule, RouterLink, MatButtonModule, MatCardModule, MatSlideToggleModule],
   templateUrl: './feature-management.component.html',
   styleUrl: './feature-management.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

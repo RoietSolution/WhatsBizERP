@@ -188,20 +188,52 @@ public sealed class SqlCommerceFixture
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:DefaultConnection"] = ConnectionString }).Build();
         var service = new WhatsAppService(configuration, DataProtectionProvider.Create("WhatsBiz.SqlCommerceTests"), new AlwaysOnFeatures(), new WhatsAppCommerceProviderResolver([new MockWhatsAppProvider()]), NullLogger<WhatsAppService>.Instance);
         (await service.VerifyWebhookAsync("subscribe", VerifyToken, "challenge", default)).Should().Be("challenge");
+        (await service.GetConfigurationAsync(TenantA, default)).PhoneNumberId.Should().NotBe(PhoneId, "a tenant lookup must never fall through to another retailer's configuration");
         var message = new { id = $"{Tag}-message", from = "919900000001", type = "text", timestamp = "1700000000" };
-        var value = new { metadata = new { phone_number_id = PhoneId }, messages = new[] { message } };
+        var value = new { tenantId = TenantA, metadata = new { phone_number_id = PhoneId }, messages = new[] { message } };
         var change = new { value };
         var entry = new { id = WabaId, changes = new[] { change } };
-        var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { @object = "whatsapp_business_account", entry = new[] { entry } }));
+        var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { tenantId = TenantA, @object = "whatsapp_business_account", entry = new[] { entry } }));
         var signature = "sha256=" + Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(WebhookSecret), body)).ToLowerInvariant();
         (await service.ReceiveWebhookAsync(signature, body, default)).Should().BeTrue();
         (await service.ReceiveWebhookAsync("sha256=bad", body, default)).Should().BeFalse();
         (await service.ReceiveWebhookAsync(signature, body, default)).Should().BeTrue();
+
+        byte[] UnknownBody(string phone, string waba) => Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+        {
+            @object = "whatsapp_business_account",
+            entry = new[] { new { id = waba, changes = new[] { new { value = new { metadata = new { phone_number_id = phone }, messages = new[] { new { id = $"{Tag}-unknown", from = "919900000001", type = "text", timestamp = "1700000001" } } } } } } }
+        }));
+        var unknown = UnknownBody("999999999999", WabaId);
+        var unknownSignature = "sha256=" + Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(WebhookSecret), unknown)).ToLowerInvariant();
+        (await service.ReceiveWebhookAsync(unknownSignature, unknown, default)).Should().BeFalse();
+        var mismatched = UnknownBody(PhoneId, "999999999998");
+        var mismatchedSignature = "sha256=" + Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(WebhookSecret), mismatched)).ToLowerInvariant();
+        (await service.ReceiveWebhookAsync(mismatchedSignature, mismatched, default)).Should().BeFalse();
+
+        await ExecuteAsync($"UPDATE core.Tenants SET IsActive=0 WHERE TenantId='{TenantB}'");
+        try { (await service.ReceiveWebhookAsync(signature, body, default)).Should().BeFalse(); }
+        finally { await ExecuteAsync($"UPDATE core.Tenants SET IsActive=1 WHERE TenantId='{TenantB}'"); }
+        await ExecuteAsync($"UPDATE integration.WhatsAppConfigurations SET IsEnabled=0 WHERE TenantId='{TenantB}'");
+        try { (await service.ReceiveWebhookAsync(signature, body, default)).Should().BeFalse(); }
+        finally { await ExecuteAsync($"UPDATE integration.WhatsAppConfigurations SET IsEnabled=1 WHERE TenantId='{TenantB}'"); }
+
+        var duplicateTenant = Guid.NewGuid();
+        await ExecuteAsync($"INSERT core.Tenants(TenantId,TenantKey,Name,IsActive,CreatedBy) VALUES('{duplicateTenant}','{Tag}-D','{Tag} Duplicate',1,'{Tag}')");
+        try
+        {
+            var duplicate = async () => await ExecuteAsync($"INSERT integration.WhatsAppConfigurations(WhatsAppConfigurationId,TenantId,ProviderMode,WhatsAppBusinessAccountId,PhoneNumberId,IsEnabled,ConnectionStatus,CreatedBy) VALUES(NEWID(),'{duplicateTenant}','META_TEST','999999999997','{PhoneId}',1,'CONFIGURED','{Tag}')");
+            await duplicate.Should().ThrowAsync<Microsoft.Data.SqlClient.SqlException>().Where(x => x.Number == 2601 || x.Number == 2627);
+        }
+        finally { await ExecuteAsync($"DELETE FROM integration.WhatsAppConfigurations WHERE TenantId='{duplicateTenant}'; DELETE FROM core.Tenants WHERE TenantId='{duplicateTenant}'"); }
+
         var diagnostics = await service.GetDiagnosticsAsync(TenantB, default);
         diagnostics.LastInboundEventType.Should().Be("MESSAGE_RECEIVED");
         await using var db = CreateDb();
         var count = await db.Database.SqlQuery<int>($"SELECT COUNT(*) AS Value FROM integration.WhatsAppWebhookEvents WHERE TenantId={TenantB}").SingleAsync();
         count.Should().Be(1);
+        var spoofed = await db.Database.SqlQuery<int>($"SELECT COUNT(*) AS Value FROM integration.WhatsAppWebhookEvents WHERE TenantId={TenantA} AND MetaMessageId={message.id}").SingleAsync();
+        spoofed.Should().Be(0);
         var duplicates = await db.Database.SqlQuery<long>($"SELECT DuplicateWebhookCount AS Value FROM integration.WhatsAppConfigurations WHERE TenantId={TenantB}").SingleAsync();
         duplicates.Should().Be(1);
     }

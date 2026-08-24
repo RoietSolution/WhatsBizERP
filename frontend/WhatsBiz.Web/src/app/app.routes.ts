@@ -411,6 +411,18 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'admin/whatsapp-platform',
+        canActivate: [permissionGuard],
+        data: { permission: 'feature.manage', title: 'KhataDhari Meta App & Retailer Connections' },
+        loadComponent: () => import('./features/whatsapp/whatsapp-platform-administration.component').then(m => m.WhatsAppPlatformAdministrationComponent),
+      },
+      {
+        path: 'admin/loyalty',
+        canActivate: [permissionGuard],
+        data: { ...adminSettings, title: 'Coin & Loyalty Settings' },
+        loadComponent: () => import('./features/administration/loyalty-configuration.component').then((m) => m.LoyaltyConfigurationComponent),
+      },
+      {
         path: 'admin/customer-notifications',
         canActivate: [permissionGuard],
         data: { ...adminSettings, title: 'Customer Notifications' },

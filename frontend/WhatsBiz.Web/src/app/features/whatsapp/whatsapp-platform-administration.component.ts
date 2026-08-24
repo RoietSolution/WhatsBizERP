@@ -1,0 +1,24 @@
+import { DatePipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { finalize, forkJoin } from 'rxjs';
+import { RetailerWhatsAppConnection, WhatsAppApiService, WhatsAppPlatformConfiguration } from './whatsapp-api.service';
+
+@Component({
+  imports:[DatePipe,FormsModule,MatButtonModule,MatFormFieldModule,MatInputModule,MatSlideToggleModule],
+  template:`<section class="page"><header><div><p class="eyebrow">System Administration</p><h1>KhataDhari Meta App & Retailer Connections</h1><p>One platform Meta App with isolated retailer WABA and phone-number connections.</p></div><button mat-stroked-button (click)="load()">Refresh</button></header>
+  @if(error()){<p class="error">{{error()}}</p>}<section class="card"><div class="platform"><mat-form-field appearance="outline"><mat-label>KhataDhari Meta App ID</mat-label><input matInput inputmode="numeric" [(ngModel)]="metaAppId"></mat-form-field><mat-slide-toggle [(ngModel)]="enabled">Platform enabled</mat-slide-toggle><mat-form-field appearance="outline"><mat-label>App Secret</mat-label><input matInput type="password" autocomplete="new-password" [(ngModel)]="appSecret" [placeholder]="platform()?.hasAppSecret?'Configured — enter only to replace':'Required'"></mat-form-field><mat-form-field appearance="outline"><mat-label>Webhook verify token</mat-label><input matInput type="password" autocomplete="new-password" [(ngModel)]="verifyToken" [placeholder]="platform()?.hasWebhookVerifyToken?'Configured — enter only to replace':'Required'"></mat-form-field></div><p>Secrets are encrypted server-side and are never returned to this page.</p><button mat-flat-button color="primary" (click)="save()" [disabled]="busy()">Save platform configuration</button></section>
+  <section class="card"><h2>Retailer WhatsApp connections</h2><div class="table"><table><thead><tr><th>Retailer</th><th>Tenant</th><th>Mode</th><th>Business identity</th><th>WABA ID</th><th>Phone Number ID</th><th>Status</th><th>Validated</th></tr></thead><tbody>@for(row of connections();track row.tenantId){<tr [class.inactive]="!row.tenantIsActive"><td><strong>{{row.tenantName}}</strong><small>{{row.displayPhoneNumber||'No display number'}}</small></td><td>{{row.tenantKey}}</td><td>{{row.providerMode||'—'}}</td><td>{{row.businessDisplayName||'Not validated'}}</td><td>{{row.wabaId||'—'}}</td><td>{{row.phoneNumberId||'—'}}</td><td>{{!row.tenantIsActive?'TENANT INACTIVE':row.configurationIsEnabled?row.connectionStatus:'DISABLED'}}</td><td>{{(row.lastValidatedOn|date:'medium')||'Never'}}</td></tr>}</tbody></table></div></section></section>`,
+  styles:[`.page{display:grid;gap:18px}.page>header{display:flex;justify-content:space-between;align-items:center}.card{padding:20px;border:1px solid var(--wb-border);border-radius:12px;background:var(--wb-surface)}.platform{display:grid;grid-template-columns:repeat(2,minmax(220px,1fr));gap:12px}.table{overflow:auto}table{width:100%;border-collapse:collapse}th,td{padding:10px;text-align:left;border-bottom:1px solid var(--wb-border);white-space:nowrap}td:first-child{display:grid}small{color:var(--wb-text-secondary)}.inactive{opacity:.6}.error{color:var(--wb-danger)}@media(max-width:700px){.platform{grid-template-columns:1fr}}`],
+  changeDetection:ChangeDetectionStrategy.OnPush,
+})
+export class WhatsAppPlatformAdministrationComponent {
+  readonly platform=signal<WhatsAppPlatformConfiguration|null>(null);readonly connections=signal<RetailerWhatsAppConnection[]>([]);readonly busy=signal(false);readonly error=signal('');metaAppId='';enabled=false;appSecret='';verifyToken='';
+  constructor(private readonly api:WhatsAppApiService){this.load();}
+  load(){this.busy.set(true);this.error.set('');forkJoin({platform:this.api.platform(),connections:this.api.retailerConnections()}).pipe(finalize(()=>this.busy.set(false))).subscribe({next:x=>{this.platform.set(x.platform);this.connections.set(x.connections);this.metaAppId=x.platform.metaAppId??'';this.enabled=x.platform.isEnabled;},error:()=>this.error.set('Only a SystemAdministrator can load platform WhatsApp status.')});}
+  save(){this.busy.set(true);this.error.set('');this.api.savePlatform({metaAppId:this.metaAppId,isEnabled:this.enabled,appSecret:this.appSecret||undefined,webhookVerifyToken:this.verifyToken||undefined}).pipe(finalize(()=>this.busy.set(false))).subscribe({next:x=>{this.platform.set(x);this.appSecret='';this.verifyToken='';this.load();},error:()=>this.error.set('Platform configuration could not be saved.')});}
+}

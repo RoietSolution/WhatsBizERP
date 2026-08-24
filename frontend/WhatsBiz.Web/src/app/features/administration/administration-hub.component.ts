@@ -271,6 +271,12 @@ export class AdministrationHubComponent {
           route: '/admin/settings',
         },
         {
+          title: 'Coin & Loyalty Settings',
+          description: 'Purchase earning, product and category rules, redemption, and refunds.',
+          icon: 'toll',
+          route: '/admin/loyalty',
+        },
+        {
           title: 'GST Settings',
           description: 'GST registration and compliance configuration.',
           icon: 'percent',

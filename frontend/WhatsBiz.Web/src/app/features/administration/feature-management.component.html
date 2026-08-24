@@ -1,5 +1,6 @@
 <section class="feature-page">
   <header><div><p class="eyebrow">System Administration</p><h1>Tenant Feature Management</h1><p>Configured settings are preserved independently from effective access.</p></div><button mat-flat-button color="primary" (click)="save()" [disabled]="saving() || loading()">{{ saving() ? 'Saving…' : 'Save changes' }}</button></header>
+  <p><a mat-stroked-button routerLink="/admin/whatsapp-platform">View KhataDhari Meta App and retailer WhatsApp connections</a></p>
   <mat-card class="tenant-card">
     <label for="tenant">Retailer</label>
     <select id="tenant" [ngModel]="selectedTenantId()" (ngModelChange)="select($event)" [disabled]="loading()">

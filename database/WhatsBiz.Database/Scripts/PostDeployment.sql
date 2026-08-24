@@ -30,3 +30,7 @@ GO
 :r .\V11-WhatsAppCommerceDeliveryTracking.sql
 GO
 :r .\V12-HierarchicalFeatureManagement.sql
+GO
+:r .\V13-LoyaltyCoins.sql
+GO
+:r .\V14-WhatsAppOption3TenantConnections.sql

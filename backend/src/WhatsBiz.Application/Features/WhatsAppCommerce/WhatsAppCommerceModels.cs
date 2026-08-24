@@ -42,9 +42,10 @@ public sealed record WhatsAppCommerceCartLine(Guid ProductId, string ProductCode
 public sealed record WhatsAppCommerceCart(Guid WarehouseId, IReadOnlyCollection<WhatsAppCommerceCartLine> Items,
     decimal Subtotal, decimal TaxAmount, decimal GrandTotal);
 public sealed record PlaceWhatsAppDemoOrderInput(Guid CustomerId, Guid WarehouseId,
-    IReadOnlyCollection<WhatsAppCommerceCartItem> Items, string DeliveryAddress, string FulfillmentMethod, string PaymentType);
+    IReadOnlyCollection<WhatsAppCommerceCartItem> Items, string DeliveryAddress, string FulfillmentMethod, string PaymentType,
+    int RedeemCoins = 0);
 public sealed record WhatsAppCommerceOrderResult(Guid OrderId, string OrderNumber, string ErpStatus,
-    decimal GrandTotal, IReadOnlyCollection<WhatsAppCommerceMessage> Messages);
+    decimal GrandTotal, int RedeemedCoins, decimal CoinDiscount, IReadOnlyCollection<WhatsAppCommerceMessage> Messages);
 public sealed record WhatsAppCommerceReadinessCheck(string Key, string Label, bool Ready, string? SetupRoute, string? Detail);
 public sealed record WhatsAppCommerceReadiness(bool Ready, IReadOnlyCollection<WhatsAppCommerceReadinessCheck> Checks);
 public sealed record WhatsAppCommerceOrderSummary(Guid OrderId, string OrderNumber, DateTimeOffset OrderDate,

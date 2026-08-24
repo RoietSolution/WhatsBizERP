@@ -10,7 +10,9 @@ export interface DemoWarehouse { warehouseId:string; warehouseCode:string; wareh
 export interface DemoSetup { providerMode:string; storeName:string; customers:DemoCustomer[]; warehouses:DemoWarehouse[]; categories:DemoCategory[]; collections:DemoCollection[]; products:DemoProduct[]; messages:DemoMessage[]; }
 export interface CartLine extends DemoProduct { quantity:number; unitPrice:number; taxAmount:number; lineTotal:number; }
 export interface DemoCart { warehouseId:string; items:CartLine[]; subtotal:number; taxAmount:number; grandTotal:number; }
-export interface DemoOrder { orderId:string; orderNumber:string; erpStatus:string; grandTotal:number; messages:DemoMessage[]; }
+export interface DemoOrder { orderId:string; orderNumber:string; erpStatus:string; grandTotal:number; redeemedCoins:number; coinDiscount:number; messages:DemoMessage[]; }
+export interface CoinTransaction { coinTransactionId:string; transactionType:string; coins:number; sourceType:string; sourceId?:string; rupeeValue?:number; description?:string; createdOn:string; }
+export interface CoinWallet { customerId:string; availableCoins:number; totalEarned:number; totalRedeemed:number; transactions:CoinTransaction[]; }
 export interface ReadinessCheck { key:string; label:string; ready:boolean; setupRoute?:string; detail?:string; }
 export interface DemoReadiness { ready:boolean; checks:ReadinessCheck[]; }
 export interface OrderSummary { orderId:string; orderNumber:string; orderDate:string; grandTotal:number; erpStatus:string; displayStatus:string; sourceChannel:string; providerMode:string; deliveryStatus:string; courierName?:string; trackingNumber?:string; dispatchedOn?:string; deliveredOn?:string; customerName?:string; customerMobile?:string; deliveryAddress?:string; fulfillmentMethod?:string; paymentType?:string; }
@@ -23,7 +25,8 @@ export class WhatsAppCommerceDemoApiService {
   setup(warehouseId?:string){return this.http.get<DemoSetup>(`${this.root}/setup`,{params:warehouseId?new HttpParams().set('warehouseId',warehouseId):undefined});}
   readiness(){return this.http.get<DemoReadiness>(`${this.root}/readiness`);}
   cart(warehouseId:string,items:{productId:string;quantity:number}[]){return this.http.post<DemoCart>(`${this.root}/cart`,{warehouseId,items});}
-  order(customerId:string,warehouseId:string,items:{productId:string;quantity:number}[],deliveryAddress:string,fulfillmentMethod:string,paymentType:string){return this.http.post<DemoOrder>(`${this.root}/orders`,{customerId,warehouseId,items,deliveryAddress,fulfillmentMethod,paymentType});}
+  order(customerId:string,warehouseId:string,items:{productId:string;quantity:number}[],deliveryAddress:string,fulfillmentMethod:string,paymentType:string,redeemCoins=0){return this.http.post<DemoOrder>(`${this.root}/orders`,{customerId,warehouseId,items,deliveryAddress,fulfillmentMethod,paymentType,redeemCoins});}
+  wallet(customerId:string){return this.http.get<CoinWallet>(`/api/loyalty/customers/${customerId}/wallet`,{params:new HttpParams().set('take',10)});}
   orders(customerId:string){return this.http.get<OrderSummary[]>(`${this.root}/orders`,{params:new HttpParams().set('customerId',customerId)});}
   orderDetails(orderId:string,customerId:string){return this.http.get<OrderDetails>(`${this.root}/orders/${orderId}`,{params:new HttpParams().set('customerId',customerId)});}
   updateDelivery(orderId:string,deliveryStatus:string,courierName?:string,trackingNumber?:string){return this.http.put<OrderSummary>(`${this.root}/orders/${orderId}/delivery`,{deliveryStatus,courierName: courierName||undefined,trackingNumber: trackingNumber||undefined});}

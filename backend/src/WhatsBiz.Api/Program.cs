@@ -20,6 +20,8 @@ using WhatsBiz.Infrastructure.Analytics;
 using WhatsBiz.Infrastructure.Loyalty;
 using WhatsBiz.Application.Features.Loyalty;
 using WhatsBiz.Application.Features.Referrals;
+using WhatsBiz.Application.Features.Delivery;
+using WhatsBiz.Infrastructure.Delivery;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console(formatProvider: CultureInfo.InvariantCulture).CreateBootstrapLogger();
 
@@ -50,6 +52,7 @@ try
     builder.Services.AddScoped<ICommerceAnalyticsService, CommerceAnalyticsService>();
     builder.Services.AddScoped<ILoyaltyService, LoyaltyService>();
     builder.Services.AddScoped<ICustomerReferralService, CustomerReferralService>();
+    builder.Services.AddScoped<IDeliveryService, DeliveryService>();
     builder.Services.AddHostedService<RewardCoinExpirationWorker>();
     builder.Services.AddScoped<IDatabaseMaintenanceService, DatabaseMaintenanceService>();
     builder.Services.AddApiServices(builder.Configuration);

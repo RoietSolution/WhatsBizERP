@@ -9,5 +9,6 @@ export const FeatureKeys = {
   AdvancedWarehouse: 'ADVANCED_WAREHOUSE',
   AiAssistant: 'AI_ASSISTANT',
   Integrations: 'INTEGRATIONS',
+  DeliveryManagement: 'DELIVERY_MANAGEMENT',
 } as const;
 export type FeatureKey = (typeof FeatureKeys)[keyof typeof FeatureKeys];

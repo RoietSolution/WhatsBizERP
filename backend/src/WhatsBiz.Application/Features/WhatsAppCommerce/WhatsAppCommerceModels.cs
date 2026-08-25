@@ -17,6 +17,8 @@ public sealed record WhatsAppCommerceSendRequest(string ApiVersion, string Phone
     bool UseNativeProducts);
 public sealed record WhatsAppCommerceSendResult(bool Succeeded, string? ProviderMessageId,
     DateTimeOffset AttemptedAt, bool NativeUsed, int ProductsSent, string Recipient, string? SafeMessage);
+public sealed record WhatsAppTransactionalMessageRequest(string ApiVersion,string PhoneNumberId,string AccessToken,string RecipientNumber,string TemplateKey,string? ApprovedTemplateName,string LanguageCode,string Message,IReadOnlyCollection<string> Parameters);
+public sealed record WhatsAppTransactionalMessageResult(bool Succeeded,string? ProviderMessageId,DateTimeOffset AttemptedAt,string? SafeMessage);
 public sealed record SendCollectionInput(Guid CustomerId);
 public sealed record WhatsAppCommerceProduct(Guid ProductId, string ProductCode, string? Barcode,
     string ProductName, string? Description, string? ImageUrl, decimal SellingPrice, decimal Mrp,
@@ -65,6 +67,7 @@ public interface IWhatsAppCommerceProvider
     Task<WhatsAppProviderConnectionResult> ValidateConnectionAsync(WhatsAppProviderConnectionRequest request, CancellationToken token);
     Task<WhatsAppProviderTestMessageResult> SendTestMessageAsync(WhatsAppProviderTestMessageRequest request, CancellationToken token);
     Task<WhatsAppCommerceSendResult> SendProductCollectionAsync(WhatsAppCommerceSendRequest request, CancellationToken token);
+    Task<WhatsAppTransactionalMessageResult> SendTransactionalAsync(WhatsAppTransactionalMessageRequest request,CancellationToken token) => Task.FromResult(new WhatsAppTransactionalMessageResult(false,null,DateTimeOffset.UtcNow,"Transactional messaging is not supported by this provider."));
 }
 public interface IWhatsAppCommerceProviderResolver { IWhatsAppCommerceProvider Resolve(string mode); }
 public interface IWhatsAppCommerceService

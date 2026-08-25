@@ -158,6 +158,7 @@ const navigation: NavigationItem[] = [
     icon: 'groups',
     children: [
       { label: 'Customers', icon: 'person', route: '/customers', permission: 'customer.view', feature: 'CUSTOMERS' },
+      { label: 'WhatsApp Contacts', icon: 'chat', route: '/customers/whatsapp-contacts', permission: 'customer.view', feature: 'WHATSAPP_COMMERCE' },
       { label: 'Customer Groups', icon: 'group_work', route: '/customer-groups', permission: 'customer.view', feature: 'CUSTOMERS' },
       {
         label: 'Suppliers',
@@ -241,7 +242,8 @@ const navigation: NavigationItem[] = [
     ],
   },
   { label: 'Warehouses', icon: 'factory', route: '/warehouses', permission: 'warehouse.view', feature: 'WAREHOUSES' },
-  { label: 'Delivery Management', icon: 'local_shipping', route: '/admin/whatsapp-deliveries', permission: 'pos.edit', feature: 'COMMERCE_ORDERS' },
+  { label: 'My Deliveries', icon: 'two_wheeler', route: '/delivery', permission: 'delivery.view', feature: 'DELIVERY_MANAGEMENT' },
+  { label: 'Delivery Management', icon: 'local_shipping', route: '/orders/deliveries', permission: 'delivery.manage', feature: 'DELIVERY_MANAGEMENT' },
   { label: 'Tenant Features', icon: 'account_tree', route: '/admin/features', permission: 'feature.manage' },
   {
     label: 'Administration',
@@ -263,6 +265,8 @@ const navigation: NavigationItem[] = [
         route: '/admin/settings',
         permission: 'admin.settings',
       },
+      { label: 'Delivery Agents', icon: 'two_wheeler', route: '/admin/delivery-agents', permission: 'delivery.agent-manage', feature: 'DELIVERY_MANAGEMENT' },
+      { label: 'Delivery Settings', icon: 'local_shipping', route: '/admin/delivery-settings', permission: 'delivery.settings', feature: 'DELIVERY_MANAGEMENT' },
       {
         label: 'Printer Configuration',
         icon: 'print',

@@ -1,0 +1,29 @@
+import { ChangeDetectionStrategy,Component,inject,signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { MatButtonModule } from '@angular/material/button';
+import { Delivery,DeliveryApiService } from './delivery-api.service';
+
+@Component({imports:[CommonModule,MatButtonModule],template:`
+<main class="delivery-shell"><header><div><small>Delivery Agent</small><h1>My Deliveries</h1></div><button mat-stroked-button (click)="load()">Refresh</button></header>
+<nav aria-label="Delivery status"><button *ngFor="let tab of tabs" [class.active]="status()===tab.value" (click)="status.set(tab.value);load()">{{tab.label}}</button></nav>
+<p class="error" *ngIf="error()">{{error()}}</p><section class="cards" aria-live="polite">
+ <article *ngFor="let d of deliveries()"><div class="top"><strong>Order #{{d.orderNumber}}</strong><span>{{d.status.replaceAll('_',' ')}}</span></div>
+  <h2>{{d.customerName}}</h2><a *ngIf="d.customerMobile" [href]="'tel:'+d.customerMobile">{{d.customerMobile}}</a><p class="address">{{d.address}}</p><p *ngIf="d.notes">Note: {{d.notes}}</p>
+  <div class="money"><span>Amount <b>{{d.amount|currency:'INR'}}</b></span><span>Payment <b>{{d.codRequired?(d.codCollected?'COD collected':'COD '+(d.codAmount|currency:'INR')):'Paid / non-COD'}}</b></span></div>
+  <div class="actions"><a mat-stroked-button [href]="d.navigationUrl" target="_blank" rel="noopener">Navigate</a><a mat-stroked-button *ngIf="d.customerMobile" [href]="'tel:'+d.customerMobile">Call</a>
+   <button mat-flat-button color="primary" *ngIf="['ASSIGNED','READY_FOR_PICKUP','RESCHEDULED'].includes(d.status)" (click)="run(d,'picked-up')">Picked Up</button>
+   <button mat-flat-button color="primary" *ngIf="d.status==='PICKED_UP'" (click)="run(d,'out-for-delivery')">Out for Delivery</button>
+   <button mat-stroked-button *ngIf="d.codRequired&&!d.codCollected&&['READY_FOR_PICKUP','PICKED_UP','OUT_FOR_DELIVERY'].includes(d.status)" (click)="cod(d)">Confirm COD</button>
+   <button mat-flat-button color="primary" *ngIf="d.status==='OUT_FOR_DELIVERY'" (click)="otp(d)">Deliver with OTP</button>
+   <button mat-stroked-button color="warn" *ngIf="['ASSIGNED','READY_FOR_PICKUP','PICKED_UP','OUT_FOR_DELIVERY'].includes(d.status)" (click)="fail(d)">Delivery Failed</button><button mat-stroked-button *ngIf="d.status==='DELIVERY_FAILED'" (click)="reschedule(d)">Reschedule</button>
+  </div></article><p *ngIf="!deliveries().length&&!loading()" class="empty">No deliveries in this view.</p>
+</section></main>`,styles:[`:host{display:block;background:#f5f7fa;min-height:100%}.delivery-shell{max-width:760px;margin:auto;padding:16px}header{display:flex;justify-content:space-between;align-items:center}h1{margin:2px 0 14px;font-size:1.7rem}small{color:#506176}nav{display:flex;overflow:auto;gap:8px;padding-bottom:12px}nav button{border:1px solid #ccd5df;background:white;padding:9px 13px;border-radius:999px;white-space:nowrap}nav button.active{background:#0b6b57;color:white;border-color:#0b6b57}.cards{display:grid;gap:12px}article{background:white;border:1px solid #dde4eb;border-radius:16px;padding:16px;box-shadow:0 3px 12px #172b4d12}.top{display:flex;justify-content:space-between;gap:8px}.top span{font-size:.72rem;background:#e8f3f0;color:#075b4a;padding:5px 8px;border-radius:20px}h2{font-size:1.1rem;margin:16px 0 4px}.address{line-height:1.45}.money{display:grid;grid-template-columns:1fr 1fr;background:#f7f9fb;padding:10px;border-radius:10px;gap:8px}.money span,.money b{display:block}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.error{color:#b42318}.empty{text-align:center;padding:36px;color:#667085}@media(max-width:480px){.delivery-shell{padding:12px}.actions>*{flex:1 1 45%}.money{grid-template-columns:1fr}}`],changeDetection:ChangeDetectionStrategy.OnPush})
+export class DeliveryAgentComponent {
+ private readonly api=inject(DeliveryApiService);readonly tabs=[{label:'Assigned',value:'ASSIGNED'},{label:'Ready',value:'READY_FOR_PICKUP'},{label:'Out for Delivery',value:'OUT_FOR_DELIVERY'},{label:'Delivered',value:'DELIVERED'},{label:'Failed',value:'DELIVERY_FAILED'}];readonly status=signal('ASSIGNED');readonly deliveries=signal<Delivery[]>([]);readonly loading=signal(false);readonly error=signal('');constructor(){this.load()}
+ load(){this.loading.set(true);this.api.my(this.status()).subscribe({next:x=>{this.deliveries.set(x);this.loading.set(false)},error:e=>{this.error.set(e.error?.detail||'Unable to load deliveries.');this.loading.set(false)}})}
+ run(d:Delivery,action:string,body:unknown={}){this.api.action(d.deliveryId,action,body).subscribe({next:()=>this.load(),error:e=>this.error.set(e.error?.detail||'Action failed.')})}
+ otp(d:Delivery){this.api.action(d.deliveryId,'request-otp').subscribe({next:()=>{const value=prompt('Enter the OTP received by the customer');if(value)this.run(d,'confirm-delivery',{otp:value})},error:e=>this.error.set(e.error?.detail||'OTP could not be sent.')})}
+ cod(d:Delivery){const method=prompt('Payment method: CASH, UPI, or ALREADY_PAID','CASH');if(!method)return;const amount=method.toUpperCase()==='ALREADY_PAID'?0:Number(prompt('Amount collected',String(d.codAmount)));if(Number.isFinite(amount))this.run(d,'cod-collected',{paymentMethod:method,amount})}
+ fail(d:Delivery){const reason=prompt('Reason: Customer unavailable / Customer refused / Incorrect address / Unable to contact / Customer requested reschedule / Payment issue / Address inaccessible / Other');if(reason)this.run(d,'failed',{reason,details:reason==='Other'?prompt('Details'):null})}
+ reschedule(d:Delivery){const date=prompt('New delivery date (YYYY-MM-DD)');if(!date)return;const reason=prompt('Reason for rescheduling');if(reason)this.run(d,'reschedule',{newDate:new Date(date).toISOString(),timeWindow:prompt('Optional time window'),reason})}
+}

@@ -38,3 +38,6 @@ GO
 :r .\V15-CustomerReferralRewards.sql
 GO
 :r .\V16-PurchaseCoinExpiry.sql
+:r .\V17-DeliveryManagement.sql
+GO
+:r .\V18-WhatsAppContacts.sql

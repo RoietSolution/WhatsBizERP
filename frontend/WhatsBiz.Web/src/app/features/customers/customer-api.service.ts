@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Customer, CustomerInput, PagedCustomers, PaymentTerm } from './customer.models';
+import { Customer, CustomerDropdown, CustomerInput, PagedCustomers, PaymentTerm } from './customer.models';
 @Injectable({ providedIn: 'root' })
 export class CustomerApiService {
   constructor(private readonly http: HttpClient) {}
@@ -25,6 +25,7 @@ export class CustomerApiService {
   get(id: string) {
     return this.http.get<Customer>(`/api/customers/${id}`);
   }
+  dropdown(search?:string){return this.http.get<CustomerDropdown[]>('/api/customers/dropdown',{params:search?{search}:{}});}
   create(x: CustomerInput) {
     return this.http.post<Customer>('/api/customers', x);
   }

@@ -32,11 +32,12 @@ public static class FeatureKeys
     public const string AiAssistant = "AI_ASSISTANT";
     public const string Integrations = "INTEGRATIONS";
     public const string CustomerReferralRewards = "CUSTOMER_REFERRAL_REWARDS";
+    public const string DeliveryManagement = "DELIVERY_MANAGEMENT";
 
     public static readonly IReadOnlyCollection<string> All =
         [V1, Dashboard, Pos, Products, Customers, Purchase, Inventory, Finance, Reports,
          UsersRoles, Suppliers, Warehouses, Printing, Gst, Analytics, Administration,
          V2, WhatsAppCommerce, WhatsAppConfiguration, WhatsAppCommerceDemo,
          CommerceProductSearch, CommerceCollections, CommerceOrders, CommerceAnalytics,
-         MetaWhatsAppIntegration, WebhookDiagnostics, AdvancedWarehouse, AiAssistant, Integrations, CustomerReferralRewards];
+         MetaWhatsAppIntegration, WebhookDiagnostics, AdvancedWarehouse, AiAssistant, Integrations, CustomerReferralRewards, DeliveryManagement];
 }

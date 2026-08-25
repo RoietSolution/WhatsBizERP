@@ -25,6 +25,14 @@ public sealed class WhatsAppOption3ArchitectureTests
     }
 
     [Fact]
+    public async Task DeliveryNotificationsUseTheSuppliedTenantPhoneAndCredential()
+    {
+        var handler=new RecordingHandler();var provider=Provider(handler);
+        var result=await provider.SendTransactionalAsync(new("v22.0","tenant-phone","tenant-token","919900000001","OUT_FOR_DELIVERY","delivery_out","en","Order is out for delivery.",["ORD-1"]),default);
+        result.Succeeded.Should().BeTrue();handler.Requests.Should().ContainSingle();handler.Requests[0].Should().Be(("/v22.0/tenant-phone/messages","Bearer tenant-token"));
+    }
+
+    [Fact]
     public void LiveAndMetaTestResolveToTheExistingMetaProviderWhileMockRemainsSeparate()
     {
         var mock=new MockWhatsAppProvider();var meta=Provider(new RecordingHandler());var resolver=new WhatsAppCommerceProviderResolver([mock,meta]);
@@ -42,13 +50,14 @@ public sealed class WhatsAppOption3ArchitectureTests
             @object="whatsapp_business_account",
             entry=new object[]
             {
-                new {id="waba-A",changes=new[]{new{value=new{tenantId=Guid.NewGuid(),metadata=new{phone_number_id="phone-A"},messages=new[]{new{id="message-A",from="1",type="text",timestamp="1700000000"}}}}}},
+                new {id="waba-A",changes=new[]{new{value=new{tenantId=Guid.NewGuid(),metadata=new{phone_number_id="phone-A"},contacts=new[]{new{wa_id="1",profile=new{name="Amit Kumar"}}},messages=new[]{new{id="message-A",from="1",type="text",timestamp="1700000000"}}}}}},
                 new {id="waba-B",changes=new[]{new{value=new{tenantId=Guid.NewGuid(),metadata=new{phone_number_id="phone-B"},messages=new[]{new{id="message-B",from="2",type="text",timestamp="1700000001"}}}}}}
             }
         }));
         var envelopes=WhatsAppService.ParseWebhook(body);
         envelopes.Should().HaveCount(2);
         envelopes.Select(x=>(x.WabaId,x.PhoneNumberId,x.Events.Single().MetaMessageId)).Should().Equal(("waba-A","phone-A","message-A"),("waba-B","phone-B","message-B"));
+        envelopes.First().Events.Single().ProfileName.Should().Be("Amit Kumar");
     }
 
     [Fact]
@@ -64,6 +73,22 @@ public sealed class WhatsAppOption3ArchitectureTests
         typeof(WhatsAppConfigurationDto).GetProperties().Select(x=>x.Name).Should().NotContain(["AccessToken","WebhookVerifyToken","AppSecret"]);
         typeof(WhatsAppPlatformConfigurationDto).GetProperties().Select(x=>x.Name).Should().NotContain(["WebhookVerifyToken","AppSecret"]);
         typeof(RetailerWhatsAppConnectionDto).GetProperties().Select(x=>x.Name).Should().NotContain(["AccessToken","WebhookVerifyToken","AppSecret"]);
+    }
+
+    [Fact]
+    public void ContactContractsAreTenantImplicitAndDoNotExposeMessageContent()
+    {
+        typeof(IWhatsAppService).GetMethod(nameof(IWhatsAppService.GetContactsAsync))!.GetParameters().Select(x=>x.Name).Should().Contain("tenantId");
+        typeof(LinkWhatsAppContactInput).GetProperties().Select(x=>x.Name).Should().Equal("CustomerId");
+        typeof(WhatsAppContactDto).GetProperties().Select(x=>x.Name).Should().NotContain(["TenantId","MessageText","AccessToken"]);
+    }
+
+    [Fact]
+    public void WhatsAppContactsMigrationIsTransactionalTenantScopedAndDuplicateSafe()
+    {
+        var root=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourceFile())!,"../../../../"));
+        var sql=File.ReadAllText(Path.Combine(root,"database/WhatsBiz.Database/Scripts/V18-WhatsAppContacts.sql"));
+        sql.Should().Contain("BEGIN TRANSACTION").And.Contain("UQ_WhatsAppContacts_TenantMobile").And.Contain("TenantId uniqueidentifier NOT NULL").And.Contain("WhatsAppContactEvents");
     }
 
     [Fact]

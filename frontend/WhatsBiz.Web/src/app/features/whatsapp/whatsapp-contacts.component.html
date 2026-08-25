@@ -1,0 +1,25 @@
+<app-page-container wide>
+  <app-page-header title="WhatsApp Contacts" description="People appear here after their first message to this retailer's WhatsApp number."><button header-actions mat-stroked-button (click)="load()"><mat-icon>refresh</mat-icon>Refresh</button></app-page-header>
+  <section class="metrics" aria-label="WhatsApp contact totals">
+    <article><span>Total contacts</span><strong>{{total()}}</strong></article><article class="new"><span>New</span><strong>{{newCount()}}</strong></article><article><span>Matched</span><strong>{{matchedCount()}}</strong></article><article><span>Converted</span><strong>{{convertedCount()}}</strong></article>
+  </section>
+  <section class="filters">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Search name, mobile or customer</mat-label><input matInput [(ngModel)]="search" (keyup.enter)="filter()" /></mat-form-field>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Status</mat-label><mat-select [(ngModel)]="status" (selectionChange)="filter()"><mat-option value="">All</mat-option><mat-option value="NEW">New</mat-option><mat-option value="MATCHED">Matched</mat-option><mat-option value="CONVERTED">Converted</mat-option></mat-select></mat-form-field>
+    <button mat-flat-button (click)="filter()">Search</button>
+  </section>
+  @if(busy()){<p class="empty">Loading WhatsApp contacts…</p>}@else{
+    <section class="contacts">
+      @for(contact of items();track contact.whatsAppContactId){
+        <article class="contact">
+          <div class="avatar">{{(contact.profileName||contact.mobile).charAt(0).toUpperCase()}}</div>
+          <div class="identity"><h3>{{contact.profileName||'WhatsApp user'}}</h3><a [href]="'tel:'+contact.mobile">{{contact.mobile}}</a><span class="status" [class.new]="contact.status==='NEW'">{{contact.status}}</span></div>
+          <dl><div><dt>First message</dt><dd>{{contact.firstMessageAt|date:'medium'}}</dd></div><div><dt>Last activity</dt><dd>{{contact.lastMessageAt|date:'medium'}}</dd></div><div><dt>Messages</dt><dd>{{contact.messageCount}}</dd></div><div><dt>ERP customer</dt><dd>{{contact.customerName ? contact.customerCode+' — '+contact.customerName : 'Not linked'}}</dd></div></dl>
+          <div class="actions"><button mat-stroked-button (click)="chat(contact)"><mat-icon>chat</mat-icon>WhatsApp</button>@if(canLink){<button mat-stroked-button (click)="choose(contact)">{{contact.customerId?'Change link':'Link customer'}}</button>}@if(canCreate&&!contact.customerId){<button mat-flat-button (click)="create(contact)">Create customer</button>}</div>
+          @if(linkingContactId===contact.whatsAppContactId){<div class="linker"><mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>ERP customer</mat-label><mat-select [(ngModel)]="linkCustomerId">@for(customer of customers();track customer.customerId){<mat-option [value]="customer.customerId">{{customer.customerCode}} — {{customer.customerName}}</mat-option>}</mat-select></mat-form-field><button mat-flat-button [disabled]="!linkCustomerId" (click)="link()">Save link</button><button mat-button (click)="cancel()">Cancel</button></div>}
+        </article>
+      }@empty{<p class="empty">No WhatsApp contacts yet. A QR scan or saved phone number is not enough—the contact is created when the customer sends the first message.</p>}
+    </section>
+    <mat-paginator [length]="total()" [pageIndex]="page-1" [pageSize]="size" [pageSizeOptions]="[10,20,50,100]" (page)="paged($event)" />
+  }
+</app-page-container>

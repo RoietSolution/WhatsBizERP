@@ -47,6 +47,8 @@ export interface WhatsAppMetaTestDiagnostics {
   lastInboundEventType?:string; lastMetaMessageId?:string; tenantResolutionSucceeded:boolean;
   duplicateWebhookCount:number; lastTestMessageOn?:string; lastTestMessageId?:string;
 }
+export interface WhatsAppContact { whatsAppContactId:string;mobile:string;profileName?:string;status:'NEW'|'MATCHED'|'CONVERTED';customerId?:string;customerCode?:string;customerName?:string;firstMessageAt:string;lastMessageAt:string;messageCount:number;lastMessageType?:string; }
+export interface PagedWhatsAppContacts { items:WhatsAppContact[];totalCount:number;newCount:number;matchedCount:number;convertedCount:number;pageNumber:number;pageSize:number; }
 @Injectable({ providedIn: 'root' })
 export class WhatsAppApiService {
   private readonly root = '/api/whatsapp';
@@ -59,4 +61,9 @@ export class WhatsAppApiService {
   platform(){return this.http.get<WhatsAppPlatformConfiguration>(`${this.root}/administration/platform`);}
   savePlatform(input:{metaAppId:string;isEnabled:boolean;appSecret?:string;webhookVerifyToken?:string}){return this.http.put<WhatsAppPlatformConfiguration>(`${this.root}/administration/platform`,input);}
   retailerConnections(){return this.http.get<RetailerWhatsAppConnection[]>(`${this.root}/administration/retailer-connections`);}
+  contacts(query:{search?:string;status?:string;pageNumber:number;pageSize:number}) {
+    const params=Object.fromEntries(Object.entries(query).filter(([,value])=>value!==undefined&&value!==''));
+    return this.http.get<PagedWhatsAppContacts>('/api/whatsapp-contacts',{params});
+  }
+  linkContact(contactId:string,customerId:string){return this.http.post<WhatsAppContact>(`/api/whatsapp-contacts/${contactId}/link`,{customerId});}
 }

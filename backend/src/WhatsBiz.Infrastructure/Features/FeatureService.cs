@@ -24,7 +24,8 @@ public sealed class FeatureService(ApplicationDbContext db, IMemoryCache cache, 
         [FeatureKeys.CommerceAnalytics] = [FeatureKeys.WhatsAppCommerce],
         [FeatureKeys.MetaWhatsAppIntegration] = [FeatureKeys.WhatsAppConfiguration],
         [FeatureKeys.WebhookDiagnostics] = [FeatureKeys.MetaWhatsAppIntegration],
-        [FeatureKeys.CustomerReferralRewards] = [FeatureKeys.Customers]
+        [FeatureKeys.CustomerReferralRewards] = [FeatureKeys.Customers],
+        [FeatureKeys.DeliveryManagement] = [FeatureKeys.Pos]
     };
 
     public async Task<bool> IsEnabledAsync(Guid tenantId, string featureKey, CancellationToken cancellationToken = default)

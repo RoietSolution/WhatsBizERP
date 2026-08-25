@@ -465,12 +465,23 @@ export const routes: Routes = [
       },
       {
         path: 'admin/whatsapp-deliveries',
-        canActivate: [permissionGuard, featureGuard],
-        data: { permission: 'pos.edit', feature: 'WHATSAPP_COMMERCE', title: 'WhatsApp Delivery Management' },
-        loadComponent: () =>
-          import('./features/whatsapp/whatsapp-delivery-management.component').then(
-            (m) => m.WhatsAppDeliveryManagementComponent,
-          ),
+        redirectTo: 'orders/deliveries',pathMatch:'full'
+      },
+      {
+        path: 'orders/deliveries',canActivate:[permissionGuard,featureGuard],data:{permission:'delivery.manage',feature:'DELIVERY_MANAGEMENT',title:'Delivery Management'},
+        loadComponent:()=>import('./features/delivery/delivery-dashboard.component').then(m=>m.DeliveryDashboardComponent),
+      },
+      {
+        path: 'delivery',canActivate:[permissionGuard,featureGuard],data:{permission:'delivery.view',feature:'DELIVERY_MANAGEMENT',title:'My Deliveries'},
+        loadComponent:()=>import('./features/delivery/delivery-agent.component').then(m=>m.DeliveryAgentComponent),
+      },
+      {
+        path: 'admin/delivery-settings',canActivate:[permissionGuard,featureGuard],data:{permission:'delivery.settings',feature:'DELIVERY_MANAGEMENT',title:'Delivery Settings'},
+        loadComponent:()=>import('./features/delivery/delivery-settings.component').then(m=>m.DeliverySettingsComponent),
+      },
+      {
+        path: 'admin/delivery-agents',canActivate:[permissionGuard,featureGuard],data:{permission:'delivery.agent-manage',feature:'DELIVERY_MANAGEMENT',title:'Delivery Agents'},
+        loadComponent:()=>import('./features/delivery/delivery-agents.component').then(m=>m.DeliveryAgentsComponent),
       },
       {
         path: 'admin/printers',
@@ -672,6 +683,15 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/customers/customer-form.component').then(
             (m) => m.CustomerFormComponent,
+          ),
+      },
+      {
+        path: 'customers/whatsapp-contacts',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permission: 'customer.view', feature: 'WHATSAPP_COMMERCE' },
+        loadComponent: () =>
+          import('./features/whatsapp/whatsapp-contacts.component').then(
+            (m) => m.WhatsAppContactsComponent,
           ),
       },
       {

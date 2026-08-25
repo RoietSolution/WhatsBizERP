@@ -3,19 +3,21 @@ using WhatsBiz.Api.Authorization;
 using WhatsBiz.Application.Common.Features;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.WhatsAppCommerce;
+using WhatsBiz.Application.Features.Delivery;
 using WhatsBiz.SharedKernel;
 
 namespace WhatsBiz.Api.Controllers;
 
 [ApiController, Route("api/whatsapp-commerce"), RequireFeature(FeatureKeys.WhatsAppCommerce)]
-public sealed class WhatsAppCommerceController(IWhatsAppCommerceService service, ICommerceAnalyticsService analytics, ICurrentUserService currentUser) : ControllerBase
+public sealed class WhatsAppCommerceController(IWhatsAppCommerceService service, ICommerceAnalyticsService analytics, ICurrentUserService currentUser,IDeliveryService delivery,IFeatureService features) : ControllerBase
 {
     [HttpGet("demo/setup"), HasPermission(Permissions.POS.View), RequireFeature(FeatureKeys.CommerceProductSearch), RequireFeature(FeatureKeys.WhatsAppCommerceDemo)]
     public Task<WhatsAppCommerceSetup> Setup([FromQuery] Guid? warehouseId, CancellationToken token) => service.GetSetupAsync(TenantId(), warehouseId, token);
     [HttpPost("demo/cart"), HasPermission(Permissions.POS.View), RequireFeature(FeatureKeys.CommerceProductSearch), RequireFeature(FeatureKeys.WhatsAppCommerceDemo)]
     public Task<WhatsAppCommerceCart> Cart(CalculateWhatsAppCartInput input, CancellationToken token) => service.CalculateCartAsync(TenantId(), input.WarehouseId, input.Items, token);
     [HttpPost("demo/orders"), HasPermission(Permissions.POS.Create), RequireFeature(FeatureKeys.CommerceOrders), RequireFeature(FeatureKeys.WhatsAppCommerceDemo)]
-    public Task<WhatsAppCommerceOrderResult> Order(PlaceWhatsAppDemoOrderInput input, CancellationToken token) => service.PlaceOrderAsync(TenantId(), input, currentUser.Username, token);
+    public async Task<WhatsAppCommerceOrderResult> Order(PlaceWhatsAppDemoOrderInput input, CancellationToken token)
+    { var result=await service.PlaceOrderAsync(TenantId(),input,currentUser.Username,token);if(!input.FulfillmentMethod.Equals("WALK_IN",StringComparison.OrdinalIgnoreCase)&&await features.IsEnabledAsync(TenantId(),FeatureKeys.DeliveryManagement,token))await delivery.Ready(TenantId(),result.OrderId,new(DeliveryAddress:input.DeliveryAddress,CodRequired:input.PaymentType.Equals("COD",StringComparison.OrdinalIgnoreCase)),currentUser.UserId??throw new UnauthorizedAccessException("A user identity is required."),currentUser.Username??"WhatsApp Commerce",token);return result; }
     [HttpGet("demo/readiness"), HasPermission(Permissions.POS.View), RequireFeature(FeatureKeys.WebhookDiagnostics), RequireFeature(FeatureKeys.WhatsAppCommerceDemo)]
     public Task<WhatsAppCommerceReadiness> Readiness(CancellationToken token) => service.GetReadinessAsync(TenantId(), token);
     [HttpGet("demo/orders"), HasPermission(Permissions.POS.View), RequireFeature(FeatureKeys.CommerceOrders)]

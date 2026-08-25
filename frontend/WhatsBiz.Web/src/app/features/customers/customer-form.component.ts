@@ -13,6 +13,7 @@ import { CustomerApiService } from './customer-api.service';
 import { CustomerInput, PaymentTerm } from './customer.models';
 import { CustomerGroup } from './customer-group.models';
 import { CustomerGroupApiService } from './customer-group-api.service';
+import { WhatsAppApiService } from '../whatsapp/whatsapp-api.service';
 @Component({
   imports: [
     ReactiveFormsModule,
@@ -62,6 +63,7 @@ import { CustomerGroupApiService } from './customer-group-api.service';
 export class CustomerFormComponent {
   private readonly fb = inject(FormBuilder);
   readonly id: string | null;
+  readonly whatsappContactId: string | null;
   readonly terms = signal<PaymentTerm[]>([]);
   readonly groups = signal<CustomerGroup[]>([]);
   readonly form = this.fb.group({
@@ -116,8 +118,11 @@ export class CustomerFormComponent {
     private readonly router: Router,
     private readonly snack: MatSnackBar,
     private readonly groupApi: CustomerGroupApiService,
+    private readonly whatsappApi: WhatsAppApiService,
   ) {
     this.id = route.snapshot.paramMap.get('id');
+    this.whatsappContactId = route.snapshot.queryParamMap.get('whatsappContactId');
+    if(!this.id&&this.whatsappContactId)this.form.patchValue({customerCode:route.snapshot.queryParamMap.get('code')??'',customerName:route.snapshot.queryParamMap.get('name')??'',mobile:route.snapshot.queryParamMap.get('mobile')??'',remarks:'Created from an inbound WhatsApp contact.'});
     forkJoin({ terms: api.terms(), groups: groupApi.list(), customer: this.id ? api.get(this.id) : of(null) }).subscribe(
       (x) => {
         this.terms.set(x.terms);
@@ -155,7 +160,8 @@ export class CustomerFormComponent {
     (this.id ? this.api.update(this.id, input) : this.api.create(input)).subscribe({
       next: (x) => {
         this.snack.open('Customer saved.', undefined, { duration: 2500 });
-        void this.router.navigate(['/customers', x.customerId]);
+        if(this.whatsappContactId)this.whatsappApi.linkContact(this.whatsappContactId,x.customerId).subscribe({next:()=>void this.router.navigate(['/customers/whatsapp-contacts']),error:()=>{this.snack.open('Customer was created, but the WhatsApp contact could not be linked. Link it manually from WhatsApp Contacts.','Dismiss',{duration:6000});void this.router.navigate(['/customers',x.customerId]);}});
+        else void this.router.navigate(['/customers', x.customerId]);
       },
       error: () => this.snack.open('Customer could not be saved.', 'Dismiss', { duration: 5000 }),
     });

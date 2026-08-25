@@ -96,6 +96,25 @@ public sealed partial class MetaCloudApiWhatsAppProvider(IHttpClientFactory clie
             catch (JsonException) { return new(false, null, now, false, 0, request.RecipientNumber, "Meta returned an unexpected message response."); }
     }
 
+    public async Task<WhatsAppTransactionalMessageResult> SendTransactionalAsync(WhatsAppTransactionalMessageRequest request,CancellationToken token)
+    {
+        var now=DateTimeOffset.UtcNow;
+        try
+        {
+            object payload=string.IsNullOrWhiteSpace(request.ApprovedTemplateName)
+                ? new { messaging_product="whatsapp",to=request.RecipientNumber,type="text",text=new { preview_url=false,body=request.Message } }
+                : new { messaging_product="whatsapp",to=request.RecipientNumber,type="template",template=new { name=request.ApprovedTemplateName,language=new { code=request.LanguageCode },components=request.Parameters.Count==0?null:new[]{new { type="body",parameters=request.Parameters.Select(x=>new { type="text",text=x }).ToArray() }} }};
+            using var httpRequest=Create(HttpMethod.Post,$"{BaseUrl()}/{Uri.EscapeDataString(request.ApiVersion)}/{Uri.EscapeDataString(request.PhoneNumberId)}/messages",request.AccessToken);
+            httpRequest.Content=JsonContent.Create(payload);using var response=await clients.CreateClient("MetaWhatsApp").SendAsync(httpRequest,token);
+            if(!response.IsSuccessStatusCode){MetaProviderLogs.RequestRejected(logger,request.TemplateKey,(int)response.StatusCode);return new(false,null,now,SafeFailure(response.StatusCode));}
+            await using var stream=await response.Content.ReadAsStreamAsync(token);using var document=await JsonDocument.ParseAsync(stream,cancellationToken:token);
+            var id=document.RootElement.TryGetProperty("messages",out var messages)&&messages.GetArrayLength()>0&&messages[0].TryGetProperty("id",out var node)?node.GetString():null;
+            return string.IsNullOrWhiteSpace(id)?new(false,null,now,"Meta accepted the request but returned no message ID."):new(true,id,now,"Message accepted by Meta.");
+        }
+        catch(HttpRequestException){return new(false,null,now,"Meta could not be reached. Check network connectivity and try again.");}
+        catch(JsonException){return new(false,null,now,"Meta returned an unexpected message response.");}
+    }
+
     private static HttpRequestMessage Create(HttpMethod method, string url, string token)
     { var request = new HttpRequestMessage(method, url); request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token); return request; }
     private string BaseUrl()

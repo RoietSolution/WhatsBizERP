@@ -50,3 +50,18 @@ public sealed class WhatsAppController(IWhatsAppService service, ICurrentUserSer
 }
 
 public sealed record ValidateWhatsAppConnectionInput(string? AccessToken);
+
+[ApiController, Route("api/whatsapp-contacts"), RequireFeature(FeatureKeys.WhatsAppCommerce)]
+public sealed class WhatsAppContactsController(IWhatsAppService service, ICurrentUserService currentUser) : ControllerBase
+{
+    [HttpGet, HasPermission(Permissions.Customer.View)]
+    public Task<PagedWhatsAppContacts> Get([FromQuery] string? search,[FromQuery] string? status,
+        [FromQuery] int pageNumber=1,[FromQuery] int pageSize=20,CancellationToken token=default) =>
+        service.GetContactsAsync(TenantId(),search,status,pageNumber,pageSize,token);
+
+    [HttpPost("{id:guid}/link"), HasPermission(Permissions.Customer.Edit)]
+    public Task<WhatsAppContactDto> Link(Guid id,LinkWhatsAppContactInput input,CancellationToken token) =>
+        service.LinkContactAsync(TenantId(),id,input.CustomerId,currentUser.Username,token);
+
+    private Guid TenantId()=>currentUser.TenantId??throw new UnauthorizedAccessException("A tenant context is required.");
+}

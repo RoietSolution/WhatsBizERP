@@ -42,6 +42,20 @@ public sealed record RetailerWhatsAppConnectionDto(Guid TenantId, string TenantK
     string? DisplayPhoneNumber, string? BusinessDisplayName, bool ConfigurationIsEnabled,
     string ConnectionStatus, DateTimeOffset? LastValidatedOn, bool UsesSharedPlatformCredentials);
 
+public static class WhatsAppContactStatuses
+{
+    public const string New = "NEW";
+    public const string Matched = "MATCHED";
+    public const string Converted = "CONVERTED";
+    public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { New, Matched, Converted };
+}
+public sealed record WhatsAppContactDto(Guid WhatsAppContactId, string Mobile, string? ProfileName,
+    string Status, Guid? CustomerId, string? CustomerCode, string? CustomerName,
+    DateTimeOffset FirstMessageAt, DateTimeOffset LastMessageAt, int MessageCount, string? LastMessageType);
+public sealed record PagedWhatsAppContacts(IReadOnlyCollection<WhatsAppContactDto> Items, int TotalCount,
+    int NewCount, int MatchedCount, int ConvertedCount, int PageNumber, int PageSize);
+public sealed record LinkWhatsAppContactInput(Guid CustomerId);
+
 public interface IWhatsAppService
 {
     Task<WhatsAppConfigurationDto> GetConfigurationAsync(Guid tenantId, CancellationToken token);
@@ -52,6 +66,8 @@ public interface IWhatsAppService
     Task<WhatsAppPlatformConfigurationDto> GetPlatformConfigurationAsync(CancellationToken token);
     Task<WhatsAppPlatformConfigurationDto> SavePlatformConfigurationAsync(SaveWhatsAppPlatformConfigurationInput input, string? actor, CancellationToken token);
     Task<IReadOnlyCollection<RetailerWhatsAppConnectionDto>> GetRetailerConnectionsAsync(CancellationToken token);
+    Task<PagedWhatsAppContacts> GetContactsAsync(Guid tenantId, string? search, string? status, int pageNumber, int pageSize, CancellationToken token);
+    Task<WhatsAppContactDto> LinkContactAsync(Guid tenantId, Guid contactId, Guid customerId, string? actor, CancellationToken token);
     Task<string?> VerifyWebhookAsync(string mode, string verifyToken, string challenge, CancellationToken token);
     Task<bool> ReceiveWebhookAsync(string? signature, ReadOnlyMemory<byte> body, CancellationToken token);
 }

@@ -16,6 +16,7 @@ export interface PagedCustomers {
   pageNumber: number;
   pageSize: number;
 }
+export interface CustomerDropdown { customerId:string;customerCode:string;customerName:string; }
 export interface Contact {
   contactId?: string;
   contactPerson: string;

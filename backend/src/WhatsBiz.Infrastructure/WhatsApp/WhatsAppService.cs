@@ -181,13 +181,76 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
                 var inserted=await StoreEvent(row.TenantId,row.ProviderMode,item.EventKey,item.EventType,item.Direction,envelope.PhoneNumberId,item.ContactNumber,item.Status,item.EventTimestamp,token,item.MetaMessageId,item.MessageType);
                 WhatsAppLogs.TransportProcessed(logger,row.ProviderMode,row.TenantId,item.EventType,item.MetaMessageId,item.Direction,inserted?"RECORDED":"DUPLICATE");
                 await MarkWebhookReceived(row.TenantId,item,!inserted,token);
-                if(inserted&&item.Direction=="INBOUND"&&item.ContactNumber is not null&&item.MessageText is not null)
-                    await TryCaptureReferralMessage(row.TenantId,item.ContactNumber,item.MessageText,token);
+                if(inserted&&item.Direction=="INBOUND"&&item.ContactNumber is not null)
+                {
+                    await UpsertContact(row.TenantId,item,token);
+                    if(item.MessageText is not null)await TryCaptureReferralMessage(row.TenantId,item.ContactNumber,item.MessageText,token);
+                }
             }
             WhatsAppLogs.WebhookReceived(logger,row.TenantId,envelope.PhoneNumberId,string.Join(',',envelope.Events.Select(x=>x.EventType).Distinct(StringComparer.Ordinal)));
         }
         return true;
     }
+
+    public async Task<PagedWhatsAppContacts> GetContactsAsync(Guid tenantId,string? search,string? status,int pageNumber,int pageSize,CancellationToken token)
+    {
+        pageNumber=Math.Max(1,pageNumber);pageSize=Math.Clamp(pageSize,1,100);
+        var normalizedStatus=string.IsNullOrWhiteSpace(status)?null:status.Trim().ToUpperInvariant();
+        if(normalizedStatus is not null&&!WhatsAppContactStatuses.All.Contains(normalizedStatus))throw new BusinessRuleException("WhatsApp contact status is invalid.");
+        var rows=new List<WhatsAppContactDto>();var total=0;var newCount=0;var matchedCount=0;var convertedCount=0;
+        await using var connection=new SqlConnection(ConnectionString);await connection.OpenAsync(token);
+        await using var command=new SqlCommand("""
+SELECT COUNT(1),SUM(CASE WHEN wc.Status=N'NEW' THEN 1 ELSE 0 END),SUM(CASE WHEN wc.Status=N'MATCHED' THEN 1 ELSE 0 END),SUM(CASE WHEN wc.Status=N'CONVERTED' THEN 1 ELSE 0 END)
+FROM integration.WhatsAppContacts wc LEFT JOIN sales.Customers c ON c.CustomerId=wc.CustomerId AND c.TenantId=wc.TenantId AND c.IsDeleted=0
+WHERE wc.TenantId=@tenant AND (@status IS NULL OR wc.Status=@status) AND (@search IS NULL OR wc.DisplayMobile LIKE N'%'+@search+N'%' OR wc.ProfileName LIKE N'%'+@search+N'%' OR c.CustomerName LIKE N'%'+@search+N'%');
+SELECT wc.WhatsAppContactId,wc.DisplayMobile,wc.ProfileName,wc.Status,wc.CustomerId,c.CustomerCode,c.CustomerName,wc.FirstMessageAt,wc.LastMessageAt,wc.MessageCount,wc.LastMessageType
+FROM integration.WhatsAppContacts wc LEFT JOIN sales.Customers c ON c.CustomerId=wc.CustomerId AND c.TenantId=wc.TenantId AND c.IsDeleted=0
+WHERE wc.TenantId=@tenant AND (@status IS NULL OR wc.Status=@status) AND (@search IS NULL OR wc.DisplayMobile LIKE N'%'+@search+N'%' OR wc.ProfileName LIKE N'%'+@search+N'%' OR c.CustomerName LIKE N'%'+@search+N'%')
+ORDER BY wc.LastMessageAt DESC OFFSET @offset ROWS FETCH NEXT @size ROWS ONLY;
+""",connection);
+        command.Parameters.AddWithValue("@tenant",tenantId);command.Parameters.AddWithValue("@status",(object?)normalizedStatus??DBNull.Value);command.Parameters.AddWithValue("@search",string.IsNullOrWhiteSpace(search)?DBNull.Value:search.Trim());command.Parameters.AddWithValue("@offset",(pageNumber-1)*pageSize);command.Parameters.AddWithValue("@size",pageSize);
+        await using var reader=await command.ExecuteReaderAsync(token);if(await reader.ReadAsync(token)){total=reader.GetInt32(0);newCount=reader.IsDBNull(1)?0:reader.GetInt32(1);matchedCount=reader.IsDBNull(2)?0:reader.GetInt32(2);convertedCount=reader.IsDBNull(3)?0:reader.GetInt32(3);}await reader.NextResultAsync(token);
+        while(await reader.ReadAsync(token))rows.Add(MapContact(reader));
+        return new(rows,total,newCount,matchedCount,convertedCount,pageNumber,pageSize);
+    }
+
+    public async Task<WhatsAppContactDto> LinkContactAsync(Guid tenantId,Guid contactId,Guid customerId,string? actor,CancellationToken token)
+    {
+        await using var connection=new SqlConnection(ConnectionString);await connection.OpenAsync(token);await using var transaction=await connection.BeginTransactionAsync(token);
+        await using var command=new SqlCommand("""
+IF NOT EXISTS(SELECT 1 FROM sales.Customers WHERE TenantId=@tenant AND CustomerId=@customer AND IsDeleted=0) THROW 51000,N'Customer not found.',1;
+IF NOT EXISTS(SELECT 1 FROM integration.WhatsAppContacts WHERE TenantId=@tenant AND WhatsAppContactId=@contact) THROW 51000,N'WhatsApp contact not found.',1;
+DECLARE @previous uniqueidentifier=(SELECT CustomerId FROM integration.WhatsAppContacts WHERE TenantId=@tenant AND WhatsAppContactId=@contact);
+UPDATE integration.WhatsAppContacts SET CustomerId=@customer,Status=N'CONVERTED',UpdatedAt=SYSUTCDATETIME() WHERE TenantId=@tenant AND WhatsAppContactId=@contact;
+INSERT integration.WhatsAppContactEvents(TenantId,WhatsAppContactId,EventType,PreviousCustomerId,CustomerId,Actor,CreatedAt) VALUES(@tenant,@contact,N'LINKED',@previous,@customer,@actor,SYSUTCDATETIME());
+""",connection,(SqlTransaction)transaction);command.Parameters.AddWithValue("@tenant",tenantId);command.Parameters.AddWithValue("@contact",contactId);command.Parameters.AddWithValue("@customer",customerId);command.Parameters.AddWithValue("@actor",(object?)actor??DBNull.Value);
+        try{await command.ExecuteNonQueryAsync(token);}catch(SqlException ex)when(ex.Number==51000){throw new BusinessRuleException(ex.Message);}
+        await transaction.CommitAsync(token);return await GetContact(tenantId,contactId,token);
+    }
+
+    private async Task UpsertContact(Guid tenantId,WebhookTransportEvent item,CancellationToken token)
+    {
+        var normalized=NonDigits().Replace(item.ContactNumber??string.Empty,string.Empty);if(normalized.Length is <8 or >15)return;
+        await using var connection=new SqlConnection(ConnectionString);await connection.OpenAsync(token);await using var transaction=(SqlTransaction)await connection.BeginTransactionAsync(System.Data.IsolationLevel.Serializable,token);
+        await using var command=new SqlCommand("""
+DECLARE @customer uniqueidentifier=(SELECT TOP(1) CustomerId FROM sales.Customers WHERE TenantId=@tenant AND IsDeleted=0 AND Mobile IS NOT NULL AND RIGHT(REPLACE(REPLACE(REPLACE(Mobile,N' ',N''),N'+',N''),N'-',N''),10)=RIGHT(@mobile,10) ORDER BY IsActive DESC,CreatedOn);
+DECLARE @contact uniqueidentifier=(SELECT WhatsAppContactId FROM integration.WhatsAppContacts WITH(UPDLOCK,HOLDLOCK) WHERE TenantId=@tenant AND NormalizedMobile=@mobile);
+IF @contact IS NULL BEGIN
+ SET @contact=NEWID();
+ INSERT integration.WhatsAppContacts(WhatsAppContactId,TenantId,NormalizedMobile,DisplayMobile,ProfileName,Status,CustomerId,FirstMessageAt,LastMessageAt,MessageCount,LastMessageType,LastMetaMessageId,CreatedAt,UpdatedAt)
+ VALUES(@contact,@tenant,@mobile,N'+'+@mobile,@name,CASE WHEN @customer IS NULL THEN N'NEW' ELSE N'MATCHED' END,@customer,@at,@at,1,@type,@message,SYSUTCDATETIME(),SYSUTCDATETIME());
+ INSERT integration.WhatsAppContactEvents(TenantId,WhatsAppContactId,EventType,CustomerId,CreatedAt) VALUES(@tenant,@contact,CASE WHEN @customer IS NULL THEN N'CREATED' ELSE N'AUTO_MATCHED' END,@customer,SYSUTCDATETIME());
+END ELSE BEGIN
+ DECLARE @oldCustomer uniqueidentifier=(SELECT CustomerId FROM integration.WhatsAppContacts WHERE WhatsAppContactId=@contact);
+ UPDATE integration.WhatsAppContacts SET ProfileName=COALESCE(NULLIF(@name,N''),ProfileName),CustomerId=COALESCE(CustomerId,@customer),Status=CASE WHEN Status=N'CONVERTED' THEN Status WHEN COALESCE(CustomerId,@customer) IS NULL THEN N'NEW' ELSE N'MATCHED' END,LastMessageAt=CASE WHEN @at>LastMessageAt THEN @at ELSE LastMessageAt END,MessageCount=MessageCount+1,LastMessageType=@type,LastMetaMessageId=@message,UpdatedAt=SYSUTCDATETIME() WHERE WhatsAppContactId=@contact AND TenantId=@tenant;
+ IF @oldCustomer IS NULL AND @customer IS NOT NULL INSERT integration.WhatsAppContactEvents(TenantId,WhatsAppContactId,EventType,CustomerId,CreatedAt) VALUES(@tenant,@contact,N'AUTO_MATCHED',@customer,SYSUTCDATETIME());
+END
+""",connection,transaction);command.Parameters.AddWithValue("@tenant",tenantId);command.Parameters.AddWithValue("@mobile",normalized);command.Parameters.AddWithValue("@name",(object?)item.ProfileName?.Trim()??DBNull.Value);command.Parameters.AddWithValue("@at",item.EventTimestamp);command.Parameters.AddWithValue("@type",(object?)item.MessageType??DBNull.Value);command.Parameters.AddWithValue("@message",item.MetaMessageId);await command.ExecuteNonQueryAsync(token);await transaction.CommitAsync(token);
+    }
+
+    private async Task<WhatsAppContactDto> GetContact(Guid tenantId,Guid contactId,CancellationToken token)
+    {await using var connection=new SqlConnection(ConnectionString);await connection.OpenAsync(token);await using var command=new SqlCommand("SELECT wc.WhatsAppContactId,wc.DisplayMobile,wc.ProfileName,wc.Status,wc.CustomerId,c.CustomerCode,c.CustomerName,wc.FirstMessageAt,wc.LastMessageAt,wc.MessageCount,wc.LastMessageType FROM integration.WhatsAppContacts wc LEFT JOIN sales.Customers c ON c.CustomerId=wc.CustomerId AND c.TenantId=wc.TenantId AND c.IsDeleted=0 WHERE wc.TenantId=@tenant AND wc.WhatsAppContactId=@contact",connection);command.Parameters.AddWithValue("@tenant",tenantId);command.Parameters.AddWithValue("@contact",contactId);await using var reader=await command.ExecuteReaderAsync(token);return await reader.ReadAsync(token)?MapContact(reader):throw new BusinessRuleException("WhatsApp contact not found.");}
+    private static WhatsAppContactDto MapContact(SqlDataReader r)=>new(r.GetGuid(0),r.GetString(1),r.IsDBNull(2)?null:r.GetString(2),r.GetString(3),r.IsDBNull(4)?null:r.GetGuid(4),r.IsDBNull(5)?null:r.GetString(5),r.IsDBNull(6)?null:r.GetString(6),r.GetDateTimeOffset(7),r.GetDateTimeOffset(8),r.GetInt32(9),r.IsDBNull(10)?null:r.GetString(10));
 
     private async Task<bool> StoreEvent(Guid tenantId, string providerMode, string eventKey, string eventType, string direction,
         string? phoneNumberId, string? contactNumber, string? status, DateTimeOffset eventTimestamp,
@@ -232,11 +295,13 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
                 if(!change.TryGetProperty("value",out var value))continue;
                 var phoneNumberId=value.TryGetProperty("metadata",out var metadata)?String(metadata,"phone_number_id"):null;
                 if(string.IsNullOrWhiteSpace(phoneNumberId))throw new JsonException("Webhook change has no Phone Number ID.");
-                var events=new List<WebhookTransportEvent>();
+                var events=new List<WebhookTransportEvent>();var profiles=new Dictionary<string,string>(StringComparer.Ordinal);
+                if(value.TryGetProperty("contacts",out var contacts)&&contacts.ValueKind==JsonValueKind.Array)foreach(var contact in contacts.EnumerateArray())
+                {var waId=String(contact,"wa_id");var name=contact.TryGetProperty("profile",out var profile)?String(profile,"name"):null;if(!string.IsNullOrWhiteSpace(waId)&&!string.IsNullOrWhiteSpace(name))profiles[waId]=name;}
                 if(value.TryGetProperty("messages",out var messages)&&messages.ValueKind==JsonValueKind.Array)foreach(var message in messages.EnumerateArray())
-                {var id=String(message,"id");var text=message.TryGetProperty("text",out var textNode)?String(textNode,"body"):null;if(!string.IsNullOrWhiteSpace(id))events.Add(new($"message:{id}",id,"MESSAGE_RECEIVED","INBOUND",String(message,"from"),String(message,"type"),null,Timestamp(message),text));}
+                {var id=String(message,"id");var from=String(message,"from");var text=message.TryGetProperty("text",out var textNode)?String(textNode,"body"):null;if(!string.IsNullOrWhiteSpace(id))events.Add(new($"message:{id}",id,"MESSAGE_RECEIVED","INBOUND",from,String(message,"type"),null,Timestamp(message),text,from is not null&&profiles.TryGetValue(from,out var profileName)?profileName:null));}
                 if(value.TryGetProperty("statuses",out var statuses)&&statuses.ValueKind==JsonValueKind.Array)foreach(var status in statuses.EnumerateArray())
-                {var id=String(status,"id");var state=String(status,"status");if(!string.IsNullOrWhiteSpace(id)&&!string.IsNullOrWhiteSpace(state))events.Add(new($"status:{id}:{state}",id,"MESSAGE_STATUS","OUTBOUND",String(status,"recipient_id"),null,state,Timestamp(status),null));}
+                {var id=String(status,"id");var state=String(status,"status");if(!string.IsNullOrWhiteSpace(id)&&!string.IsNullOrWhiteSpace(state))events.Add(new($"status:{id}:{state}",id,"MESSAGE_STATUS","OUTBOUND",String(status,"recipient_id"),null,state,Timestamp(status),null,null));}
                 result.Add(new(wabaId,phoneNumberId,events));
             }
         }
@@ -292,7 +357,7 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
     private sealed record PlatformRow(string MetaAppId,string AppSecretProtected,string WebhookVerifyTokenProtected,bool IsEnabled,DateTimeOffset? ModifiedOn);
     internal sealed record WebhookEnvelope(string WabaId,string PhoneNumberId,IReadOnlyCollection<WebhookTransportEvent> Events);
     internal sealed record WebhookTransportEvent(string EventKey, string MetaMessageId, string EventType,
-        string Direction, string? ContactNumber, string? MessageType, string? Status, DateTimeOffset EventTimestamp, string? MessageText);
+        string Direction, string? ContactNumber, string? MessageType, string? Status, DateTimeOffset EventTimestamp, string? MessageText, string? ProfileName);
 }
 
 internal static partial class WhatsAppLogs

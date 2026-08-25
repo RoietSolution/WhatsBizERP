@@ -1,6 +1,12 @@
 <section class="page">
   <header class="heading"><div><h1>Coin & Loyalty Settings</h1><p class="hint">Configure earning, redemption, and reversal rules for WhatsApp Ecommerce.</p></div><mat-slide-toggle [(ngModel)]="config.isEnabled">System enabled</mat-slide-toggle></header>
   @if(error()){<p class="error">{{error()}}</p>}
+  <section class="card"><div class="section-head"><div><h2>Customer coin wallets</h2><p class="hint">View customer balances and tenant-scoped ledger history.</p></div></div>
+    <mat-form-field class="wallet-picker" appearance="outline"><mat-label>Select customer</mat-label><mat-select [(ngModel)]="customerId" (selectionChange)="loadWallet()"><mat-option value="">Select a customer</mat-option>@for(customer of customers();track customer.customerId){<mat-option [value]="customer.customerId">{{customer.customerCode}} — {{customer.customerName}} @if(customer.mobile){· {{customer.mobile}}}</mat-option>}</mat-select></mat-form-field>
+    @if(walletBusy()){<p class="hint">Loading customer wallet…</p>}
+    @if(wallet();as selectedWallet){<div class="wallet-summary"><div><span>Available</span><strong>{{selectedWallet.availableCoins}}</strong><small>coins</small></div><div><span>Total earned</span><strong>{{selectedWallet.totalEarned}}</strong><small>coins</small></div><div><span>Total redeemed</span><strong>{{selectedWallet.totalRedeemed}}</strong><small>coins</small></div></div>
+      <div style="overflow:auto"><table class="ledger"><thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Source</th><th>Coins</th><th>Value</th></tr></thead><tbody>@for(entry of selectedWallet.transactions;track entry.coinTransactionId){<tr><td>{{entry.createdOn|date:'medium'}}</td><td>{{entry.transactionType}}</td><td>{{entry.description||'—'}}</td><td>{{entry.sourceType}}</td><td [class.coin-positive]="entry.coins>0" [class.coin-negative]="entry.coins<0">{{entry.coins>0?'+':''}}{{entry.coins}}</td><td>{{entry.rupeeValue==null?'—':('₹'+entry.rupeeValue)}}</td></tr>}@empty{<tr><td colspan="6" class="hint">No coin transactions for this customer.</td></tr>}</tbody></table></div>}
+  </section>
   <section class="card"><h2>Purchase earning</h2><div class="grid">
     <mat-form-field appearance="outline"><mat-label>Purchase amount (₹)</mat-label><input matInput type="number" min="0.01" [(ngModel)]="config.purchaseAmount"></mat-form-field>
     <mat-form-field appearance="outline"><mat-label>Coins earned</mat-label><input matInput type="number" min="1" [(ngModel)]="config.purchaseCoins"></mat-form-field>

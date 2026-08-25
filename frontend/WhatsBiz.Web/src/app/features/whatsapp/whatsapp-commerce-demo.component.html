@@ -17,21 +17,6 @@
   }
 
   @if (setup(); as data) {
-    @if (wallet(); as coins) {
-      <section class="checkout-details">
-        <span class="eyebrow">Loyalty wallet</span>
-        <div class="checkout-summary">
-          <strong>{{ coins.availableCoins }} coins available</strong>
-          <span>{{ coins.totalEarned }} earned · {{ coins.totalRedeemed }} redeemed</span>
-        </div>
-        <label>Coins to redeem
-          <input type="number" min="0" [max]="coins.availableCoins" step="1" [(ngModel)]="redeemCoins" />
-        </label>
-        @for (entry of coins.transactions.slice(0, 5); track entry.coinTransactionId) {
-          <small>{{ entry.createdOn | date:'mediumDate' }} · {{ entry.description || entry.transactionType }} · {{ entry.coins > 0 ? '+' : '' }}{{ entry.coins }}</small>
-        }
-      </section>
-    }
     @if (!started()) {
       <section class="demo-welcome">
         <div class="welcome-icon"><span class="material-symbols-rounded">forum</span></div>
@@ -39,7 +24,7 @@
         <div class="mode-card"><span>Environment</span><strong>MOCK</strong><small>AI: Local Intent Engine<br>External AI Cost: ₹0</small></div>
       </section>
     } @else {
-      <section class="demo-status"><div class="status-brand"><span class="brand-mark">K</span><div><strong>KhataDhari WhatsApp Ecommerce Demo</strong><small>Live retailer preview · {{ data.storeName }}</small></div></div><div class="status-facts"><span><b>MODE</b> MOCK</span><span><b>AI</b> Local Intent Engine</span><span><b>COST</b> ₹0</span></div><mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Customer</mat-label><mat-select [(ngModel)]="customerId">@for (customer of data.customers; track customer.customerId) {<mat-option [value]="customer.customerId">{{ customer.customerName }}</mat-option>}</mat-select></mat-form-field><mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Warehouse</mat-label><mat-select [(ngModel)]="warehouseId" (selectionChange)="changeWarehouse()">@for (warehouse of data.warehouses; track warehouse.warehouseId) {<mat-option [value]="warehouse.warehouseId">{{ warehouse.warehouseName }}</mat-option>}</mat-select></mat-form-field><button mat-stroked-button (click)="reset()">Reset demo</button></section>
+      <section class="demo-status"><div class="status-brand"><span class="brand-mark">K</span><div><strong>KhataDhari WhatsApp Ecommerce Demo</strong><small>Live retailer preview · {{ data.storeName }}</small></div></div><div class="status-facts"><span><b>MODE</b> MOCK</span><span><b>AI</b> Local Intent Engine</span><span><b>COST</b> ₹0</span></div><mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Customer</mat-label><mat-select [(ngModel)]="customerId" (selectionChange)="changeCustomer()">@for (customer of data.customers; track customer.customerId) {<mat-option [value]="customer.customerId">{{ customer.customerName }}</mat-option>}</mat-select></mat-form-field><mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Warehouse</mat-label><mat-select [(ngModel)]="warehouseId" (selectionChange)="changeWarehouse()">@for (warehouse of data.warehouses; track warehouse.warehouseId) {<mat-option [value]="warehouse.warehouseId">{{ warehouse.warehouseName }}</mat-option>}</mat-select></mat-form-field><button mat-stroked-button (click)="reset()">Reset demo</button></section>
 
       <section class="demo-workspace">
         <article class="chat-panel">
@@ -47,6 +32,28 @@
           <div class="chat-body">
             <div class="demo-notice"><span class="material-symbols-rounded">verified_user</span> MOCK environment · no messages are sent to WhatsApp</div>
             @for (message of messages(); track $index) {<div class="bubble-wrap" [class.customer-message]="message.sender === 'CUSTOMER'"><div class="bubble" [class.customer]="message.sender === 'CUSTOMER'"><span>{{ message.text }}</span><time>now {{ message.sender === 'CUSTOMER' ? '✓✓' : '' }}</time></div></div>}
+            @if (wallet(); as coins) {
+              <div class="bubble-wrap loyalty-wrap">
+                <section class="loyalty-message" aria-label="Loyalty coin wallet">
+                  <header>
+                    <span class="loyalty-coin" aria-hidden="true"><span class="material-symbols-rounded">paid</span></span>
+                    <span><small>KHATADHARI LOYALTY</small><strong>{{ coins.availableCoins }} coins available</strong></span>
+                  </header>
+                  <div class="loyalty-totals"><span><b>{{ coins.totalEarned }}</b> earned</span><span><b>{{ coins.totalRedeemed }}</b> redeemed</span></div>
+                  <label>Use coins on this order
+                    <input type="number" min="0" [max]="coins.availableCoins" step="1" [(ngModel)]="redeemCoins" />
+                  </label>
+                  @if (coins.transactions.length) {
+                    <div class="loyalty-history">
+                      @for (entry of coins.transactions.slice(0, 3); track entry.coinTransactionId) {
+                        <small><span>{{ entry.description || entry.transactionType }}</span><b [class.coin-credit]="entry.coins > 0">{{ entry.coins > 0 ? '+' : '' }}{{ entry.coins }}</b></small>
+                      }
+                    </div>
+                  } @else {<p>No coin activity yet. Coins appear after an eligible order is delivered.</p>}
+                  <time>now</time>
+                </section>
+              </div>
+            }
             @if (typing()) {<div class="bubble typing"><i></i><i></i><i></i><span>KhataDhari is checking the catalog…</span></div>}
             <div class="quick-prompts"><span>Try a demo prompt</span><div>@for (prompt of ['Show me T-Shirts under ₹500', '1500 रुपये के अंदर साड़ी दिखाओ', '1500 ke andar red saree dikhao', 'wedding collection bhejo', 'red under 1000']; track prompt) {<button (click)="quickPrompt(prompt)" [disabled]="typing()">{{ prompt }}</button>}</div></div>
             @if (error()) {<div class="inline-error"><span class="material-symbols-rounded">error</span>{{ error() }}</div>}

@@ -31,7 +31,8 @@ export class WhatsAppCommerceDemoComponent implements OnDestroy {
   checkReadiness(){this.busy.set(true);this.api.readiness().subscribe({next:x=>{this.readiness.set(x);this.busy.set(false);if(x.ready)this.load();},error:()=>{this.error.set('Demo readiness could not be checked.');this.busy.set(false);}});}
   load(warehouseId?:string){this.busy.set(true);this.api.setup(warehouseId).subscribe({next:x=>{this.loadImages(x);this.messages.set(x.messages);this.warehouseId=warehouseId??x.warehouses[0]?.warehouseId??'';this.customerId=x.customers[0]?.customerId??'';},error:()=>{this.error.set('MOCK mode must be enabled for this tenant before starting the simulator.');this.busy.set(false);}});}
   changeWarehouse(){this.quantities.clear();this.cart.set(null);this.selectedCategory.set(null);this.load(this.warehouseId);}
-  start(){this.reset();this.started.set(true);}
+  start(){this.reset();this.started.set(true);this.loadWallet();}
+  changeCustomer(){this.redeemCoins=0;this.wallet.set(null);this.order.set(null);this.orderDetails.set(null);this.loadWallet();}
   browse(){this.assistantProductIds.set(null);this.selectedCategory.set(null);this.selectedProduct.set(null);this.showCategories.set(true);this.showProducts.set(false);this.showCart.set(false);this.showOrders.set(false);this.say('Choose a category to browse our products.','CATALOGUE');}
   openCart(){this.showCart.set(true);this.showCategories.set(false);this.showProducts.set(false);this.showOrders.set(false);this.selectedProduct.set(null);this.loadWallet();this.say('Here is your cart.','CART');}
   myOrders(){if(!this.customerId)return;this.showOrders.set(true);this.showCategories.set(false);this.showProducts.set(false);this.showCart.set(false);this.loadOrders();}

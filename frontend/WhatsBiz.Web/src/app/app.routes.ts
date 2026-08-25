@@ -68,6 +68,14 @@ export const routes: Routes = [
           import('./features/authentication/login/login.component').then((m) => m.LoginComponent),
       },
       {
+        path: 'ref/:code',
+        title: 'Refer & Earn | KhataDhari ERP',
+        loadComponent: () =>
+          import('./features/referrals/referral-landing.component').then(
+            (m) => m.ReferralLandingComponent,
+          ),
+      },
+      {
         path: 'forgot-password',
         title: 'Forgot Password | KhataDhari ERP',
         data: { mode: 'forgot' },
@@ -421,6 +429,12 @@ export const routes: Routes = [
         canActivate: [permissionGuard],
         data: { ...adminSettings, title: 'Coin & Loyalty Settings' },
         loadComponent: () => import('./features/administration/loyalty-configuration.component').then((m) => m.LoyaltyConfigurationComponent),
+      },
+      {
+        path: 'customers/referral-rewards',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permission: 'customer.rewards.view', feature: 'CUSTOMER_REFERRAL_REWARDS', title: 'Customer Referral & Rewards' },
+        loadComponent: () => import('./features/administration/referral-rewards.component').then((m) => m.ReferralRewardsComponent),
       },
       {
         path: 'admin/customer-notifications',

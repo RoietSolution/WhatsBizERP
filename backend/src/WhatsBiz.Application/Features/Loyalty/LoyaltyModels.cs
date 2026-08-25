@@ -1,14 +1,14 @@
 namespace WhatsBiz.Application.Features.Loyalty;
 
 public sealed record CoinConfigurationDto(bool IsEnabled, decimal PurchaseAmount, int PurchaseCoins,
-    string EarningPriority, string AwardOrderStatus, int RedemptionCoins, decimal RedemptionValue,
+    int PurchaseCoinValidityDays, string EarningPriority, string AwardOrderStatus, int RedemptionCoins, decimal RedemptionValue,
     int MinimumRedemptionCoins, int? MaximumRedemptionCoins, bool AllowWithOtherDiscounts,
     bool RestoreRedeemedOnCancel, bool RestoreRedeemedOnRefund,
     IReadOnlyCollection<ProductCoinRuleDto> ProductRules, IReadOnlyCollection<CategoryCoinRuleDto> CategoryRules);
 public sealed record ProductCoinRuleDto(Guid ProductId, string ProductCode, string ProductName, bool IsEnabled, int CoinsPerUnit);
 public sealed record CategoryCoinRuleDto(Guid ProductCategoryId, string CategoryCode, string CategoryName, bool IsEnabled, int CoinsPerUnit);
 public sealed record CoinConfigurationInput(bool IsEnabled, decimal PurchaseAmount, int PurchaseCoins,
-    string EarningPriority, string AwardOrderStatus, int RedemptionCoins, decimal RedemptionValue,
+    int PurchaseCoinValidityDays, string EarningPriority, string AwardOrderStatus, int RedemptionCoins, decimal RedemptionValue,
     int MinimumRedemptionCoins, int? MaximumRedemptionCoins, bool AllowWithOtherDiscounts,
     bool RestoreRedeemedOnCancel, bool RestoreRedeemedOnRefund,
     IReadOnlyCollection<ProductCoinRuleInput> ProductRules, IReadOnlyCollection<CategoryCoinRuleInput> CategoryRules);

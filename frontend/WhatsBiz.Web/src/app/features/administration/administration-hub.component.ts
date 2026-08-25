@@ -277,6 +277,12 @@ export class AdministrationHubComponent {
           route: '/admin/loyalty',
         },
         {
+          title: 'Customer Referral & Rewards',
+          description: 'Refer & Earn rules, customer links, referral performance, and reward controls.',
+          icon: 'group_add',
+          route: '/customers/referral-rewards',
+        },
+        {
           title: 'GST Settings',
           description: 'GST registration and compliance configuration.',
           icon: 'percent',

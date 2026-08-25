@@ -10,12 +10,13 @@ using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.WhatsApp;
 using WhatsBiz.Application.Features.WhatsAppCommerce;
+using WhatsBiz.Application.Features.Referrals;
 
 namespace WhatsBiz.Infrastructure.WhatsApp;
 
 public sealed partial class WhatsAppService(IConfiguration configuration,
     IDataProtectionProvider dataProtectionProvider, IFeatureService features, IWhatsAppCommerceProviderResolver providers,
-    ILogger<WhatsAppService> logger) : IWhatsAppService
+    ILogger<WhatsAppService> logger, ICustomerReferralService? referrals = null) : IWhatsAppService
 {
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("WhatsBiz.WhatsApp.Secrets.v1");
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
@@ -180,6 +181,8 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
                 var inserted=await StoreEvent(row.TenantId,row.ProviderMode,item.EventKey,item.EventType,item.Direction,envelope.PhoneNumberId,item.ContactNumber,item.Status,item.EventTimestamp,token,item.MetaMessageId,item.MessageType);
                 WhatsAppLogs.TransportProcessed(logger,row.ProviderMode,row.TenantId,item.EventType,item.MetaMessageId,item.Direction,inserted?"RECORDED":"DUPLICATE");
                 await MarkWebhookReceived(row.TenantId,item,!inserted,token);
+                if(inserted&&item.Direction=="INBOUND"&&item.ContactNumber is not null&&item.MessageText is not null)
+                    await TryCaptureReferralMessage(row.TenantId,item.ContactNumber,item.MessageText,token);
             }
             WhatsAppLogs.WebhookReceived(logger,row.TenantId,envelope.PhoneNumberId,string.Join(',',envelope.Events.Select(x=>x.EventType).Distinct(StringComparer.Ordinal)));
         }
@@ -231,9 +234,9 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
                 if(string.IsNullOrWhiteSpace(phoneNumberId))throw new JsonException("Webhook change has no Phone Number ID.");
                 var events=new List<WebhookTransportEvent>();
                 if(value.TryGetProperty("messages",out var messages)&&messages.ValueKind==JsonValueKind.Array)foreach(var message in messages.EnumerateArray())
-                {var id=String(message,"id");if(!string.IsNullOrWhiteSpace(id))events.Add(new($"message:{id}",id,"MESSAGE_RECEIVED","INBOUND",String(message,"from"),String(message,"type"),null,Timestamp(message)));}
+                {var id=String(message,"id");var text=message.TryGetProperty("text",out var textNode)?String(textNode,"body"):null;if(!string.IsNullOrWhiteSpace(id))events.Add(new($"message:{id}",id,"MESSAGE_RECEIVED","INBOUND",String(message,"from"),String(message,"type"),null,Timestamp(message),text));}
                 if(value.TryGetProperty("statuses",out var statuses)&&statuses.ValueKind==JsonValueKind.Array)foreach(var status in statuses.EnumerateArray())
-                {var id=String(status,"id");var state=String(status,"status");if(!string.IsNullOrWhiteSpace(id)&&!string.IsNullOrWhiteSpace(state))events.Add(new($"status:{id}:{state}",id,"MESSAGE_STATUS","OUTBOUND",String(status,"recipient_id"),null,state,Timestamp(status)));}
+                {var id=String(status,"id");var state=String(status,"status");if(!string.IsNullOrWhiteSpace(id)&&!string.IsNullOrWhiteSpace(state))events.Add(new($"status:{id}:{state}",id,"MESSAGE_STATUS","OUTBOUND",String(status,"recipient_id"),null,state,Timestamp(status),null));}
                 result.Add(new(wabaId,phoneNumberId,events));
             }
         }
@@ -244,6 +247,13 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
     { await using var c = new SqlConnection(ConnectionString); await c.OpenAsync(token); await using var q = new SqlCommand("UPDATE integration.WhatsAppConfigurations SET LastWebhookVerifiedOn=SYSUTCDATETIME(),ModifiedOn=SYSUTCDATETIME() WHERE TenantId=@tenant;", c); q.Parameters.AddWithValue("@tenant", tenantId); await q.ExecuteNonQueryAsync(token); }
     private async Task MarkWebhookReceived(Guid tenantId, WebhookTransportEvent item, bool duplicate, CancellationToken token)
     { await using var c = new SqlConnection(ConnectionString); await c.OpenAsync(token); await using var q = new SqlCommand("UPDATE integration.WhatsAppConfigurations SET LastWebhookReceivedOn=SYSUTCDATETIME(),LastWebhookEventType=@type,LastWebhookMetaMessageId=@message,DuplicateWebhookCount=DuplicateWebhookCount+@duplicate,ModifiedOn=SYSUTCDATETIME() WHERE TenantId=@tenant;", c); q.Parameters.AddWithValue("@tenant", tenantId); q.Parameters.AddWithValue("@type", item.EventType); q.Parameters.AddWithValue("@message", item.MetaMessageId); q.Parameters.AddWithValue("@duplicate", duplicate ? 1 : 0); await q.ExecuteNonQueryAsync(token); }
+
+    private async Task TryCaptureReferralMessage(Guid tenantId,string mobile,string text,CancellationToken token)
+    {
+        var match=ReferralCommand().Match(text);if(referrals is null||!match.Success||!await features.IsEnabledAsync(tenantId,WhatsBiz.Application.Common.Features.FeatureKeys.CustomerReferralRewards,token))return;
+        await using var c=new SqlConnection(ConnectionString);await c.OpenAsync(token);await using var q=new SqlCommand("SELECT TOP(1) CustomerId FROM sales.Customers WHERE TenantId=@tenant AND IsDeleted=0 AND RIGHT(REPLACE(REPLACE(REPLACE(Mobile,N' ',N''),N'+',N''),N'-',N''),10)=RIGHT(@mobile,10)",c);q.Parameters.AddWithValue("@tenant",tenantId);q.Parameters.AddWithValue("@mobile",NonDigits().Replace(mobile,string.Empty));var value=await q.ExecuteScalarAsync(token);if(value is not Guid customer)return;
+        try{await referrals.CaptureAsync(tenantId,new(match.Groups[1].Value,customer,"WHATSAPP"),"WHATSAPP",token);}catch(BusinessRuleException){/* The signed webhook is acknowledged; invalid/duplicate attribution is not retried. */}
+    }
 
     private async Task<WhatsAppConnectionResult> RecordValidation(ConfigRow row, bool success, string? phone, string? name, string message, CancellationToken token)
     {
@@ -277,11 +287,12 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
     [GeneratedRegex("[^0-9]")] private static partial Regex NonDigits();
     [GeneratedRegex("^[1-9][0-9]{7,14}$")] private static partial Regex Recipient();
     [GeneratedRegex("^v[0-9]{1,3}\\.[0-9]+$")] private static partial Regex Version();
+    [GeneratedRegex("^\\s*REF\\s+([A-Z2-9]{6,20})\\s*$",RegexOptions.IgnoreCase|RegexOptions.CultureInvariant)] private static partial Regex ReferralCommand();
     private sealed record ConfigRow(Guid TenantId, string ProviderMode, string? MetaAppId, string? WabaId, string? PhoneNumberId, string? DisplayPhoneNumber, string? BusinessDisplayName, string? AccessTokenProtected, string? WebhookVerifyTokenProtected, string? AppSecretProtected, string? ApiVersion, string? TestRecipientNumber, bool IsEnabled, string ConnectionStatus, DateTimeOffset? LastValidatedOn, string? LastError, DateTimeOffset? LastWebhookVerifiedOn, DateTimeOffset? LastWebhookReceivedOn, string? LastWebhookEventType, string? LastWebhookMetaMessageId, long DuplicateWebhookCount);
     private sealed record PlatformRow(string MetaAppId,string AppSecretProtected,string WebhookVerifyTokenProtected,bool IsEnabled,DateTimeOffset? ModifiedOn);
     internal sealed record WebhookEnvelope(string WabaId,string PhoneNumberId,IReadOnlyCollection<WebhookTransportEvent> Events);
     internal sealed record WebhookTransportEvent(string EventKey, string MetaMessageId, string EventType,
-        string Direction, string? ContactNumber, string? MessageType, string? Status, DateTimeOffset EventTimestamp);
+        string Direction, string? ContactNumber, string? MessageType, string? Status, DateTimeOffset EventTimestamp, string? MessageText);
 }
 
 internal static partial class WhatsAppLogs

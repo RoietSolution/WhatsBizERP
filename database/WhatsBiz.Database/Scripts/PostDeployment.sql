@@ -34,3 +34,7 @@ GO
 :r .\V13-LoyaltyCoins.sql
 GO
 :r .\V14-WhatsAppOption3TenantConnections.sql
+GO
+:r .\V15-CustomerReferralRewards.sql
+GO
+:r .\V16-PurchaseCoinExpiry.sql

@@ -10,6 +10,7 @@
   <section class="card"><h2>Purchase earning</h2><div class="grid">
     <mat-form-field appearance="outline"><mat-label>Purchase amount (₹)</mat-label><input matInput type="number" min="0.01" [(ngModel)]="config.purchaseAmount"></mat-form-field>
     <mat-form-field appearance="outline"><mat-label>Coins earned</mat-label><input matInput type="number" min="1" [(ngModel)]="config.purchaseCoins"></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Coin validity (days)</mat-label><input matInput type="number" min="1" max="3650" [(ngModel)]="config.purchaseCoinValidityDays"></mat-form-field>
     <mat-form-field appearance="outline"><mat-label>Rule priority</mat-label><mat-select [(ngModel)]="config.earningPriority"><mat-option value="PRODUCT_FIRST">Product / category first</mat-option><mat-option value="PURCHASE_FIRST">Purchase amount first</mat-option></mat-select></mat-form-field>
     <mat-form-field appearance="outline"><mat-label>Award after</mat-label><mat-select [(ngModel)]="config.awardOrderStatus"><mat-option value="DELIVERED">Delivered</mat-option><mat-option value="COMPLETED">Completed</mat-option></mat-select></mat-form-field>
   </div><p class="hint">An explicit disabled product rule excludes that product. Product rules override category rules.</p></section>

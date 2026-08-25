@@ -13,6 +13,16 @@
 
 Swagger is available only in Development. Production requests use forwarded headers, HTTPS redirection, rate limiting, response compression and security headers.
 
+## Product image storage
+
+Amazon S3 is the default for new product images. Existing image rows retain their recorded provider, so changing `ProductImageStorage__Provider` does not break older images. A developer who needs to run without AWS access can set `ProductImageStorage__Provider=DATABASE` in the ignored local Development configuration or environment.
+
+- `DATABASE` keeps the optimized catalog and thumbnail binaries in SQL Server and requires no additional configuration.
+- `LOCAL` stores them below `ProductImageStorage__LocalRootPath`. Use an absolute path on persistent storage and grant the application identity read/write access. Do not place this directory under the public web root.
+- `S3` stores private objects in Amazon S3 or an S3-compatible service. It is the production default. Every deployment must set `ProductImageStorage__S3__BucketName` and `ProductImageStorage__S3__Region`; optionally set `ProductImageStorage__S3__KeyPrefix`. Use the runtime IAM role/default AWS credential chain. For MinIO-compatible deployments, set `ServiceUrl` and `ForcePathStyle=true` instead of an AWS region.
+
+If explicit S3 credentials are unavoidable, provide `ProductImageStorage__S3__AccessKey` and `ProductImageStorage__S3__SecretKey` through a secret manager or environment variables. Never commit them. The bucket must remain private; grant the API identity only the object read/write/delete permissions required for the configured prefix.
+
 ## Release order
 
 1. Take and verify a full backup.

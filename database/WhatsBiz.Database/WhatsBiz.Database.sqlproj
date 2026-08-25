@@ -37,6 +37,7 @@
     <None Include="Scripts\V16-PurchaseCoinExpiry.sql"/>
     <None Include="Scripts\V17-DeliveryManagement.sql"/>
     <None Include="Scripts\V18-WhatsAppContacts.sql"/>
+    <None Include="Scripts\V19-ProductImageStorageProviders.sql"/>
     <None Include="Scripts\Onboarding_Retailer.sql"/>
     <None Include="Scripts\Deboarding_Retailer.sql"/>
     <PostDeploy Include="Scripts\PostDeployment.sql"/>

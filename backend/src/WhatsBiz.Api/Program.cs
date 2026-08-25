@@ -32,6 +32,7 @@ try
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddSingleton<IProductImageOptimizer, ProductImageOptimizer>();
+    builder.Services.AddProductImageStorage(builder.Configuration);
     builder.Services.AddWhatsAppIntegration(builder.Configuration);
     builder.Services.AddSingleton<IProductMasterSpreadsheetService, ProductMasterSpreadsheetService>();
     builder.Services.AddCustomerNotifications(builder.Configuration);

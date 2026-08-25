@@ -96,6 +96,12 @@ public sealed class ProductImage : ProductMasterEntity
     public string ContentType { get; set; } = string.Empty;
     public byte[] ImageData { get; set; } = [];
     public byte[] ThumbnailData { get; set; } = [];
+    public string StorageProvider { get; set; } = "DATABASE";
+    public string? ObjectKey { get; set; }
+    public string? ThumbnailObjectKey { get; set; }
+    public long CatalogSizeBytes { get; set; }
+    public long ThumbnailSizeBytes { get; set; }
+    public string? ContentHash { get; set; }
     public string ThumbnailContentType { get; set; } = "image/webp";
     public int Width { get; set; }
     public int Height { get; set; }

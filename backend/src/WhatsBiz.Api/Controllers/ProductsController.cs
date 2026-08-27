@@ -17,6 +17,9 @@ public sealed class ProductsController(ISender sender) : ControllerBase
     [HttpGet("{id:guid}"), HasPermission(Permissions.Product.View)]
     public Task<ProductDto> GetById(Guid id, CancellationToken cancellationToken) => sender.Send(new GetProductByIdQuery(id), cancellationToken);
 
+    [HttpGet("{id:guid}/history"), HasPermission(Permissions.Product.View)]
+    public Task<IReadOnlyCollection<ProductHistoryDto>> GetHistory(Guid id, CancellationToken cancellationToken) => sender.Send(new GetProductHistoryQuery(id), cancellationToken);
+
     [HttpPost, HasPermission(Permissions.Product.Create)]
     [ProducesResponseType<ProductDto>(StatusCodes.Status201Created)]
     public async Task<IActionResult> Create(ProductInput input, CancellationToken cancellationToken) { var product = await sender.Send(new CreateProductCommand(input), cancellationToken); return CreatedAtAction(nameof(GetById), new { id = product.ProductId }, product); }

@@ -17,6 +17,19 @@ public sealed class GetProductByIdQueryHandler(IProductRepository repository, IM
     public async Task<ProductDto> Handle(GetProductByIdQuery request, CancellationToken cancellationToken) => mapper.Map<ProductDto>(await repository.GetAsync(request.ProductId, false, cancellationToken) ?? throw new EntityNotFoundException("Product was not found."));
 }
 
+public sealed class GetProductHistoryQueryHandler(IProductRepository repository) : IRequestHandler<GetProductHistoryQuery, IReadOnlyCollection<ProductHistoryDto>>
+{
+    public async Task<IReadOnlyCollection<ProductHistoryDto>> Handle(GetProductHistoryQuery request, CancellationToken cancellationToken)
+    {
+        var product = await repository.GetAsync(request.ProductId, false, cancellationToken) ?? throw new EntityNotFoundException("Product was not found.");
+        var history = await repository.GetHistoryAsync(request.ProductId, cancellationToken);
+        return history
+            .Append(new ProductHistoryDto(0, "CREATED", "Product created.", product.CreatedBy, true, product.CreatedOn))
+            .OrderByDescending(x => x.OccurredOn)
+            .ToArray();
+    }
+}
+
 public sealed class CreateProductCommandHandler(IProductRepository repository, ICurrentUserService currentUser, IMapper mapper) : IRequestHandler<CreateProductCommand, ProductDto>
 {
     public async Task<ProductDto> Handle(CreateProductCommand request, CancellationToken cancellationToken) { await EnsureValidAsync(request.Input, null, cancellationToken); var product = new Product { TenantId = currentUser.TenantId ?? throw new UnauthorizedAccessException("A tenant context is required.") }; Apply(product, request.Input); product.CreatedBy = currentUser.Username; repository.Add(product); await repository.SaveChangesAsync(cancellationToken); return mapper.Map<ProductDto>(await repository.GetAsync(product.ProductId, false, cancellationToken)); }

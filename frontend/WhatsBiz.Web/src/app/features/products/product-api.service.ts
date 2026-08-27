@@ -9,6 +9,7 @@ import {
   Product,
   ProductInput,
   ProductListItem,
+  ProductHistory,
   ProductImage,
   UnitOfMeasure,
 } from './product.models';
@@ -35,6 +36,9 @@ export class ProductApiService {
   }
   get(id: string): Observable<Product> {
     return this.http.get<Product>(`/api/products/${id}`);
+  }
+  history(id: string): Observable<ProductHistory[]> {
+    return this.http.get<ProductHistory[]>(`/api/products/${id}/history`);
   }
   create(input: ProductInput): Observable<Product> {
     return this.http.post<Product>('/api/products', input);

@@ -26,6 +26,14 @@ export interface Product extends ProductInput {
   imageUrl?: string;
 }
 export interface ProductImage { productImageId: string; productId: string; fileName: string; contentType: string; isPrimary: boolean; url: string; }
+export interface ProductHistory {
+  id: number;
+  action: string;
+  details: string;
+  userName?: string;
+  succeeded: boolean;
+  occurredOn: string;
+}
 export interface ProductInput {
   productCode: string;
   barcode: string | null;

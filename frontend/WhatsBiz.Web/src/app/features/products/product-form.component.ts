@@ -104,6 +104,7 @@ export class ProductFormComponent {
   readonly flatCategories = signal<Category[]>([]);
   readonly imagePreview = signal<string | null>(null);
   readonly images = signal<ProductImage[]>([]);
+  readonly copySourceId: string | null;
   selectedImagesCount = () => this.selectedImages.length;
   readonly productId: string | null;
   private selectedImages: File[] = [];
@@ -148,11 +149,12 @@ export class ProductFormComponent {
     private readonly snackBar: MatSnackBar,
   ) {
     this.productId = route.snapshot.paramMap.get('id');
+    this.copySourceId = this.productId ? null : route.snapshot.queryParamMap.get('copyFrom');
     forkJoin({
       categories: api.categories(),
       brands: api.brands(),
       units: api.units(),
-      product: this.productId ? api.get(this.productId) : of(null),
+      product: this.productId || this.copySourceId ? api.get(this.productId ?? this.copySourceId!) : of(null),
     })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
@@ -162,8 +164,13 @@ export class ProductFormComponent {
           this.brands.set(data.brands.filter((x) => x.isActive));
           this.units.set(data.units.filter((x) => x.isActive));
           if (data.product) {
-            this.form.patchValue(data.product);
-            this.api.images(data.product.productId).subscribe((images) => { this.images.set(images); if (images[0]) this.imagePreview.set(images[0].url); });
+            this.form.patchValue(
+              this.copySourceId
+                ? { ...data.product, productCode: '', barcode: null, productName: `${data.product.productName} Copy` }
+                : data.product,
+            );
+            if (!this.copySourceId)
+              this.api.images(data.product.productId).subscribe((images) => { this.images.set(images); if (images[0]) this.imagePreview.set(images[0].url); });
           }
         },
         error: () =>

@@ -1,5 +1,7 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using WhatsBiz.Application.Common.Interfaces;
+using WhatsBiz.Application.Features.Products.DTOs;
 using WhatsBiz.Domain.Products;
 
 namespace WhatsBiz.Infrastructure.Persistence;
@@ -19,6 +21,59 @@ public sealed class ProductRepository(ApplicationDbContext context, ICurrentUser
     }
 
     public Task<Product?> GetAsync(Guid id, bool tracking, CancellationToken cancellationToken) { var query = TenantProducts.Include(x => x.Category).Include(x => x.Brand).Include(x => x.Unit).Where(x => !x.IsDeleted); if (!tracking) query = query.AsNoTracking(); return query.SingleOrDefaultAsync(x => x.ProductId == id, cancellationToken); }
+    public async Task<IReadOnlyCollection<ProductHistoryDto>> GetHistoryAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var rows = new List<ProductHistoryDto>();
+        var connection = context.Database.GetDbConnection();
+        var closeConnection = connection.State != ConnectionState.Open;
+        if (closeConnection) await connection.OpenAsync(cancellationToken);
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT AuditLogId, UserName, Action, RequestPath, HttpMethod, Succeeded, OccurredOn
+                FROM admin.AuditLogs
+                WHERE RequestPath = @productPath OR RequestPath LIKE @assetPath
+                ORDER BY OccurredOn DESC
+                """;
+            var productPath = command.CreateParameter();
+            productPath.ParameterName = "@productPath";
+            productPath.DbType = DbType.String;
+            productPath.Value = $"/api/products/{id}";
+            command.Parameters.Add(productPath);
+            var assetPath = command.CreateParameter();
+            assetPath.ParameterName = "@assetPath";
+            assetPath.DbType = DbType.String;
+            assetPath.Value = $"/api/products/{id}/%";
+            command.Parameters.Add(assetPath);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var path = reader.IsDBNull(3) ? string.Empty : reader.GetString(3);
+                var method = reader.IsDBNull(4) ? string.Empty : reader.GetString(4);
+                var (action, details) = DescribeHistory(method, path);
+                rows.Add(new ProductHistoryDto(reader.GetInt64(0), action, details, reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetBoolean(5), reader.GetFieldValue<DateTimeOffset>(6)));
+            }
+        }
+        finally
+        {
+            if (closeConnection) await connection.CloseAsync();
+        }
+        return rows;
+    }
+
+    private static (string Action, string Details) DescribeHistory(string method, string path)
+    {
+        var imageAction = path.Contains("/image", StringComparison.OrdinalIgnoreCase);
+        return (method.ToUpperInvariant(), imageAction) switch
+        {
+            ("POST", true) => ("IMAGE_ADDED", "Product image added."),
+            ("DELETE", true) => ("IMAGE_DELETED", "Product image deleted."),
+            ("PUT" or "PATCH", _) => ("UPDATED", "Product details updated."),
+            ("DELETE", _) => ("DELETED", "Product deleted."),
+            _ => ("CHANGED", "Product changed.")
+        };
+    }
     public Task<bool> ProductCodeExistsAsync(string code, Guid? excludingId, CancellationToken cancellationToken) => TenantProducts.AnyAsync(x => !x.IsDeleted && x.ProductCode == code.Trim() && (!excludingId.HasValue || x.ProductId != excludingId), cancellationToken);
     public Task<bool> BarcodeExistsAsync(string barcode, Guid? excludingId, CancellationToken cancellationToken) => TenantProducts.AnyAsync(x => !x.IsDeleted && x.Barcode == barcode.Trim() && (!excludingId.HasValue || x.ProductId != excludingId), cancellationToken);
     public async Task<bool> ReferencesExistAsync(Guid categoryId, Guid brandId, Guid unitId, CancellationToken cancellationToken) => await context.ProductCategories.AnyAsync(x => x.ProductCategoryId == categoryId && x.IsActive && !x.IsDeleted, cancellationToken) && await context.Brands.AnyAsync(x => x.BrandId == brandId && x.IsActive && !x.IsDeleted, cancellationToken) && await context.UnitsOfMeasure.AnyAsync(x => x.UnitId == unitId && x.IsActive && !x.IsDeleted, cancellationToken);

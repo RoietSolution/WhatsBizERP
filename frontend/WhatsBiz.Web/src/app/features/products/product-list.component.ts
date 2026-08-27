@@ -20,6 +20,7 @@ import {
 } from '../../shared/master/public-api';
 import { ProductApiService } from './product-api.service';
 import { ProductListItem } from './product.models';
+import { ProductHistoryDialogComponent } from './product-history-dialog.component';
 
 @Component({
   selector: 'app-product-list',
@@ -136,6 +137,10 @@ export class ProductListComponent {
     else if (e.action === 'print') window.print();
     else if (e.action === 'edit' && e.row)
       this.router.navigate(['/products', e.row.productId, 'edit']);
+    else if (e.action === 'duplicate' && e.row)
+      this.router.navigate(['/products/new'], { queryParams: { copyFrom: e.row.productId } });
+    else if (e.action === 'history' && e.row)
+      this.dialog.open(ProductHistoryDialogComponent, { data: e.row, width: '680px' });
     else if (e.action === 'delete' && e.rows?.length) this.remove(e.rows);
     else
       this.snack.open(`${e.action} is ready for the selected product(s).`, undefined, {

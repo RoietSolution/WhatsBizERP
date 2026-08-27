@@ -1,7 +1,13 @@
 <header>
   <div>
-    <h1>{{ productId ? 'Edit product' : 'Create product' }}</h1>
-    <p>Fields marked with * are required.</p>
+    <h1>{{ productId ? 'Edit product' : copySourceId ? 'Duplicate product' : 'Create product' }}</h1>
+    <p>
+      @if (copySourceId) {
+        Enter a new product code and optional barcode. Product images are not copied.
+      } @else {
+        Fields marked with * are required.
+      }
+    </p>
   </div>
   <a mat-button routerLink="/products">Cancel</a>
 </header>

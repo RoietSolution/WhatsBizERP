@@ -15,5 +15,6 @@ public sealed record BrandInput(string BrandCode, string BrandName, string? Desc
 public sealed record UnitOfMeasureDto(Guid UnitId, string UnitCode, string UnitName, string ShortName, byte DecimalPlaces, bool IsActive);
 public sealed record UnitOfMeasureInput(string UnitCode, string UnitName, string ShortName, byte DecimalPlaces, bool IsActive);
 public sealed record ProductImageDto(Guid ProductImageId, Guid ProductId, string FileName, string ContentType, bool IsPrimary, string Url);
+public sealed record ProductHistoryDto(long Id, string Action, string Details, string? UserName, bool Succeeded, DateTimeOffset OccurredOn);
 public sealed record ImportProductsResult(int ImportedCount, IReadOnlyCollection<string> Errors);
 public sealed record ImportProductMasterResult(int ImportedCount, IReadOnlyCollection<string> Errors);

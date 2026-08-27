@@ -13,6 +13,12 @@
 
 Swagger is available only in Development. Production requests use forwarded headers, HTTPS redirection, rate limiting, response compression and security headers.
 
+## Linux environment file
+
+WhatsBiz.Api optionally reads `/etc/khatadhari/khatadhari.env` on Linux before binding options. A custom location can be supplied with `KHATADHARI_ENV_FILE`. Standard process environment variables are loaded afterward and therefore take precedence.
+
+Restrict the file to the API service account (for example, mode `600`) and use ASP.NET double-underscore keys such as `DemoRequests__Email__Host`. If systemd already declares `EnvironmentFile=/etc/khatadhari/khatadhari.env`, the application receives the same values as process variables; the built-in loader remains compatible and does not change their precedence.
+
 ## Product image storage
 
 Amazon S3 is the default for new product images. Existing image rows retain their recorded provider, so changing `ProductImageStorage__Provider` does not break older images. A developer who needs to run without AWS access can set `ProductImageStorage__Provider=DATABASE` in the ignored local Development configuration or environment.

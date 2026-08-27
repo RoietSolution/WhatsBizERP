@@ -362,6 +362,15 @@ export const routes: Routes = [
             (m) => m.AdministrationHubComponent,
           ),
       },
+      {
+        path: 'admin/demo-requests',
+        canActivate: [permissionGuard],
+        data: adminView,
+        loadComponent: () =>
+          import('./features/administration/demo-requests.component').then(
+            (m) => m.DemoRequestsComponent,
+          ),
+      },
       { path: 'printing/templates', redirectTo: 'print/templates', pathMatch: 'full' },
       { path: 'printing/labels', redirectTo: 'print/labels', pathMatch: 'full' },
       {

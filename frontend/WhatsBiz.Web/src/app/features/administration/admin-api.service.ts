@@ -84,6 +84,15 @@ export interface CustomerNotificationHistory {
   attemptCount: number; errorMessage?: string; sentOn?: string; lastAttemptOn?: string;
 }
 export interface NotificationConfigurationStatus { whatsAppConfigured: boolean; smsConfigured: boolean; message: string; }
+export interface DemoRequestSummary {
+  id: number; referenceNo: string; name: string; mobile: string; businessName?: string;
+  businessType?: string; city?: string; source: string; createdOn: string; status: string;
+}
+export interface DemoRequestDetail extends DemoRequestSummary {
+  email?: string; message?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string;
+  utmContent?: string; landingPage?: string; referrer?: string; notificationStatus: string; modifiedOn?: string;
+}
+export interface PagedDemoRequests { items: DemoRequestSummary[]; totalCount: number; pageNumber: number; pageSize: number; }
 @Injectable({ providedIn: 'root' })
 export class AdminApiService {
   private root = '/api/admin';
@@ -137,4 +146,16 @@ export class AdminApiService {
   customerNotificationHistory() { return this.http.get<CustomerNotificationHistory[]>(`${this.root}/customer-notifications/history`); }
   retryCustomerNotification(id: string) { return this.http.post<void>(`${this.root}/customer-notifications/history/${id}/retry`, {}); }
   customerNotificationConfigurationStatus() { return this.http.get<NotificationConfigurationStatus>(`${this.root}/customer-notifications/configuration-status`); }
+  demoRequests(search = '', status = '', from = '', to = '') {
+    let params = new HttpParams().set('pageSize', 100);
+    if (search.trim()) params = params.set('search', search.trim());
+    if (status) params = params.set('status', status);
+    if (from) params = params.set('from', from);
+    if (to) params = params.set('to', to);
+    return this.http.get<PagedDemoRequests>('/api/demo-requests', { params });
+  }
+  demoRequest(id: number) { return this.http.get<DemoRequestDetail>(`/api/demo-requests/${id}`); }
+  updateDemoRequestStatus(id: number, status: string) {
+    return this.http.patch<DemoRequestDetail>(`/api/demo-requests/${id}/status`, { status });
+  }
 }

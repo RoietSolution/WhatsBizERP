@@ -252,6 +252,7 @@ const navigation: NavigationItem[] = [
     feature: 'ADMINISTRATION',
     children: [
       { label: 'Admin Center', icon: 'dashboard', route: '/admin', permission: 'admin.view' },
+      { label: 'Demo Requests', icon: 'campaign', route: '/admin/demo-requests', permission: 'admin.view' },
       {
         label: 'Company Profile',
         icon: 'business',

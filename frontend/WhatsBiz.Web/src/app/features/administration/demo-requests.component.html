@@ -1,0 +1,44 @@
+<app-operations-workspace
+  eyebrow="Marketing leads"
+  title="Demo Requests"
+  description="Review website enquiries, follow up with prospects, and maintain lead status."
+  [summaries]="summaries()"
+  [statusText]="total() + ' matching requests'"
+>
+  <a workspace-header-actions mat-button routerLink="/admin"><span class="material-symbols-rounded">arrow_back</span>Admin Center</a>
+  <div workspace-toolbar-actions>
+    <button mat-button (click)="load()"><span class="material-symbols-rounded">refresh</span>Refresh</button>
+  </div>
+  <div workspace-filters class="filters">
+    <mat-form-field appearance="outline" class="search"><mat-label>Name, mobile, or reference</mat-label><input matInput [(ngModel)]="search" (keyup.enter)="load()" /></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Status</mat-label><mat-select [(ngModel)]="status"><mat-option value="">All statuses</mat-option>@for (item of statuses; track item) { <mat-option [value]="item">{{ item.replaceAll('_', ' ') }}</mat-option> }</mat-select></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>From</mat-label><input matInput type="date" [(ngModel)]="from" /></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>To</mat-label><input matInput type="date" [(ngModel)]="to" /></mat-form-field>
+    <div><button mat-flat-button (click)="load()">Apply</button><button mat-button (click)="clear()">Clear</button></div>
+  </div>
+  <app-data-table
+    [rows]="rows()" [columns]="columns" [loading]="loading()" [actions]="['view']"
+    searchPlaceholder="Filter loaded demo requests" emptyTitle="No demo requests found"
+    emptyDescription="New website demo enquiries will appear here."
+    (rowOpen)="open($event)" (rowAction)="action($event)"
+  />
+  <section workspace-context class="detail">
+    <h3>Lead Details</h3>
+    @if (selected(); as lead) {
+      <app-status-chip [label]="lead.status.replaceAll('_', ' ')" [tone]="lead.status === 'CONVERTED' ? 'success' : lead.status === 'LOST' ? 'danger' : 'info'" />
+      <dl>
+        <dt>Reference</dt><dd>{{ lead.referenceNo }}</dd><dt>Name</dt><dd>{{ lead.name }}</dd>
+        <dt>Mobile</dt><dd>{{ lead.mobile }}</dd><dt>Email</dt><dd>{{ lead.email || '—' }}</dd>
+        <dt>Business</dt><dd>{{ lead.businessName || '—' }}</dd><dt>Business type</dt><dd>{{ lead.businessType || '—' }}</dd>
+        <dt>City</dt><dd>{{ lead.city || '—' }}</dd><dt>Source</dt><dd>{{ lead.source }}</dd>
+        <dt>Campaign</dt><dd>{{ lead.utmCampaign || '—' }}</dd><dt>Landing page</dt><dd>{{ lead.landingPage || '—' }}</dd>
+        <dt>Requirement</dt><dd class="message">{{ lead.message || '—' }}</dd><dt>Created</dt><dd>{{ lead.createdOn | date:'medium' }}</dd>
+        <dt>Email notification</dt><dd>{{ lead.notificationStatus }}</dd>
+      </dl>
+      <div class="status-editor">
+        <mat-form-field appearance="outline"><mat-label>Lead status</mat-label><mat-select [(ngModel)]="selectedStatus">@for (item of statuses; track item) { <mat-option [value]="item">{{ item.replaceAll('_', ' ') }}</mat-option> }</mat-select></mat-form-field>
+        <button mat-flat-button (click)="saveStatus()" [disabled]="selectedStatus === lead.status">Update status</button>
+      </div>
+    } @else { <p class="empty-detail">Open a request to see contact details and update its status. IP addresses are intentionally not displayed.</p> }
+  </section>
+</app-operations-workspace>

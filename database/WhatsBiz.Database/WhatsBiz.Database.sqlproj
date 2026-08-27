@@ -6,6 +6,7 @@
     <Build Remove="Scripts\RCDEV008-RuntimeObjects.sql"/>
     <Build Remove="Scripts\RCDEV009-PrintingPaperSize.sql"/>
     <Build Remove="Scripts\RCDEV010-CustomerNotifications.sql"/>
+    <Build Remove="Scripts\V20-DemoRequests.sql"/>
     <Build Remove="Scripts\V2-WC-DEMO-003-DemoTenantEnablement.sql"/>
     <Build Remove="Scripts\V3-ProductImageOptimization.sql"/>
     <Build Remove="Scripts\V4-DashboardNotificationDetails.sql"/>
@@ -38,6 +39,7 @@
     <None Include="Scripts\V17-DeliveryManagement.sql"/>
     <None Include="Scripts\V18-WhatsAppContacts.sql"/>
     <None Include="Scripts\V19-ProductImageStorageProviders.sql"/>
+    <None Include="Scripts\V20-DemoRequests.sql"/>
     <None Include="Scripts\Onboarding_Retailer.sql"/>
     <None Include="Scripts\Deboarding_Retailer.sql"/>
     <PostDeploy Include="Scripts\PostDeployment.sql"/>

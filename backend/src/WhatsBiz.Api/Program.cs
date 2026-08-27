@@ -28,6 +28,7 @@ Log.Logger = new LoggerConfiguration().WriteTo.Console(formatProvider: CultureIn
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+    builder.Configuration.AddKhataDhariEnvironmentFile();
     builder.Host.UseSerilog((context, services, configuration) => configuration.ReadFrom.Configuration(context.Configuration).ReadFrom.Services(services).Enrich.FromLogContext());
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);

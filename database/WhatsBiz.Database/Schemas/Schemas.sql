@@ -16,3 +16,5 @@ CREATE SCHEMA [audit];
 GO
 CREATE SCHEMA [integration];
 GO
+CREATE SCHEMA [marketing];
+GO

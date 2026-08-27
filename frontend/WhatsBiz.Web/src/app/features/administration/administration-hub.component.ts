@@ -301,6 +301,12 @@ export class AdministrationHubComponent {
       icon: 'forum',
       items: [
         {
+          title: 'Demo Requests',
+          description: 'Website leads, contact details, campaign attribution, and sales status.',
+          icon: 'campaign',
+          route: '/admin/demo-requests',
+        },
+        {
           title: 'Customer Notifications',
           description: 'Post-sale WhatsApp, SMS, templates, delivery history, and retry.',
           icon: 'mark_chat_read',

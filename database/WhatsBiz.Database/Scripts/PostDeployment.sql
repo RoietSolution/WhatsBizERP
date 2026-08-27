@@ -43,3 +43,5 @@ GO
 :r .\V18-WhatsAppContacts.sql
 GO
 :r .\V19-ProductImageStorageProviders.sql
+GO
+:r .\V20-DemoRequests.sql

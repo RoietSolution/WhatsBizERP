@@ -15,9 +15,9 @@ Swagger is available only in Development. Production requests use forwarded head
 
 ## Linux environment file
 
-WhatsBiz.Api optionally reads `/etc/khatadhari/khatadhari.env` on Linux before binding options. A custom location can be supplied with `KHATADHARI_ENV_FILE`. Standard process environment variables are loaded afterward and therefore take precedence.
+Systemd loads `/etc/whatsbiz/qa.env` through the unit's `EnvironmentFile` directive. ASP.NET Core's standard environment-variable provider then reads those process variables; nested keys use double underscores, such as `DemoRequests__Email__Host`. The application does not parse `.env` files itself.
 
-Restrict the file to the API service account (for example, mode `600`) and use ASP.NET double-underscore keys such as `DemoRequests__Email__Host`. If systemd already declares `EnvironmentFile=/etc/khatadhari/khatadhari.env`, the application receives the same values as process variables; the built-in loader remains compatible and does not change their precedence.
+Start with `deployment/qa.env.example`, keep the real file outside the deployment directory, restrict it to root and the API service group, and never commit it. See `deployment/README-QA.md` for the complete QA setup.
 
 ## Product image storage
 

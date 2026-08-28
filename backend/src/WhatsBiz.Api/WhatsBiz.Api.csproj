@@ -6,6 +6,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Serilog.Sinks.File" />
     <PackageReference Include="Swashbuckle.AspNetCore" />
     <ProjectReference Include="..\WhatsBiz.Application\WhatsBiz.Application.csproj" />
     <ProjectReference Include="..\WhatsBiz.Contracts\WhatsBiz.Contracts.csproj" />

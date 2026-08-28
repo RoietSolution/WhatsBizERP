@@ -22,14 +22,54 @@ using WhatsBiz.Application.Features.Loyalty;
 using WhatsBiz.Application.Features.Referrals;
 using WhatsBiz.Application.Features.Delivery;
 using WhatsBiz.Infrastructure.Delivery;
+using WhatsBiz.Api.Configuration;
+using Serilog.Events;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console(formatProvider: CultureInfo.InvariantCulture).CreateBootstrapLogger();
 
 try
 {
     var builder = WebApplication.CreateBuilder(args);
-    builder.Configuration.AddKhataDhariEnvironmentFile();
-    builder.Host.UseSerilog((context, services, configuration) => configuration.ReadFrom.Configuration(context.Configuration).ReadFrom.Services(services).Enrich.FromLogContext());
+    builder.Host.UseSerilog((context, services, configuration) =>
+    {
+        configuration
+            .ReadFrom.Configuration(context.Configuration)
+            .ReadFrom.Services(services)
+            .Enrich.FromLogContext();
+
+        var fileOptions = context.Configuration
+            .GetSection(LocalFileLoggingOptions.SectionName)
+            .Get<LocalFileLoggingOptions>() ?? new LocalFileLoggingOptions();
+        if (!fileOptions.Enabled) return;
+
+        try
+        {
+            var logPath = Path.IsPathRooted(fileOptions.Path)
+                ? Path.GetFullPath(fileOptions.Path)
+                : Path.GetFullPath(fileOptions.Path, context.HostingEnvironment.ContentRootPath);
+            var logDirectory = Path.GetDirectoryName(logPath)
+                ?? throw new InvalidOperationException("The local log path must include a directory.");
+            Directory.CreateDirectory(logDirectory);
+
+            configuration.WriteTo.File(
+                logPath,
+                restrictedToMinimumLevel: LogEventLevel.Information,
+                outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] [{SourceContext}] [Trace:{TraceId}] {Message:lj}{NewLine}{Exception}",
+                formatProvider: CultureInfo.InvariantCulture,
+                fileSizeLimitBytes: Math.Max(fileOptions.FileSizeLimitBytes, 1024 * 1024),
+                rollOnFileSizeLimit: true,
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: Math.Clamp(fileOptions.RetainedFileCountLimit, 1, 365),
+                shared: true);
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"Local file logging is unavailable for '{fileOptions.Path}': {exception.Message}"));
+        }
+    });
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddSingleton<IProductImageOptimizer, ProductImageOptimizer>();
@@ -59,7 +99,16 @@ try
     builder.Services.AddScoped<IDatabaseMaintenanceService, DatabaseMaintenanceService>();
     builder.Services.AddApiServices(builder.Configuration);
     var app = builder.Build();
-    app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto });
+    var forwardedHeaders = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+        ForwardLimit = 1
+    };
+    forwardedHeaders.KnownProxies.Clear();
+    forwardedHeaders.KnownNetworks.Clear();
+    forwardedHeaders.KnownProxies.Add(System.Net.IPAddress.Loopback);
+    forwardedHeaders.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
+    app.UseForwardedHeaders(forwardedHeaders);
     if (!app.Environment.IsDevelopment()) app.UseHsts();
     app.UseMiddleware<GlobalExceptionMiddleware>();
     app.UseMiddleware<SecurityHeadersMiddleware>();

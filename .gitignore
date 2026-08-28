@@ -4,8 +4,19 @@
 **/node_modules/
 **/dist/
 **/App_Data/ProductImages/
+/backend/src/WhatsBiz.Api/Logs/
 .vs/
 .vscode/*.user
 *.user
 *.suo
 appsettings.Development.json
+
+# Deployment secrets and local environment files. Safe examples stay tracked.
+.env
+.env.*
+*.env
+qa.env
+prod.env
+secrets/
+**/secrets/
+!*.env.example

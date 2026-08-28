@@ -1,0 +1,20 @@
+[Unit]
+Description=WhatsBiz ERP QA API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=whatsbiz
+Group=whatsbiz
+WorkingDirectory=/var/www/whatsbiz-qa
+ExecStart=/usr/bin/dotnet /var/www/whatsbiz-qa/WhatsBiz.Api.dll
+EnvironmentFile=/etc/whatsbiz/qa.env
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+SyslogIdentifier=whatsbiz-qa
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

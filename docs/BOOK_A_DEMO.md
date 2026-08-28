@@ -6,7 +6,7 @@ Publish the SQL database project or run `database/WhatsBiz.Database/Scripts/V20-
 
 ## API configuration
 
-On Linux, the API optionally loads `/etc/khatadhari/khatadhari.env` at startup. Set `KHATADHARI_ENV_FILE` to use another path. Process environment variables supplied by systemd, Docker, or a secret manager take precedence over values in the file. The file uses `KEY=value` syntax and should be readable only by the API service account.
+On Linux, systemd loads `/etc/whatsbiz/qa.env` with its `EnvironmentFile` directive. ASP.NET Core reads the resulting process environment directly. Use double underscores for nested keys and keep the real file outside source control.
 
 Configure production values through environment variables, IIS configuration, or the existing secret manager. Do not commit credentials.
 

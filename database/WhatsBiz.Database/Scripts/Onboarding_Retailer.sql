@@ -13,6 +13,9 @@
   Current plans: V1_DEFAULT = V1 only; V2_COMMERCE = V1 + V2.
   This script is create-only. Later feature changes belong in /admin/features so child settings are
   preserved and the application feature cache is invalidated normally.
+
+  For the deterministic, safely rerunnable QA bootstrap (including minimum V1 masters), use
+  Bootstrap_QA.sql instead. It is guarded to run only against WhatsBizERP_QA.
 */
 SET NOCOUNT ON;
 SET XACT_ABORT ON;

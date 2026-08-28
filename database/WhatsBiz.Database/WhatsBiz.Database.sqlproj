@@ -41,6 +41,8 @@
     <None Include="Scripts\V19-ProductImageStorageProviders.sql"/>
     <None Include="Scripts\V20-DemoRequests.sql"/>
     <None Include="Scripts\Onboarding_Retailer.sql"/>
+    <None Include="Scripts\Bootstrap_QA.sql"/>
+    <None Include="Scripts\Validate_QA_Bootstrap.sql"/>
     <None Include="Scripts\Deboarding_Retailer.sql"/>
     <PostDeploy Include="Scripts\PostDeployment.sql"/>
   </ItemGroup>

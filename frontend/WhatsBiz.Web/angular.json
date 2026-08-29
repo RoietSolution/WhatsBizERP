@@ -42,6 +42,27 @@
               "outputHashing": "all",
               "optimization": { "fonts": { "inline": false } }
             },
+            "qa": {
+              "budgets": [
+                { "type": "initial", "maximumWarning": "500kB", "maximumError": "1MB" },
+                { "type": "anyComponentStyle", "maximumWarning": "25kB", "maximumError": "30kB" }
+              ],
+              "outputHashing": "all",
+              "optimization": { "fonts": { "inline": false } },
+              "assets": [
+                {
+                  "glob": "**/*",
+                  "input": "public",
+                  "ignore": ["runtime-config.json"]
+                },
+                {
+                  "glob": "runtime-config.json",
+                  "input": "src/environments/qa",
+                  "output": "/"
+                },
+                { "glob": "**/*", "input": "src/assets/commerce", "output": "assets/commerce" }
+              ]
+            },
             "development": { "optimization": false, "extractLicenses": false, "sourceMap": true }
           },
           "defaultConfiguration": "production"
@@ -50,6 +71,7 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": { "buildTarget": "WhatsBiz.Web:build:production" },
+            "qa": { "buildTarget": "WhatsBiz.Web:build:qa" },
             "development": { "buildTarget": "WhatsBiz.Web:build:development" }
           },
           "defaultConfiguration": "development"

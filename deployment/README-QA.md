@@ -42,4 +42,13 @@ curl --fail https://qa-api.khatadhari.com/health
 
 ## Angular runtime configuration
 
-Build Angular once, then replace the copied `runtime-config.json` in the QA web root with `deployment/runtime-config.qa.json`. The default file keeps local development on the same-origin `/api` proxy. The QA file sends `/api` calls to `https://qa-api.khatadhari.com`; Production uses `deployment/runtime-config.production.json`.
+Run `ng build --configuration qa` from `frontend/WhatsBiz.Web`. The QA build copies the
+QA runtime configuration to `dist/WhatsBiz.Web/browser/runtime-config.json`, so `/api`
+calls are sent to `https://qa-api.khatadhari.com`. Upload the contents of that `browser`
+directory to `/var/www/whatsbiz-qa-web`.
+
+The default `public/runtime-config.json` remains empty so local development continues to
+use the same-origin Angular `/api` proxy. Runtime configuration is a standalone JSON asset:
+after deployment, the API origin can be changed directly in the web root's
+`runtime-config.json` without rebuilding Angular. Production continues to use
+`deployment/runtime-config.production.json` with the existing deployment process.

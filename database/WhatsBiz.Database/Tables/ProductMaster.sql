@@ -27,7 +27,7 @@ CREATE TABLE [master].[Products] (
 GO
 CREATE UNIQUE INDEX [UX_Products_ProductCode] ON [master].[Products]([ProductCode]) WHERE [IsDeleted] = 0;
 GO
-CREATE UNIQUE INDEX [UX_Products_Barcode] ON [master].[Products]([Barcode]) WHERE [Barcode] IS NOT NULL AND [IsDeleted] = 0;
+CREATE UNIQUE INDEX [UX_Products_Tenant_Barcode] ON [master].[Products]([TenantId], [Barcode]) WHERE [Barcode] IS NOT NULL AND [IsDeleted] = 0;
 GO
 CREATE INDEX [IX_Products_Search] ON [master].[Products]([ProductName], [CategoryId], [BrandId], [IsActive]);
 GO

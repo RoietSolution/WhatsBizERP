@@ -42,24 +42,6 @@
     </div>
   </aside>
   <section class="auth-workspace">
-    <header class="auth-tools">
-      <button
-        mat-button
-        type="button"
-        [matMenuTriggerFor]="languageMenu"
-        aria-label="Select language"
-      >
-        <span class="material-symbols-rounded">language</span> English
-        <span class="material-symbols-rounded auth-tools__chevron">expand_more</span></button
-      ><button
-        mat-icon-button
-        type="button"
-        aria-label="Theme switch coming soon"
-        title="Theme switch coming soon"
-      >
-        <span class="material-symbols-rounded">light_mode</span>
-      </button>
-    </header>
     <div class="auth-workspace__content">
       <section class="auth-card"><router-outlet></router-outlet></section>
     </div>
@@ -72,8 +54,3 @@
     </footer>
   </section>
 </main>
-<mat-menu #languageMenu="matMenu"
-  ><button mat-menu-item type="button">
-    <span class="material-symbols-rounded">check</span><span>English</span></button
-  ><button mat-menu-item type="button" disabled><span>हिन्दी — coming soon</span></button></mat-menu
->

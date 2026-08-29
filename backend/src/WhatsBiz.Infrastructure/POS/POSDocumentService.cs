@@ -4,8 +4,8 @@ using System.Net;
 using System.Text;
 using ClosedXML.Excel;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Data.SqlClient;
 using WhatsBiz.Application.Common.Interfaces;
+using WhatsBiz.Application.Features.Administration;
 using WhatsBiz.Application.Features.Printing;
 using WhatsBiz.Domain.POS;
 
@@ -20,21 +20,22 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
         .paper-a4 .receipt{width:100%;max-width:none;font-family:Arial,sans-serif;font-size:11pt}.paper-a4 .receipt-header{text-align:left;position:relative;padding-right:50mm;min-height:24mm}.paper-a4 .receipt-logo{position:absolute;right:0;top:0}.paper-a4 .receipt-title{text-align:left}.paper-a4 .meta{border:1px solid #ccc;padding:4mm;gap:8mm}.paper-a4 .items{font-size:10pt;margin-top:4mm}.paper-a4 .items th{background:#f2f4f7;border-bottom:1px solid #999;padding:2mm}.paper-a4 .items td{border-bottom:1px solid #ddd;padding:2mm}.paper-a4 .receipt-center{display:none}.paper-a4 .receipt-footer{margin-top:12mm;border-top:1px solid #999;padding-top:4mm}.paper-a4 .total-row{margin-left:auto;width:82mm;padding:1mm 0}
         @media print{html,body{margin:0;padding:0}.no-print{display:none!important}.receipt{overflow:visible}.items tr{page-break-inside:avoid}}
         """;
-    public string InvoiceHtml(SalesInvoice invoice, string paper)
+    public string InvoiceHtml(SalesInvoice invoice, string paper, POSInvoicePrintContext context)
     {
         var logo = configuration["Printing:InvoiceLogoUrl"];
-        var storeName = configuration["Printing:StoreName"] ?? invoice.Warehouse.WarehouseName;
+        var company = context.Company;
+        var storeName = company.CompanyName;
+        var legalName = string.Equals(company.LegalName, company.CompanyName, StringComparison.OrdinalIgnoreCase) ? null : company.LegalName;
         var tagline = configuration["Printing:Tagline"];
-        var address = configuration["Printing:Address"] ?? invoice.Warehouse.WarehouseName;
-        var city = configuration["Printing:City"];
-        var phone = configuration["Printing:Phone"];
-        var email = configuration["Printing:Email"];
-        var gstin = configuration["Printing:GSTIN"];
+        var address = CompanyAddress(company);
+        var phone = company.Phone;
+        var email = company.Email;
+        var gstin = company.GSTIN;
         var fssai = configuration["Printing:FSSAI"];
         var cashier = invoice.CreatedBy ?? "";
         var counter = invoice.CounterId?.ToString("N")[..6] ?? "";
         var paymentMode = string.Join(", ", invoice.Payments.Select(x => x.PaymentMethod.MethodName));
-        var loyalty = CoinSummary(invoice.InvoiceId);
+        var loyalty = context.Loyalty;
         var qr = Convert.ToBase64String(printing.QrCode(new QRCodeInput($"{invoice.InvoiceNumber}|{invoice.GrandTotal:0.00}", 4)).Data);
         var body = new StringBuilder($"""
                     <style>{ReceiptCss}</style>
@@ -42,8 +43,9 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
               <header class="receipt-header">
                 {(string.IsNullOrWhiteSpace(logo) ? "" : $"<img class=\"receipt-logo\" src=\"{EncodeAttribute(logo)}\" alt=\"Store logo\" />")}
                 <h2 class="store-name">{Encode(storeName)}</h2>
+                {(string.IsNullOrWhiteSpace(legalName) ? "" : $"<p>{Encode(legalName)}</p>")}
                 {(string.IsNullOrWhiteSpace(tagline) ? "" : $"<p class=\"tagline\">{Encode(tagline ?? "")}</p>")}
-                <p>{Encode(address)}{(string.IsNullOrWhiteSpace(city) ? "" : $"<br />{Encode(city ?? "")}")}</p>
+                {(string.IsNullOrWhiteSpace(address) ? "" : $"<p>{address}</p>")}
                 {OptionalLine(phone, email)}
                 {OptionalLine(gstin is null ? null : "GSTIN: " + gstin, null)}
                 {OptionalLine(fssai is null ? null : "FSSAI: " + fssai, null)}
@@ -90,7 +92,7 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
               <p class="amount-words">{AmountInWords(invoice.GrandTotal)}</p>
               <hr class="separator" />
               <section class="receipt-center"><p><strong>Scan to Share Feedback</strong></p><img class="feedback-qr" src="data:image/svg+xml;base64,{qr}" alt="Feedback QR code" /><small>Your feedback helps us improve.</small></section>
-              <footer class="receipt-footer"><hr class="separator" /><p>Goods once sold will not be taken back.</p><p><strong>Thank you for shopping with us!</strong></p><p>Visit Again</p></footer>
+              <footer class="receipt-footer"><hr class="separator" />{OptionalParagraph(company.TermsAndConditions)}<p><strong>{Encode(string.IsNullOrWhiteSpace(company.InvoiceFooter) ? "Thank you for shopping with us!" : company.InvoiceFooter)}</strong></p></footer>
             </main><script>window.print()</script>
         """);
         var document = printing.Document(new DocumentInput("SALES_INVOICE", invoice.InvoiceNumber, "GST INVOICE", body.ToString(), paper.ToUpperInvariant(), "html"));
@@ -112,15 +114,14 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
     }
 
     private static string Money(decimal value) => value.ToString("0.00", CultureInfo.InvariantCulture);
-    private (int Earned, int Redeemed, decimal Discount) CoinSummary(Guid invoiceId)
-    {
-        using var connection = new SqlConnection(configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable."));
-        connection.Open(); using var command = new SqlCommand("SELECT EarnedCoins,RedeemedCoins,RedemptionDiscount FROM loyalty.OrderCoins WHERE OrderId=@order;", connection);
-        command.Parameters.AddWithValue("@order", invoiceId); using var reader = command.ExecuteReader();
-        return reader.Read() ? (reader.GetInt32(0), reader.GetInt32(1), reader.GetDecimal(2)) : (0, 0, 0);
-    }
     private static string Quantity(decimal value) => value.ToString("0.####", CultureInfo.InvariantCulture);
     private static string OptionalLine(string? first, string? second) => string.IsNullOrWhiteSpace(first) && string.IsNullOrWhiteSpace(second) ? "" : $"<p>{Encode(first ?? "")}{(string.IsNullOrWhiteSpace(second) ? "" : " · " + Encode(second))}</p>";
+    private static string OptionalParagraph(string? value) => string.IsNullOrWhiteSpace(value) ? "" : $"<p>{Encode(value)}</p>";
+    private static string CompanyAddress(CompanyDto company)
+    {
+        var cityLine = string.Join(", ", new[] { company.City, company.State, company.PostalCode }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        return string.Join("<br />", new[] { company.AddressLine1, company.AddressLine2, cityLine, company.Country }.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => Encode(x!)));
+    }
     private static string AmountInWords(decimal amount)
     {
         var whole = (long)decimal.Truncate(amount);

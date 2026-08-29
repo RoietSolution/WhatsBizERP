@@ -12,7 +12,7 @@ namespace WhatsBiz.Api.Controllers;
 [ApiController, Route("api/pos")]
 public sealed class POSController(ISender sender, IConfiguration configuration, ICurrentUserService currentUser, ICustomerNotificationService notifications, IPOSLifecycleService lifecycle) : ControllerBase
 {
-    [HttpGet("products"), HasPermission(Permissions.POS.View)] public Task<IReadOnlyCollection<POSProductDto>> Products([FromQuery] string? search, [FromQuery] string? barcode, [FromQuery] int size = 20, CancellationToken token = default) => sender.Send(new SearchPOSProducts(search, barcode, size), token);
+    [HttpGet("products"), HasPermission(Permissions.POS.View)] public Task<IReadOnlyCollection<POSProductDto>> Products([FromQuery] string? search, [FromQuery] string? barcode, [FromQuery] Guid? warehouseId, [FromQuery] int size = 20, CancellationToken token = default) => sender.Send(new SearchPOSProducts(search, barcode, warehouseId, size), token);
     [HttpGet("customers"), HasPermission(Permissions.POS.View)] public Task<IReadOnlyCollection<POSCustomerDto>> Customers([FromQuery] string? search, [FromQuery] int size = 20, CancellationToken token = default) => sender.Send(new SearchPOSCustomers(search, size), token);
     [HttpGet("warehouses"), HasPermission(Permissions.POS.View)] public Task<PagedWarehouses> Warehouses(CancellationToken token) => sender.Send(new GetWarehouses(null, true, null, "warehouseName", false, 1, 100), token);
     [HttpPost("customers/quick"), HasPermission(Permissions.POS.Create)] public Task<POSCustomerDto> QuickCustomer(QuickCustomerInput input, CancellationToken token) => sender.Send(new CreateQuickCustomer(input), token);

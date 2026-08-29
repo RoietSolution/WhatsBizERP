@@ -18,6 +18,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { PageContainerComponent } from '../../shared/components/page-container/page-container.component';
 import { PaymentDialogComponent } from './payment-dialog.component';
+import { BarcodeScannerComponent } from './barcode-scanner.component';
 import { PosCartGridComponent } from './pos-cart-grid.component';
 import { PosSummaryComponent } from './pos-summary.component';
 import { POSApiService, POSWarehouse } from './pos-api.service';
@@ -34,6 +35,7 @@ import { CartItem, PaymentMethod, POSCustomer, POSProduct } from './pos.models';
     MatInputModule,
     MatSelectModule,
     PageContainerComponent,
+    BarcodeScannerComponent,
     PosCartGridComponent,
     PosSummaryComponent,
   ],
@@ -56,6 +58,8 @@ export class POSScreenComponent {
   readonly tax = signal(0);
   readonly total = signal(0);
   readonly itemCount = signal(0);
+  readonly scannerOpen = signal(false);
+  readonly scannerFeedback = signal('');
   readonly shortcuts = [
     { key: 'F2', label: 'Customer', icon: 'person' },
     { key: 'F3', label: 'Product', icon: 'search' },
@@ -78,6 +82,7 @@ export class POSScreenComponent {
   paymentMethod = 'CASH';
   quickAmount = 0;
   private readonly duplicateProductIds = new Map<string, string>();
+  private readonly pendingBarcodes = new Set<string>();
   constructor(
     private api: POSApiService,
     private dialog: MatDialog,
@@ -120,20 +125,34 @@ export class POSScreenComponent {
     return x.productId;
   }
   scan() {
-    if (!this.barcode) return;
-    this.api.products(undefined, this.barcode).subscribe((x) => {
-      if (x[0]) this.add(x[0]);
-      else this.snack.open('Barcode not found.', undefined, { duration: 2000 });
-      this.barcode = '';
-      this.barcodeInput?.nativeElement.focus();
-    });
+    const barcode = this.barcode.trim();
+    if (!barcode) return;
+    this.lookupBarcode(barcode, false);
+  }
+  openCameraScanner() {
+    if (!this.warehouseId) {
+      this.snack.open('Select a warehouse before scanning.', undefined, { duration: 3000 });
+      return;
+    }
+    this.scannerFeedback.set('');
+    this.scannerOpen.set(true);
+  }
+  closeCameraScanner() {
+    this.scannerOpen.set(false);
+    this.barcodeInput?.nativeElement.focus();
+  }
+  cameraBarcode(barcode: string) {
+    this.lookupBarcode(barcode, true);
   }
   findProducts() {
     if (this.search.trim().length < 2) {
       this.products.set([]);
       return;
     }
-    this.api.products(this.search).subscribe((x) => this.products.set(x));
+    this.api.products(this.search, undefined, this.warehouseId).subscribe({
+      next: (x) => this.products.set(x),
+      error: () => this.snack.open('Product search failed. Please retry.', 'Dismiss', { duration: 5000 }),
+    });
   }
   findCustomers() {
     if (this.customerSearch.trim().length < 2) {
@@ -152,8 +171,17 @@ export class POSScreenComponent {
       if (x) this.selectCustomer(x);
     });
   }
-  add(x: POSProduct) {
+  add(x: POSProduct): boolean {
     const existing = this.cart().find((y) => y.productId === x.productId);
+    const requestedQuantity = (existing?.quantity ?? 0) + 1;
+    if (
+      !x.negativeStockAllowed &&
+      x.availableQuantity != null &&
+      x.availableQuantity < requestedQuantity
+    ) {
+      this.snack.open(`Stock unavailable for ${x.productName}.`, undefined, { duration: 3500 });
+      return false;
+    }
     if (existing) existing.quantity++;
     else
       this.cart.update((v) => [
@@ -171,6 +199,7 @@ export class POSScreenComponent {
     this.search = '';
     this.refresh();
     this.barcodeInput?.nativeElement.focus();
+    return true;
   }
   duplicate(x: CartItem) {
     const lineProductId = `${x.productId}-${Date.now()}`;
@@ -286,6 +315,40 @@ export class POSScreenComponent {
   private showOrderError(error: HttpErrorResponse, fallback: string) {
     const message = this.errorMessage(error, fallback);
     this.snack.open(message, 'Dismiss', { duration: 12000, panelClass: 'wb-error' });
+  }
+
+  private lookupBarcode(value: string, fromCamera: boolean) {
+    const barcode = value.trim();
+    if (!barcode || this.pendingBarcodes.has(barcode)) return;
+    if (!this.warehouseId) {
+      this.snack.open('Select a warehouse before scanning.', undefined, { duration: 3000 });
+      return;
+    }
+    this.pendingBarcodes.add(barcode);
+    if (fromCamera) this.scannerFeedback.set(`Looking up ${barcode}...`);
+    this.api.products(undefined, barcode, this.warehouseId, 1).subscribe({
+      next: (products) => {
+        const product = products[0];
+        if (!product) {
+          const message = `No active product found for barcode ${barcode}.`;
+          if (fromCamera) this.scannerFeedback.set(message);
+          this.snack.open(message, undefined, { duration: 3000 });
+        } else if (this.add(product)) {
+          const message = `${product.productName} added to cart.`;
+          if (fromCamera) this.scannerFeedback.set(message);
+        } else if (fromCamera) {
+          this.scannerFeedback.set(`Stock unavailable for ${product.productName}.`);
+        }
+        this.barcode = '';
+        this.pendingBarcodes.delete(barcode);
+      },
+      error: () => {
+        const message = 'Barcode lookup failed. Check the connection and scan again.';
+        if (fromCamera) this.scannerFeedback.set(message);
+        this.snack.open(message, 'Dismiss', { duration: 5000 });
+        this.pendingBarcodes.delete(barcode);
+      },
+    });
   }
 
   private errorMessage(error: HttpErrorResponse, fallback: string): string {

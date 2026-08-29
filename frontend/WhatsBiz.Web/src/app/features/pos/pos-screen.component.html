@@ -52,18 +52,29 @@
         </button>
       </section>
       <section class="search-panel">
-        <mat-form-field class="barcode-field" appearance="outline" subscriptSizing="dynamic"
-          ><mat-label>Scan barcode</mat-label
-          ><span matPrefix class="material-symbols-rounded">barcode_scanner</span
-          ><input
-            #barcodeInput
-            matInput
-            [(ngModel)]="barcode"
-            (keyup.enter)="scan()"
-            autocomplete="off"
-            aria-label="Scan product barcode"
-          /><span matSuffix class="scan-state">READY</span></mat-form-field
-        >
+        <div class="barcode-actions">
+          <mat-form-field class="barcode-field" appearance="outline" subscriptSizing="dynamic"
+            ><mat-label>Scan barcode</mat-label
+            ><span matPrefix class="material-symbols-rounded">barcode_scanner</span
+            ><input
+              #barcodeInput
+              matInput
+              [(ngModel)]="barcode"
+              (keyup.enter)="scan()"
+              autocomplete="off"
+              aria-label="Scan product barcode"
+            /><span matSuffix class="scan-state">READY</span></mat-form-field
+          >
+          <button
+            mat-flat-button
+            color="primary"
+            class="camera-scan"
+            type="button"
+            (click)="openCameraScanner()"
+          >
+            <span class="material-symbols-rounded">photo_camera</span>Scan Barcode
+          </button>
+        </div>
         <div class="product-lookup">
           <mat-form-field appearance="outline" subscriptSizing="dynamic"
             ><mat-label>Search product</mat-label
@@ -143,4 +154,11 @@
       </button>
     }
   </footer>
+  @if (scannerOpen()) {
+    <app-barcode-scanner
+      [feedback]="scannerFeedback()"
+      (detected)="cameraBarcode($event)"
+      (closed)="closeCameraScanner()"
+    />
+  }
 </app-page-container>

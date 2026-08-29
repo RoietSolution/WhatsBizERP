@@ -62,6 +62,11 @@ export const routes: Routes = [
       ),
     children: [
       {
+        path: '',
+        pathMatch: 'full',
+        redirectTo: 'login',
+      },
+      {
         path: 'login',
         title: 'Sign In | KhataDhari ERP',
         loadComponent: () =>

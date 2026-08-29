@@ -58,3 +58,5 @@ GO
 :r .\V19-ProductImageStorageProviders.sql
 GO
 :r .\V20-DemoRequests.sql
+GO
+:r .\V21-POSMobileBarcodeScanner.sql

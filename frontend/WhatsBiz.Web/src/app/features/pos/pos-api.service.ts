@@ -20,10 +20,12 @@ export interface POSWarehouse {
 @Injectable({ providedIn: 'root' })
 export class POSApiService {
   constructor(private readonly http: HttpClient) {}
-  products(search?: string, barcode?: string) {
+  products(search?: string, barcode?: string, warehouseId?: string, size?: number) {
     let params = new HttpParams();
     if (search) params = params.set('search', search);
     if (barcode) params = params.set('barcode', barcode);
+    if (warehouseId) params = params.set('warehouseId', warehouseId);
+    if (size) params = params.set('size', size);
     return this.http.get<POSProduct[]>('/api/pos/products', { params });
   }
   customers(search?: string) {

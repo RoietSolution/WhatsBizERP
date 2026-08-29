@@ -158,7 +158,7 @@ app-pos-summary,
 }
 .search-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) repeat(3, minmax(96px, 0.65fr));
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) repeat(3, minmax(96px, 0.65fr));
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -167,6 +167,19 @@ app-pos-summary,
 }
 .barcode-field {
   --mat-form-field-container-height: 56px;
+}
+.barcode-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px;
+}
+.camera-scan {
+  height: 56px;
+  white-space: nowrap;
+}
+.camera-scan .material-symbols-rounded {
+  margin-right: 5px;
 }
 .scan-state {
   margin-right: 8px;
@@ -269,6 +282,9 @@ app-pos-summary,
   .barcode-field,
   .product-lookup {
     width: 100%;
+  }
+  .barcode-actions {
+    grid-template-columns: 1fr;
   }
   .shortcut-bar {
     margin-right: -16px;

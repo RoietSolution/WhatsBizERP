@@ -143,17 +143,6 @@ h1 {
   background: #f8fafc;
   flex-direction: column;
 }
-.auth-tools {
-  display: flex;
-  min-height: 64px;
-  padding: 8px 24px;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-}
-.auth-tools__chevron {
-  font-size: 18px;
-}
 .auth-workspace__content {
   display: grid;
   flex: 1;
@@ -225,9 +214,6 @@ h1 {
   }
 }
 @media (max-width: 599px) {
-  .auth-tools {
-    padding-inline: 12px;
-  }
   .auth-workspace__content {
     padding: 8px 16px 24px;
     align-items: start;

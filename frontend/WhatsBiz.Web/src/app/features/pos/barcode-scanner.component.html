@@ -1,0 +1,39 @@
+<section class="scanner-backdrop" role="dialog" aria-modal="true" aria-labelledby="scanner-title">
+  <div class="scanner-sheet">
+    <header>
+      <div>
+        <h2 id="scanner-title">Scan product barcode</h2>
+        <p>{{ state() }}</p>
+      </div>
+      <button mat-icon-button type="button" aria-label="Close camera scanner" (click)="close()">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    </header>
+
+    <div class="preview-shell">
+      <video #preview autoplay muted playsinline aria-label="Camera preview"></video>
+      <div class="scan-frame" aria-hidden="true"></div>
+      @if (!error()) {
+        <span class="scanning"><i></i>Scanning</span>
+      }
+    </div>
+
+    @if (error()) {
+      <p class="message error" role="alert">{{ error() }}</p>
+    } @else if (feedback) {
+      <p class="message feedback" aria-live="polite">{{ feedback }}</p>
+    } @else {
+      <p class="message">EAN, UPC, Code 128, Code 39 and QR codes are supported.</p>
+    }
+
+    <footer>
+      @if (torchAvailable()) {
+        <button mat-stroked-button type="button" (click)="toggleTorch()">
+          <span class="material-symbols-rounded">flashlight_{{ torchOn() ? 'off' : 'on' }}</span>
+          {{ torchOn() ? 'Flashlight off' : 'Flashlight on' }}
+        </button>
+      }
+      <button mat-flat-button color="primary" type="button" (click)="close()">Done</button>
+    </footer>
+  </div>
+</section>

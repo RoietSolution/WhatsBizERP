@@ -25,7 +25,9 @@ public sealed record POSProductDto(
     decimal MRP,
     decimal GSTPercentage,
     bool IsBatchManaged,
-    bool IsSerialManaged);
+    bool IsSerialManaged,
+    decimal? AvailableQuantity,
+    bool NegativeStockAllowed);
 
 public sealed record POSCustomerDto(
     Guid CustomerId,
@@ -125,7 +127,7 @@ public sealed record PostedInvoiceDto(Guid InvoiceId, string InvoiceNumber, deci
 
 /* Requests */
 
-public sealed record SearchPOSProducts(string? Search, string? Barcode, int Size = 20) : IRequest<IReadOnlyCollection<POSProductDto>>;
+public sealed record SearchPOSProducts(string? Search, string? Barcode, Guid? WarehouseId, int Size = 20) : IRequest<IReadOnlyCollection<POSProductDto>>;
 public sealed record SearchPOSCustomers(string? Search, int Size = 20) : IRequest<IReadOnlyCollection<POSCustomerDto>>;
 public sealed record CreateQuickCustomer(QuickCustomerInput Input) : IRequest<POSCustomerDto>;
 public sealed record PostInvoice(POSInvoiceInput Input, string Status = "COMPLETED") : IRequest<PostedInvoiceDto>;
@@ -192,6 +194,7 @@ public sealed class POSHandlers(
     IPOSRepository repository,
     IPOSEngine engine,
     IPOSDocumentService documents,
+    IAdminRepository admin,
     ICustomerRepository customers,
     ICurrentUserService user) :
     IRequestHandler<SearchPOSProducts, IReadOnlyCollection<POSProductDto>>,
@@ -209,8 +212,8 @@ public sealed class POSHandlers(
     IRequestHandler<ExportSales, byte[]>
 {
     public async Task<IReadOnlyCollection<POSProductDto>> Handle(SearchPOSProducts q, CancellationToken t) =>
-        (await repository.Products(q.Search, q.Barcode, q.Size, t))
-            .Select(x => new POSProductDto(x.ProductId, x.ProductCode, x.Barcode, x.ProductName, x.SellingPrice, x.MRP, x.GSTPercentage, x.IsBatchManaged, x.IsSerialManaged))
+        (await repository.Products(q.Search, q.Barcode, q.WarehouseId, q.Size, t))
+            .Select(x => new POSProductDto(x.Product.ProductId, x.Product.ProductCode, x.MatchedBarcode, x.Product.ProductName, x.Product.SellingPrice, x.Product.MRP, x.Product.GSTPercentage, x.Product.IsBatchManaged, x.Product.IsSerialManaged, x.AvailableQuantity, x.NegativeStockAllowed))
             .ToArray();
 
     public async Task<IReadOnlyCollection<POSCustomerDto>> Handle(SearchPOSCustomers q, CancellationToken t) =>
@@ -308,7 +311,9 @@ public sealed class POSHandlers(
     {
         var invoice = await repository.Invoice(q.Id, t)
             ?? throw new EntityNotFoundException("Invoice not found.");
-        return documents.InvoiceHtml(invoice, q.Paper);
+        var company = await admin.Company(t);
+        var loyalty = await repository.CoinSummary(invoice.InvoiceId, t);
+        return documents.InvoiceHtml(invoice, q.Paper, new(company, loyalty));
     }
 
     public async Task<byte[]> Handle(ExportSales q, CancellationToken t)

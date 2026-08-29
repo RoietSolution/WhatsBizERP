@@ -8,6 +8,8 @@ export interface POSProduct {
   gstPercentage: number;
   isBatchManaged: boolean;
   isSerialManaged: boolean;
+  availableQuantity?: number | null;
+  negativeStockAllowed: boolean;
 }
 export interface POSCustomer {
   customerId: string;

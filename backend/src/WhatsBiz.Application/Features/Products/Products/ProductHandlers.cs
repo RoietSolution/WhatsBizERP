@@ -32,19 +32,131 @@ public sealed class GetProductHistoryQueryHandler(IProductRepository repository)
 
 public sealed class CreateProductCommandHandler(IProductRepository repository, ICurrentUserService currentUser, IMapper mapper) : IRequestHandler<CreateProductCommand, ProductDto>
 {
-    public async Task<ProductDto> Handle(CreateProductCommand request, CancellationToken cancellationToken) { await EnsureValidAsync(request.Input, null, cancellationToken); var product = new Product { TenantId = currentUser.TenantId ?? throw new UnauthorizedAccessException("A tenant context is required.") }; Apply(product, request.Input); product.CreatedBy = currentUser.Username; repository.Add(product); await repository.SaveChangesAsync(cancellationToken); return mapper.Map<ProductDto>(await repository.GetAsync(product.ProductId, false, cancellationToken)); }
-    private async Task EnsureValidAsync(ProductInput input, Guid? id, CancellationToken token) { if (await repository.ProductCodeExistsAsync(input.ProductCode, id, token)) throw new BusinessRuleException("Product code already exists."); if (!string.IsNullOrWhiteSpace(input.Barcode) && await repository.BarcodeExistsAsync(input.Barcode, id, token)) throw new BusinessRuleException("Barcode already exists."); if (!await repository.ReferencesExistAsync(input.CategoryId, input.BrandId, input.UnitId, token)) throw new BusinessRuleException("Category, brand, or unit is invalid or inactive."); }
-    internal static void Apply(Product product, ProductInput input) { product.ProductCode = input.ProductCode.Trim(); product.Barcode = string.IsNullOrWhiteSpace(input.Barcode) ? null : input.Barcode.Trim(); product.BarcodeType = input.BarcodeType.Trim().ToUpperInvariant(); product.ProductName = input.ProductName.Trim(); product.ShortDescription = input.ShortDescription?.Trim(); product.LongDescription = input.LongDescription?.Trim(); product.CategoryId = input.CategoryId; product.BrandId = input.BrandId; product.UnitId = input.UnitId; product.HSNCode = input.HSNCode?.Trim(); product.SACCode = input.SACCode?.Trim(); product.GSTPercentage = input.GSTPercentage; product.PurchasePrice = input.PurchasePrice; product.SellingPrice = input.SellingPrice; product.MRP = input.MRP; product.MinimumStock = input.MinimumStock; product.MaximumStock = input.MaximumStock; product.ReorderLevel = input.ReorderLevel; product.Weight = input.Weight; product.Length = input.Length; product.Width = input.Width; product.Height = input.Height; product.IsBatchManaged = input.IsBatchManaged; product.IsSerialManaged = input.IsSerialManaged; product.IsActive = input.IsActive; }
+    public async Task<ProductDto> Handle(CreateProductCommand request, CancellationToken cancellationToken)
+    {
+        var tenantId = currentUser.TenantId ?? throw new UnauthorizedAccessException("A tenant context is required.");
+        var additional = ProductIdentifierPolicy.NormalizeAdditional(request.Input);
+        await EnsureValidAsync(request.Input, additional, null, cancellationToken);
+        var product = new Product { TenantId = tenantId };
+        Apply(product, request.Input);
+        product.CreatedBy = currentUser.Username;
+        repository.Add(product);
+        foreach (var code in additional)
+            repository.Add(new ProductBarcode { TenantId = tenantId, ProductId = product.ProductId, Barcode = code.Barcode, BarcodeType = code.BarcodeType, CreatedBy = currentUser.Username });
+        await repository.SaveChangesAsync(cancellationToken);
+        return mapper.Map<ProductDto>(await repository.GetAsync(product.ProductId, false, cancellationToken));
+    }
+    private async Task EnsureValidAsync(ProductInput input, IReadOnlyCollection<ProductBarcodeInput> additional, Guid? id, CancellationToken token)
+    {
+        if (await repository.ProductCodeExistsAsync(input.ProductCode, id, token)) throw new BusinessRuleException("Product code already exists.");
+        foreach (var identifier in additional.Select(x => x.Barcode).Prepend(input.Barcode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal))
+        {
+            var owner = await repository.IdentifierOwnerAsync(identifier!, id, token);
+            if (owner is not null) throw new BusinessRuleException($"This barcode/QR is already assigned to {owner.ProductName}.");
+        }
+        if (!await repository.ReferencesExistAsync(input.CategoryId, input.BrandId, input.UnitId, token)) throw new BusinessRuleException("Category, brand, or unit is invalid or inactive.");
+    }
+    internal static void Apply(Product product, ProductInput input) { product.ProductCode = input.ProductCode.Trim(); product.Barcode = string.IsNullOrWhiteSpace(input.Barcode) ? null : input.Barcode; product.BarcodeType = input.BarcodeType.Trim().ToUpperInvariant(); product.ProductName = input.ProductName.Trim(); product.ShortDescription = input.ShortDescription?.Trim(); product.LongDescription = input.LongDescription?.Trim(); product.CategoryId = input.CategoryId; product.BrandId = input.BrandId; product.UnitId = input.UnitId; product.HSNCode = input.HSNCode?.Trim(); product.SACCode = input.SACCode?.Trim(); product.GSTPercentage = input.GSTPercentage; product.PurchasePrice = input.PurchasePrice; product.SellingPrice = input.SellingPrice; product.MRP = input.MRP; product.MinimumStock = input.MinimumStock; product.MaximumStock = input.MaximumStock; product.ReorderLevel = input.ReorderLevel; product.Weight = input.Weight; product.Length = input.Length; product.Width = input.Width; product.Height = input.Height; product.IsBatchManaged = input.IsBatchManaged; product.IsSerialManaged = input.IsSerialManaged; product.IsActive = input.IsActive; }
 }
 
 public sealed class UpdateProductCommandHandler(IProductRepository repository, ICurrentUserService currentUser, IMapper mapper) : IRequestHandler<UpdateProductCommand, ProductDto>
 {
-    public async Task<ProductDto> Handle(UpdateProductCommand request, CancellationToken cancellationToken) { var product = await repository.GetAsync(request.ProductId, true, cancellationToken) ?? throw new EntityNotFoundException("Product was not found."); if (await repository.ProductCodeExistsAsync(request.Input.ProductCode, request.ProductId, cancellationToken)) throw new BusinessRuleException("Product code already exists."); if (!string.IsNullOrWhiteSpace(request.Input.Barcode) && await repository.BarcodeExistsAsync(request.Input.Barcode, request.ProductId, cancellationToken)) throw new BusinessRuleException("Barcode already exists."); if (!await repository.ReferencesExistAsync(request.Input.CategoryId, request.Input.BrandId, request.Input.UnitId, cancellationToken)) throw new BusinessRuleException("Category, brand, or unit is invalid or inactive."); CreateProductCommandHandler.Apply(product, request.Input); product.ModifiedOn = DateTimeOffset.UtcNow; product.ModifiedBy = currentUser.Username; await repository.SaveChangesAsync(cancellationToken); return mapper.Map<ProductDto>(await repository.GetAsync(product.ProductId, false, cancellationToken)); }
+    public async Task<ProductDto> Handle(UpdateProductCommand request, CancellationToken cancellationToken)
+    {
+        var product = await repository.GetAsync(request.ProductId, true, cancellationToken) ?? throw new EntityNotFoundException("Product was not found.");
+        var additional = ProductIdentifierPolicy.NormalizeAdditional(request.Input);
+        if (await repository.ProductCodeExistsAsync(request.Input.ProductCode, request.ProductId, cancellationToken)) throw new BusinessRuleException("Product code already exists.");
+        foreach (var identifier in additional.Select(x => x.Barcode).Prepend(request.Input.Barcode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal))
+        {
+            var owner = await repository.IdentifierOwnerAsync(identifier!, request.ProductId, cancellationToken);
+            if (owner is not null) throw new BusinessRuleException($"This barcode/QR is already assigned to {owner.ProductName}.");
+        }
+        if (!await repository.ReferencesExistAsync(request.Input.CategoryId, request.Input.BrandId, request.Input.UnitId, cancellationToken)) throw new BusinessRuleException("Category, brand, or unit is invalid or inactive.");
+
+        CreateProductCommandHandler.Apply(product, request.Input);
+        SyncAdditional(product, additional);
+        product.ModifiedOn = DateTimeOffset.UtcNow;
+        product.ModifiedBy = currentUser.Username;
+        await repository.SaveChangesAsync(cancellationToken);
+        return mapper.Map<ProductDto>(await repository.GetAsync(product.ProductId, false, cancellationToken));
+    }
+
+    private void SyncAdditional(Product product, IReadOnlyCollection<ProductBarcodeInput> desired)
+    {
+        var desiredByValue = desired.ToDictionary(x => x.Barcode, StringComparer.Ordinal);
+        foreach (var existing in product.Barcodes.Where(x => !x.IsPrimary && !x.IsDeleted))
+        {
+            if (desiredByValue.Remove(existing.Barcode, out var requested))
+            {
+                existing.BarcodeType = requested.BarcodeType;
+                existing.IsActive = true;
+                existing.ModifiedOn = DateTimeOffset.UtcNow;
+                existing.ModifiedBy = currentUser.Username;
+            }
+            else
+            {
+                existing.IsDeleted = true;
+                existing.IsActive = false;
+                existing.ModifiedOn = DateTimeOffset.UtcNow;
+                existing.ModifiedBy = currentUser.Username;
+            }
+        }
+        foreach (var requested in desiredByValue.Values)
+        {
+            var deleted = product.Barcodes.FirstOrDefault(x => !x.IsPrimary && x.IsDeleted && x.Barcode == requested.Barcode);
+            if (deleted is not null)
+            {
+                deleted.BarcodeType = requested.BarcodeType;
+                deleted.IsDeleted = false;
+                deleted.IsActive = true;
+                deleted.ModifiedOn = DateTimeOffset.UtcNow;
+                deleted.ModifiedBy = currentUser.Username;
+            }
+            else
+            {
+                repository.Add(new ProductBarcode { TenantId = product.TenantId, ProductId = product.ProductId, Barcode = requested.Barcode, BarcodeType = requested.BarcodeType, CreatedBy = currentUser.Username });
+            }
+        }
+    }
+}
+
+internal static class ProductIdentifierPolicy
+{
+    internal const int MaximumAdditionalCodes = 10;
+    internal const int MaximumAdditionalCodeLength = 450;
+
+    internal static IReadOnlyCollection<ProductBarcodeInput> NormalizeAdditional(ProductInput input)
+    {
+        var primary = string.IsNullOrWhiteSpace(input.Barcode) ? null : input.Barcode;
+        return (input.AdditionalBarcodes ?? [])
+            .Where(x => !string.IsNullOrWhiteSpace(x.Barcode))
+            .Select(x => new ProductBarcodeInput(x.Barcode, x.BarcodeType.Trim().ToUpperInvariant()))
+            .Where(x => !string.Equals(x.Barcode, primary, StringComparison.Ordinal))
+            .GroupBy(x => x.Barcode, StringComparer.Ordinal)
+            .Select(x => x.First())
+            .ToArray();
+    }
 }
 
 public sealed class DeleteProductCommandHandler(IProductRepository repository, ICurrentUserService currentUser) : IRequestHandler<DeleteProductCommand>
 {
-    public async Task Handle(DeleteProductCommand request, CancellationToken cancellationToken) { var product = await repository.GetAsync(request.ProductId, true, cancellationToken) ?? throw new EntityNotFoundException("Product was not found."); product.IsDeleted = true; product.IsActive = false; product.ModifiedOn = DateTimeOffset.UtcNow; product.ModifiedBy = currentUser.Username; await repository.SaveChangesAsync(cancellationToken); }
+    public async Task Handle(DeleteProductCommand request, CancellationToken cancellationToken)
+    {
+        var product = await repository.GetAsync(request.ProductId, true, cancellationToken) ?? throw new EntityNotFoundException("Product was not found.");
+        var modifiedOn = DateTimeOffset.UtcNow;
+        product.IsDeleted = true;
+        product.IsActive = false;
+        product.ModifiedOn = modifiedOn;
+        product.ModifiedBy = currentUser.Username;
+        foreach (var barcode in product.Barcodes.Where(x => !x.IsDeleted))
+        {
+            barcode.IsDeleted = true;
+            barcode.IsActive = false;
+            barcode.ModifiedOn = modifiedOn;
+            barcode.ModifiedBy = currentUser.Username;
+        }
+        await repository.SaveChangesAsync(cancellationToken);
+    }
 }
 
 public sealed class ExportProductsQueryHandler(IProductRepository repository, IProductSpreadsheetService spreadsheet) : IRequestHandler<ExportProductsQuery, byte[]>

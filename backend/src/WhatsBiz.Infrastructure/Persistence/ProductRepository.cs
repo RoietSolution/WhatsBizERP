@@ -20,7 +20,7 @@ public sealed class ProductRepository(ApplicationDbContext context, ICurrentUser
         return (items, count);
     }
 
-    public Task<Product?> GetAsync(Guid id, bool tracking, CancellationToken cancellationToken) { var query = TenantProducts.Include(x => x.Category).Include(x => x.Brand).Include(x => x.Unit).Where(x => !x.IsDeleted); if (!tracking) query = query.AsNoTracking(); return query.SingleOrDefaultAsync(x => x.ProductId == id, cancellationToken); }
+    public Task<Product?> GetAsync(Guid id, bool tracking, CancellationToken cancellationToken) { var query = TenantProducts.Include(x => x.Category).Include(x => x.Brand).Include(x => x.Unit).Include(x => x.Barcodes).Where(x => !x.IsDeleted); if (!tracking) query = query.AsNoTracking(); return query.SingleOrDefaultAsync(x => x.ProductId == id, cancellationToken); }
     public async Task<IReadOnlyCollection<ProductHistoryDto>> GetHistoryAsync(Guid id, CancellationToken cancellationToken)
     {
         var rows = new List<ProductHistoryDto>();
@@ -75,9 +75,27 @@ public sealed class ProductRepository(ApplicationDbContext context, ICurrentUser
         };
     }
     public Task<bool> ProductCodeExistsAsync(string code, Guid? excludingId, CancellationToken cancellationToken) => TenantProducts.AnyAsync(x => !x.IsDeleted && x.ProductCode == code.Trim() && (!excludingId.HasValue || x.ProductId != excludingId), cancellationToken);
-    public Task<bool> BarcodeExistsAsync(string barcode, Guid? excludingId, CancellationToken cancellationToken) => TenantProducts.AnyAsync(x => !x.IsDeleted && x.Barcode == barcode.Trim() && (!excludingId.HasValue || x.ProductId != excludingId), cancellationToken);
+    public Task<bool> BarcodeExistsAsync(string barcode, Guid? excludingId, CancellationToken cancellationToken)
+    {
+        var value = barcode.Trim();
+        return TenantProducts.AnyAsync(
+            x => !x.IsDeleted
+                && (!excludingId.HasValue || x.ProductId != excludingId)
+                && (x.Barcode == value || context.ProductBarcodes.Any(b => b.TenantId == x.TenantId && b.ProductId == x.ProductId && b.Barcode == value && b.IsActive && !b.IsDeleted)),
+            cancellationToken);
+    }
+    public Task<Product?> IdentifierOwnerAsync(string identifier, Guid? excludingProductId, CancellationToken cancellationToken)
+    {
+        var value = identifier;
+        return TenantProducts.AsNoTracking().FirstOrDefaultAsync(
+            x => !x.IsDeleted
+                && (!excludingProductId.HasValue || x.ProductId != excludingProductId)
+                && (x.Barcode == value || context.ProductBarcodes.Any(b => b.TenantId == x.TenantId && b.ProductId == x.ProductId && b.Barcode == value && b.IsActive && !b.IsDeleted)),
+            cancellationToken);
+    }
     public async Task<bool> ReferencesExistAsync(Guid categoryId, Guid brandId, Guid unitId, CancellationToken cancellationToken) => await context.ProductCategories.AnyAsync(x => x.ProductCategoryId == categoryId && x.IsActive && !x.IsDeleted, cancellationToken) && await context.Brands.AnyAsync(x => x.BrandId == brandId && x.IsActive && !x.IsDeleted, cancellationToken) && await context.UnitsOfMeasure.AnyAsync(x => x.UnitId == unitId && x.IsActive && !x.IsDeleted, cancellationToken);
     public void Add(Product product) => context.Products.Add(product);
+    public void Add(ProductBarcode barcode) => context.ProductBarcodes.Add(barcode);
     public async Task<IReadOnlyCollection<ProductCategory>> GetCategoriesAsync(CancellationToken cancellationToken) => await context.ProductCategories.AsNoTracking().Where(x => !x.IsDeleted).OrderBy(x => x.DisplayOrder).ThenBy(x => x.CategoryName).ToArrayAsync(cancellationToken);
     public Task<ProductCategory?> GetCategoryAsync(Guid id, bool tracking, CancellationToken cancellationToken) { var query = context.ProductCategories.Where(x => !x.IsDeleted); if (!tracking) query = query.AsNoTracking(); return query.SingleOrDefaultAsync(x => x.ProductCategoryId == id, cancellationToken); }
     public Task<bool> CategoryCodeExistsAsync(string code, Guid? excludingId, CancellationToken cancellationToken) => context.ProductCategories.AnyAsync(x => !x.IsDeleted && x.CategoryCode == code.Trim() && (!excludingId.HasValue || x.ProductCategoryId != excludingId), cancellationToken);

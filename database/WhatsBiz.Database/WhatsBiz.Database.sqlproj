@@ -41,6 +41,7 @@
     <None Include="Scripts\V19-ProductImageStorageProviders.sql"/>
     <None Include="Scripts\V20-DemoRequests.sql"/>
     <None Include="Scripts\V21-POSMobileBarcodeScanner.sql"/>
+    <None Include="Scripts\V22-ProductManufacturerCodes.sql"/>
     <None Include="Scripts\Onboarding_Retailer.sql"/>
     <None Include="Scripts\Bootstrap_QA.sql"/>
     <None Include="Scripts\Validate_QA_Bootstrap.sql"/>

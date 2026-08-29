@@ -60,3 +60,5 @@ GO
 :r .\V20-DemoRequests.sql
 GO
 :r .\V21-POSMobileBarcodeScanner.sql
+GO
+:r .\V22-ProductManufacturerCodes.sql

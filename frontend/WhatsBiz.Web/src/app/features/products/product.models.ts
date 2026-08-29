@@ -37,6 +37,8 @@ export interface ProductHistory {
 export interface ProductInput {
   productCode: string;
   barcode: string | null;
+  barcodeType: string;
+  additionalBarcodes: ProductBarcodeInput[];
   productName: string;
   shortDescription: string | null;
   longDescription: string | null;
@@ -59,6 +61,13 @@ export interface ProductInput {
   isBatchManaged: boolean;
   isSerialManaged: boolean;
   isActive: boolean;
+}
+export interface ProductBarcodeInput {
+  barcode: string;
+  barcodeType: string;
+}
+export interface ProductBarcode extends ProductBarcodeInput {
+  productBarcodeId: string;
 }
 export interface Category {
   productCategoryId: string;

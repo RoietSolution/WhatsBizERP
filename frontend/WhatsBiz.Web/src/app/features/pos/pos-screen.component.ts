@@ -318,8 +318,8 @@ export class POSScreenComponent {
   }
 
   private lookupBarcode(value: string, fromCamera: boolean) {
-    const barcode = value.trim();
-    if (!barcode || this.pendingBarcodes.has(barcode)) return;
+    const barcode = fromCamera ? value : value.trim();
+    if (!barcode?.trim() || this.pendingBarcodes.has(barcode)) return;
     if (!this.warehouseId) {
       this.snack.open('Select a warehouse before scanning.', undefined, { duration: 3000 });
       return;

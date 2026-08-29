@@ -86,6 +86,17 @@ describe('POSScreenComponent barcode flow', () => {
     expect(component.products()).toHaveSize(1);
   });
 
+  it('looks up manufacturer QR content exactly through the existing POS API', () => {
+    const { api, component } = setup();
+    const qr = 'https://manufacturer.example/products/ABC?lot=26';
+    api.products.and.returnValue(of([product({ barcode: qr })]));
+
+    component.cameraBarcode(qr);
+
+    expect(api.products).toHaveBeenCalledWith(undefined, qr, 'warehouse-1', 1);
+    expect(component.cart()).toHaveSize(1);
+  });
+
   function product(overrides: Partial<POSProduct> = {}): POSProduct {
     return {
       productId: 'product-1',

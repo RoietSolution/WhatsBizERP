@@ -42,18 +42,43 @@ public sealed class POSBarcodeLookupTests
         db.Products.Add(product);
         db.ProductBarcodes.Add(new ProductBarcode
         {
+            TenantId = tenant,
             ProductId = product.ProductId,
             Barcode = "CUSTOM-128-001",
+            BarcodeType = BarcodeTypes.Code128,
             IsPrimary = true,
         });
         await db.SaveChangesAsync();
 
         var result = await new POSRepository(db, new CurrentUser(tenant))
-            .Products(null, " CUSTOM-128-001 ", null, 1, default);
+            .Products(null, "CUSTOM-128-001", null, 1, default);
 
         result.Should().ContainSingle();
         result.Single().Product.ProductId.Should().Be(product.ProductId);
         result.Single().MatchedBarcode.Should().Be("CUSTOM-128-001");
+    }
+
+    [Fact]
+    public async Task ExactManufacturerQrLookupPreservesValueAndTenantIsolation()
+    {
+        const string qr = "https://manufacturer.example/item/ABC?lot=Lot%2026";
+        var tenant = Guid.NewGuid();
+        var otherTenant = Guid.NewGuid();
+        await using var db = CreateDb();
+        var expected = Product(tenant, null, "QR product");
+        var hidden = Product(otherTenant, null, "Other tenant QR product");
+        db.Products.AddRange(expected, hidden);
+        db.ProductBarcodes.AddRange(
+            new ProductBarcode { TenantId = tenant, ProductId = expected.ProductId, Barcode = qr, BarcodeType = BarcodeTypes.Qr },
+            new ProductBarcode { TenantId = otherTenant, ProductId = hidden.ProductId, Barcode = "SHARED-MANUFACTURER-CODE", BarcodeType = BarcodeTypes.Code128 });
+        await db.SaveChangesAsync();
+
+        var repository = new POSRepository(db, new CurrentUser(tenant));
+
+        var result = (await repository.Products(null, qr, null, 1, default)).Single();
+        result.Product.ProductId.Should().Be(expected.ProductId);
+        result.MatchedBarcode.Should().Be(qr);
+        (await repository.Products(null, "SHARED-MANUFACTURER-CODE", null, 1, default)).Should().BeEmpty();
     }
 
     [Fact]

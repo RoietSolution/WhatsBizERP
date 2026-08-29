@@ -8,11 +8,16 @@ export interface BarcodeCameraSession {
   setTorch(enabled: boolean): Promise<void>;
 }
 
+export interface BarcodeScanResult {
+  readonly value: string;
+  readonly barcodeType: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class BarcodeCameraService {
   async start(
     video: HTMLVideoElement,
-    detected: (value: string) => void,
+    detected: (result: BarcodeScanResult) => void,
   ): Promise<BarcodeCameraSession> {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       throw new DOMException('Camera scanning requires HTTPS and a compatible browser.', 'NotSupportedError');
@@ -35,12 +40,34 @@ export class BarcodeCameraService {
       { audio: false, video: { facingMode: { ideal: 'environment' } } },
       video,
       (result: Result | undefined) => {
-        const value = result?.getText().trim();
-        if (value) detected(value);
+        const value = result?.getText();
+        if (value?.trim() && result)
+          detected({ value, barcodeType: this.barcodeType(result.getBarcodeFormat()) });
       },
     );
 
     return this.session(video, controls);
+  }
+
+  private barcodeType(format: BarcodeFormat): string {
+    switch (format) {
+      case BarcodeFormat.EAN_13:
+        return 'EAN13';
+      case BarcodeFormat.EAN_8:
+        return 'EAN8';
+      case BarcodeFormat.UPC_A:
+        return 'UPCA';
+      case BarcodeFormat.UPC_E:
+        return 'UPCE';
+      case BarcodeFormat.CODE_128:
+        return 'CODE128';
+      case BarcodeFormat.CODE_39:
+        return 'CODE39';
+      case BarcodeFormat.QR_CODE:
+        return 'QR';
+      default:
+        return 'CUSTOM';
+    }
   }
 
   private session(video: HTMLVideoElement, controls: IScannerControls): BarcodeCameraSession {

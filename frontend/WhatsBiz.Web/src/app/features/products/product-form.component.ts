@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -11,13 +11,23 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { finalize, forkJoin, of } from 'rxjs';
+import { BarcodeScanResult } from '../pos/barcode-camera.service';
+import { BarcodeScannerComponent } from '../pos/barcode-scanner.component';
 import { ProductApiService } from './product-api.service';
-import { Brand, Category, ProductImage, ProductInput, UnitOfMeasure } from './product.models';
+import {
+  Brand,
+  Category,
+  ProductBarcodeInput,
+  ProductImage,
+  ProductInput,
+  UnitOfMeasure,
+} from './product.models';
 
 @Component({
   selector: 'app-product-form',
   imports: [
     ReactiveFormsModule,
+    FormsModule,
     RouterLink,
     MatButtonModule,
     MatCardModule,
@@ -27,6 +37,7 @@ import { Brand, Category, ProductImage, ProductInput, UnitOfMeasure } from './pr
     MatInputModule,
     MatProgressSpinnerModule,
     MatSelectModule,
+    BarcodeScannerComponent,
   ],
   templateUrl: './product-form.component.html',
   styles: [
@@ -81,6 +92,49 @@ import { Brand, Category, ProductImage, ProductInput, UnitOfMeasure } from './pr
       .error {
         color: var(--mat-sys-error);
       }
+      .codes-header,
+      .code-row,
+      .scan-preview,
+      .code-entry {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .codes-header {
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+      }
+      .code-entry mat-form-field:first-child {
+        flex: 1;
+      }
+      .code-row {
+        justify-content: space-between;
+        padding: 0.65rem 0;
+        border-bottom: 1px solid var(--wb-border);
+      }
+      .code-value,
+      .scan-value {
+        min-width: 0;
+        overflow: hidden;
+        overflow-wrap: anywhere;
+        text-overflow: ellipsis;
+      }
+      .code-value {
+        max-width: min(70vw, 720px);
+        white-space: nowrap;
+      }
+      .scan-preview {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        margin: 0.75rem 0 1rem;
+        padding: 0.75rem;
+        background: var(--wb-primary-soft);
+        border-radius: 8px;
+      }
+      .scan-preview .scan-value {
+        flex: 1 1 260px;
+        max-height: 5rem;
+      }
       @media (max-width: 800px) {
         .grid {
           grid-template-columns: 1fr;
@@ -104,14 +158,22 @@ export class ProductFormComponent {
   readonly flatCategories = signal<Category[]>([]);
   readonly imagePreview = signal<string | null>(null);
   readonly images = signal<ProductImage[]>([]);
+  readonly additionalBarcodes = signal<ProductBarcodeInput[]>([]);
+  readonly scannerOpen = signal(false);
+  readonly scanTarget = signal<'primary' | 'additional'>('additional');
+  readonly pendingScan = signal<BarcodeScanResult | null>(null);
+  readonly barcodeTypes = ['EAN13', 'EAN8', 'UPCA', 'UPCE', 'CODE128', 'CODE39', 'QR', 'CUSTOM'];
   readonly copySourceId: string | null;
   selectedImagesCount = () => this.selectedImages.length;
   readonly productId: string | null;
   private selectedImages: File[] = [];
+  newBarcode = '';
+  newBarcodeType = 'CUSTOM';
   readonly form = this.formBuilder.group(
     {
       productCode: ['', [Validators.required, Validators.maxLength(50)]],
       barcode: [''],
+      barcodeType: ['CODE128', Validators.required],
       productName: ['', [Validators.required, Validators.maxLength(250)]],
       shortDescription: [''],
       longDescription: [''],
@@ -169,6 +231,7 @@ export class ProductFormComponent {
                 ? { ...data.product, productCode: '', barcode: null, productName: `${data.product.productName} Copy` }
                 : data.product,
             );
+            this.additionalBarcodes.set(this.copySourceId ? [] : (data.product.additionalBarcodes ?? []));
             if (!this.copySourceId)
               this.api.images(data.product.productId).subscribe((images) => { this.images.set(images); if (images[0]) this.imagePreview.set(images[0].url); });
           }
@@ -183,7 +246,12 @@ export class ProductFormComponent {
       return;
     }
     this.saving.set(true);
-    const input = this.form.getRawValue() as ProductInput;
+    const raw = this.form.getRawValue();
+    const input = {
+      ...raw,
+      barcode: raw.barcode || null,
+      additionalBarcodes: this.additionalBarcodes(),
+    } as ProductInput;
     const request = this.productId
       ? this.api.update(this.productId, input)
       : this.api.create(input);
@@ -234,6 +302,59 @@ export class ProductFormComponent {
       },
       error: () => this.snackBar.open('Image could not be deleted.', 'Dismiss', { duration: 4000 }),
     });
+  }
+  openScanner(target: 'primary' | 'additional'): void {
+    this.scanTarget.set(target);
+    this.pendingScan.set(null);
+    this.scannerOpen.set(true);
+  }
+  scanned(result: BarcodeScanResult): void {
+    this.pendingScan.set(result);
+    this.scannerOpen.set(false);
+  }
+  saveScanned(): void {
+    const result = this.pendingScan();
+    if (!result) return;
+    if (this.scanTarget() === 'primary') {
+      if (result.value.length > 100) {
+        this.snackBar.open('Primary barcode cannot exceed 100 characters. Save it as an additional QR/code instead.', 'Dismiss', { duration: 5000 });
+        return;
+      }
+      this.form.patchValue({ barcode: result.value, barcodeType: result.barcodeType });
+      this.pendingScan.set(null);
+      this.snackBar.open('Primary barcode captured.', undefined, { duration: 2500 });
+      return;
+    }
+    if (this.addAdditional(result.value, result.barcodeType)) {
+      this.pendingScan.set(null);
+      this.snackBar.open('Code linked to product.', undefined, { duration: 2500 });
+    }
+  }
+  addManualBarcode(): void {
+    if (this.addAdditional(this.newBarcode, this.newBarcodeType)) {
+      this.newBarcode = '';
+      this.newBarcodeType = 'CUSTOM';
+    }
+  }
+  removeBarcode(barcode: ProductBarcodeInput): void {
+    this.additionalBarcodes.update((items) => items.filter((item) => item !== barcode));
+  }
+  private addAdditional(value: string, barcodeType: string): boolean {
+    if (!value || !value.trim()) return false;
+    if (value.length > 450) {
+      this.snackBar.open('Additional barcode/QR content cannot exceed 450 characters.', 'Dismiss', { duration: 5000 });
+      return false;
+    }
+    if (this.form.controls.barcode.value === value || this.additionalBarcodes().some((x) => x.barcode === value)) {
+      this.snackBar.open('This code is already linked to the current product.', undefined, { duration: 3000 });
+      return false;
+    }
+    if (this.additionalBarcodes().length >= 10) {
+      this.snackBar.open('A product can have a maximum of 10 additional codes.', 'Dismiss', { duration: 4000 });
+      return false;
+    }
+    this.additionalBarcodes.update((items) => [...items, { barcode: value, barcodeType }]);
+    return true;
   }
   private flatten(items: Category[]): Category[] {
     return items.flatMap((item) => [item, ...this.flatten(item.children)]);

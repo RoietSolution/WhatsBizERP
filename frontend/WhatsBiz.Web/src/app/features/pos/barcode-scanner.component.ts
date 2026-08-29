@@ -12,7 +12,11 @@ import {
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { BarcodeCameraService, BarcodeCameraSession } from './barcode-camera.service';
+import {
+  BarcodeCameraService,
+  BarcodeCameraSession,
+  BarcodeScanResult,
+} from './barcode-camera.service';
 
 @Component({
   selector: 'app-barcode-scanner',
@@ -25,6 +29,7 @@ export class BarcodeScannerComponent implements AfterViewInit, OnDestroy {
   @ViewChild('preview', { static: true }) preview!: ElementRef<HTMLVideoElement>;
   @Input() feedback = '';
   @Output() detected = new EventEmitter<string>();
+  @Output() scanned = new EventEmitter<BarcodeScanResult>();
   @Output() closed = new EventEmitter<void>();
 
   readonly state = signal('Starting camera...');
@@ -43,8 +48,8 @@ export class BarcodeScannerComponent implements AfterViewInit, OnDestroy {
 
   async ngAfterViewInit() {
     try {
-      const session = await this.camera.start(this.preview.nativeElement, (value) =>
-        this.zone.run(() => this.accept(value)),
+      const session = await this.camera.start(this.preview.nativeElement, (result) =>
+        this.zone.run(() => this.accept(result.value, Date.now(), result.barcodeType)),
       );
       if (this.destroyed) {
         session.stop();
@@ -59,14 +64,16 @@ export class BarcodeScannerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  accept(value: string, now = Date.now()) {
-    const barcode = value.trim();
-    if (!barcode) return;
+  accept(value: string, now = Date.now(), barcodeType = 'CUSTOM') {
+    const barcode = value;
+    if (!barcode?.trim()) return;
     const lastSeen = this.seen.get(barcode);
     if (lastSeen !== undefined && now - lastSeen < BarcodeScannerComponent.duplicateCooldownMs) return;
     this.seen.set(barcode, now);
-    this.state.set(`Scanned ${barcode}`);
+    const preview = barcode.length > 64 ? `${barcode.slice(0, 61)}...` : barcode;
+    this.state.set(`Scanned ${preview}`);
     this.detected.emit(barcode);
+    this.scanned.emit({ value: barcode, barcodeType });
   }
 
   async toggleTorch() {

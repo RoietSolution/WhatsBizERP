@@ -14,10 +14,10 @@ public sealed class POSRepository(ApplicationDbContext db, ICurrentUserService c
     public async Task<POSCoinSummary> CoinSummary(Guid invoiceId, CancellationToken token) { var connection=(SqlConnection)db.Database.GetDbConnection(); var opened=connection.State!=System.Data.ConnectionState.Open; if(opened)await connection.OpenAsync(token); try { await using var command=connection.CreateCommand(); command.CommandText="SELECT EarnedCoins,RedeemedCoins,RedemptionDiscount FROM loyalty.OrderCoins WHERE OrderId=@order;"; command.Parameters.AddWithValue("@order",invoiceId); await using var reader=await command.ExecuteReaderAsync(token); return await reader.ReadAsync(token) ? new(reader.GetInt32(0),reader.GetInt32(1),reader.GetDecimal(2)) : new(0,0,0); } finally { if(opened)await connection.CloseAsync(); } }
     public async Task<IReadOnlyCollection<POSProductLookup>> Products(string? search, string? barcode, Guid? warehouseId, int size, CancellationToken token)
     {
-        var exactBarcode = string.IsNullOrWhiteSpace(barcode) ? null : barcode.Trim();
+        var exactBarcode = string.IsNullOrWhiteSpace(barcode) ? null : barcode;
         var q = TenantProducts.AsNoTracking().Where(x => x.IsActive && !x.IsDeleted);
         if (exactBarcode is not null)
-            q = q.Where(x => x.Barcode == exactBarcode || db.ProductBarcodes.Any(b => b.ProductId == x.ProductId && b.Barcode == exactBarcode && b.IsActive && !b.IsDeleted));
+            q = q.Where(x => x.Barcode == exactBarcode || db.ProductBarcodes.Any(b => b.TenantId == x.TenantId && b.ProductId == x.ProductId && b.Barcode == exactBarcode && b.IsActive && !b.IsDeleted));
         else if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();

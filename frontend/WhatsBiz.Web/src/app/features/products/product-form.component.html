@@ -22,9 +22,6 @@
           ><mat-label>Product code</mat-label
           ><input matInput formControlName="productCode" maxlength="50" required
         /></mat-form-field>
-        <mat-form-field
-          ><mat-label>Barcode</mat-label><input matInput formControlName="barcode" maxlength="100"
-        /></mat-form-field>
         <mat-form-field class="wide"
           ><mat-label>Product name</mat-label
           ><input matInput formControlName="productName" maxlength="250" required
@@ -64,6 +61,75 @@
           ><textarea matInput formControlName="longDescription" rows="4"></textarea>
         </mat-form-field> </mat-card-content
     ></mat-card>
+    <mat-card>
+      <mat-card-header><mat-card-title>Product Codes / Barcodes</mat-card-title></mat-card-header>
+      <mat-card-content>
+        <div class="grid">
+          <mat-form-field>
+            <mat-label>Primary barcode</mat-label>
+            <input matInput formControlName="barcode" maxlength="100" />
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Primary code type</mat-label>
+            <mat-select formControlName="barcodeType">
+              @for (type of barcodeTypes; track type) {
+                <mat-option [value]="type">{{ type }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <div>
+            <button mat-stroked-button type="button" (click)="openScanner('primary')">
+              <mat-icon>photo_camera</mat-icon> Scan primary
+            </button>
+          </div>
+        </div>
+
+        <div class="codes-header">
+          <div>
+            <h3>Additional manufacturer / custom codes</h3>
+            <p>Store the decoded value only. URLs and QR contents are never opened or executed.</p>
+          </div>
+          <button mat-flat-button type="button" (click)="openScanner('additional')">
+            <mat-icon>qr_code_scanner</mat-icon> Scan Barcode / QR
+          </button>
+        </div>
+
+        @if (pendingScan()) {
+          <div class="scan-preview" aria-live="polite">
+            <strong>Detected: {{ pendingScan()!.barcodeType }}</strong>
+            <span class="scan-value">{{ pendingScan()!.value }}</span>
+            <button mat-flat-button type="button" (click)="saveScanned()">Save Code</button>
+            <button mat-stroked-button type="button" (click)="openScanner(scanTarget())">Scan Again</button>
+            <button mat-button type="button" (click)="pendingScan.set(null)">Cancel</button>
+          </div>
+        }
+
+        @for (code of additionalBarcodes(); track code.barcode) {
+          <div class="code-row">
+            <span class="code-value"><strong>{{ code.barcodeType }}</strong> · {{ code.barcode }}</span>
+            <button mat-button color="warn" type="button" (click)="removeBarcode(code)">Remove</button>
+          </div>
+        } @empty {
+          <p>No additional codes linked.</p>
+        }
+
+        <div class="code-entry">
+          <mat-form-field>
+            <mat-label>Enter additional code</mat-label>
+            <input matInput [(ngModel)]="newBarcode" [ngModelOptions]="{ standalone: true }" maxlength="450" />
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Type</mat-label>
+            <mat-select [(ngModel)]="newBarcodeType" [ngModelOptions]="{ standalone: true }">
+              @for (type of barcodeTypes; track type) {
+                <mat-option [value]="type">{{ type }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <button mat-stroked-button type="button" (click)="addManualBarcode()">Add code</button>
+        </div>
+      </mat-card-content>
+    </mat-card>
     <mat-card
       ><mat-card-header><mat-card-title>Tax and pricing</mat-card-title></mat-card-header
       ><mat-card-content class="grid">
@@ -152,4 +218,7 @@
       </button>
     </footer>
   </form>
+  @if (scannerOpen()) {
+    <app-barcode-scanner (scanned)="scanned($event)" (closed)="scannerOpen.set(false)" />
+  }
 }

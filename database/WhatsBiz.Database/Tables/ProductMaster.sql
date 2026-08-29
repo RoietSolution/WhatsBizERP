@@ -23,7 +23,7 @@ CREATE TABLE [master].[Products] (
     [PurchasePrice] DECIMAL(18,4) NOT NULL, [SellingPrice] DECIMAL(18,4) NOT NULL, [MRP] DECIMAL(18,4) NOT NULL, [MinimumStock] DECIMAL(18,4) NOT NULL, [MaximumStock] DECIMAL(18,4) NOT NULL, [ReorderLevel] DECIMAL(18,4) NOT NULL,
     [Weight] DECIMAL(18,4) NULL, [Length] DECIMAL(18,4) NULL, [Width] DECIMAL(18,4) NULL, [Height] DECIMAL(18,4) NULL, [ImageUrl] NVARCHAR(500) NULL, [IsBatchManaged] BIT NOT NULL, [IsSerialManaged] BIT NOT NULL,
     [TenantId] UNIQUEIDENTIFIER NOT NULL, [CreatedOn] DATETIMEOFFSET NOT NULL, [CreatedBy] NVARCHAR(256) NULL, [ModifiedOn] DATETIMEOFFSET NULL, [ModifiedBy] NVARCHAR(256) NULL, [IsActive] BIT NOT NULL, [IsDeleted] BIT NOT NULL, [RowVersion] ROWVERSION NOT NULL,
-    CONSTRAINT [FK_Products_Categories] FOREIGN KEY ([CategoryId]) REFERENCES [master].[ProductCategories]([ProductCategoryId]), CONSTRAINT [FK_Products_Brands] FOREIGN KEY ([BrandId]) REFERENCES [master].[Brands]([BrandId]), CONSTRAINT [FK_Products_Units] FOREIGN KEY ([UnitId]) REFERENCES [master].[UnitsOfMeasure]([UnitId]), CONSTRAINT [FK_Products_Tenants] FOREIGN KEY ([TenantId]) REFERENCES [core].[Tenants]([TenantId]), CONSTRAINT [CK_Products_BarcodeType] CHECK ([BarcodeType] IN ('CODE128','EAN13','EAN8','UPC','CODE39')));
+    CONSTRAINT [FK_Products_Categories] FOREIGN KEY ([CategoryId]) REFERENCES [master].[ProductCategories]([ProductCategoryId]), CONSTRAINT [FK_Products_Brands] FOREIGN KEY ([BrandId]) REFERENCES [master].[Brands]([BrandId]), CONSTRAINT [FK_Products_Units] FOREIGN KEY ([UnitId]) REFERENCES [master].[UnitsOfMeasure]([UnitId]), CONSTRAINT [FK_Products_Tenants] FOREIGN KEY ([TenantId]) REFERENCES [core].[Tenants]([TenantId]), CONSTRAINT [CK_Products_BarcodeType] CHECK ([BarcodeType] IN ('CODE128','EAN13','EAN8','UPC','UPCA','UPCE','CODE39','QR','CUSTOM')));
 GO
 CREATE UNIQUE INDEX [UX_Products_ProductCode] ON [master].[Products]([ProductCode]) WHERE [IsDeleted] = 0;
 GO
@@ -32,6 +32,8 @@ GO
 CREATE INDEX [IX_Products_Search] ON [master].[Products]([ProductName], [CategoryId], [BrandId], [IsActive]);
 GO
 CREATE INDEX [IX_Products_Tenant] ON [master].[Products]([TenantId], [IsDeleted], [IsActive]);
+GO
+CREATE UNIQUE INDEX [UX_Products_Tenant_ProductId] ON [master].[Products]([TenantId], [ProductId]);
 GO
 CREATE TABLE [master].[ProductImages] (
     [ProductImageId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, [ProductId] UNIQUEIDENTIFIER NOT NULL, [TenantId] UNIQUEIDENTIFIER NOT NULL,
@@ -54,9 +56,11 @@ CREATE INDEX [IX_ProductImages_TenantProduct] ON [master].[ProductImages]([Tenan
 GO
 CREATE INDEX [IX_ProductImages_StorageProvider] ON [master].[ProductImages]([StorageProvider], [TenantId], [IsDeleted]) INCLUDE([ObjectKey], [ThumbnailObjectKey], [CatalogSizeBytes], [ThumbnailSizeBytes]);
 GO
-CREATE TABLE [master].[ProductBarcodes] ([ProductBarcodeId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, [ProductId] UNIQUEIDENTIFIER NOT NULL, [Barcode] NVARCHAR(100) NOT NULL, [IsPrimary] BIT NOT NULL, [CreatedOn] DATETIMEOFFSET NOT NULL, [CreatedBy] NVARCHAR(256) NULL, [ModifiedOn] DATETIMEOFFSET NULL, [ModifiedBy] NVARCHAR(256) NULL, [IsActive] BIT NOT NULL, [IsDeleted] BIT NOT NULL, [RowVersion] ROWVERSION NOT NULL, CONSTRAINT [FK_ProductBarcodes_Products] FOREIGN KEY ([ProductId]) REFERENCES [master].[Products]([ProductId]));
+CREATE TABLE [master].[ProductBarcodes] ([ProductBarcodeId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, [TenantId] UNIQUEIDENTIFIER NOT NULL, [ProductId] UNIQUEIDENTIFIER NOT NULL, [Barcode] NVARCHAR(450) NOT NULL, [BarcodeType] NVARCHAR(20) NOT NULL CONSTRAINT [DF_ProductBarcodes_BarcodeType] DEFAULT ('CUSTOM'), [IsPrimary] BIT NOT NULL, [CreatedOn] DATETIMEOFFSET NOT NULL, [CreatedBy] NVARCHAR(256) NULL, [ModifiedOn] DATETIMEOFFSET NULL, [ModifiedBy] NVARCHAR(256) NULL, [IsActive] BIT NOT NULL, [IsDeleted] BIT NOT NULL, [RowVersion] ROWVERSION NOT NULL, CONSTRAINT [FK_ProductBarcodes_Products] FOREIGN KEY ([ProductId]) REFERENCES [master].[Products]([ProductId]), CONSTRAINT [FK_ProductBarcodes_Tenants] FOREIGN KEY ([TenantId]) REFERENCES [core].[Tenants]([TenantId]), CONSTRAINT [FK_ProductBarcodes_TenantProduct] FOREIGN KEY ([TenantId], [ProductId]) REFERENCES [master].[Products]([TenantId], [ProductId]), CONSTRAINT [CK_ProductBarcodes_BarcodeType] CHECK ([BarcodeType] IN ('CODE128','EAN13','EAN8','UPC','UPCA','UPCE','CODE39','QR','CUSTOM')));
 GO
-CREATE UNIQUE INDEX [UX_ProductBarcodes_Barcode] ON [master].[ProductBarcodes]([Barcode]) WHERE [IsDeleted] = 0;
+CREATE UNIQUE INDEX [UX_ProductBarcodes_Tenant_Barcode] ON [master].[ProductBarcodes]([TenantId], [Barcode]) WHERE [IsDeleted] = 0;
+GO
+CREATE INDEX [IX_ProductBarcodes_Tenant_Product] ON [master].[ProductBarcodes]([TenantId], [ProductId]) INCLUDE([Barcode], [BarcodeType], [IsActive], [IsDeleted]);
 GO
 CREATE TABLE [master].[ProductPrices] ([ProductPriceId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, [ProductId] UNIQUEIDENTIFIER NOT NULL, [PriceType] NVARCHAR(50) NOT NULL, [Amount] DECIMAL(18,4) NOT NULL, [EffectiveFrom] DATETIMEOFFSET NOT NULL, [EffectiveTo] DATETIMEOFFSET NULL, [CreatedOn] DATETIMEOFFSET NOT NULL, [CreatedBy] NVARCHAR(256) NULL, [ModifiedOn] DATETIMEOFFSET NULL, [ModifiedBy] NVARCHAR(256) NULL, [IsActive] BIT NOT NULL, [IsDeleted] BIT NOT NULL, [RowVersion] ROWVERSION NOT NULL, CONSTRAINT [FK_ProductPrices_Products] FOREIGN KEY ([ProductId]) REFERENCES [master].[Products]([ProductId]));
 GO

@@ -6,10 +6,14 @@ public static class BarcodeTypes
     public const string Ean13 = "EAN13";
     public const string Ean8 = "EAN8";
     public const string Upc = "UPC";
+    public const string UpcA = "UPCA";
+    public const string UpcE = "UPCE";
     public const string Code39 = "CODE39";
+    public const string Qr = "QR";
+    public const string Custom = "CUSTOM";
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        Code128, Ean13, Ean8, Upc, Code39
+        Code128, Ean13, Ean8, Upc, UpcA, UpcE, Code39, Qr, Custom
     };
 }
 
@@ -85,6 +89,7 @@ public sealed class Product : ProductMasterEntity
     public ProductCategory Category { get; set; } = null!;
     public Brand Brand { get; set; } = null!;
     public UnitOfMeasure Unit { get; set; } = null!;
+    public ICollection<ProductBarcode> Barcodes { get; set; } = [];
 }
 
 public sealed class ProductImage : ProductMasterEntity
@@ -113,8 +118,10 @@ public sealed class ProductImage : ProductMasterEntity
 public sealed class ProductBarcode : ProductMasterEntity
 {
     public Guid ProductBarcodeId { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
     public Guid ProductId { get; set; }
     public string Barcode { get; set; } = string.Empty;
+    public string BarcodeType { get; set; } = BarcodeTypes.Custom;
     public bool IsPrimary { get; set; }
 }
 

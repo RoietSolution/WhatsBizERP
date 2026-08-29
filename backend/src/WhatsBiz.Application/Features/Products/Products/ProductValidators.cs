@@ -13,7 +13,7 @@ public sealed class ProductInputValidator : AbstractValidator<ProductInput>
         RuleFor(x => x.BarcodeType)
             .NotEmpty()
             .Must(type => type is not null && BarcodeTypes.All.Contains(type.Trim()))
-            .WithMessage("Barcode type must be CODE128, EAN13, EAN8, UPC, or CODE39.");
+            .WithMessage("Barcode type is not supported.");
         RuleFor(x => x.Barcode).Matches("^[0-9]{13}$")
             .When(x => !string.IsNullOrWhiteSpace(x.Barcode) && string.Equals(x.BarcodeType, "EAN13", StringComparison.OrdinalIgnoreCase))
             .WithMessage("EAN13 barcodes must contain exactly 13 digits.");
@@ -21,8 +21,18 @@ public sealed class ProductInputValidator : AbstractValidator<ProductInput>
             .When(x => !string.IsNullOrWhiteSpace(x.Barcode) && string.Equals(x.BarcodeType, "EAN8", StringComparison.OrdinalIgnoreCase))
             .WithMessage("EAN8 barcodes must contain exactly 8 digits.");
         RuleFor(x => x.Barcode).Matches("^[0-9]{12}$")
-            .When(x => !string.IsNullOrWhiteSpace(x.Barcode) && string.Equals(x.BarcodeType, "UPC", StringComparison.OrdinalIgnoreCase))
-            .WithMessage("UPC barcodes must contain exactly 12 digits.");
+            .When(x => !string.IsNullOrWhiteSpace(x.Barcode) && (string.Equals(x.BarcodeType, BarcodeTypes.Upc, StringComparison.OrdinalIgnoreCase) || string.Equals(x.BarcodeType, BarcodeTypes.UpcA, StringComparison.OrdinalIgnoreCase)))
+            .WithMessage("UPC-A barcodes must contain exactly 12 digits.");
+        RuleFor(x => x.Barcode).Matches("^[0-9]{6}$|^[0-9]{8}$")
+            .When(x => !string.IsNullOrWhiteSpace(x.Barcode) && string.Equals(x.BarcodeType, BarcodeTypes.UpcE, StringComparison.OrdinalIgnoreCase))
+            .WithMessage("UPC-E barcodes must contain 6 or 8 digits.");
+        RuleFor(x => x.AdditionalBarcodes).Must(x => (x?.Count ?? 0) <= ProductIdentifierPolicy.MaximumAdditionalCodes)
+            .WithMessage($"A product can have a maximum of {ProductIdentifierPolicy.MaximumAdditionalCodes} additional codes.");
+        RuleForEach(x => x.AdditionalBarcodes).ChildRules(code =>
+        {
+            code.RuleFor(x => x.Barcode).NotEmpty().MaximumLength(ProductIdentifierPolicy.MaximumAdditionalCodeLength);
+            code.RuleFor(x => x.BarcodeType).NotEmpty().Must(type => BarcodeTypes.All.Contains(type.Trim())).WithMessage("Barcode type is not supported.");
+        });
         RuleFor(x => x.ProductName).NotEmpty().MaximumLength(250);
         RuleFor(x => x.CategoryId).NotEmpty();
         RuleFor(x => x.BrandId).NotEmpty();

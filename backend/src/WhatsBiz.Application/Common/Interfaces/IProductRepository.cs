@@ -10,8 +10,10 @@ public interface IProductRepository
     Task<IReadOnlyCollection<ProductHistoryDto>> GetHistoryAsync(Guid id, CancellationToken cancellationToken);
     Task<bool> ProductCodeExistsAsync(string code, Guid? excludingId, CancellationToken cancellationToken);
     Task<bool> BarcodeExistsAsync(string barcode, Guid? excludingId, CancellationToken cancellationToken);
+    Task<Product?> IdentifierOwnerAsync(string identifier, Guid? excludingProductId, CancellationToken cancellationToken);
     Task<bool> ReferencesExistAsync(Guid categoryId, Guid brandId, Guid unitId, CancellationToken cancellationToken);
     void Add(Product product);
+    void Add(ProductBarcode barcode);
     Task<IReadOnlyCollection<ProductCategory>> GetCategoriesAsync(CancellationToken cancellationToken);
     Task<ProductCategory?> GetCategoryAsync(Guid id, bool tracking, CancellationToken cancellationToken);
     Task<bool> CategoryCodeExistsAsync(string code, Guid? excludingId, CancellationToken cancellationToken);

@@ -24,6 +24,18 @@ describe('BarcodeScannerComponent', () => {
     expect(values).toEqual(['8901234567890', '8901234567890']);
   });
 
+  it('emits the exact QR value and detected type as inert data', () => {
+    const { component } = setup(async () => session());
+    const values: Array<{ value: string; barcodeType: string }> = [];
+    component.scanned.subscribe((value) => values.push(value));
+
+    component.accept(' https://manufacturer.example/item?id=ABC ', 1000, 'QR');
+
+    expect(values).toEqual([
+      { value: ' https://manufacturer.example/item?id=ABC ', barcodeType: 'QR' },
+    ]);
+  });
+
   it('stops and releases the scanner session when destroyed', async () => {
     const active = session();
     const { component } = setup(async () => active);

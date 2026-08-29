@@ -58,7 +58,7 @@ CREATE INDEX [IX_ProductImages_StorageProvider] ON [master].[ProductImages]([Sto
 GO
 CREATE TABLE [master].[ProductBarcodes] ([ProductBarcodeId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, [TenantId] UNIQUEIDENTIFIER NOT NULL, [ProductId] UNIQUEIDENTIFIER NOT NULL, [Barcode] NVARCHAR(450) NOT NULL, [BarcodeType] NVARCHAR(20) NOT NULL CONSTRAINT [DF_ProductBarcodes_BarcodeType] DEFAULT ('CUSTOM'), [IsPrimary] BIT NOT NULL, [CreatedOn] DATETIMEOFFSET NOT NULL, [CreatedBy] NVARCHAR(256) NULL, [ModifiedOn] DATETIMEOFFSET NULL, [ModifiedBy] NVARCHAR(256) NULL, [IsActive] BIT NOT NULL, [IsDeleted] BIT NOT NULL, [RowVersion] ROWVERSION NOT NULL, CONSTRAINT [FK_ProductBarcodes_Products] FOREIGN KEY ([ProductId]) REFERENCES [master].[Products]([ProductId]), CONSTRAINT [FK_ProductBarcodes_Tenants] FOREIGN KEY ([TenantId]) REFERENCES [core].[Tenants]([TenantId]), CONSTRAINT [FK_ProductBarcodes_TenantProduct] FOREIGN KEY ([TenantId], [ProductId]) REFERENCES [master].[Products]([TenantId], [ProductId]), CONSTRAINT [CK_ProductBarcodes_BarcodeType] CHECK ([BarcodeType] IN ('CODE128','EAN13','EAN8','UPC','UPCA','UPCE','CODE39','QR','CUSTOM')));
 GO
-CREATE UNIQUE INDEX [UX_ProductBarcodes_Tenant_Barcode] ON [master].[ProductBarcodes]([TenantId], [Barcode]) WHERE [IsDeleted] = 0;
+CREATE UNIQUE INDEX [UX_ProductBarcodes_Tenant_Barcode] ON [master].[ProductBarcodes]([TenantId], [Barcode]) WHERE [IsActive] = 1 AND [IsDeleted] = 0;
 GO
 CREATE INDEX [IX_ProductBarcodes_Tenant_Product] ON [master].[ProductBarcodes]([TenantId], [ProductId]) INCLUDE([Barcode], [BarcodeType], [IsActive], [IsDeleted]);
 GO

@@ -138,17 +138,27 @@ public sealed class ProductManufacturerCodeTests
     }
 
     [Fact]
-    public void MigrationAddsTenantOwnedIndexedSecondaryCodesWithoutDeletingData()
+    public void MigrationSeparatesColumnCreationAndValidatesTenantOwnedIndexesWithoutDeletingData()
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "database", "WhatsBiz.Database", "Scripts", "V22-ProductManufacturerCodes.sql"))) root = root.Parent;
         root.Should().NotBeNull();
         var sql = File.ReadAllText(Path.Combine(root!.FullName, "database", "WhatsBiz.Database", "Scripts", "V22-ProductManufacturerCodes.sql"));
+        var tenantAdd = sql.IndexOf("ADD TenantId UNIQUEIDENTIFIER NULL", StringComparison.Ordinal);
+        var batchBoundary = sql.IndexOf("GO", tenantAdd, StringComparison.Ordinal);
+        var tenantBackfill = sql.IndexOf("SET TenantId = p.TenantId", StringComparison.Ordinal);
         sql.Should().Contain("SET QUOTED_IDENTIFIER ON")
             .And.Contain("ADD TenantId UNIQUEIDENTIFIER NULL")
+            .And.Contain("WHERE b.TenantId IS NULL")
+            .And.Contain("b.TenantId <> p.TenantId")
             .And.Contain("UX_ProductBarcodes_Tenant_Barcode")
             .And.Contain("ON master.ProductBarcodes(TenantId, Barcode)")
+            .And.Contain("WHERE IsActive = 1 AND IsDeleted = 0")
+            .And.Contain("sys.index_columns")
+            .And.Contain("sys.foreign_key_columns")
             .And.NotContain("DELETE FROM master.ProductBarcodes");
+        tenantAdd.Should().BeGreaterThan(-1);
+        batchBoundary.Should().BeGreaterThan(tenantAdd).And.BeLessThan(tenantBackfill);
     }
 
     private static CreateProductCommandHandler Handler(ApplicationDbContext db, Guid tenant) =>

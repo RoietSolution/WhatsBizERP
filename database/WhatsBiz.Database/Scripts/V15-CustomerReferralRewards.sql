@@ -205,6 +205,10 @@ GO
 DECLARE @feature uniqueidentifier=(SELECT FeatureId FROM core.Features WHERE FeatureKey=N'CUSTOMER_REFERRAL_REWARDS'),@parent uniqueidentifier=(SELECT FeatureId FROM core.Features WHERE FeatureKey=N'CUSTOMERS');
 IF @feature IS NULL BEGIN SET @feature=NEWID();INSERT core.Features(FeatureId,FeatureKey,Name,Description,ModuleKey,ReleaseState,IsActive,FeatureType,ParentFeatureId,Version,SortOrder,CreatedBy) VALUES(@feature,N'CUSTOMER_REFERRAL_REWARDS',N'Customer Referral Rewards',N'Tenant-scoped customer referral attribution and reward coins.',N'COMMERCE',N'ACTIVE',1,N'MODULE',@parent,N'V2',75,N'V15 referral rewards');END;
 ELSE UPDATE core.Features SET ParentFeatureId=@parent,Version=N'V2',SortOrder=75 WHERE FeatureId=@feature;
-INSERT core.PlanFeatures(PlanFeatureId,PlanId,FeatureId,IsEnabled,CreatedBy) SELECT NEWID(),p.PlanId,@feature,1,N'V15 referral rewards' FROM core.Plans p WHERE p.PlanKey=N'V2_COMMERCE' AND NOT EXISTS(SELECT 1 FROM core.PlanFeatures pf WHERE pf.PlanId=p.PlanId AND pf.FeatureId=@feature);
+MERGE core.PlanFeatures target USING
+(SELECT p.PlanId,@feature FeatureId,CONVERT(bit,CASE WHEN p.PlanKey=N'V2_COMMERCE' THEN 1 ELSE 0 END) IsEnabled FROM core.Plans p WHERE p.PlanKey IN(N'V1_DEFAULT',N'V2_COMMERCE')) source
+ON target.PlanId=source.PlanId AND target.FeatureId=source.FeatureId
+WHEN MATCHED THEN UPDATE SET IsEnabled=source.IsEnabled,ModifiedOn=SYSUTCDATETIME(),ModifiedBy=N'V15 referral rewards'
+WHEN NOT MATCHED THEN INSERT(PlanFeatureId,PlanId,FeatureId,IsEnabled,CreatedBy) VALUES(NEWID(),source.PlanId,source.FeatureId,source.IsEnabled,N'V15 referral rewards');
 INSERT core.TenantFeatures(TenantFeatureId,TenantId,FeatureId,IsEnabled,Reason,IsActive,CreatedBy) SELECT NEWID(),t.TenantId,@feature,0,N'Opt-in customer referral program',1,N'V15 referral rewards' FROM core.Tenants t WHERE NOT EXISTS(SELECT 1 FROM core.TenantFeatures tf WHERE tf.TenantId=t.TenantId AND tf.FeatureId=@feature);
 GO

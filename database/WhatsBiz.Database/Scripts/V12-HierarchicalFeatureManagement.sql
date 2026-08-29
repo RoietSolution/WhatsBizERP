@@ -64,9 +64,11 @@ IF @V1Plan IS NULL BEGIN SET @V1Plan=NEWID(); INSERT core.Plans(PlanId,PlanKey,N
 DECLARE @V2Plan uniqueidentifier=(SELECT PlanId FROM core.Plans WHERE PlanKey=N'V2_COMMERCE');
 IF @V2Plan IS NULL BEGIN SET @V2Plan=NEWID(); INSERT core.Plans(PlanId,PlanKey,Name,IsActive,CreatedBy) VALUES(@V2Plan,N'V2_COMMERCE',N'V1 + V2 Commerce',1,N'V12 feature hierarchy'); END;
 
+-- Reconcile every active feature, including legacy/future features not declared in @Features.
+-- Version controls entitlement: V1_DEFAULT receives V1; V2_COMMERCE receives all active features.
 MERGE core.PlanFeatures target USING
  (SELECT p.PlanId,f.FeatureId,CAST(CASE WHEN p.PlanId=@V2Plan OR f.Version=N'V1' THEN 1 ELSE 0 END AS bit) IsEnabled
-  FROM (SELECT @V1Plan PlanId UNION ALL SELECT @V2Plan) p CROSS JOIN core.Features f JOIN @Features seeded ON seeded.FeatureKey=f.FeatureKey WHERE f.IsActive=1) source
+  FROM (SELECT @V1Plan PlanId UNION ALL SELECT @V2Plan) p CROSS JOIN core.Features f WHERE f.IsActive=1) source
 ON target.PlanId=source.PlanId AND target.FeatureId=source.FeatureId
 WHEN MATCHED THEN UPDATE SET IsEnabled=source.IsEnabled,ModifiedOn=SYSUTCDATETIME(),ModifiedBy=N'V12 feature hierarchy'
 WHEN NOT MATCHED THEN INSERT(PlanFeatureId,PlanId,FeatureId,IsEnabled,CreatedBy) VALUES(NEWID(),source.PlanId,source.FeatureId,source.IsEnabled,N'V12 feature hierarchy');

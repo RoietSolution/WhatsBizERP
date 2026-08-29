@@ -7,15 +7,37 @@ IF COL_LENGTH(N'integration.WhatsAppConfigurations', N'ProviderMode') IS NULL
     ALTER TABLE integration.WhatsAppConfigurations ADD ProviderMode nvarchar(20) NOT NULL
         CONSTRAINT DF_WhatsAppConfigurations_ProviderMode DEFAULT(N'LIVE');
 
-IF EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'integration.WhatsAppConfigurations') AND name=N'UX_WhatsAppConfigurations_PhoneNumberId')
-    DROP INDEX UX_WhatsAppConfigurations_PhoneNumberId ON integration.WhatsAppConfigurations;
+DECLARE @RequiresNullableUpgrade bit=CASE WHEN EXISTS
+(
+    SELECT 1 FROM sys.columns
+    WHERE object_id=OBJECT_ID(N'integration.WhatsAppConfigurations')
+      AND name IN(N'WhatsAppBusinessAccountId',N'PhoneNumberId',N'AccessTokenProtected',N'WebhookVerifyTokenProtected',N'AppSecretProtected',N'ApiVersion')
+      AND is_nullable=0
+) THEN 1 ELSE 0 END;
 
-ALTER TABLE integration.WhatsAppConfigurations ALTER COLUMN WhatsAppBusinessAccountId nvarchar(50) NULL;
-ALTER TABLE integration.WhatsAppConfigurations ALTER COLUMN PhoneNumberId nvarchar(50) NULL;
-ALTER TABLE integration.WhatsAppConfigurations ALTER COLUMN AccessTokenProtected nvarchar(max) NULL;
-ALTER TABLE integration.WhatsAppConfigurations ALTER COLUMN WebhookVerifyTokenProtected nvarchar(max) NULL;
-ALTER TABLE integration.WhatsAppConfigurations ALTER COLUMN AppSecretProtected nvarchar(max) NULL;
-ALTER TABLE integration.WhatsAppConfigurations ALTER COLUMN ApiVersion nvarchar(20) NULL;
+IF @RequiresNullableUpgrade=1
+BEGIN
+    DECLARE @HadWabaIndex bit=CASE WHEN EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'integration.WhatsAppConfigurations') AND name=N'UX_WhatsAppConfigurations_WabaId') THEN 1 ELSE 0 END;
+    DECLARE @HadWebhookIndex bit=CASE WHEN EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'integration.WhatsAppConfigurations') AND name=N'IX_WhatsAppConfigurations_WebhookResolution') THEN 1 ELSE 0 END;
+
+    IF @HadWebhookIndex=1 DROP INDEX IX_WhatsAppConfigurations_WebhookResolution ON integration.WhatsAppConfigurations;
+    IF @HadWabaIndex=1 DROP INDEX UX_WhatsAppConfigurations_WabaId ON integration.WhatsAppConfigurations;
+    IF EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'integration.WhatsAppConfigurations') AND name=N'UX_WhatsAppConfigurations_PhoneNumberId')
+        DROP INDEX UX_WhatsAppConfigurations_PhoneNumberId ON integration.WhatsAppConfigurations;
+    IF EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'integration.WhatsAppConfigurations') AND name=N'CK_WhatsAppConfigurations_ApiVersion')
+        ALTER TABLE integration.WhatsAppConfigurations DROP CONSTRAINT CK_WhatsAppConfigurations_ApiVersion;
+
+    ALTER TABLE integration.WhatsAppConfigurations ALTER COLUMN WhatsAppBusinessAccountId nvarchar(50) NULL;
+    ALTER TABLE integration.WhatsAppConfigurations ALTER COLUMN PhoneNumberId nvarchar(50) NULL;
+    ALTER TABLE integration.WhatsAppConfigurations ALTER COLUMN AccessTokenProtected nvarchar(max) NULL;
+    ALTER TABLE integration.WhatsAppConfigurations ALTER COLUMN WebhookVerifyTokenProtected nvarchar(max) NULL;
+    ALTER TABLE integration.WhatsAppConfigurations ALTER COLUMN AppSecretProtected nvarchar(max) NULL;
+    ALTER TABLE integration.WhatsAppConfigurations ALTER COLUMN ApiVersion nvarchar(20) NULL;
+
+    ALTER TABLE integration.WhatsAppConfigurations ADD CONSTRAINT CK_WhatsAppConfigurations_ApiVersion CHECK(ApiVersion LIKE N'v[0-9]%.%');
+    IF @HadWabaIndex=1 CREATE UNIQUE INDEX UX_WhatsAppConfigurations_WabaId ON integration.WhatsAppConfigurations(WhatsAppBusinessAccountId) WHERE WhatsAppBusinessAccountId IS NOT NULL;
+    IF @HadWebhookIndex=1 CREATE INDEX IX_WhatsAppConfigurations_WebhookResolution ON integration.WhatsAppConfigurations(PhoneNumberId,WhatsAppBusinessAccountId,IsEnabled) INCLUDE(TenantId,ProviderMode,ConnectionStatus) WHERE PhoneNumberId IS NOT NULL;
+END;
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'integration.WhatsAppConfigurations') AND name=N'UX_WhatsAppConfigurations_PhoneNumberId')
     CREATE UNIQUE INDEX UX_WhatsAppConfigurations_PhoneNumberId

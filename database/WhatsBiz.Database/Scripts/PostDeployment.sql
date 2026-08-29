@@ -11,6 +11,19 @@
 GO
 :r .\V2-FeatureEntitlements.sql
 GO
+-- V2 integration foundation. Keep this complete chain before V3+ scripts:
+-- WC001 creates tenant WhatsApp configuration; the provider script creates commerce orders;
+-- readiness/transport scripts extend those objects before V10/V11 consume them.
+:r .\V2-WC001-WhatsAppConfiguration.sql
+GO
+:r .\V2-WhatsAppCommerceDemoProvider.sql
+GO
+:r .\V2-WC-DEMO-002-ReadinessLifecycle.sql
+GO
+:r .\V2-WC003-MetaTestTransport.sql
+GO
+:r .\V2-WC003A-MetaTestReadiness.sql
+GO
 :r .\V3-ProductImageOptimization.sql
 GO
 :r .\V4-DashboardNotificationDetails.sql

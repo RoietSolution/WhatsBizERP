@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 using WhatsBiz.Application.Common.Interfaces;
 
@@ -134,12 +135,16 @@ internal sealed class UpdateDemoRequestStatusValidator : AbstractValidator<Updat
 public sealed class DemoRequestHandlers(
     IDemoRequestRepository repository,
     IDemoRequestNotificationService notifications,
-    IDemoRequestCaptchaVerifier captcha)
+    IDemoRequestCaptchaVerifier captcha,
+    ILogger<DemoRequestHandlers> logger)
     : IRequestHandler<SubmitDemoRequest, DemoRequestSubmissionResult>,
       IRequestHandler<SearchDemoRequests, PagedDemoRequests>,
       IRequestHandler<GetDemoRequest, DemoRequestDetail>,
       IRequestHandler<UpdateDemoRequestStatus, DemoRequestDetail>
 {
+    private static readonly Action<ILogger, long, string, string, Exception?> NotificationDispatchFailed =
+        LoggerMessage.Define<long, string, string>(LogLevel.Error, new EventId(2101, nameof(NotificationDispatchFailed)), "Demo request notification dispatch failed after lead {LeadId} ({ReferenceNo}) was saved; failure type: {FailureType}");
+
     public async Task<DemoRequestSubmissionResult> Handle(SubmitDemoRequest request, CancellationToken cancellationToken)
     {
         if (!await captcha.VerifyAsync(request.Input.CaptchaToken, request.IpAddress, cancellationToken))
@@ -156,9 +161,9 @@ public sealed class DemoRequestHandlers(
                 await repository.SetNotificationStatusAsync(created.Id, notificationStatus, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-            catch
+            catch (Exception exception)
             {
-                // The lead is durable at this point. Notification implementations log provider failures.
+                NotificationDispatchFailed(logger, created.Id, created.ReferenceNo, exception.GetType().Name, null);
             }
         }
 

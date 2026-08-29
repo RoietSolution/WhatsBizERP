@@ -39,41 +39,95 @@ public sealed class CaptchaOptions
     public string VerificationUrl { get; set; } = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 }
 
-public sealed class DemoRequestNotificationService(IOptions<DemoRequestOptions> options, ILogger<DemoRequestNotificationService> logger) : IDemoRequestNotificationService
+public sealed record DemoRequestEmail(string Recipient, string Subject, string Body);
+
+public interface IDemoRequestEmailSender
 {
-    private static readonly Action<ILogger, long, string, Exception?> NotificationFailed =
-        LoggerMessage.Define<long, string>(LogLevel.Error, new EventId(3101, nameof(NotificationFailed)), "Demo request notification failed for lead {LeadId} ({ReferenceNo})");
+    Task SendAsync(DemoRequestEmail email, CancellationToken token);
+}
+
+public sealed class SmtpDemoRequestEmailSender(IOptions<DemoRequestOptions> options) : IDemoRequestEmailSender
+{
+    private readonly SmtpOptions settings = options.Value.Email;
+
+    public async Task SendAsync(DemoRequestEmail email, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(settings.Host) || string.IsNullOrWhiteSpace(settings.FromAddress))
+            throw new InvalidOperationException("Demo request SMTP configuration is incomplete.");
+
+        using var message = new MailMessage
+        {
+            From = new MailAddress(settings.FromAddress, settings.FromName),
+            Subject = email.Subject,
+            Body = email.Body,
+            IsBodyHtml = false
+        };
+        message.To.Add(email.Recipient);
+
+        using var client = new SmtpClient(settings.Host, settings.Port) { EnableSsl = settings.EnableSsl };
+        if (!string.IsNullOrWhiteSpace(settings.Username))
+            client.Credentials = new NetworkCredential(settings.Username, settings.Password);
+        await client.SendMailAsync(message, token);
+    }
+}
+
+public sealed class DemoRequestNotificationService(
+    IOptions<DemoRequestOptions> options,
+    IDemoRequestEmailSender emailSender,
+    ILogger<DemoRequestNotificationService> logger) : IDemoRequestNotificationService
+{
+    private static readonly Action<ILogger, long, string, string, Exception?> InternalNotificationFailed =
+        LoggerMessage.Define<long, string, string>(LogLevel.Error, new EventId(3101, nameof(InternalNotificationFailed)), "Demo request internal notification failed for lead {LeadId} ({ReferenceNo}); failure type: {FailureType}");
+    private static readonly Action<ILogger, long, string, string, Exception?> RequesterAcknowledgementFailed =
+        LoggerMessage.Define<long, string, string>(LogLevel.Error, new EventId(3102, nameof(RequesterAcknowledgementFailed)), "Demo request requester acknowledgement failed for lead {LeadId} ({ReferenceNo}); failure type: {FailureType}");
     private readonly DemoRequestOptions settings = options.Value;
 
     public async Task<string> NotifyAsync(DemoRequestDetail request, CancellationToken token)
     {
         if (!settings.Email.Enabled) return "SKIPPED";
+
+        var internalStatus = await SendInternalNotificationAsync(request, token);
+        if (!string.IsNullOrWhiteSpace(request.Email))
+            await SendRequesterAcknowledgementAsync(request, token);
+        return internalStatus;
+    }
+
+    private async Task<string> SendInternalNotificationAsync(DemoRequestDetail request, CancellationToken token)
+    {
         try
         {
-            var smtp = settings.Email;
-            if (string.IsNullOrWhiteSpace(smtp.Host) || string.IsNullOrWhiteSpace(smtp.FromAddress) || string.IsNullOrWhiteSpace(smtp.SupportAddress))
-                throw new InvalidOperationException("Demo request email configuration is incomplete.");
-            using var message = new MailMessage
-            {
-                From = new MailAddress(smtp.FromAddress, smtp.FromName),
-                Subject = $"New KhataDhari Demo Request - {request.ReferenceNo}",
-                Body = BuildBody(request),
-                IsBodyHtml = false
-            };
-            message.To.Add(smtp.SupportAddress);
-            using var client = new SmtpClient(smtp.Host, smtp.Port) { EnableSsl = smtp.EnableSsl };
-            if (!string.IsNullOrWhiteSpace(smtp.Username)) client.Credentials = new NetworkCredential(smtp.Username, smtp.Password);
-            await client.SendMailAsync(message, token);
+            if (string.IsNullOrWhiteSpace(settings.Email.SupportAddress))
+                throw new InvalidOperationException("Demo request support recipient is not configured.");
+
+            await emailSender.SendAsync(new(
+                settings.Email.SupportAddress,
+                $"New KhataDhari Demo Request - {request.ReferenceNo}",
+                BuildInternalBody(request)), token);
             return "SENT";
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            NotificationFailed(logger, request.Id, request.ReferenceNo, exception);
+            InternalNotificationFailed(logger, request.Id, request.ReferenceNo, exception.GetType().Name, null);
             return "FAILED";
         }
     }
 
-    private static string BuildBody(DemoRequestDetail x)
+    private async Task SendRequesterAcknowledgementAsync(DemoRequestDetail request, CancellationToken token)
+    {
+        try
+        {
+            await emailSender.SendAsync(new(
+                request.Email!,
+                "Your KhataDhari Demo Request Has Been Received",
+                BuildRequesterBody(request)), token);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            RequesterAcknowledgementFailed(logger, request.Id, request.ReferenceNo, exception.GetType().Name, null);
+        }
+    }
+
+    private static string BuildInternalBody(DemoRequestDetail x)
     {
         var india = TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows() ? "India Standard Time" : "Asia/Kolkata");
         var submitted = TimeZoneInfo.ConvertTime(x.CreatedOn, india).ToString("dd-MMM-yyyy hh:mm tt", CultureInfo.GetCultureInfo("en-IN"));
@@ -96,4 +150,17 @@ Submitted On:
 {submitted}
 """;
     }
+
+    private static string BuildRequesterBody(DemoRequestDetail x) => $"""
+Hello {x.Name},
+
+Thank you for requesting a KhataDhari demo. We have received your request successfully.
+
+Reference: {x.ReferenceNo}
+
+The KhataDhari team will contact you shortly to understand your requirements and arrange the demo.
+
+Regards,
+KhataDhari Team
+""";
 }

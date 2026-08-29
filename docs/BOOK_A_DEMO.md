@@ -12,7 +12,7 @@ Configure production values through environment variables, IIS configuration, or
 
 ```text
 DemoRequests__Email__Enabled=true
-DemoRequests__Email__Host=smtp.example.com
+DemoRequests__Email__Host=smtp.hostinger.com
 DemoRequests__Email__Port=587
 DemoRequests__Email__EnableSsl=true
 DemoRequests__Email__Username=...
@@ -22,6 +22,17 @@ DemoRequests__Email__FromName=KhataDhari Website
 DemoRequests__Email__SupportAddress=support@khatadhari.com
 DemoRequests__WhatsAppContactNumber=919876543210
 ```
+
+The current `System.Net.Mail.SmtpClient` implementation uses STARTTLS when
+`EnableSsl=true`. For Hostinger, use port `587` with TLS/STARTTLS. Do not use port `465`
+with this implementation because `SmtpClient` does not support implicit SMTP-over-SSL.
+Use the complete Hostinger mailbox address as `Username`; `FromAddress` should normally
+be that same authenticated mailbox. `SupportAddress` is the internal KhataDhari recipient.
+
+For each new, non-duplicate lead, the API sends the internal notification first and then,
+when the requester supplied an email address, sends a separate acknowledgement titled
+`Your KhataDhari Demo Request Has Been Received`. Either send may fail independently;
+failures are logged without configuration values and do not roll back the saved lead.
 
 `WhatsAppContactNumber` is optional. When blank, the public form does not show a WhatsApp button.
 

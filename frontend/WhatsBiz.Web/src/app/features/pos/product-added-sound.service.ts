@@ -15,14 +15,15 @@ export class ProductAddedSoundService {
     if (!context) return;
     const sound = () => {
       const start = Math.max(context.currentTime, this.nextStartAt);
-      const stop = start + 0.075;
-      this.nextStartAt = stop + 0.04;
+      const stop = start + 0.09;
+      this.nextStartAt = stop + 0.035;
       const oscillator = context.createOscillator();
       const gain = context.createGain();
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(880, start);
+      oscillator.type = 'square';
+      oscillator.frequency.setValueAtTime(1760, start);
+      oscillator.frequency.exponentialRampToValueAtTime(1320, stop);
       gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.linearRampToValueAtTime(0.12, start + 0.01);
+      gain.gain.linearRampToValueAtTime(0.32, start + 0.004);
       gain.gain.exponentialRampToValueAtTime(0.0001, stop);
       oscillator.connect(gain);
       gain.connect(context.destination);

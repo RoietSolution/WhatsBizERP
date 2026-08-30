@@ -71,8 +71,10 @@ export interface Audit {
   succeeded: boolean;
   occurredOn: string;
 }
-export interface AdminUser { userId: string; userName: string; email: string; isActive: boolean; isDeleted: boolean; }
+export interface AdminUser { userId: string; userName: string; email: string; phoneNumber?: string; isActive: boolean; isDeleted: boolean; permissions: string[]; }
 export interface AdminRole { roleId: string; roleName: string; permissions: string[]; }
+export interface EmployeeInput { userName: string; email: string; phoneNumber?: string; temporaryPassword: string; isActive: boolean; permissions: string[]; }
+export interface EmployeeUpdate { email: string; phoneNumber?: string; isActive: boolean; permissions: string[]; }
 export interface CustomerNotificationSettings {
   enabled: boolean; whatsAppEnabled: boolean; smsEnabled: boolean;
   successfulSale: boolean; successfulPayment: boolean;
@@ -140,6 +142,11 @@ export class AdminApiService {
     });
   }
   users() { return this.http.get<AdminUser[]>(`${this.root}/users`); }
+  employeePermissions() { return this.http.get<string[]>(`${this.root}/users/permissions`); }
+  createEmployee(x: EmployeeInput) { return this.http.post<AdminUser>(`${this.root}/users`, x); }
+  updateEmployee(id: string, x: EmployeeUpdate) { return this.http.put<AdminUser>(`${this.root}/users/${id}`, x); }
+  resetEmployeePassword(id: string, temporaryPassword: string) { return this.http.post<void>(`${this.root}/users/${id}/reset-password`, { temporaryPassword }); }
+  deactivateEmployee(id: string) { return this.http.delete<void>(`${this.root}/users/${id}`); }
   roles() { return this.http.get<AdminRole[]>(`${this.root}/roles`); }
   customerNotificationSettings() { return this.http.get<CustomerNotificationSettings>(`${this.root}/customer-notifications/settings`); }
   saveCustomerNotificationSettings(x: CustomerNotificationSettings) { return this.http.put<void>(`${this.root}/customer-notifications/settings`, x); }

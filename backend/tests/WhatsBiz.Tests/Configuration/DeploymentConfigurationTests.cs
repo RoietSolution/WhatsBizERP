@@ -22,7 +22,9 @@ public sealed class DeploymentConfigurationTests
             [$"{prefix}ProductImageStorage__S3__AccessKey"] = "test-access",
             [$"{prefix}ProductImageStorage__S3__SecretKey"] = "test-secret",
             [$"{prefix}DemoRequests__Email__Enabled"] = "true",
-            [$"{prefix}DemoRequests__Email__Host"] = "smtp.test"
+            [$"{prefix}DemoRequests__Email__Host"] = "smtp.test",
+            [$"{prefix}DemoRequests__Email__LogoUrl"] = "https://assets.example.test/logo.png",
+            [$"{prefix}DemoRequests__Email__FeatureImageUrl"] = "https://assets.example.test/features.png"
         };
 
         try
@@ -43,6 +45,8 @@ public sealed class DeploymentConfigurationTests
             });
             demoRequests.Email.Enabled.Should().BeTrue();
             demoRequests.Email.Host.Should().Be("smtp.test");
+            demoRequests.Email.LogoUrl.Should().Be("https://assets.example.test/logo.png");
+            demoRequests.Email.FeatureImageUrl.Should().Be("https://assets.example.test/features.png");
         }
         finally
         {

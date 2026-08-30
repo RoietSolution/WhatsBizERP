@@ -18,6 +18,9 @@ namespace WhatsBiz.Tests.DemoRequests;
 
 public sealed class DemoRequestTests
 {
+    private const string LogoUrl = "https://khatadhari-public-assets.s3.ap-south-1.amazonaws.com/KhataDhari_Logo.png";
+    private const string FeatureImageUrl = "https://khatadhari-public-assets.s3.ap-south-1.amazonaws.com/khatadhari-features.png";
+
     [Fact]
     public async Task ValidSubmissionIsNormalizedAttributedAndNotified()
     {
@@ -77,9 +80,51 @@ public sealed class DemoRequestTests
         sender.Emails.Should().HaveCount(2);
         sender.Emails[0].Recipient.Should().Be("support@khatadhari.com");
         sender.Emails[0].Subject.Should().Be("New KhataDhari Demo Request - KD-000123");
+        sender.Emails[0].IsBodyHtml.Should().BeFalse();
         sender.Emails[1].Recipient.Should().Be("requester@example.com");
         sender.Emails[1].Subject.Should().Be("Your KhataDhari Demo Request Has Been Received");
+        sender.Emails[1].IsBodyHtml.Should().BeTrue();
         sender.Emails[1].Body.Should().Contain("team will contact you shortly");
+        sender.Emails[1].Body.Should().Contain($"src=\"{LogoUrl}\"");
+        sender.Emails[1].Body.Should().Contain("alt=\"KhataDhari\"");
+        sender.Emails[1].Body.Should().Contain($"src=\"{FeatureImageUrl}\"");
+        sender.Emails[1].Body.Should().Contain("alt=\"KhataDhari All-in-One Retail ERP and WhatsApp Commerce Features\"");
+        sender.Emails[1].Body.IndexOf("What happens next?", StringComparison.Ordinal)
+            .Should().BeLessThan(sender.Emails[1].Body.IndexOf(FeatureImageUrl, StringComparison.Ordinal));
+        sender.Emails[1].Body.IndexOf(FeatureImageUrl, StringComparison.Ordinal)
+            .Should().BeLessThan(sender.Emails[1].Body.IndexOf("KhataDhari Team", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("http://assets.example.test/logo.png", "file:///tmp/features.png")]
+    [InlineData("https://localhost/logo.png", "https://user:secret@assets.example.test/features.png")]
+    public async Task MissingOrUnsafeImageUrlsAreOmittedWithoutBlockingAcknowledgement(string? logoUrl, string? featureImageUrl)
+    {
+        var sender = new FakeEmailSender();
+
+        var status = await NotificationService(sender, logoUrl: logoUrl, featureImageUrl: featureImageUrl)
+            .NotifyAsync(Detail("requester@example.com"), CancellationToken.None);
+
+        status.Should().Be("SENT");
+        var acknowledgement = sender.Emails.Single(x => x.Recipient == "requester@example.com");
+        acknowledgement.IsBodyHtml.Should().BeTrue();
+        acknowledgement.Body.Should().NotContain("<img");
+        acknowledgement.Body.Should().Contain("What happens next?");
+    }
+
+    [Fact]
+    public async Task RequesterValuesAreHtmlEncodedAndCannotInjectEmailMarkup()
+    {
+        var sender = new FakeEmailSender();
+        var request = Detail("requester@example.com") with { Name = "<script>alert('x')</script>", ReferenceNo = "KD-<123>" };
+
+        await NotificationService(sender).NotifyAsync(request, CancellationToken.None);
+
+        var body = sender.Emails.Single(x => x.Recipient == "requester@example.com").Body;
+        body.Should().NotContain("<script>");
+        body.Should().Contain("&lt;script&gt;");
+        body.Should().Contain("KD-&lt;123&gt;");
     }
 
     [Fact]
@@ -147,7 +192,9 @@ public sealed class DemoRequestTests
     private static DemoRequestNotificationService NotificationService(
         FakeEmailSender sender,
         ILogger<DemoRequestNotificationService>? logger = null,
-        string password = "test-password") =>
+        string password = "test-password",
+        string? logoUrl = LogoUrl,
+        string? featureImageUrl = FeatureImageUrl) =>
         new(Options.Create(new DemoRequestOptions
         {
             Email = new SmtpOptions
@@ -160,7 +207,9 @@ public sealed class DemoRequestTests
                 Password = password,
                 FromAddress = "website@khatadhari.com",
                 FromName = "KhataDhari Website",
-                SupportAddress = "support@khatadhari.com"
+                SupportAddress = "support@khatadhari.com",
+                LogoUrl = logoUrl,
+                FeatureImageUrl = featureImageUrl
             }
         }), sender, logger ?? new ListLogger<DemoRequestNotificationService>());
 

@@ -20,12 +20,16 @@ DemoRequests__Email__Password=...
 DemoRequests__Email__FromAddress=website@khatadhari.com
 DemoRequests__Email__FromName=KhataDhari Website
 DemoRequests__Email__SupportAddress=support@khatadhari.com
+DemoRequests__Email__LogoUrl=https://khatadhari-public-assets.s3.ap-south-1.amazonaws.com/KhataDhari_Logo.png
+DemoRequests__Email__FeatureImageUrl=https://khatadhari-public-assets.s3.ap-south-1.amazonaws.com/khatadhari-features.png
 DemoRequests__WhatsAppContactNumber=919876543210
 ```
 
 The current `System.Net.Mail.SmtpClient` implementation uses STARTTLS when
 `EnableSsl=true`. For Hostinger, use port `587` with TLS/STARTTLS. Do not use port `465`
 with this implementation because `SmtpClient` does not support implicit SMTP-over-SSL.
+
+The acknowledgement image URLs must be stable public HTTPS assets controlled through application configuration. If either URL is missing, invalid, non-HTTPS, loopback, or contains embedded credentials, that image is omitted and the HTML acknowledgement is still sent. Image URLs are never accepted from the public Book Demo request.
 Use the complete Hostinger mailbox address as `Username`; `FromAddress` should normally
 be that same authenticated mailbox. `SupportAddress` is the internal KhataDhari recipient.
 

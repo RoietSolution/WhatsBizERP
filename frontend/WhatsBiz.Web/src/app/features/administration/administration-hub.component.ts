@@ -229,8 +229,8 @@ export class AdministrationHubComponent {
       icon: 'shield',
       items: [
         {
-          title: 'Users',
-          description: 'User accounts, access, and account status.',
+          title: 'Employees',
+          description: 'Add retailer employees and control their individual access.',
           icon: 'person',
           route: '/admin/users',
         },

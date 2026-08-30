@@ -23,6 +23,7 @@ import { PosCartGridComponent } from './pos-cart-grid.component';
 import { PosSummaryComponent } from './pos-summary.component';
 import { POSApiService, POSWarehouse } from './pos-api.service';
 import { CartItem, PaymentMethod, POSCustomer, POSProduct } from './pos.models';
+import { ProductAddedSoundService } from './product-added-sound.service';
 
 @Component({
   selector: 'app-pos-screen',
@@ -88,6 +89,7 @@ export class POSScreenComponent {
     private dialog: MatDialog,
     private snack: MatSnackBar,
     private router: Router,
+    private addSound: ProductAddedSoundService,
   ) {
     api.methods().subscribe((x) => this.methods.set(x));
     api.warehouses().subscribe({
@@ -125,6 +127,7 @@ export class POSScreenComponent {
     return x.productId;
   }
   scan() {
+    this.addSound.unlock();
     const barcode = this.barcode.trim();
     if (!barcode) return;
     this.lookupBarcode(barcode, false);
@@ -134,6 +137,7 @@ export class POSScreenComponent {
       this.snack.open('Select a warehouse before scanning.', undefined, { duration: 3000 });
       return;
     }
+    this.addSound.unlock();
     this.scannerFeedback.set('');
     this.scannerOpen.set(true);
   }
@@ -198,6 +202,7 @@ export class POSScreenComponent {
     this.products.set([]);
     this.search = '';
     this.refresh();
+    this.addSound.play();
     this.barcodeInput?.nativeElement.focus();
     return true;
   }

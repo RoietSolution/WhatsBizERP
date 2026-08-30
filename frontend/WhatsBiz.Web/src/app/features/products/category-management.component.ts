@@ -61,7 +61,7 @@ export class CategoryManagementComponent {
   readonly flat = signal<Category[]>([]);
   editingId?: string;
   readonly form = this.fb.group({
-    categoryCode: ['', Validators.required],
+    categoryCode: [''],
     categoryName: ['', Validators.required],
     description: [''],
     displayOrder: [0, [Validators.required, Validators.min(0)]],

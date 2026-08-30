@@ -57,7 +57,7 @@ export class UnitManagementComponent {
   readonly items = signal<UnitOfMeasure[]>([]);
   editingId?: string;
   readonly form = this.fb.group({
-    unitCode: ['', Validators.required],
+    unitCode: [''],
     unitName: ['', Validators.required],
     shortName: ['', Validators.required],
     decimalPlaces: [0, [Validators.required, Validators.min(0), Validators.max(6)]],

@@ -2,6 +2,7 @@ import { of, throwError } from 'rxjs';
 import { POSApiService } from './pos-api.service';
 import { POSProduct } from './pos.models';
 import { POSScreenComponent } from './pos-screen.component';
+import { ProductAddedSoundService } from './product-added-sound.service';
 
 describe('POSScreenComponent barcode flow', () => {
   function setup() {
@@ -22,12 +23,16 @@ describe('POSScreenComponent barcode flow', () => {
     const snack = jasmine.createSpyObj('MatSnackBar', ['open']);
     const dialog = jasmine.createSpyObj('MatDialog', ['open']);
     const router = jasmine.createSpyObj('Router', ['navigate']);
-    const component = new POSScreenComponent(api, dialog, snack, router);
-    return { api, component, snack };
+    const sound = jasmine.createSpyObj<ProductAddedSoundService>('ProductAddedSoundService', [
+      'unlock',
+      'play',
+    ]);
+    const component = new POSScreenComponent(api, dialog, snack, router, sound);
+    return { api, component, snack, sound };
   }
 
   it('adds an exact camera barcode match and increments the same cart line on a later scan', () => {
-    const { api, component } = setup();
+    const { api, component, sound } = setup();
     api.products.and.returnValue(of([product()]));
 
     component.cameraBarcode('8901234567890');
@@ -37,10 +42,11 @@ describe('POSScreenComponent barcode flow', () => {
     expect(component.cart()).toHaveSize(1);
     expect(component.cart()[0].quantity).toBe(2);
     expect(component.scannerFeedback()).toContain('added to cart');
+    expect(sound.play).toHaveBeenCalledTimes(2);
   });
 
   it('keeps the cart unchanged for an unknown barcode', () => {
-    const { api, component, snack } = setup();
+    const { api, component, snack, sound } = setup();
     api.products.and.returnValue(of([]));
 
     component.cameraBarcode('UNKNOWN');
@@ -48,10 +54,11 @@ describe('POSScreenComponent barcode flow', () => {
     expect(component.cart()).toEqual([]);
     expect(component.scannerFeedback()).toContain('No active product found');
     expect(snack.open).toHaveBeenCalled();
+    expect(sound.play).not.toHaveBeenCalled();
   });
 
   it('does not add beyond available stock', () => {
-    const { component, snack } = setup();
+    const { component, snack, sound } = setup();
     const unavailable = product({ availableQuantity: 0 });
 
     expect(component.add(unavailable)).toBeFalse();
@@ -62,6 +69,7 @@ describe('POSScreenComponent barcode flow', () => {
       undefined,
       jasmine.any(Object),
     );
+    expect(sound.play).not.toHaveBeenCalled();
   });
 
   it('preserves the cart when the barcode network lookup fails', () => {

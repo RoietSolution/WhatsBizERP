@@ -58,7 +58,7 @@ export class BrandManagementComponent {
   readonly items = signal<Brand[]>([]);
   editingId?: string;
   readonly form = this.fb.group({
-    brandCode: ['', Validators.required],
+    brandCode: [''],
     brandName: ['', Validators.required],
     description: [''],
     logo: [''],

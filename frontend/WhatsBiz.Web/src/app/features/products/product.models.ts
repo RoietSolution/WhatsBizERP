@@ -16,6 +16,7 @@ export interface ProductListItem {
   sellingPrice: number;
   gstPercentage: number;
   isActive: boolean;
+  isWhatsAppVisible: boolean;
   imageUrl?: string;
 }
 export interface Product extends ProductInput {
@@ -61,6 +62,7 @@ export interface ProductInput {
   isBatchManaged: boolean;
   isSerialManaged: boolean;
   isActive: boolean;
+  isWhatsAppVisible: boolean;
 }
 export interface ProductBarcodeInput {
   barcode: string;

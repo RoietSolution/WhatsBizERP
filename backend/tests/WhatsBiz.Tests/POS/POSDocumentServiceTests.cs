@@ -18,7 +18,8 @@ public sealed class POSDocumentServiceTests
         {
             ["Printing:Terminal"] = "QA-POS"
         }).Build();
-        var service = new POSDocumentService(new PassthroughPrintingService(), configuration);
+        var printing = new PassthroughPrintingService();
+        var service = new POSDocumentService(printing, configuration);
         var invoice = new SalesInvoice
         {
             InvoiceId = Guid.NewGuid(),
@@ -44,14 +45,23 @@ public sealed class POSDocumentServiceTests
         html.Should().Contain("billing@dynamic.example");
         html.Should().Contain("Returns accepted within seven days.");
         html.Should().Contain("Thank you from Dynamic Retail.");
+        html.Should().Contain("Bill No: INV-1001");
+        html.Should().Contain("Receipt No");
         html.Should().NotContain("Nidhi Saari Store");
+        printing.LastDocument.Should().NotBeNull();
+        printing.LastDocument!.IncludeHeader.Should().BeFalse();
     }
 
     private sealed class PassthroughPrintingService : IPrintingService
     {
+        public DocumentInput? LastDocument { get; private set; }
         public PrintArtifact Barcode(BarcodeInput x) => throw new NotSupportedException();
         public PrintArtifact QrCode(QRCodeInput x) => new(Encoding.UTF8.GetBytes("<svg />"), "image/svg+xml", "qr.svg");
-        public PrintArtifact Document(DocumentInput x) => new(Encoding.UTF8.GetBytes(x.BodyHtml), "text/html", "invoice.html");
+        public PrintArtifact Document(DocumentInput x)
+        {
+            LastDocument = x;
+            return new(Encoding.UTF8.GetBytes(x.BodyHtml), "text/html", "invoice.html");
+        }
         public PrintArtifact Label(LabelInput x) => throw new NotSupportedException();
     }
 }

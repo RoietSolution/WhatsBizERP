@@ -21,6 +21,8 @@ describe('ProductFormComponent manufacturer codes', () => {
       'update',
       'uploadImage',
       'deleteProductImage',
+      'createBrand',
+      'createUnit',
     ]);
     api.categories.and.returnValue(of([]));
     api.brands.and.returnValue(of([]));
@@ -49,6 +51,17 @@ describe('ProductFormComponent manufacturer codes', () => {
     expect(component.form.controls.barcode.value).toBe('8901234567890');
     expect(component.form.controls.barcodeType.value).toBe('EAN13');
     expect(component.additionalBarcodes()).toEqual([]);
+  });
+
+  it('defaults WhatsApp Ecommerce visibility on and allows the retailer to opt out', () => {
+    const { component } = setup();
+
+    expect(component.form.controls.isWhatsAppVisible.value).toBeTrue();
+
+    component.form.controls.isWhatsAppVisible.setValue(false);
+
+    expect(component.form.getRawValue().isWhatsAppVisible).toBeFalse();
+    expect(component.form.controls.isActive.value).toBeTrue();
   });
 
   it('stores exact manufacturer QR URL text without navigating to it', () => {
@@ -93,5 +106,52 @@ describe('ProductFormComponent manufacturer codes', () => {
       'Dismiss',
       jasmine.any(Object),
     );
+  });
+
+  it('adds and immediately selects a brand without asking for a code', () => {
+    const { component, api } = setup();
+    api.createBrand.and.returnValue(
+      of({ brandId: 'brand-1', brandCode: 'BR-AUTO', brandName: 'New Brand', isActive: true }),
+    );
+    component.quickBrandName = ' New Brand ';
+
+    component.createBrand();
+
+    expect(api.createBrand).toHaveBeenCalledWith({
+      brandCode: '',
+      brandName: 'New Brand',
+      description: '',
+      logo: '',
+      isActive: true,
+    });
+    expect(component.form.controls.brandId.value).toBe('brand-1');
+    expect(component.brands()).toHaveSize(1);
+  });
+
+  it('adds and immediately selects a unit with an automatically derived short name', () => {
+    const { component, api } = setup();
+    api.createUnit.and.returnValue(
+      of({
+        unitId: 'unit-1',
+        unitCode: 'UOM-AUTO',
+        unitName: 'Packet',
+        shortName: 'PACKET',
+        decimalPlaces: 0,
+        isActive: true,
+      }),
+    );
+    component.quickUnitName = 'Packet';
+
+    component.createUnit();
+
+    expect(api.createUnit).toHaveBeenCalledWith({
+      unitCode: '',
+      unitName: 'Packet',
+      shortName: 'PACKET',
+      decimalPlaces: 0,
+      isActive: true,
+    });
+    expect(component.form.controls.unitId.value).toBe('unit-1');
+    expect(component.units()).toHaveSize(1);
   });
 });

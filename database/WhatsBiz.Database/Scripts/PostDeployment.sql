@@ -62,3 +62,5 @@ GO
 :r .\V21-POSMobileBarcodeScanner.sql
 GO
 :r .\V22-ProductManufacturerCodes.sql
+GO
+:r .\V23-WhatsAppProductVisibility.sql

@@ -7,7 +7,7 @@
   <form [formGroup]="form" (ngSubmit)="save()">
     <h2>{{ editingId ? 'Edit' : 'New' }} unit</h2>
     <mat-form-field
-      ><mat-label>Code</mat-label><input matInput formControlName="unitCode" /></mat-form-field
+      ><mat-label>Code (optional)</mat-label><input matInput formControlName="unitCode" /><mat-hint>Generated automatically when blank</mat-hint></mat-form-field
     ><mat-form-field
       ><mat-label>Name</mat-label><input matInput formControlName="unitName" /></mat-form-field
     ><mat-form-field

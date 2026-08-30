@@ -95,10 +95,27 @@ import {
       .codes-header,
       .code-row,
       .scan-preview,
-      .code-entry {
+      .code-entry,
+      .lookup-with-action,
+      .quick-master {
         display: flex;
         align-items: center;
         gap: 0.75rem;
+      }
+      .lookup-with-action mat-form-field {
+        flex: 1;
+      }
+      .quick-master {
+        grid-column: span 3;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+        border-radius: 8px;
+        background: var(--wb-primary-soft);
+      }
+      .quick-master mat-form-field {
+        flex: 1 1 180px;
       }
       .codes-header {
         justify-content: space-between;
@@ -140,8 +157,13 @@ import {
           grid-template-columns: 1fr;
         }
         .wide,
-        .checks {
+        .checks,
+        .quick-master {
           grid-column: span 1;
+        }
+        .lookup-with-action {
+          align-items: stretch;
+          flex-direction: column;
         }
       }
     `,
@@ -162,6 +184,10 @@ export class ProductFormComponent {
   readonly scannerOpen = signal(false);
   readonly scanTarget = signal<'primary' | 'additional'>('additional');
   readonly pendingScan = signal<BarcodeScanResult | null>(null);
+  readonly addingBrand = signal(false);
+  readonly addingUnit = signal(false);
+  readonly savingBrand = signal(false);
+  readonly savingUnit = signal(false);
   readonly barcodeTypes = ['EAN13', 'EAN8', 'UPCA', 'UPCE', 'CODE128', 'CODE39', 'QR', 'CUSTOM'];
   readonly copySourceId: string | null;
   selectedImagesCount = () => this.selectedImages.length;
@@ -169,6 +195,9 @@ export class ProductFormComponent {
   private selectedImages: File[] = [];
   newBarcode = '';
   newBarcodeType = 'CUSTOM';
+  quickBrandName = '';
+  quickUnitName = '';
+  quickUnitShortName = '';
   readonly form = this.formBuilder.group(
     {
       productCode: ['', [Validators.required, Validators.maxLength(50)]],
@@ -196,6 +225,7 @@ export class ProductFormComponent {
       isBatchManaged: [false],
       isSerialManaged: [false],
       isActive: [true],
+      isWhatsAppVisible: [true],
     },
     {
       validators: (control) =>
@@ -338,6 +368,44 @@ export class ProductFormComponent {
   }
   removeBarcode(barcode: ProductBarcodeInput): void {
     this.additionalBarcodes.update((items) => items.filter((item) => item !== barcode));
+  }
+  createBrand(): void {
+    const brandName = this.quickBrandName.trim();
+    if (!brandName || this.savingBrand()) return;
+    this.savingBrand.set(true);
+    this.api
+      .createBrand({ brandCode: '', brandName, description: '', logo: '', isActive: true })
+      .pipe(finalize(() => this.savingBrand.set(false)))
+      .subscribe({
+        next: (brand) => {
+          this.brands.update((items) => [...items, brand].sort((a, b) => a.brandName.localeCompare(b.brandName)));
+          this.form.controls.brandId.setValue(brand.brandId);
+          this.quickBrandName = '';
+          this.addingBrand.set(false);
+          this.snackBar.open('Brand added and selected.', undefined, { duration: 2500 });
+        },
+        error: () => this.snackBar.open('Brand could not be added.', 'Dismiss', { duration: 4000 }),
+      });
+  }
+  createUnit(): void {
+    const unitName = this.quickUnitName.trim();
+    const shortName = this.quickUnitShortName.trim() || unitName.slice(0, 20).toUpperCase();
+    if (!unitName || this.savingUnit()) return;
+    this.savingUnit.set(true);
+    this.api
+      .createUnit({ unitCode: '', unitName, shortName, decimalPlaces: 0, isActive: true })
+      .pipe(finalize(() => this.savingUnit.set(false)))
+      .subscribe({
+        next: (unit) => {
+          this.units.update((items) => [...items, unit].sort((a, b) => a.unitName.localeCompare(b.unitName)));
+          this.form.controls.unitId.setValue(unit.unitId);
+          this.quickUnitName = '';
+          this.quickUnitShortName = '';
+          this.addingUnit.set(false);
+          this.snackBar.open('Unit added and selected.', undefined, { duration: 2500 });
+        },
+        error: () => this.snackBar.open('Unit could not be added.', 'Dismiss', { duration: 4000 }),
+      });
   }
   private addAdditional(value: string, barcodeType: string): boolean {
     if (!value || !value.trim()) return false;

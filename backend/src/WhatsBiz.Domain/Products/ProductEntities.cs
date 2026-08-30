@@ -86,6 +86,7 @@ public sealed class Product : ProductMasterEntity
     public string? ImageUrl { get; set; }
     public bool IsBatchManaged { get; set; }
     public bool IsSerialManaged { get; set; }
+    public bool IsWhatsAppVisible { get; set; } = true;
     public ProductCategory Category { get; set; } = null!;
     public Brand Brand { get; set; } = null!;
     public UnitOfMeasure Unit { get; set; } = null!;

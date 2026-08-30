@@ -36,6 +36,7 @@ public sealed class SqlCommerceIntegrationTests(SqlCommerceFixture fixture)
             var products = setup.Products;
             var fixtureProducts = products.Where(x => fixture.ProductIds.Contains(x.ProductId)).ToArray();
             products.Should().Contain(x => x.ProductId == fixture.TShirt399 && x.SellingPrice == 399);
+            products.Should().NotContain(x => x.ProductId == fixture.TShirt699, "the retailer hid this ERP product from WhatsApp Ecommerce");
             products.Should().NotContain(x => x.ProductId == fixture.TenantBProduct);
 
             var under500 = fixtureProducts.Where(x => x.CategoryName == "T-Shirts" && x.SellingPrice <= 500).ToArray();
@@ -57,6 +58,7 @@ public sealed class SqlCommerceIntegrationTests(SqlCommerceFixture fixture)
             collections.Should().ContainSingle(x => x.CollectionId == fixture.CollectionA);
             var tenantCollection = collections.Single(x => x.CollectionId == fixture.CollectionA);
             tenantCollection.ProductIds.Should().Contain(fixture.TShirt399);
+            tenantCollection.ProductIds.Should().NotContain(fixture.TShirt699);
             tenantCollection.ProductIds.Should().NotContain(fixture.TenantBProduct);
 
             var current = new StubCurrentUser(fixture.TenantA);
@@ -72,9 +74,9 @@ public sealed class SqlCommerceIntegrationTests(SqlCommerceFixture fixture)
             (await collectionRepository.GetAsync(fixture.CollectionB, false, default)).Should().BeNull();
             (await collectionRepository.ProductsBelongToTenantAsync([fixture.TenantBProduct], default)).Should().BeFalse();
             (await collectionRepository.ProductsBelongToTenantAsync([fixture.TShirt399], default)).Should().BeTrue();
-            (await collectionRepository.ProductsAsync(fixture.CollectionA, default)).Should().HaveCount(2);
+            (await collectionRepository.ProductsAsync(fixture.CollectionA, default)).Should().HaveCount(3, "ERP collection membership is preserved even when a product is hidden from WhatsApp");
             (await collectionRepository.ExistingProductIdsAsync(fixture.CollectionA, [fixture.TShirt399, fixture.TShirt699], default))
-                .Should().Equal(fixture.TShirt399);
+                .Should().BeEquivalentTo([fixture.TShirt399, fixture.TShirt699]);
 
             fixture.Provider.CollectionSendCount.Should().Be(0);
             var crossTenant = async () => await fixture.Commerce.SendCollectionAsync(fixture.TenantA, fixture.CollectionA, fixture.CustomerB, default);
@@ -83,6 +85,7 @@ public sealed class SqlCommerceIntegrationTests(SqlCommerceFixture fixture)
             var validSend = await fixture.Commerce.SendCollectionAsync(fixture.TenantA, fixture.CollectionA, fixture.CustomerA, default);
             validSend.Succeeded.Should().BeTrue();
             fixture.Provider.CollectionSendCount.Should().Be(1);
+            fixture.Provider.LastCollectionProductIds.Should().NotContain(fixture.TShirt699);
 
             await fixture.RecordAnalyticsAsync();
             await fixture.VerifyWebhookAsync();
@@ -148,10 +151,10 @@ public sealed class SqlCommerceFixture
         db.Brands.Add(new Brand { BrandId = BrandId, BrandCode = $"{Tag}-BR", BrandName = $"{Tag} Brand", CreatedBy = Tag });
         db.UnitsOfMeasure.Add(new UnitOfMeasure { UnitId = UnitId, UnitCode = $"{Tag}-U", UnitName = "Piece", ShortName = "pc", CreatedBy = Tag });
         db.Customers.AddRange(Customer(CustomerA, TenantA, $"{Tag}-CUS-A", "SQLIT Customer A", "919900000001"), Customer(CustomerB, TenantB, CustomerBCode, "SQLIT Customer B", "919900000002"));
-        db.Products.AddRange(Product(TShirt399, TenantA, "T-Shirt ₹399", 399), Product(TShirt699, TenantA, "T-Shirt ₹699", 699), Product(RedShirt, TenantA, "Red Shirt ₹899", 899, "Shirts"), Product(RedSaree, TenantA, "Red Saree ₹1299", 1299, "Sarees"), Product(RedSilkSaree, TenantA, "Red Silk Saree ₹1499", 1499, "Sarees"), Product(TenantBProduct, TenantB, "T-Shirt ₹299", 299));
+        db.Products.AddRange(Product(TShirt399, TenantA, "T-Shirt ₹399", 399), Product(TShirt699, TenantA, "T-Shirt ₹699", 699, visible: false), Product(RedShirt, TenantA, "Red Shirt ₹899", 899, "Shirts"), Product(RedSaree, TenantA, "Red Saree ₹1299", 1299, "Sarees"), Product(RedSilkSaree, TenantA, "Red Silk Saree ₹1499", 1499, "Sarees"), Product(TenantBProduct, TenantB, "T-Shirt ₹299", 299));
         db.CommerceCollections.AddRange(new CommerceCollection { CollectionId = CollectionA, TenantId = TenantA, Name = "Wedding Collection", Slug = $"{Tag}-wedding", CreatedBy = Tag }, new CommerceCollection { CollectionId = CollectionB, TenantId = TenantB, Name = "Collection B", Slug = $"{Tag}-b", CreatedBy = Tag });
         await db.SaveChangesAsync();
-        await ExecuteAsync($"INSERT commerce.CollectionProducts(CollectionProductId,TenantId,CollectionId,ProductId,DisplayOrder,CreatedBy) VALUES(NEWID(),'{TenantA}','{CollectionA}','{TShirt399}',1,'{Tag}'),(NEWID(),'{TenantA}','{CollectionA}','{RedSaree}',2,'{Tag}'); INSERT inventory.InventoryBalances(InventoryBalanceId,ProductId,WarehouseId,QuantityOnHand,QuantityReserved,AverageCost,LastPurchaseCost,CreatedBy) SELECT NEWID(),p.ProductId,'{WarehouseId}',10,0,p.PurchasePrice,p.PurchasePrice,'{Tag}' FROM master.Products p WHERE p.ProductCode LIKE '{Tag}-%'");
+        await ExecuteAsync($"INSERT commerce.CollectionProducts(CollectionProductId,TenantId,CollectionId,ProductId,DisplayOrder,CreatedBy) VALUES(NEWID(),'{TenantA}','{CollectionA}','{TShirt399}',1,'{Tag}'),(NEWID(),'{TenantA}','{CollectionA}','{RedSaree}',2,'{Tag}'),(NEWID(),'{TenantA}','{CollectionA}','{TShirt699}',3,'{Tag}'); INSERT inventory.InventoryBalances(InventoryBalanceId,ProductId,WarehouseId,QuantityOnHand,QuantityReserved,AverageCost,LastPurchaseCost,CreatedBy) SELECT NEWID(),p.ProductId,'{WarehouseId}',10,0,p.PurchasePrice,p.PurchasePrice,'{Tag}' FROM master.Products p WHERE p.ProductCode LIKE '{Tag}-%'");
         await ConfigureMetaTestAsync();
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:DefaultConnection"] = ConnectionString }).Build();
         Provider = new RecordingProvider();
@@ -160,7 +163,7 @@ public sealed class SqlCommerceFixture
         Commerce = new WhatsAppCommerceService(configuration, null!, resolver, features, DataProtectionProvider.Create("WhatsBiz.SqlCommerceTests"));
     }
 
-    private Product Product(Guid id, Guid tenant, string name, decimal price, string category = "T-Shirts") => new() { ProductId = id, TenantId = tenant, ProductCode = $"{Tag}-{id:N}"[..Math.Min(49, Tag.Length + 1 + 32)], ProductName = name, ShortDescription = name, CategoryId = category switch { "Shirts" => ShirtCategoryId, "Sarees" => SareeCategoryId, _ => TshirtCategoryId }, BrandId = BrandId, UnitId = UnitId, PurchasePrice = price / 2, SellingPrice = price, MRP = price, GSTPercentage = 5, CreatedBy = Tag };
+    private Product Product(Guid id, Guid tenant, string name, decimal price, string category = "T-Shirts", bool visible = true) => new() { ProductId = id, TenantId = tenant, ProductCode = $"{Tag}-{id:N}"[..Math.Min(49, Tag.Length + 1 + 32)], ProductName = name, ShortDescription = name, CategoryId = category switch { "Shirts" => ShirtCategoryId, "Sarees" => SareeCategoryId, _ => TshirtCategoryId }, BrandId = BrandId, UnitId = UnitId, PurchasePrice = price / 2, SellingPrice = price, MRP = price, GSTPercentage = 5, IsWhatsAppVisible = visible, CreatedBy = Tag };
     private static Customer Customer(Guid id, Guid tenant, string code, string name, string mobile) => new() { CustomerId = id, TenantId = tenant, CustomerCode = code, CustomerName = name, CustomerType = "Retail", Mobile = mobile, IsActive = true, Currency = "INR" };
 
     private async Task ConfigureMetaTestAsync()
@@ -258,12 +261,13 @@ public sealed class RecordingProvider : IWhatsAppCommerceProvider
     private readonly MockWhatsAppProvider inner = new();
     public string Mode => inner.Mode;
     public int CollectionSendCount { get; private set; }
+    public IReadOnlyCollection<Guid> LastCollectionProductIds { get; private set; } = [];
     public Task<IReadOnlyCollection<WhatsAppCommerceMessage>> SendWelcomeAsync(string storeName, CancellationToken token) => inner.SendWelcomeAsync(storeName, token);
     public Task<IReadOnlyCollection<WhatsAppCommerceMessage>> SendOrderConfirmationAsync(string orderNumber, decimal amount, CancellationToken token) => inner.SendOrderConfirmationAsync(orderNumber, amount, token);
     public Task<IReadOnlyCollection<WhatsAppCommerceMessage>> SendOrderStatusAsync(string orderNumber, string status, CancellationToken token) => inner.SendOrderStatusAsync(orderNumber, status, token);
     public Task<WhatsAppProviderConnectionResult> ValidateConnectionAsync(WhatsAppProviderConnectionRequest request, CancellationToken token) => inner.ValidateConnectionAsync(request, token);
     public Task<WhatsAppProviderTestMessageResult> SendTestMessageAsync(WhatsAppProviderTestMessageRequest request, CancellationToken token) => inner.SendTestMessageAsync(request, token);
-    public Task<WhatsAppCommerceSendResult> SendProductCollectionAsync(WhatsAppCommerceSendRequest request, CancellationToken token) { CollectionSendCount++; return inner.SendProductCollectionAsync(request, token); }
+    public Task<WhatsAppCommerceSendResult> SendProductCollectionAsync(WhatsAppCommerceSendRequest request, CancellationToken token) { CollectionSendCount++; LastCollectionProductIds = request.Products.Select(x => x.ProductId).ToArray(); return inner.SendProductCollectionAsync(request, token); }
 }
 
 public sealed class AlwaysOnFeatures : IFeatureService

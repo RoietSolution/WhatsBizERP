@@ -34,24 +34,60 @@
             }
           </mat-select></mat-form-field
         >
-        <mat-form-field
-          ><mat-label>Brand</mat-label
-          ><mat-select formControlName="brandId" required>
-            @for (item of brands(); track item.brandId) {
-              <mat-option [value]="item.brandId">{{ item.brandName }}</mat-option>
-            }
-          </mat-select></mat-form-field
-        >
-        <mat-form-field
-          ><mat-label>Unit</mat-label
-          ><mat-select formControlName="unitId" required>
-            @for (item of units(); track item.unitId) {
-              <mat-option [value]="item.unitId"
-                >{{ item.unitName }} ({{ item.shortName }})</mat-option
-              >
-            }
-          </mat-select></mat-form-field
-        >
+        <div class="lookup-with-action">
+          <mat-form-field
+            ><mat-label>Brand</mat-label
+            ><mat-select formControlName="brandId" required>
+              @for (item of brands(); track item.brandId) {
+                <mat-option [value]="item.brandId">{{ item.brandName }}</mat-option>
+              }
+            </mat-select></mat-form-field
+          >
+          <button mat-button type="button" (click)="addingBrand.set(!addingBrand())">+ Add Brand</button>
+        </div>
+        <div class="lookup-with-action">
+          <mat-form-field
+            ><mat-label>Unit</mat-label
+            ><mat-select formControlName="unitId" required>
+              @for (item of units(); track item.unitId) {
+                <mat-option [value]="item.unitId"
+                  >{{ item.unitName }} ({{ item.shortName }})</mat-option
+                >
+              }
+            </mat-select></mat-form-field
+          >
+          <button mat-button type="button" (click)="addingUnit.set(!addingUnit())">+ Add Unit</button>
+        </div>
+        @if (addingBrand()) {
+          <div class="quick-master">
+            <mat-form-field>
+              <mat-label>New brand name</mat-label>
+              <input matInput [(ngModel)]="quickBrandName" [ngModelOptions]="{ standalone: true }" maxlength="200" />
+              <mat-hint>Brand code is generated automatically</mat-hint>
+            </mat-form-field>
+            <button mat-flat-button type="button" [disabled]="!quickBrandName.trim() || savingBrand()" (click)="createBrand()">
+              {{ savingBrand() ? 'Adding…' : 'Add and select' }}
+            </button>
+            <button mat-button type="button" (click)="addingBrand.set(false)">Cancel</button>
+          </div>
+        }
+        @if (addingUnit()) {
+          <div class="quick-master">
+            <mat-form-field>
+              <mat-label>New unit name</mat-label>
+              <input matInput [(ngModel)]="quickUnitName" [ngModelOptions]="{ standalone: true }" maxlength="200" />
+              <mat-hint>Unit code is generated automatically</mat-hint>
+            </mat-form-field>
+            <mat-form-field>
+              <mat-label>Short name (optional)</mat-label>
+              <input matInput [(ngModel)]="quickUnitShortName" [ngModelOptions]="{ standalone: true }" maxlength="20" />
+            </mat-form-field>
+            <button mat-flat-button type="button" [disabled]="!quickUnitName.trim() || savingUnit()" (click)="createUnit()">
+              {{ savingUnit() ? 'Adding…' : 'Add and select' }}
+            </button>
+            <button mat-button type="button" (click)="addingUnit.set(false)">Cancel</button>
+          </div>
+        }
         <mat-form-field class="wide"
           ><mat-label>Short description</mat-label
           ><textarea matInput formControlName="shortDescription"></textarea>
@@ -182,8 +218,12 @@
         <div class="checks">
           <mat-checkbox formControlName="isBatchManaged">Batch managed</mat-checkbox
           ><mat-checkbox formControlName="isSerialManaged">Serial managed</mat-checkbox
-          ><mat-checkbox formControlName="isActive">Active</mat-checkbox>
+          ><mat-checkbox formControlName="isActive">Active</mat-checkbox
+          ><mat-checkbox formControlName="isWhatsAppVisible"
+            >Available on WhatsApp Ecommerce</mat-checkbox
+          >
         </div>
+        <p class="wide">Turn this off to keep the product in ERP, inventory, and POS while hiding it from WhatsApp customers.</p>
       </mat-card-content></mat-card
     >
     <mat-card

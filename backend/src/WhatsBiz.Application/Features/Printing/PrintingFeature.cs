@@ -15,7 +15,7 @@ public static class PaperSizes
 }
 public sealed record BarcodeInput(string Value, string Format = "CODE128", int Width = 300, int Height = 100, bool ShowText = true);
 public sealed record QRCodeInput(string Value, int PixelsPerModule = 8, string ErrorCorrectionLevel = "M");
-public sealed record DocumentInput(string DocumentType, string DocumentNumber, string Title, string BodyHtml, string PaperType = PaperSizes.Default, string Output = "pdf", string? TemplateCode = null, bool AutoPrint = false);
+public sealed record DocumentInput(string DocumentType, string DocumentNumber, string Title, string BodyHtml, string PaperType = PaperSizes.Default, string Output = "pdf", string? TemplateCode = null, bool AutoPrint = false, bool IncludeHeader = true);
 public sealed record LabelInput(string LabelType, string ProductName, string? ProductCode, string? Barcode, decimal? Price, decimal? MRP, decimal WidthMm = 50, decimal HeightMm = 25, int Quantity = 1, string BarcodeFormat = "CODE128", string Output = "html");
 public sealed record PrintArtifact(byte[] Data, string ContentType, string FileName);
 public sealed record GetPrintTemplates(string? DocumentType) : IRequest<IReadOnlyCollection<PrintTemplateDto>>;

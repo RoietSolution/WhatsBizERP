@@ -99,14 +99,27 @@ app-pos-summary,
   display: flex;
   flex-direction: column;
 }
-.customer-card small,
-.customer-card span {
+.customer-card > div:nth-child(2) small,
+.customer-card > div:nth-child(2) span {
   color: var(--wb-text-secondary);
   font-size: 12px;
 }
 .customer-search,
 .product-lookup {
   position: relative;
+}
+.customer-search mat-form-field,
+.quick-customer {
+  width: 100%;
+  min-height: 56px;
+}
+.customer-search-icon {
+  margin-right: 8px;
+  font-size: 22px;
+}
+.quick-customer .material-symbols-rounded {
+  margin-right: 6px;
+  font-size: 21px;
 }
 .lookup-results,
 .product-results {

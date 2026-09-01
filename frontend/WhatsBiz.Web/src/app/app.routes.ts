@@ -878,14 +878,14 @@ export const routes: Routes = [
       {
         path: 'pos/holds',
         canActivate: [permissionGuard],
-        data: posEdit,
+        data: posCreate,
         loadComponent: () =>
           import('./features/pos/hold-bills.component').then((m) => m.HoldBillsComponent),
       },
       {
         path: 'pos/resume',
         canActivate: [permissionGuard],
-        data: posEdit,
+        data: posCreate,
         loadComponent: () =>
           import('./features/pos/hold-bills.component').then((m) => m.HoldBillsComponent),
       },

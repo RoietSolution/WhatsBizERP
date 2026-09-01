@@ -11,21 +11,24 @@
       <button
         type="button"
         [class.active]="method === x.methodCode"
-        (click)="method = x.methodCode"
+        [disabled]="x.methodCode === 'CREDIT' && !data.hasCustomer"
+        (click)="selectMethod(x.methodCode)"
       >
         <span class="material-symbols-rounded">{{ icon(x.methodCode) }}</span
         >{{ x.methodName }}
       </button>
     }
   </section>
+  @if (!data.hasCustomer) { <p class="credit-help">Select or create a customer before making a credit sale.</p> }
+  @if (method === 'CREDIT') { <p class="credit-help">The remaining balance will be recorded against the selected customer. Credit is not recorded as a received payment.</p> }
   <div class="entry">
     <mat-form-field appearance="outline"
       ><mat-label>Amount</mat-label><span matPrefix>₹&nbsp;</span
       ><input matInput type="number" min="0" [(ngModel)]="amount" /></mat-form-field
     ><mat-form-field appearance="outline"
-      ><mat-label>Reference</mat-label
-      ><input matInput [(ngModel)]="reference" placeholder="Optional reference" /></mat-form-field
-    ><button mat-flat-button color="primary" (click)="add()">
+      ><mat-label>{{ requiresReference() ? 'Reference (required)' : 'Reference' }}</mat-label
+      ><input matInput [(ngModel)]="reference" [required]="requiresReference()" placeholder="Transaction/reference number" /></mat-form-field
+    ><button mat-flat-button color="primary" [disabled]="method === 'CREDIT' || amount <= 0 || amount > balance() || (requiresReference() && !reference.trim())" (click)="add()">
       <span class="material-symbols-rounded">add</span>Add payment
     </button>
   </div>
@@ -61,9 +64,9 @@
   ><button
     mat-flat-button
     color="primary"
-    [disabled]="paid() <= 0 || paid() > data.total"
+    [disabled]="!canComplete()"
     (click)="complete()"
   >
-    <span class="material-symbols-rounded">check</span>Complete Sale
+    <span class="material-symbols-rounded">check</span>{{ method === 'CREDIT' && balance() > 0 ? 'Complete Credit Sale' : 'Complete Sale' }}
   </button></mat-dialog-actions
 >

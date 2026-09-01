@@ -59,7 +59,8 @@ public sealed record POSInvoiceInput(
     decimal RoundOff,
     string? Remarks,
     bool InterState,
-    string? DiscountAuthorizedBy);
+    string? DiscountAuthorizedBy,
+    bool IsCreditSale = false);
 
 public sealed record POSPaymentDto(
     Guid PaymentId,
@@ -245,6 +246,7 @@ public sealed class POSHandlers(
     public async Task<PostedInvoiceDto> Handle(PostInvoice q, CancellationToken t)
     {
         var i = q.Input;
+        POSSettlementPolicy.ValidateInvoice(i, q.Status, await repository.PaymentMethods(t));
         var postRequest = new POSPostRequest(
             i.CounterId,
             i.ShiftId,
@@ -295,8 +297,11 @@ public sealed class POSHandlers(
         await engine.Return(new POSReturnRequest(q.Input.InvoiceId, JsonSerializer.Serialize(q.Input.Items, POSJson.Options), q.Input.Reason, user.Username), t);
     }
 
-    public Task Handle(AddPOSPayment q, CancellationToken t) =>
-        engine.Pay(new POSPaymentRequest(q.Input.InvoiceId, q.Input.MethodCode, q.Input.Amount, q.Input.ReferenceNumber, user.Username), t);
+    public async Task Handle(AddPOSPayment q, CancellationToken t)
+    {
+        POSSettlementPolicy.ValidatePayment(q.Input, await repository.PaymentMethods(t));
+        await engine.Pay(new POSPaymentRequest(q.Input.InvoiceId, q.Input.MethodCode, q.Input.Amount, q.Input.ReferenceNumber, user.Username), t);
+    }
 
     public async Task<IReadOnlyCollection<PaymentMethodDto>> Handle(GetPaymentMethods q, CancellationToken t) =>
         (await repository.PaymentMethods(t)).Select(x => new PaymentMethodDto(x.PaymentMethodId, x.MethodCode, x.MethodName, x.RequiresReference)).ToArray();
@@ -342,4 +347,48 @@ public sealed class POSHandlers(
             x.Remarks,
             x.Items.Select(i => new POSInvoiceItemDto(i.InvoiceItemId, i.ProductId, i.Product.ProductCode, i.Product.ProductName, i.Barcode, i.Quantity, i.ReturnedQuantity, i.UnitPrice, i.DiscountPercentage, i.DiscountAmount, i.TaxPercentage, i.TaxAmount, i.LineTotal)).ToArray(),
             x.Payments.Select(p => new POSPaymentDto(p.PaymentId, p.PaymentMethod.MethodCode, p.PaymentMethod.MethodName, p.Amount, p.ReferenceNumber, p.PaymentDate)).ToArray());
+}
+
+public static class POSSettlementPolicy
+{
+    public static void ValidateInvoice(POSInvoiceInput input, string status, IReadOnlyCollection<PaymentMethod> methods)
+    {
+        if (status is "HELD" or "SUSPENDED")
+        {
+            if (input.Payments.Count > 0 || input.IsCreditSale) throw new BusinessRuleException("A held bill cannot contain payments or be marked as credit.");
+            return;
+        }
+
+        foreach (var payment in input.Payments) ValidateMethod(payment.MethodCode, payment.ReferenceNumber, methods);
+        var total = decimal.Round(input.Items.Sum(item =>
+        {
+            var gross = item.Quantity * item.UnitPrice;
+            var discount = item.DiscountAmount > 0 ? item.DiscountAmount : gross * item.DiscountPercentage / 100m;
+            return gross - discount + (gross - discount) * item.TaxPercentage / 100m;
+        }) - input.BillDiscount + input.RoundOff, 2, MidpointRounding.AwayFromZero);
+        var paid = input.Payments.Sum(x => x.Amount);
+        if (paid > total) throw new BusinessRuleException("Payment exceeds invoice total.");
+        if (input.IsCreditSale)
+        {
+            if (!input.CustomerId.HasValue) throw new BusinessRuleException("Select a customer before making a credit sale.");
+            if (paid >= total && total > 0) throw new BusinessRuleException("A fully paid sale should not be marked as credit.");
+        }
+        else if (paid != total)
+        {
+            throw new BusinessRuleException("Payment must cover the full invoice total. Select Credit for an outstanding balance.");
+        }
+    }
+
+    public static void ValidatePayment(AddPaymentInput input, IReadOnlyCollection<PaymentMethod> methods) =>
+        ValidateMethod(input.MethodCode, input.ReferenceNumber, methods);
+
+    private static void ValidateMethod(string code, string? reference, IReadOnlyCollection<PaymentMethod> methods)
+    {
+        if (code.Equals("CREDIT", StringComparison.OrdinalIgnoreCase))
+            throw new BusinessRuleException("Credit is an outstanding customer balance, not a received payment.");
+        var method = methods.FirstOrDefault(x => x.MethodCode.Equals(code, StringComparison.OrdinalIgnoreCase) && x.IsActive)
+            ?? throw new BusinessRuleException("The selected payment method is unavailable.");
+        if (method.RequiresReference && string.IsNullOrWhiteSpace(reference))
+            throw new BusinessRuleException($"A transaction reference is required for {method.MethodName}.");
+    }
 }

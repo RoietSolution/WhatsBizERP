@@ -8,6 +8,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Payment, PaymentMethod } from './pos.models';
 
+export interface PaymentResult { payments: Payment[]; isCreditSale: boolean; }
+
 @Component({
   imports: [
     CurrencyPipe,
@@ -35,6 +37,7 @@ export class PaymentDialogComponent {
       methods: PaymentMethod[];
       preferredMethod?: string;
       quickAmount?: number;
+      hasCustomer: boolean;
     },
     private ref: MatDialogRef<PaymentDialogComponent>,
   ) {
@@ -58,7 +61,7 @@ export class PaymentDialogComponent {
     return Math.max(0, this.data.total - this.paid());
   }
   add() {
-    if (this.amount <= 0) return;
+    if (this.method === 'CREDIT' || this.amount <= 0 || this.amount > this.balance() || (this.requiresReference() && !this.reference.trim())) return;
     this.payments.update((x) => [
       ...x,
       {
@@ -76,8 +79,14 @@ export class PaymentDialogComponent {
     this.recalculate();
   }
   complete() {
-    this.ref.close(this.payments());
+    const isCreditSale = this.method === 'CREDIT' && this.balance() > 0;
+    if (isCreditSale && !this.data.hasCustomer) return;
+    this.ref.close({ payments: this.payments(), isCreditSale } satisfies PaymentResult);
   }
+  selectMethod(code: string) { this.method = code; this.reference = ''; this.amount = this.balance(); }
+  selectedMethod() { return this.data.methods.find((x) => x.methodCode === this.method); }
+  requiresReference() { return !!this.selectedMethod()?.requiresReference; }
+  canComplete() { return this.paid() <= this.data.total && (this.balance() === 0 || (this.method === 'CREDIT' && this.data.hasCustomer)); }
   private recalculate() {
     this.paid.set(this.payments().reduce((a, b) => a + b.amount, 0));
   }

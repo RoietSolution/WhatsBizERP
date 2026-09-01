@@ -45,6 +45,8 @@ p {
   background: var(--wb-primary-soft);
   border-color: var(--wb-primary);
 }
+.method-grid button:disabled { opacity:.45;cursor:not-allowed; }
+.credit-help { margin:-10px 0 14px;color:var(--wb-text-secondary);font-size:13px; }
 .entry {
   display: grid;
   grid-template-columns: 1fr 1fr auto;

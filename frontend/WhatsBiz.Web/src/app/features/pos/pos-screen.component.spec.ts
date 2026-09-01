@@ -105,6 +105,14 @@ describe('POSScreenComponent barcode flow', () => {
     expect(component.cart()).toHaveSize(1);
   });
 
+  it('orders shortcuts as New Bill, Customer, Payment, Hold, and Print first', () => {
+    const { component } = setup();
+
+    expect(component.shortcuts.slice(0, 5).map((x) => x.label)).toEqual([
+      'New Bill', 'Customer', 'Payment', 'Hold', 'Print',
+    ]);
+  });
+
   function product(overrides: Partial<POSProduct> = {}): POSProduct {
     return {
       productId: 'product-1',

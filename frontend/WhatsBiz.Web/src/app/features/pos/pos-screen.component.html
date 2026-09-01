@@ -28,13 +28,14 @@
         <div class="customer-search">
           <mat-form-field appearance="outline" subscriptSizing="dynamic"
             ><mat-label>Search customer</mat-label
+            ><span matPrefix class="material-symbols-rounded customer-search-icon">search</span
             ><input
               #customerInput
               matInput
               [(ngModel)]="customerSearch"
               (input)="findCustomers()"
               autocomplete="off"
-            /><span matSuffix class="material-symbols-rounded">search</span></mat-form-field
+            /></mat-form-field
           >
           @if (customers().length) {
             <div class="lookup-results">
@@ -47,7 +48,7 @@
             </div>
           }
         </div>
-        <button mat-stroked-button type="button" (click)="quickCustomer()">
+        <button mat-stroked-button class="quick-customer" type="button" (click)="quickCustomer()">
           <span class="material-symbols-rounded">person_add</span>Quick Customer
         </button>
       </section>

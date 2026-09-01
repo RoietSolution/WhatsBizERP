@@ -1,8 +1,8 @@
-<h1>Held Bills</h1>
+<header><div><h1>Held Bills</h1><p>Held bills preserve the customer and items without taking payment or reducing stock. Complete one when the customer is ready, or cancel it.</p></div><a mat-stroked-button routerLink="/pos">New Sale</a></header>
 @for (x of bills(); track x.invoiceId) {
   <section>
     <span><strong>{{ x.invoiceNumber }}</strong> · {{ x.invoiceDate }} · {{ x.grandTotal }} @if(x.sourceChannel){<b class="source-badge">{{x.sourceChannel}}</b>}</span>
-    <span><button mat-flat-button (click)="complete(x)">Complete</button><button mat-button (click)="cancel(x)">Cancel</button></span>
+    <span><button mat-flat-button (click)="complete(x)">Payment &amp; Complete</button><button mat-button (click)="cancel(x)">Cancel</button></span>
   </section>
 } @empty {
   <p>No held bills.</p>

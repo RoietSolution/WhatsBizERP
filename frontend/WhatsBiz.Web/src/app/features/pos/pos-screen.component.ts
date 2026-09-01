@@ -17,7 +17,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { PageContainerComponent } from '../../shared/components/page-container/page-container.component';
-import { PaymentDialogComponent } from './payment-dialog.component';
+import { PaymentDialogComponent, PaymentResult } from './payment-dialog.component';
 import { BarcodeScannerComponent } from './barcode-scanner.component';
 import { PosCartGridComponent } from './pos-cart-grid.component';
 import { PosSummaryComponent } from './pos-summary.component';
@@ -62,15 +62,14 @@ export class POSScreenComponent {
   readonly scannerOpen = signal(false);
   readonly scannerFeedback = signal('');
   readonly shortcuts = [
+    { key: 'Ctrl+N', label: 'New Bill', icon: 'add' },
     { key: 'F2', label: 'Customer', icon: 'person' },
-    { key: 'F3', label: 'Product', icon: 'search' },
-    { key: 'F4', label: 'Hold', icon: 'pause' },
     { key: 'F5', label: 'Payment', icon: 'payments' },
+    { key: 'F4', label: 'Hold', icon: 'pause' },
     { key: 'F6', label: 'Print', icon: 'print' },
+    { key: 'F3', label: 'Product', icon: 'search' },
     { key: 'F7', label: 'Return', icon: 'assignment_return' },
     { key: 'F8', label: 'Discount', icon: 'percent' },
-    { key: 'Ctrl+N', label: 'New Bill', icon: 'add' },
-    { key: 'Ctrl+P', label: 'Print', icon: 'print' },
     { key: 'Esc', label: 'Cancel', icon: 'close' },
   ];
   barcode = '';
@@ -91,7 +90,10 @@ export class POSScreenComponent {
     private router: Router,
     private addSound: ProductAddedSoundService,
   ) {
-    api.methods().subscribe((x) => this.methods.set(x));
+    api.methods().subscribe({
+      next: (x) => this.methods.set(x),
+      error: () => this.snack.open('Payment methods could not be loaded. Refresh the page and retry.', 'Dismiss', { duration: 5000 }),
+    });
     api.warehouses().subscribe({
       next: (x) => {
         this.warehouses.set(x);
@@ -171,7 +173,7 @@ export class POSScreenComponent {
     this.customerSearch = x.customerName;
   }
   quickCustomer() {
-    this.dialog.open(QuickCustomerDialogComponent, { width: '420px', maxWidth: '94vw' }).afterClosed().subscribe((x: POSCustomer | undefined) => {
+    this.dialog.open(QuickCustomerDialogComponent, { width: '520px', maxWidth: '94vw' }).afterClosed().subscribe((x: POSCustomer | undefined) => {
       if (x) this.selectCustomer(x);
     });
   }
@@ -237,7 +239,7 @@ export class POSScreenComponent {
     this.itemCount.set(this.cart().reduce((a, x) => a + x.quantity, 0));
     this.cart.set([...this.cart()]);
   }
-  payload(payments: object[] = []) {
+  payload(payments: object[] = [], isCreditSale = false) {
     return {
       customerId: this.customer()?.customerId,
       warehouseId: this.warehouseId,
@@ -255,10 +257,22 @@ export class POSScreenComponent {
       roundOff: 0,
       remarks: this.remarks,
       interState: false,
+      isCreditSale,
     };
   }
   payment() {
-    if (!this.cart().length || !this.warehouseId) return;
+    if (!this.cart().length) {
+      this.snack.open('Add at least one product before taking payment.', undefined, { duration: 3000 });
+      return;
+    }
+    if (!this.warehouseId) {
+      this.snack.open('Select a warehouse before taking payment.', undefined, { duration: 3000 });
+      return;
+    }
+    if (!this.methods().length) {
+      this.snack.open('No active payment methods are available.', 'Dismiss', { duration: 4000 });
+      return;
+    }
     this.dialog
       .open(PaymentDialogComponent, {
         data: {
@@ -266,14 +280,15 @@ export class POSScreenComponent {
           methods: this.methods(),
           preferredMethod: this.paymentMethod,
           quickAmount: this.quickAmount,
+          hasCustomer: !!this.customer(),
         },
         width: '720px',
         maxWidth: '96vw',
       })
       .afterClosed()
-      .subscribe((payments) => {
-        if (payments)
-          this.api.invoice(this.payload(payments)).subscribe({
+      .subscribe((result: PaymentResult | undefined) => {
+        if (result)
+          this.api.invoice(this.payload(result.payments, result.isCreditSale)).subscribe({
             next: (x) => {
               this.lastInvoiceId = x.invoiceId;
               this.snack.open(`Invoice ${x.invoiceNumber} created.`, undefined, {
@@ -288,13 +303,21 @@ export class POSScreenComponent {
       });
   }
   hold() {
-    if (!this.cart().length) return;
+    if (!this.cart().length) {
+      this.snack.open('Add at least one product before holding the bill.', undefined, { duration: 3000 });
+      return;
+    }
+    if (!this.warehouseId) {
+      this.snack.open('Select a warehouse before holding the bill.', undefined, { duration: 3000 });
+      return;
+    }
     this.api.hold(this.payload()).subscribe({
       next: (x) => {
-        this.snack.open(`Bill ${x.invoiceNumber} held.`, undefined, {
-          duration: 3000,
+        const notice = this.snack.open(`Bill ${x.invoiceNumber} held safely. No payment or stock was posted.`, 'View Held Bills', {
+          duration: 7000,
           panelClass: 'wb-success',
         });
+        notice.onAction().subscribe(() => void this.router.navigate(['/pos/holds']));
         this.cancel();
       },
       error: (error) => this.showOrderError(error, 'Bill could not be held.'),
@@ -381,6 +404,7 @@ export class POSScreenComponent {
   standalone: true,
   imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatDialogModule],
   template: `<h2 mat-dialog-title>Quick customer</h2><mat-dialog-content><mat-form-field appearance="outline"><mat-label>Customer name</mat-label><input matInput [(ngModel)]="name" required /></mat-form-field><mat-form-field appearance="outline"><mat-label>Mobile (optional)</mat-label><input matInput [(ngModel)]="mobile" /></mat-form-field><mat-form-field appearance="outline"><mat-label>GSTIN (optional)</mat-label><input matInput [(ngModel)]="gstin" /></mat-form-field></mat-dialog-content><mat-dialog-actions align="end"><button mat-button mat-dialog-close>Cancel</button><button mat-flat-button color="primary" [disabled]="!name.trim()" (click)="save()">Create customer</button></mat-dialog-actions>`,
+  styles: [`mat-dialog-content{display:grid;gap:8px;padding-top:8px}mat-form-field{width:100%}`],
 })
 class QuickCustomerDialogComponent {
   name = ''; mobile = ''; gstin = '';

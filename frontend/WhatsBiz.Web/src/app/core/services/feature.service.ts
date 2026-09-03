@@ -11,6 +11,7 @@ export interface FeatureAccessState {
 }
 export interface TenantFeatureConfiguration { tenantId: string; tenantName: string; planKey?: string; planName?: string; features: FeatureAccessState[]; }
 export interface FeatureTenantSummary { tenantId: string; tenantKey: string; tenantName: string; planKey?: string; planName?: string; }
+export interface TenantEnrollmentResult { tenantId: string; tenantKey: string; tenantName: string; planKey: string; administratorUsername: string; administratorEmail: string; configuredFeatureCount: number; }
 
 @Injectable({ providedIn: 'root' })
 export class FeatureService {
@@ -37,6 +38,8 @@ export class FeatureService {
   }
   refresh(): Observable<TenantFeatureConfiguration | null> { this.request = undefined; return this.load(true); }
   tenants(): Observable<FeatureTenantSummary[]> { return this.http.get<FeatureTenantSummary[]>('/api/features/administration/tenants'); }
+  enrollmentTemplate(): Observable<Blob> { return this.http.get('/api/features/administration/tenant-enrollment-template', { responseType: 'blob' }); }
+  enrollTenant(file: File): Observable<TenantEnrollmentResult> { const body = new FormData(); body.append('file', file); return this.http.post<TenantEnrollmentResult>('/api/features/administration/tenant-enrollment', body); }
   tenant(tenantId: string): Observable<TenantFeatureConfiguration> { return this.http.get<TenantFeatureConfiguration>(`/api/features/administration/tenants/${tenantId}`); }
   update(tenantId: string, updates: { featureKey: string; configuredEnabled: boolean }[]): Observable<TenantFeatureConfiguration> {
     return this.http.put<TenantFeatureConfiguration>(`/api/features/administration/tenants/${tenantId}`, updates).pipe(

@@ -75,7 +75,10 @@ export class ProductApiService {
     return this.http.delete<void>(`/api/products/${id}/image`);
   }
   images(id: string): Observable<ProductImage[]> { return this.http.get<ProductImage[]>(`/api/products/${id}/images`); }
-  imageByUrl(url: string): Observable<Blob> { return this.http.get(url, { responseType: 'blob' }); }
+  imageByUrl(url: string, thumbnail = false): Observable<Blob> {
+    const imageUrl = thumbnail ? `${url}${url.includes('?') ? '&' : '?'}thumbnail=true` : url;
+    return this.http.get(imageUrl, { responseType: 'blob' });
+  }
   deleteProductImage(productId: string, imageId: string): Observable<void> { return this.http.delete<void>(`/api/products/${productId}/images/${imageId}`); }
   categories(): Observable<Category[]> {
     return this.http.get<Category[]>('/api/productcategories');

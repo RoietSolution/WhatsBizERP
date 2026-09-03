@@ -1,5 +1,11 @@
 <section class="feature-page">
   <header><div><p class="eyebrow">System Administration</p><h1>Tenant Feature Management</h1><p>Configured settings are preserved independently from effective access.</p></div><button mat-flat-button color="primary" (click)="save()" [disabled]="saving() || loading()">{{ saving() ? 'Saving…' : 'Save changes' }}</button></header>
+  <div class="enrollment-actions">
+    <input #tenantWorkbook type="file" hidden accept=".xlsx" (change)="importTenant($event)" />
+    <button mat-stroked-button type="button" (click)="downloadEnrollmentTemplate()">Download tenant Excel template</button>
+    <button mat-flat-button color="primary" type="button" [disabled]="importing()" (click)="tenantWorkbook.click()">{{ importing() ? 'Importing…' : 'Import completed tenant Excel' }}</button>
+    <small>Uses separate Tenant, Administrator, Subscription, and Features tabs. Products are imported separately.</small>
+  </div>
   <p><a mat-stroked-button routerLink="/admin/whatsapp-platform">View KhataDhari Meta App and retailer WhatsApp connections</a></p>
   <mat-card class="tenant-card">
     <label for="tenant">Retailer</label>

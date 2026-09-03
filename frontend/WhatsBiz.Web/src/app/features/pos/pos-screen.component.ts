@@ -4,6 +4,7 @@ import {
   Component,
   ElementRef,
   HostListener,
+  OnDestroy,
   ViewChild,
   signal,
 } from '@angular/core';
@@ -24,6 +25,7 @@ import { PosSummaryComponent } from './pos-summary.component';
 import { POSApiService, POSWarehouse } from './pos-api.service';
 import { CartItem, PaymentMethod, POSCustomer, POSProduct } from './pos.models';
 import { ProductAddedSoundService } from './product-added-sound.service';
+import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 
 @Component({
   selector: 'app-pos-screen',
@@ -44,7 +46,7 @@ import { ProductAddedSoundService } from './product-added-sound.service';
   styleUrl: './pos-screen.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class POSScreenComponent {
+export class POSScreenComponent implements OnDestroy {
   @ViewChild('barcodeInput') barcodeInput?: ElementRef<HTMLInputElement>;
   @ViewChild('productInput') productInput?: ElementRef<HTMLInputElement>;
   @ViewChild('customerInput') customerInput?: ElementRef<HTMLInputElement>;
@@ -54,6 +56,7 @@ export class POSScreenComponent {
   readonly customer = signal<POSCustomer | null>(null);
   readonly methods = signal<PaymentMethod[]>([]);
   readonly warehouses = signal<POSWarehouse[]>([]);
+  readonly productImages = signal<Record<string, string>>({});
   readonly subtotal = signal(0);
   readonly itemDiscount = signal(0);
   readonly tax = signal(0);
@@ -81,7 +84,7 @@ export class POSScreenComponent {
   lastInvoiceId = '';
   paymentMethod = 'CASH';
   quickAmount = 0;
-  private readonly duplicateProductIds = new Map<string, string>();
+  private readonly requestedProductImages = new Set<string>();
   private readonly pendingBarcodes = new Set<string>();
   constructor(
     private api: POSApiService,
@@ -204,22 +207,27 @@ export class POSScreenComponent {
     this.products.set([]);
     this.search = '';
     this.refresh();
+    this.loadProductImage(x.productId);
     this.addSound.play();
     this.barcodeInput?.nativeElement.focus();
     return true;
   }
-  duplicate(x: CartItem) {
-    const lineProductId = `${x.productId}-${Date.now()}`;
-    this.duplicateProductIds.set(
-      lineProductId,
-      this.duplicateProductIds.get(x.productId) ?? x.productId,
-    );
-    this.cart.update((v) => [...v, { ...x, productId: lineProductId }]);
-    this.refresh();
-  }
   remove(x: CartItem) {
-    this.cart.update((v) => v.filter((y) => y !== x));
-    this.refresh();
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Remove bill item',
+          message: `Remove ${x.productName} from this bill?`,
+          confirmLabel: 'Remove',
+          tone: 'danger',
+        },
+      })
+      .afterClosed()
+      .subscribe((confirmed: boolean | undefined) => {
+        if (!confirmed) return;
+        this.cart.update((v) => v.filter((y) => y !== x));
+        this.refresh();
+      });
   }
   refresh() {
     const subtotal = this.cart().reduce((a, x) => a + x.quantity * x.unitPrice, 0),
@@ -244,7 +252,7 @@ export class POSScreenComponent {
       customerId: this.customer()?.customerId,
       warehouseId: this.warehouseId,
       items: this.cart().map((x) => ({
-        productId: this.duplicateProductIds.get(x.productId) ?? x.productId,
+        productId: x.productId,
         barcode: x.barcode,
         quantity: x.quantity,
         unitPrice: x.unitPrice,
@@ -343,6 +351,22 @@ export class POSScreenComponent {
   private showOrderError(error: HttpErrorResponse, fallback: string) {
     const message = this.errorMessage(error, fallback);
     this.snack.open(message, 'Dismiss', { duration: 12000, panelClass: 'wb-error' });
+  }
+
+  ngOnDestroy(): void {
+    Object.values(this.productImages()).forEach((url) => URL.revokeObjectURL(url));
+  }
+
+  private loadProductImage(productId: string): void {
+    if (this.requestedProductImages.has(productId)) return;
+    this.requestedProductImages.add(productId);
+    this.api.productImage(productId).subscribe({
+      next: (image) => {
+        const url = URL.createObjectURL(image);
+        this.productImages.update((images) => ({ ...images, [productId]: url }));
+      },
+      error: () => undefined,
+    });
   }
 
   private lookupBarcode(value: string, fromCamera: boolean) {

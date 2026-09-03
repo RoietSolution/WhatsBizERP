@@ -8,7 +8,7 @@ using WhatsBiz.SharedKernel;
 namespace WhatsBiz.Api.Controllers;
 
 [ApiController, Authorize, Route("api/features")]
-public sealed class FeatureAccessController(IFeatureService features, ICurrentUserService currentUser) : ControllerBase
+public sealed class FeatureAccessController(IFeatureService features, ITenantEnrollmentService enrollment, ICurrentUserService currentUser) : ControllerBase
 {
     [HttpGet("effective")]
     public Task<TenantFeatureConfiguration> Effective(CancellationToken token)
@@ -16,6 +16,21 @@ public sealed class FeatureAccessController(IFeatureService features, ICurrentUs
 
     [HttpGet("administration/tenants"), HasPermission(Permissions.Features.Manage)]
     public Task<IReadOnlyCollection<FeatureTenantSummary>> Tenants(CancellationToken token) => features.GetTenantsAsync(token);
+
+    [HttpGet("administration/tenant-enrollment-template"), HasPermission(Permissions.Features.Manage)]
+    public async Task<IActionResult> EnrollmentTemplate(CancellationToken token) => File(
+        await enrollment.CreateTemplateAsync(token),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "tenant-enrollment-template.xlsx");
+
+    [HttpPost("administration/tenant-enrollment"), HasPermission(Permissions.Features.Manage), RequestSizeLimit(2 * 1024 * 1024)]
+    public async Task<TenantEnrollmentResult> EnrollTenant(IFormFile file, CancellationToken token)
+    {
+        if (file.Length == 0) throw new ArgumentException("Select a completed tenant enrollment workbook.");
+        await using var stream = new MemoryStream();
+        await file.CopyToAsync(stream, token);
+        return await enrollment.ImportAsync(stream.ToArray(), currentUser.Username, token);
+    }
 
     [HttpGet("administration/tenants/{tenantId:guid}"), HasPermission(Permissions.Features.Manage)]
     public Task<TenantFeatureConfiguration> Tenant(Guid tenantId, CancellationToken token)

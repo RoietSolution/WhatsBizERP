@@ -12,6 +12,7 @@ export const apiErrorInterceptor: HttpInterceptorFn = (request, next) => {
     request.url.endsWith('/login') || request.url.endsWith('/refresh');
   const idempotentPaths = [
     '/api/pos/invoice',
+    '/api/pos/hold',
     '/api/pos/return',
     '/api/pos/payment',
     '/api/purchases',

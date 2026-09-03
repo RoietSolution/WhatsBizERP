@@ -12,9 +12,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatSelectModule } from '@angular/material/select';
+import { CurrencyPipe } from '@angular/common';
 import { debounceTime, distinctUntilChanged, Subject } from 'rxjs';
 import { ActionToolbarComponent } from '../../components/action-toolbar/action-toolbar.component';
 import {
@@ -26,6 +28,7 @@ import { FilterPanelComponent } from '../../components/filter-panel/filter-panel
 import { PageContainerComponent } from '../../components/page-container/page-container.component';
 import { PageHeaderComponent } from '../../components/page-header/page-header.component';
 import { SummaryCardComponent } from '../../components/summary-card/summary-card.component';
+import { SearchBoxComponent } from '../../components/search-box/search-box.component';
 import { MasterDetailDrawerComponent } from '../master-detail-drawer/master-detail-drawer.component';
 import {
   MasterAction,
@@ -42,15 +45,18 @@ import {
     ReactiveFormsModule,
     RouterLink,
     MatButtonModule,
+    MatCheckboxModule,
     MatFormFieldModule,
     MatPaginatorModule,
     MatSelectModule,
+    CurrencyPipe,
     ActionToolbarComponent,
     DataTableComponent,
     FilterPanelComponent,
     PageContainerComponent,
     PageHeaderComponent,
     SummaryCardComponent,
+    SearchBoxComponent,
     MasterDetailDrawerComponent,
   ],
   templateUrl: './master-page.component.html',
@@ -65,6 +71,7 @@ export class MasterPageComponent<T extends object> {
   readonly pageIndex = input(0);
   readonly pageSize = input(20);
   readonly summaries = input<MasterSummary[]>([]);
+  readonly cardImages = input<Record<string, string>>({});
   readonly action = output<MasterActionEvent<T>>();
   readonly searchChange = output<string>();
   readonly statusChange = output<'all' | 'active' | 'inactive'>();
@@ -74,6 +81,7 @@ export class MasterPageComponent<T extends object> {
   readonly loadedFilter = output<void>();
   readonly selected = signal<T[]>([]);
   readonly drawerRow = signal<T | null>(null);
+  readonly viewMode = signal<'cards' | 'table'>('cards');
   readonly statusControl = new FormControl<'all' | 'active' | 'inactive'>('all', {
     nonNullable: true,
   });
@@ -115,8 +123,37 @@ export class MasterPageComponent<T extends object> {
     this.pageChange.emit({ pageIndex: event.pageIndex, pageSize: event.pageSize });
   }
   row(event: GridRowAction<T>): void {
-    if (event.action === 'view') this.drawerRow.set(event.row);
+    if (event.action === 'view' && this.config().viewRoute)
+      this.action.emit({ action: 'view', row: event.row, rows: [event.row] });
+    else if (event.action === 'view') this.drawerRow.set(event.row);
     else this.action.emit({ action: event.action, row: event.row, rows: [event.row] });
+  }
+  open(row: T): void {
+    this.row({ action: 'view', row });
+  }
+  cardId(row: T): string {
+    return String(row[this.config().rowId]);
+  }
+  cardValue(row: T, key: keyof T & string): unknown {
+    return row[key];
+  }
+  displayCardValue(row: T, key: keyof T & string): string {
+    const value = row[key];
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    return value === null || value === undefined || value === '' ? '—' : String(value);
+  }
+  cardPrice(row: T, key: keyof T & string): number {
+    return Number(row[key] ?? 0);
+  }
+  isSelected(row: T): boolean {
+    const id = this.cardId(row);
+    return this.selected().some((item) => this.cardId(item) === id);
+  }
+  toggleCard(row: T, checked: boolean): void {
+    const id = this.cardId(row);
+    this.selected.update((items) =>
+      checked ? [...items.filter((item) => this.cardId(item) !== id), row] : items.filter((item) => this.cardId(item) !== id),
+    );
   }
   drawerEdit(): void {
     const row = this.drawerRow();

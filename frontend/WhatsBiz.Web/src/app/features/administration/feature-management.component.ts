@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { FeatureAccessState, FeatureService, FeatureTenantSummary, TenantFeatureConfiguration } from '../../core/services/feature.service';
+import { FeatureAccessState, FeatureService, FeatureTenantSummary, TenantEnrollmentResult, TenantFeatureConfiguration } from '../../core/services/feature.service';
 
 @Component({
   selector: 'app-feature-management',
@@ -19,7 +19,7 @@ export class FeatureManagementComponent implements OnInit {
   readonly tenants = signal<FeatureTenantSummary[]>([]);
   readonly configuration = signal<TenantFeatureConfiguration | null>(null);
   readonly selectedTenantId = signal('');
-  readonly loading = signal(false); readonly saving = signal(false); readonly message = signal(''); readonly error = signal('');
+  readonly loading = signal(false); readonly saving = signal(false); readonly importing = signal(false); readonly message = signal(''); readonly error = signal('');
   private original = new Map<string, boolean>();
   readonly versions = computed(() => (this.configuration()?.features ?? []).filter(x => x.featureType === 'VERSION'));
   ngOnInit(): void {
@@ -37,6 +37,19 @@ export class FeatureManagementComponent implements OnInit {
     if (!updates.length) { this.message.set('No configuration changes to save.'); return; }
     this.saving.set(true); this.error.set(''); this.message.set('');
     this.api.update(config.tenantId, updates).subscribe({ next: x => { this.configuration.set(x); this.original = new Map(x.features.map(f => [f.featureKey, f.configuredEnabled])); this.message.set('Feature configuration saved. Effective access has been refreshed.'); this.saving.set(false); }, error: e => { this.error.set(e?.error?.detail ?? 'Feature configuration could not be saved.'); this.saving.set(false); } });
+  }
+  downloadEnrollmentTemplate(): void {
+    this.error.set('');
+    this.api.enrollmentTemplate().subscribe({ next: file => { const url = URL.createObjectURL(file); const link = document.createElement('a'); link.href = url; link.download = 'tenant-enrollment-template.xlsx'; link.click(); URL.revokeObjectURL(url); }, error: () => this.error.set('Unable to download the tenant enrollment template.') });
+  }
+  importTenant(event: Event): void {
+    const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file) return;
+    this.importing.set(true); this.error.set(''); this.message.set('');
+    this.api.enrollTenant(file).subscribe({ next: result => this.enrollmentComplete(result), error: response => { this.error.set(response?.error?.detail ?? 'Tenant enrollment failed. No tenant was created.'); this.importing.set(false); input.value = ''; } });
+  }
+  private enrollmentComplete(result: TenantEnrollmentResult): void {
+    this.message.set(`Tenant ${result.tenantName} and administrator ${result.administratorUsername} were created successfully.`);
+    this.api.tenants().subscribe({ next: rows => { this.tenants.set(rows); this.select(result.tenantId); this.importing.set(false); }, error: () => { this.importing.set(false); } });
   }
   reason(feature: FeatureAccessState): string {
     if (feature.effectiveEnabled) return 'Available';

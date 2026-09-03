@@ -12,9 +12,9 @@ import { CartItem } from './pos.models';
 })
 export class PosCartGridComponent {
   readonly items = input<CartItem[]>([]);
+  readonly images = input<Record<string, string>>({});
   readonly changed = output<void>();
   readonly remove = output<CartItem>();
-  readonly duplicate = output<CartItem>();
   lineTotal(x: CartItem) {
     const base = x.quantity * x.unitPrice * (1 - x.discountPercentage / 100);
     return base * (1 + x.taxPercentage / 100);

@@ -35,6 +35,11 @@
     ><button mat-button (click)="emitAction('refresh')">
       <span class="material-symbols-rounded">refresh</span>Refresh
     </button>
+    @if (config().recentEnabled) {
+      <button mat-button (click)="emitAction('recent')">
+        <span class="material-symbols-rounded">schedule</span>Recent 5
+      </button>
+    }
     @if (config().templateEnabled) {
       <button mat-button (click)="emitAction('template')">
         <span class="material-symbols-rounded">download</span>{{
@@ -76,30 +81,113 @@
         ></mat-form-field
       ><ng-content select="[master-filters]" /></div
   ></app-filter-panel>
-  <app-data-table
-    [rows]="rows()"
-    [pagination]="false"
-    [columns]="config().columns"
-    [loading]="loading()"
-    [actions]="rowActions"
-    [emptyTitle]="'No ' + config().title.toLowerCase() + ' found'"
-    [emptyDescription]="
-      'Adjust the search or filters, or create a new ' + config().singular.toLowerCase() + '.'
-    "
-    (selectionChange)="selected.set($event)"
-    (searchChange)="queueSearch($event)"
-    (sortChange)="sortChange.emit($event)"
-    (rowAction)="row($event)"
-    (rowOpen)="drawerRow.set($event)"
-    ><a empty-action mat-flat-button color="primary" [routerLink]="config().newRoute"
-      ><span class="material-symbols-rounded">add</span>Create New</a
-    ></app-data-table
-  >
+  @if (config().cardViewEnabled) {
+    <div class="view-controls">
+      <app-search-box
+        [placeholder]="'Search ' + config().title.toLowerCase()"
+        [ariaLabel]="'Search ' + config().title"
+        (searchChange)="queueSearch($event)"
+      />
+      <div class="view-switch" aria-label="Display style">
+        <button
+          mat-button
+          [class.active]="viewMode() === 'cards'"
+          (click)="viewMode.set('cards')"
+        >
+          <span class="material-symbols-rounded">grid_view</span>Cards
+        </button>
+        <button
+          mat-button
+          [class.active]="viewMode() === 'table'"
+          (click)="viewMode.set('table')"
+        >
+          <span class="material-symbols-rounded">table_rows</span>Table
+        </button>
+      </div>
+    </div>
+  }
+  @if (config().cardViewEnabled && viewMode() === 'cards') {
+    @if (loading()) {
+      <div class="card-state">Loading {{ config().title.toLowerCase() }}…</div>
+    } @else if (!rows().length) {
+      <div class="card-state empty-card-state">
+        <span class="material-symbols-rounded">inventory_2</span>
+        <h2>No {{ config().title.toLowerCase() }} found</h2>
+        <p>Adjust the search or filters, or create a new {{ config().singular.toLowerCase() }}.</p>
+        <a mat-flat-button color="primary" [routerLink]="config().newRoute">Create New</a>
+      </div>
+    } @else {
+      <section class="master-cards" [attr.aria-label]="config().title + ' cards'">
+        @for (item of rows(); track cardId(item)) {
+          <article class="master-card" [class.selected]="isSelected(item)">
+            <mat-checkbox
+              class="card-select"
+              [checked]="isSelected(item)"
+              [attr.aria-label]="'Select ' + item[config().rowName]"
+              (change)="toggleCard(item, $event.checked)"
+            />
+            @if (config().cardImageEnabled) {
+              <div class="card-image">
+                @if (cardImages()[cardId(item)]; as image) {
+                  <img [src]="image" [alt]="item[config().rowName]" />
+                } @else {
+                  <span class="material-symbols-rounded">image</span>
+                }
+              </div>
+            }
+            <div class="card-content">
+              <div class="card-heading">
+                <div>
+                  <h2>{{ item[config().rowName] }}</h2>
+                  @if (config().cardSubtitleField) {
+                    <p>{{ item[config().cardSubtitleField!] }}</p>
+                  }
+                </div>
+                @if (config().cardPriceField) {
+                  <strong>{{ cardPrice(item, config().cardPriceField!) | currency: 'INR' }}</strong>
+                }
+              </div>
+              <dl>
+                @for (field of config().cardFields || config().detailFields.slice(0, 4); track field.key) {
+                  <div><dt>{{ field.label }}</dt><dd>{{ displayCardValue(item, field.key) }}</dd></div>
+                }
+              </dl>
+              <div class="card-actions">
+                <button mat-button (click)="open(item)">View details</button>
+                <button mat-button (click)="row({ action: 'edit', row: item })">Edit</button>
+                <button mat-button class="danger-action" (click)="row({ action: 'delete', row: item })">Delete</button>
+              </div>
+            </div>
+          </article>
+        }
+      </section>
+    }
+  } @else {
+    <app-data-table
+      [rows]="rows()"
+      [pagination]="false"
+      [columns]="config().columns"
+      [loading]="loading()"
+      [actions]="rowActions"
+      [emptyTitle]="'No ' + config().title.toLowerCase() + ' found'"
+      [emptyDescription]="
+        'Adjust the search or filters, or create a new ' + config().singular.toLowerCase() + '.'
+      "
+      (selectionChange)="selected.set($event)"
+      (searchChange)="queueSearch($event)"
+      (sortChange)="sortChange.emit($event)"
+      (rowAction)="row($event)"
+      (rowOpen)="drawerRow.set($event)"
+      ><a empty-action mat-flat-button color="primary" [routerLink]="config().newRoute"
+        ><span class="material-symbols-rounded">add</span>Create New</a
+      ></app-data-table
+    >
+  }
   <mat-paginator
     [length]="total()"
     [pageIndex]="pageIndex()"
     [pageSize]="pageSize()"
-    [pageSizeOptions]="[10, 20, 50, 100]"
+    [pageSizeOptions]="[5, 10, 20, 50, 100]"
     showFirstLastButtons
     (page)="page($event)"
 /></app-page-container>

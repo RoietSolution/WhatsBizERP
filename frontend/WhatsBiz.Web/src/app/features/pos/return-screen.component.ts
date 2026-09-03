@@ -23,6 +23,7 @@ import { Invoice } from './pos.models';
 })
 export class ReturnScreenComponent {
   readonly invoice = signal<Invoice | null>(null);
+  readonly invoiceAttempted = signal(false);
   invoiceId = '';
   reason = 'Customer return';
   quantities: Record<string, number> = {};
@@ -31,9 +32,11 @@ export class ReturnScreenComponent {
     private readonly snack: MatSnackBar,
   ) {}
   load() {
+    this.invoiceAttempted.set(true);
     const value = this.invoiceId.trim();
     if (!value) {
-      this.snack.open('Enter an invoice number or invoice ID.', undefined, { duration: 5000 });
+      this.invoice.set(null);
+      this.snack.open('Invoice Number is required.', undefined, { duration: 5000 });
       return;
     }
 
@@ -58,6 +61,7 @@ export class ReturnScreenComponent {
         return;
       }
       this.invoiceId = x.invoiceId;
+      this.invoiceAttempted.set(false);
       this.invoice.set(x);
       this.quantities = {};
     });
@@ -70,6 +74,7 @@ export class ReturnScreenComponent {
       this.snack.open('Return completed.', undefined, { duration: 3000 });
       this.invoice.set(null);
       this.invoiceId = '';
+      this.invoiceAttempted.set(false);
       this.reason = 'Customer return';
       this.quantities = {};
     });

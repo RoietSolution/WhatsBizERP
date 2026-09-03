@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  OnDestroy,
   computed,
   signal,
   viewChild,
@@ -9,7 +10,7 @@ import {
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { finalize } from 'rxjs';
+import { catchError, finalize, forkJoin, map, of } from 'rxjs';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 import {
   MasterActionEvent,
@@ -28,11 +29,12 @@ import { ProductHistoryDialogComponent } from './product-history-dialog.componen
   templateUrl: './product-list.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ProductListComponent {
+export class ProductListComponent implements OnDestroy {
   readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
   readonly items = signal<ProductListItem[]>([]);
   readonly total = signal(0);
   readonly loading = signal(false);
+  readonly cardImages = signal<Record<string, string>>({});
   readonly summaries = computed(() =>
     this.cards(
       this.items().filter((x) => x.isActive).length,
@@ -43,8 +45,8 @@ export class ProductListComponent {
   status: 'all' | 'active' | 'inactive' = 'all';
   page = 1;
   size = 20;
-  sortBy = 'productName';
-  descending = false;
+  sortBy = 'createdOn';
+  descending = true;
   readonly config: MasterPageConfig<ProductListItem> = {
     title: 'Products',
     singular: 'Product',
@@ -57,6 +59,18 @@ export class ProductListComponent {
     templateLabel: 'Product Import Template',
     importEnabled: true,
     exportEnabled: true,
+    recentEnabled: true,
+    cardViewEnabled: true,
+    cardImageEnabled: true,
+    cardSubtitleField: 'productCode',
+    cardPriceField: 'sellingPrice',
+    viewRoute: '/products',
+    cardFields: [
+      { label: 'Category', key: 'categoryName' },
+      { label: 'Brand', key: 'brandName' },
+      { label: 'Unit', key: 'unitName' },
+      { label: 'Active', key: 'isActive' },
+    ],
     columns: [
       { field: 'productCode', headerName: 'Code' },
       { field: 'productName', headerName: 'Product name', minWidth: 220 },
@@ -111,6 +125,7 @@ export class ProductListComponent {
         next: (x) => {
           this.items.set(x.items);
           this.total.set(x.totalCount);
+          this.loadCardImages(x.items);
         },
         error: () => this.snack.open('Unable to load products.', 'Dismiss', { duration: 4000 }),
       });
@@ -128,6 +143,18 @@ export class ProductListComponent {
   }
   handle(e: MasterActionEvent<ProductListItem>) {
     if (e.action === 'refresh') this.load();
+    else if (e.action === 'recent') {
+      this.search = '';
+      this.status = 'all';
+      this.page = 1;
+      this.size = 5;
+      this.sortBy = 'createdOn';
+      this.descending = true;
+      this.load();
+      this.snack.open('Showing the 5 most recently added products.', undefined, {
+        duration: 2500,
+      });
+    }
     else if (e.action === 'template')
       this.api
         .template()
@@ -149,6 +176,8 @@ export class ProductListComponent {
     else if (e.action === 'print') window.print();
     else if (e.action === 'edit' && e.row)
       this.router.navigate(['/products', e.row.productId, 'edit']);
+    else if (e.action === 'view' && e.row)
+      this.router.navigate(['/products', e.row.productId]);
     else if (e.action === 'duplicate' && e.row)
       this.router.navigate(['/products/new'], { queryParams: { copyFrom: e.row.productId } });
     else if (e.action === 'history' && e.row)
@@ -228,6 +257,30 @@ export class ProductListComponent {
         tone: 'info' as const,
       },
     ];
+  }
+  ngOnDestroy(): void {
+    this.releaseCardImages();
+  }
+  private loadCardImages(rows: ProductListItem[]): void {
+    this.releaseCardImages();
+    const requests = rows
+      .filter((row) => !!row.imageUrl)
+      .map((row) =>
+        this.api.imageByUrl(row.imageUrl!, true).pipe(
+          map((blob) => ({ id: row.productId, url: URL.createObjectURL(blob) })),
+          catchError(() => of(null)),
+        ),
+      );
+    if (!requests.length) return;
+    forkJoin(requests).subscribe((images) => {
+      const next: Record<string, string> = {};
+      for (const image of images) if (image) next[image.id] = image.url;
+      this.cardImages.set(next);
+    });
+  }
+  private releaseCardImages(): void {
+    for (const url of Object.values(this.cardImages())) URL.revokeObjectURL(url);
+    this.cardImages.set({});
   }
   private download(b: Blob, n: string) {
     const u = URL.createObjectURL(b),

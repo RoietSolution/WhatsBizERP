@@ -42,6 +42,10 @@ import {
   templateUrl: './product-form.component.html',
   styles: [
     `
+      :host {
+        display: block;
+        min-width: 0;
+      }
       header {
         display: flex;
         justify-content: space-between;
@@ -49,7 +53,16 @@ import {
       }
       form {
         display: grid;
+        min-width: 0;
         gap: 1rem;
+      }
+      mat-card,
+      mat-card-content,
+      mat-form-field {
+        min-width: 0;
+      }
+      mat-form-field {
+        width: 100%;
       }
       .grid {
         padding-top: 1rem;
@@ -173,8 +186,20 @@ import {
         overflow-wrap: anywhere;
       }
       @media (max-width: 800px) {
+        header {
+          align-items: flex-start;
+          flex-wrap: wrap;
+          gap: 0.75rem;
+        }
+        form {
+          gap: 0.75rem;
+        }
+        mat-card-content {
+          padding-inline: 12px;
+        }
         .grid {
           grid-template-columns: 1fr;
+          gap: 0;
         }
         .wide,
         .checks,
@@ -183,6 +208,31 @@ import {
         }
         .lookup-with-action {
           align-items: stretch;
+          flex-direction: column;
+        }
+        .lookup-with-action button,
+        .quick-master button {
+          width: 100%;
+        }
+        .quick-master {
+          align-items: stretch;
+          flex-direction: column;
+        }
+        .quick-master mat-form-field {
+          flex-basis: auto;
+        }
+        .checks,
+        .media {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+        .media img {
+          width: min(160px, 100%);
+          height: auto;
+          aspect-ratio: 1;
+        }
+        .codes-header {
+          align-items: flex-start;
           flex-direction: column;
         }
         .code-entry {
@@ -200,6 +250,22 @@ import {
         }
         .code-entry-actions button {
           flex: 1 1 190px;
+        }
+        footer button {
+          width: 100%;
+        }
+      }
+      @media (max-width: 480px) {
+        header {
+          flex-direction: column;
+        }
+        header a,
+        .code-entry-actions button {
+          width: 100%;
+        }
+        .code-value {
+          min-width: 150px;
+          max-width: 60vw;
         }
       }
     `,

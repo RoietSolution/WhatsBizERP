@@ -16,6 +16,18 @@ import { PaperSize } from '../printing/paper-size';
         width: 100%;
         min-width: 800px;
       }
+      .print-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 52px;
+      }
+      .print-size {
+        --mat-button-outlined-container-height: 30px;
+        min-width: 44px;
+        padding-inline: 8px;
+        font-size: 12px;
+      }
     `,
   ],
 })

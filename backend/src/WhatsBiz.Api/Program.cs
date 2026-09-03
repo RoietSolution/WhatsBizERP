@@ -91,6 +91,7 @@ try
     builder.Services.AddMemoryCache(options => options.SizeLimit = 1024);
     builder.Services.AddOptions<GlobalFeatureOptions>().Bind(builder.Configuration.GetSection(GlobalFeatureOptions.SectionName));
     builder.Services.AddScoped<IFeatureService, FeatureService>();
+    builder.Services.AddScoped<ITenantEnrollmentService, TenantEnrollmentService>();
     builder.Services.AddScoped<IAuthorizationHandler, FeatureAuthorizationHandler>();
     builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
     builder.Services.AddScoped<IGstRepository, GstRepository>();

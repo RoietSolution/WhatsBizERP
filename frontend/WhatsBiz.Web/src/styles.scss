@@ -127,7 +127,6 @@ a {
 .mat-mdc-form-field:has(.ng-invalid:not(form)) .mdc-notched-outline__notch,
 .mat-mdc-form-field:has(.ng-invalid:not(form)) .mdc-notched-outline__trailing {
   border-color: var(--wb-danger) !important;
-  border-width: 2px !important;
 }
 
 input:not([matinput]).ng-invalid,

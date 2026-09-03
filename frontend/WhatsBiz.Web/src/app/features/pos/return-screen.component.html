@@ -2,7 +2,17 @@
 <div>
   <mat-form-field
     ><mat-label>Invoice Number or ID</mat-label
-    ><input matInput [(ngModel)]="invoiceId" /></mat-form-field
+    ><input
+      matInput
+      required
+      aria-required="true"
+      [(ngModel)]="invoiceId"
+      #invoiceNumber="ngModel"
+    />
+    @if (invoiceNumber.invalid && (invoiceNumber.touched || invoiceAttempted())) {
+      <mat-error>Invoice Number is required.</mat-error>
+    }
+  </mat-form-field
   ><button mat-button (click)="load()">Load</button>
 </div>
 @if (invoice(); as x) {

@@ -26,6 +26,10 @@
   gap: 8px;
 }
 @media (max-width: 767px) {
+  .toolbar--sticky {
+    position: static;
+    box-shadow: var(--wb-shadow-sm);
+  }
   .toolbar {
     align-items: stretch;
     flex-direction: column;

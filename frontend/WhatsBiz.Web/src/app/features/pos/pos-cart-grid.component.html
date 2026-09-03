@@ -14,12 +14,19 @@
     </div>
     @for (item of items(); track item.productId; let i = $index) {
       <div class="grid-row" role="row">
-        <span class="product-image material-symbols-rounded">inventory_2</span
+        <span class="product-image">
+          @if (images()[item.productId]; as image) {
+            <img [src]="image" [alt]="item.productName" />
+          } @else {
+            <span class="material-symbols-rounded">inventory_2</span>
+          }
+        </span
         ><span class="barcode">{{ item.barcode || '—' }}</span
         ><span class="product"
           ><strong>{{ item.productName }}</strong
           ><small>{{ item.productCode }}</small></span
-        ><label
+        ><div class="line-editors"
+          ><label class="quantity-control"
           ><span class="mobile-label">Qty</span
           ><input
             [attr.aria-label]="'Quantity for ' + item.productName"
@@ -28,8 +35,7 @@
             step="1"
             [(ngModel)]="item.quantity"
             (change)="changed.emit()" /></label
-        ><span>Unit</span><span>{{ item.mrp | currency: 'INR' : 'symbol' : '1.2-2' }}</span
-        ><label
+          ><label class="discount-control"
           ><span class="mobile-label">Discount</span
           ><input
             [attr.aria-label]="'Discount for ' + item.productName"
@@ -37,21 +43,17 @@
             min="0"
             max="100"
             [(ngModel)]="item.discountPercentage"
-            (change)="changed.emit()" /></label
-        ><span>{{ item.taxPercentage }}%</span
-        ><strong>{{ lineTotal(item) | currency: 'INR' : 'symbol' : '1.2-2' }}</strong
+            (change)="changed.emit()" /></label></div
+        ><span class="unit">Unit</span
+        ><span class="mrp">{{ item.mrp | currency: 'INR' : 'symbol' : '1.2-2' }}</span
+        ><span class="gst">{{ item.taxPercentage }}%</span
+        ><strong class="amount">{{ lineTotal(item) | currency: 'INR' : 'symbol' : '1.2-2' }}</strong
         ><span class="row-actions"
           ><button
             mat-icon-button
             type="button"
-            [attr.aria-label]="'Duplicate ' + item.productName"
-            (click)="duplicate.emit(item)"
-          >
-            <span class="material-symbols-rounded">content_copy</span></button
-          ><button
-            mat-icon-button
-            type="button"
             [attr.aria-label]="'Delete ' + item.productName"
+            title="Remove item"
             (click)="remove.emit(item)"
           >
             <span class="material-symbols-rounded">delete</span>

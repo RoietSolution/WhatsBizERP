@@ -35,6 +35,9 @@ export class POSApiService {
     if (size) params = params.set('size', size);
     return this.http.get<POSProduct[]>('/api/pos/products', { params });
   }
+  productImage(productId: string) {
+    return this.http.get(`/api/pos/products/${productId}/image`, { responseType: 'blob' });
+  }
   customers(search?: string) {
     let params = new HttpParams();
     if (search) params = params.set('search', search);

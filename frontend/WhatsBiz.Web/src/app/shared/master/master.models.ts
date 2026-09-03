@@ -5,6 +5,7 @@ export type MasterAction =
   | 'edit'
   | 'delete'
   | 'refresh'
+  | 'recent'
   | 'template'
   | 'import'
   | 'export'
@@ -29,6 +30,13 @@ export interface MasterPageConfig<T extends object> {
   importEnabled?: boolean;
   exportEnabled?: boolean;
   printEnabled?: boolean;
+  cardViewEnabled?: boolean;
+  cardImageEnabled?: boolean;
+  cardSubtitleField?: keyof T & string;
+  cardPriceField?: keyof T & string;
+  cardFields?: MasterDetailField<T>[];
+  viewRoute?: string;
+  recentEnabled?: boolean;
 }
 export interface MasterDetailField<T extends object> {
   label: string;

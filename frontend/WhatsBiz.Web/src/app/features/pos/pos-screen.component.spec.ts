@@ -1,4 +1,4 @@
-import { of, throwError } from 'rxjs';
+import { EMPTY, of, throwError } from 'rxjs';
 import { POSApiService } from './pos-api.service';
 import { PaymentMethod, POSProduct } from './pos.models';
 import { POSScreenComponent } from './pos-screen.component';
@@ -10,6 +10,7 @@ describe('POSScreenComponent barcode flow', () => {
       'methods',
       'warehouses',
       'products',
+      'productImage',
       'customers',
       'quickCustomer',
       'invoice',
@@ -20,6 +21,7 @@ describe('POSScreenComponent barcode flow', () => {
     api.warehouses.and.returnValue(
       of([{ warehouseId: 'warehouse-1', warehouseName: 'Main', isDefault: true }]),
     );
+    api.productImage.and.returnValue(EMPTY);
     const snack = jasmine.createSpyObj('MatSnackBar', ['open']);
     const dialog = jasmine.createSpyObj('MatDialog', ['open']);
     const router = jasmine.createSpyObj('Router', ['navigate']);
@@ -28,7 +30,7 @@ describe('POSScreenComponent barcode flow', () => {
       'play',
     ]);
     const component = new POSScreenComponent(api, dialog, snack, router, sound);
-    return { api, component, snack, sound };
+    return { api, component, dialog, snack, sound };
   }
 
   it('adds an exact camera barcode match and increments the same cart line on a later scan', () => {
@@ -92,6 +94,28 @@ describe('POSScreenComponent barcode flow', () => {
 
     expect(api.products).toHaveBeenCalledWith('Test', undefined, 'warehouse-1');
     expect(component.products()).toHaveSize(1);
+  });
+
+  it('loads a product thumbnail only once when an item is added repeatedly', () => {
+    const { api, component } = setup();
+
+    component.add(product());
+    component.add(product());
+
+    expect(api.productImage).toHaveBeenCalledOnceWith('product-1');
+  });
+
+  it('asks for confirmation before removing a bill item', () => {
+    const { component, dialog } = setup();
+    component.add(product());
+    dialog.open.and.returnValue({ afterClosed: () => of(false) } as never);
+
+    component.remove(component.cart()[0]);
+
+    expect(component.cart()).toHaveSize(1);
+    dialog.open.and.returnValue({ afterClosed: () => of(true) } as never);
+    component.remove(component.cart()[0]);
+    expect(component.cart()).toEqual([]);
   });
 
   it('looks up manufacturer QR content exactly through the existing POS API', () => {

@@ -52,10 +52,7 @@ export class LoginComponent {
     this.error.set('');
     this.loading.set(true);
     this.authentication.login(this.username.value.trim(), this.password.value).subscribe({
-      next: (session) =>
-        void this.router.navigateByUrl(
-          session.user.permissions.includes('feature.manage') ? '/admin/features' : '/dashboard',
-        ),
+      next: () => void this.router.navigateByUrl('/dashboard'),
       error: (response: HttpErrorResponse) => {
         this.loading.set(false);
         this.error.set(

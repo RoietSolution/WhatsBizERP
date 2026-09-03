@@ -20,6 +20,9 @@ describe('ProductListComponent', () => {
     const component = TestBed.runInInjectionContext(
       () => new ProductListComponent(api, snack, dialog, router),
     );
+    expect(api.search).toHaveBeenCalledWith(
+      jasmine.objectContaining({ sortBy: 'createdOn', descending: true, pageNumber: 1 }),
+    );
     const download = spyOn(
       component as unknown as { download(file: Blob, name: string): void },
       'download',

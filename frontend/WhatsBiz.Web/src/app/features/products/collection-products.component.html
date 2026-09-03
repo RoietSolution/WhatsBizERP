@@ -1,1 +1,113 @@
-<app-page-container><app-page-header [title]="(collection()?.name||'Collection')+' products'" description="Add or remove existing tenant products from this collection."><a mat-button routerLink="/products/collections">Back to collections</a></app-page-header><div class="toolbar"><mat-form-field appearance="outline"><mat-label>Search products</mat-label><input matInput [(ngModel)]="search" (keyup.enter)="searchProducts()" /></mat-form-field><button mat-button (click)="searchProducts()">Search</button><button mat-flat-button color="primary" (click)="add()" [disabled]="!selected().size">Add selected ({{selected().size}})</button></div><div class="grid">@for(product of products();track product.productId){<article class="product" [class.selected]="selected().has(product.productId)"><input type="checkbox" [checked]="selected().has(product.productId)||has(product.productId)" [disabled]="has(product.productId)" (change)="toggle(product.productId)" />@if(product.imageUrl){<img [src]="product.imageUrl" [alt]="product.productName" />}@else{<span class="placeholder material-symbols-rounded">inventory_2</span>}<div class="product-info"><strong>{{product.productName}}</strong><small>{{product.productCode}} · {{product.categoryName}}</small><small>{{product.sellingPrice|currency:'INR'}}</small>@if(has(product.productId)){<span class="existing">Already in collection</span>}</div></article>}@empty{<p class="empty">No active products found.</p>}</div><h3>Current products ({{members().length}})</h3><div class="grid">@for(item of members();track item.productId){<article class="product"><div class="product-info"><strong>{{item.productName}}</strong><small>{{item.productCode}} · {{item.categoryName}} · {{item.sellingPrice|currency:'INR'}}</small></div><button mat-button color="warn" (click)="remove(item)">Remove</button></article>}@empty{<p class="empty">No products belong to this collection.</p>}</div></app-page-container>
+<app-page-container>
+  <app-page-header
+    [title]="(collection()?.name || 'Collection') + ' products'"
+    description="Add or remove existing tenant products from this collection."
+  >
+    <a mat-button routerLink="/products/collections">Back to collections</a>
+  </app-page-header>
+
+  <div class="section-heading">
+    <div>
+      <h2>Products in this collection ({{ members().length }})</h2>
+      <p>Select a product card to open its full details.</p>
+    </div>
+  </div>
+  <div class="grid">
+    @for (item of members(); track item.productId) {
+      <article
+        class="product"
+        role="link"
+        tabindex="0"
+        (click)="openProduct(item.productId)"
+        (keydown.enter)="openProduct(item.productId)"
+        (keydown.space)="openProduct(item.productId); $event.preventDefault()"
+      >
+        <button
+          mat-icon-button
+          type="button"
+          class="membership-action remove-action"
+          [attr.aria-label]="'Remove ' + item.productName + ' from collection'"
+          (click)="$event.stopPropagation(); remove(item)"
+        >
+          <span class="material-symbols-rounded">remove_circle</span>
+        </button>
+        @if (item.imageUrl) {
+          <img [src]="item.imageUrl" [alt]="item.productName" />
+        } @else {
+          <span class="placeholder material-symbols-rounded">inventory_2</span>
+        }
+        <div class="product-info">
+          <strong>{{ item.productName }}</strong>
+          <small>{{ item.productCode }} · {{ item.categoryName }}</small>
+          <small>{{ item.sellingPrice | currency: 'INR' }}</small>
+        </div>
+      </article>
+    } @empty {
+      <p class="empty">No products belong to this collection yet.</p>
+    }
+  </div>
+
+  <div class="section-heading">
+    <div>
+      <h2>Add more products</h2>
+      <p>Only products that are not already in this collection are shown below.</p>
+    </div>
+  </div>
+  <div class="toolbar">
+    <mat-form-field appearance="outline">
+      <mat-label>Search products</mat-label>
+      <input matInput [(ngModel)]="search" (keyup.enter)="searchProducts()" />
+    </mat-form-field>
+    <button mat-button type="button" (click)="searchProducts()">Search</button>
+    <button
+      mat-flat-button
+      color="primary"
+      type="button"
+      (click)="add()"
+      [disabled]="!selected().size"
+    >
+      Add selected ({{ selected().size }})
+    </button>
+  </div>
+  <div class="grid">
+    @for (product of availableProducts(); track product.productId) {
+      <article
+        class="product"
+        [class.selected]="selected().has(product.productId)"
+        role="link"
+        tabindex="0"
+        (click)="openProduct(product.productId)"
+        (keydown.enter)="openProduct(product.productId)"
+        (keydown.space)="openProduct(product.productId); $event.preventDefault()"
+      >
+        <button
+          mat-icon-button
+          type="button"
+          class="membership-action add-action"
+          [class.active]="selected().has(product.productId)"
+          [attr.aria-pressed]="selected().has(product.productId)"
+          [attr.aria-label]="
+            (selected().has(product.productId) ? 'Unselect ' : 'Select ') + product.productName
+          "
+          (click)="$event.stopPropagation(); toggle(product.productId)"
+        >
+          <span class="material-symbols-rounded">{{
+            selected().has(product.productId) ? 'check_circle' : 'add_circle'
+          }}</span>
+        </button>
+        @if (product.imageUrl) {
+          <img [src]="product.imageUrl" [alt]="product.productName" />
+        } @else {
+          <span class="placeholder material-symbols-rounded">inventory_2</span>
+        }
+        <div class="product-info">
+          <strong>{{ product.productName }}</strong>
+          <small>{{ product.productCode }} · {{ product.categoryName }}</small>
+          <small>{{ product.sellingPrice | currency: 'INR' }}</small>
+        </div>
+      </article>
+    } @empty {
+      <p class="empty">No additional active WhatsApp-visible products found.</p>
+    }
+  </div>
+</app-page-container>

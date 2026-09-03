@@ -48,6 +48,14 @@
             </div>
           }
         </div>
+        <mat-form-field class="warehouse-control" appearance="outline" subscriptSizing="dynamic"
+          ><mat-label>Warehouse</mat-label
+          ><mat-select [(ngModel)]="warehouseId">
+            @for (x of warehouses(); track x.warehouseId) {
+              <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
+            }
+          </mat-select></mat-form-field
+        >
         <button mat-stroked-button class="quick-customer" type="button" (click)="quickCustomer()">
           <span class="material-symbols-rounded">person_add</span>Quick Customer
         </button>
@@ -116,20 +124,13 @@
           ><mat-select value="all"
             ><mat-option value="all">All brands</mat-option></mat-select
           ></mat-form-field
-        ><mat-form-field appearance="outline" subscriptSizing="dynamic"
-          ><mat-label>Warehouse</mat-label
-          ><mat-select [(ngModel)]="warehouseId">
-            @for (x of warehouses(); track x.warehouseId) {
-              <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
-            }
-          </mat-select></mat-form-field
         >
       </section>
       <app-pos-cart-grid
         [items]="cart()"
+        [images]="productImages()"
         (changed)="refresh()"
         (remove)="remove($event)"
-        (duplicate)="duplicate($event)"
       />
       <details class="remarks">
         <summary>

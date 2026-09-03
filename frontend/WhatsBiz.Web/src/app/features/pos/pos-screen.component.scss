@@ -77,7 +77,7 @@ app-pos-summary,
 }
 .customer-card {
   display: grid;
-  grid-template-columns: auto minmax(180px, 1fr) minmax(220px, 340px) auto;
+  grid-template-columns: auto minmax(180px, 1fr) minmax(220px, 320px) minmax(160px, 220px) auto;
   gap: 10px;
   margin-bottom: 8px;
   padding: 10px 12px;
@@ -109,6 +109,7 @@ app-pos-summary,
   position: relative;
 }
 .customer-search mat-form-field,
+.warehouse-control,
 .quick-customer {
   width: 100%;
   min-height: 56px;
@@ -171,7 +172,7 @@ app-pos-summary,
 }
 .search-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) repeat(3, minmax(96px, 0.65fr));
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) repeat(2, minmax(96px, 0.65fr));
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -330,6 +331,7 @@ app-pos-summary,
     font-size: 20px;
   }
   .customer-search mat-form-field,
+  .warehouse-control,
   .quick-customer,
   .camera-scan {
     min-height: 44px;
@@ -405,7 +407,7 @@ app-pos-summary,
     grid-template-areas:
       'icon info'
       'search search'
-      'quick quick';
+      'warehouse quick';
   }
   .customer-icon {
     grid-area: icon;
@@ -416,6 +418,10 @@ app-pos-summary,
   }
   .customer-search {
     grid-area: search;
+  }
+  .warehouse-control {
+    grid-area: warehouse;
+    width: 100%;
   }
   .customer-card > button {
     grid-area: quick;
@@ -442,6 +448,7 @@ app-pos-summary,
     grid-template-columns: auto 1fr;
   }
   .customer-card > button,
+  .warehouse-control,
   .search-panel > *,
   .barcode-field,
   .product-lookup {

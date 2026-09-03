@@ -119,6 +119,27 @@ a {
   font-weight: 700;
 }
 
+/* Required and otherwise invalid controls must be visually unmistakable. */
+.mat-mdc-form-field.mat-form-field-invalid .mdc-notched-outline__leading,
+.mat-mdc-form-field.mat-form-field-invalid .mdc-notched-outline__notch,
+.mat-mdc-form-field.mat-form-field-invalid .mdc-notched-outline__trailing,
+.mat-mdc-form-field:has(.ng-invalid:not(form)) .mdc-notched-outline__leading,
+.mat-mdc-form-field:has(.ng-invalid:not(form)) .mdc-notched-outline__notch,
+.mat-mdc-form-field:has(.ng-invalid:not(form)) .mdc-notched-outline__trailing {
+  border-color: var(--wb-danger) !important;
+  border-width: 2px !important;
+}
+
+input:not([matinput]).ng-invalid,
+select.ng-invalid,
+textarea:not([matinput]).ng-invalid,
+input:not([matinput])[aria-invalid='true'],
+select[aria-invalid='true'],
+textarea:not([matinput])[aria-invalid='true'] {
+  border-color: var(--wb-danger) !important;
+  outline-color: var(--wb-danger);
+}
+
 /* Keep reusable Material controls inside responsive grid/flex cells. */
 @media (max-width: 767px) {
   .mat-mdc-form-field {

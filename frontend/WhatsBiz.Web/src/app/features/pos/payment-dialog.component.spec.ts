@@ -1,3 +1,6 @@
+import { fakeAsync, tick } from '@angular/core/testing';
+import { of, throwError } from 'rxjs';
+import { POSApiService } from './pos-api.service';
 import { PaymentDialogComponent, PaymentResult } from './payment-dialog.component';
 import { PaymentMethod } from './pos.models';
 
@@ -10,42 +13,78 @@ describe('PaymentDialogComponent', () => {
     { paymentMethodId: 'credit', methodCode: 'CREDIT', methodName: 'Credit', requiresReference: false },
   ];
 
-  it('requires a reference before adding UPI, card, or wallet payments', () => {
-    for (const method of ['UPI', 'CARD', 'WALLET']) {
-      const { component } = create(method, true);
-      component.add();
-      expect(component.payments()).withContext(method).toEqual([]);
-      component.reference = `${method}-TXN`;
-      component.add();
-      expect(component.payments()[0].methodCode).withContext(method).toBe(method);
-    }
+  it('keeps only Cash and UPI as tender lines and marks Split as a workflow', () => {
+    const { component } = create('SPLIT');
+
+    expect(component.visibleMethods.map((method) => method.methodCode)).toEqual(['CASH', 'UPI']);
+    expect(component.splitPayment).toBeTrue();
+    expect(component.method).toBe('CASH');
   });
 
-  it('records credit as an outstanding balance rather than a payment', () => {
-    const { component, ref } = create('CREDIT', true);
+  it('requires a reference before adding a UPI payment', fakeAsync(() => {
+    const { component } = create('UPI');
+    tick(200);
 
+    component.add();
+    expect(component.payments()).toEqual([]);
+
+    component.reference = 'UPI-TXN-1';
+    component.add();
+    expect(component.payments()).toEqual([
+      { methodCode: 'UPI', amount: 118, referenceNumber: 'UPI-TXN-1' },
+    ]);
+  }));
+
+  it('loads a payable QR for the selected UPI amount', fakeAsync(() => {
+    const { component, api } = create('UPI');
+
+    tick(200);
+
+    expect(api.upiQr).toHaveBeenCalledWith(118);
+    expect(component.upiQrUrl()).toBe('data:image/svg+xml;base64,PHN2Zy8+');
+    expect(component.upiQrError()).toBe('');
+  }));
+
+  it('shows a friendly message when retailer UPI configuration is missing', fakeAsync(() => {
+    const { component, api } = create('UPI');
+    api.upiQr.and.returnValue(throwError(() => new Error('not configured')));
+    component.paymentAmountChanged();
+
+    tick(200);
+
+    expect(component.upiQrUrl()).toBe('');
+    expect(component.upiQrError()).toContain('POS UPI ID');
+  }));
+
+  it('completes only after Cash and/or UPI lines cover the bill', () => {
+    const { component, ref } = create('CASH');
+    expect(component.canComplete()).toBeFalse();
+
+    component.add();
+    expect(component.canComplete()).toBeTrue();
     component.complete();
 
     const result = ref.close.calls.mostRecent().args[0] as PaymentResult;
-    expect(result.isCreditSale).toBeTrue();
-    expect(result.payments).toEqual([]);
+    expect(result.isCreditSale).toBeFalse();
+    expect(result.payments).toEqual([{ methodCode: 'CASH', amount: 118, referenceNumber: undefined }]);
   });
 
-  it('does not allow credit without a selected customer', () => {
-    const { component, ref } = create('CREDIT', false);
-
-    component.complete();
-
-    expect(ref.close).not.toHaveBeenCalled();
-    expect(component.canComplete()).toBeFalse();
-  });
-
-  function create(preferredMethod: string, hasCustomer: boolean) {
+  function create(preferredMethod: string) {
     const ref = jasmine.createSpyObj('MatDialogRef', ['close']);
-    const component = new PaymentDialogComponent(
-      { total: 118, methods, preferredMethod, hasCustomer },
-      ref,
+    const api = jasmine.createSpyObj<POSApiService>('POSApiService', ['upiQr']);
+    api.upiQr.and.returnValue(
+      of({
+        qrCodeDataUrl: 'data:image/svg+xml;base64,PHN2Zy8+',
+        upiId: 'shop@upi',
+        payeeName: 'Demo Shop',
+        amount: 118,
+      }),
     );
-    return { component, ref };
+    const component = new PaymentDialogComponent(
+      { total: 118, methods, preferredMethod, hasCustomer: true },
+      ref,
+      api,
+    );
+    return { component, ref, api };
   }
 });

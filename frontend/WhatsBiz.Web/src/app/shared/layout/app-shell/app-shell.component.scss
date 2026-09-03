@@ -7,9 +7,13 @@ mat-sidenav-container {
   background: var(--wb-background);
 }
 mat-sidenav {
-  width: auto;
+  width: var(--wb-sidebar-width);
   background: var(--wb-sidebar);
   border-radius: 0;
+  transition: width var(--wb-motion);
+}
+.sidebar-collapsed mat-sidenav {
+  width: var(--wb-sidebar-collapsed-width);
 }
 mat-sidenav-content {
   display: flex;
@@ -45,6 +49,23 @@ footer {
   color: var(--wb-text-secondary);
   border-top: 1px solid var(--wb-border);
   font-size: 0.75rem;
+}
+@media (min-width: 1200px) {
+  .pos-sale-layout .content-frame {
+    height: calc(100dvh - var(--wb-header-height));
+    min-height: 0;
+    overflow: hidden;
+  }
+  .pos-sale-layout app-breadcrumb,
+  .pos-sale-layout .content-frame > footer {
+    display: none;
+  }
+  .pos-sale-layout main {
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 8px;
+    padding-bottom: 0;
+  }
 }
 @media (max-width: 767px) {
   main {

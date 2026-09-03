@@ -9,7 +9,9 @@ using WhatsBiz.SharedKernel;
 namespace WhatsBiz.Api.Controllers;
 
 [ApiController, Route("api/whatsapp-commerce"), RequireFeature(FeatureKeys.WhatsAppCommerce)]
-public sealed class WhatsAppCommerceController(IWhatsAppCommerceService service, ICommerceAnalyticsService analytics, ICurrentUserService currentUser,IDeliveryService delivery,IFeatureService features) : ControllerBase
+public sealed partial class WhatsAppCommerceController(IWhatsAppCommerceService service, ICommerceAnalyticsService analytics,
+    ICurrentUserService currentUser, IDeliveryService delivery, IFeatureService features,
+    ILogger<WhatsAppCommerceController> logger) : ControllerBase
 {
     [HttpGet("demo/setup"), HasPermission(Permissions.POS.View), RequireFeature(FeatureKeys.CommerceProductSearch), RequireFeature(FeatureKeys.WhatsAppCommerceDemo)]
     public Task<WhatsAppCommerceSetup> Setup([FromQuery] Guid? warehouseId, CancellationToken token) => service.GetSetupAsync(TenantId(), warehouseId, token);
@@ -17,7 +19,33 @@ public sealed class WhatsAppCommerceController(IWhatsAppCommerceService service,
     public Task<WhatsAppCommerceCart> Cart(CalculateWhatsAppCartInput input, CancellationToken token) => service.CalculateCartAsync(TenantId(), input.WarehouseId, input.Items, token);
     [HttpPost("demo/orders"), HasPermission(Permissions.POS.Create), RequireFeature(FeatureKeys.CommerceOrders), RequireFeature(FeatureKeys.WhatsAppCommerceDemo)]
     public async Task<WhatsAppCommerceOrderResult> Order(PlaceWhatsAppDemoOrderInput input, CancellationToken token)
-    { var result=await service.PlaceOrderAsync(TenantId(),input,currentUser.Username,token);if(!input.FulfillmentMethod.Equals("WALK_IN",StringComparison.OrdinalIgnoreCase)&&await features.IsEnabledAsync(TenantId(),FeatureKeys.DeliveryManagement,token))await delivery.Ready(TenantId(),result.OrderId,new(DeliveryAddress:input.DeliveryAddress,CodRequired:input.PaymentType.Equals("COD",StringComparison.OrdinalIgnoreCase)),currentUser.UserId??throw new UnauthorizedAccessException("A user identity is required."),currentUser.Username??"WhatsApp Commerce",token);return result; }
+    {
+        var tenantId = TenantId();
+        var result = await service.PlaceOrderAsync(tenantId, input, currentUser.Username, token);
+
+        // The ERP order is already committed at this point. Delivery registration is a
+        // follow-up integration and must not turn a successful checkout into an error.
+        if (!input.FulfillmentMethod.Equals("WALK_IN", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                if (await features.IsEnabledAsync(tenantId, FeatureKeys.DeliveryManagement, token))
+                {
+                    await delivery.Ready(tenantId, result.OrderId,
+                        new(DeliveryAddress: input.DeliveryAddress,
+                            CodRequired: input.PaymentType.Equals("COD", StringComparison.OrdinalIgnoreCase)),
+                        currentUser.UserId ?? throw new UnauthorizedAccessException("A user identity is required."),
+                        currentUser.Username ?? "WhatsApp Commerce", token);
+                }
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                LogDeliveryRegistrationFailure(logger, exception, result.OrderId, tenantId);
+            }
+        }
+
+        return result;
+    }
     [HttpGet("demo/readiness"), HasPermission(Permissions.POS.View), RequireFeature(FeatureKeys.WebhookDiagnostics), RequireFeature(FeatureKeys.WhatsAppCommerceDemo)]
     public Task<WhatsAppCommerceReadiness> Readiness(CancellationToken token) => service.GetReadinessAsync(TenantId(), token);
     [HttpGet("demo/orders"), HasPermission(Permissions.POS.View), RequireFeature(FeatureKeys.CommerceOrders)]
@@ -34,5 +62,10 @@ public sealed class WhatsAppCommerceController(IWhatsAppCommerceService service,
     public async Task<IActionResult> Analytics(CommerceAnalyticsEventInput input, CancellationToken token)
     { await analytics.RecordAsync(TenantId(), input, token); return NoContent(); }
     private Guid TenantId() => currentUser.TenantId ?? throw new UnauthorizedAccessException("A tenant context is required.");
+
+    [LoggerMessage(2301, LogLevel.Error,
+        "WhatsApp MOCK order {OrderId} was created, but delivery registration failed for tenant {TenantId}.")]
+    private static partial void LogDeliveryRegistrationFailure(ILogger logger, Exception exception,
+        Guid orderId, Guid tenantId);
 }
 public sealed record CalculateWhatsAppCartInput(Guid WarehouseId, IReadOnlyCollection<WhatsAppCommerceCartItem> Items);

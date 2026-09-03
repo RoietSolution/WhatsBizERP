@@ -68,6 +68,6 @@ public interface IWhatsAppService
     Task<IReadOnlyCollection<RetailerWhatsAppConnectionDto>> GetRetailerConnectionsAsync(CancellationToken token);
     Task<PagedWhatsAppContacts> GetContactsAsync(Guid tenantId, string? search, string? status, int pageNumber, int pageSize, CancellationToken token);
     Task<WhatsAppContactDto> LinkContactAsync(Guid tenantId, Guid contactId, Guid customerId, string? actor, CancellationToken token);
-    Task<string?> VerifyWebhookAsync(string mode, string verifyToken, string challenge, CancellationToken token);
+    Task<string?> VerifyWebhookAsync(string? mode, string? verifyToken, string? challenge, CancellationToken token);
     Task<bool> ReceiveWebhookAsync(string? signature, ReadOnlyMemory<byte> body, CancellationToken token);
 }

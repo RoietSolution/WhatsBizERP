@@ -1,4 +1,4 @@
-<app-page-container wide>
+<app-page-container wide fill>
   <header class="pos-header">
     <div>
       <span class="material-symbols-rounded">point_of_sale</span>
@@ -71,9 +71,12 @@
             color="primary"
             class="camera-scan"
             type="button"
+            aria-label="Scan barcode with camera"
+            title="Scan barcode with camera"
             (click)="openCameraScanner()"
           >
-            <span class="material-symbols-rounded">photo_camera</span>Scan Barcode
+            <span class="material-symbols-rounded">photo_camera</span
+            ><span class="camera-scan-label">Scan Barcode</span>
           </button>
         </div>
         <div class="product-lookup">
@@ -127,10 +130,18 @@
         (changed)="refresh()"
         (remove)="remove($event)"
         (duplicate)="duplicate($event)"
-      /><mat-form-field class="remarks" appearance="outline"
-        ><mat-label>Bill remarks</mat-label
-        ><textarea matInput rows="2" [(ngModel)]="remarks"></textarea>
-      </mat-form-field>
+      />
+      <details class="remarks">
+        <summary>
+          <span><span class="material-symbols-rounded">edit_note</span>Bill remarks</span>
+          <small>{{ remarks || 'Optional — expand to add' }}</small>
+          <span class="material-symbols-rounded remarks-toggle">expand_more</span>
+        </summary>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Bill remarks</mat-label>
+          <textarea matInput rows="2" [(ngModel)]="remarks"></textarea>
+        </mat-form-field>
+      </details>
     </section>
     <app-pos-summary
       [subtotal]="subtotal()"

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Net;
 using WhatsBiz.Api.Authorization;
 using WhatsBiz.Api.Controllers;
 using WhatsBiz.Application;
@@ -89,10 +90,55 @@ public sealed class DemoRequestTests
         sender.Emails[1].Body.Should().Contain("alt=\"KhataDhari\"");
         sender.Emails[1].Body.Should().Contain($"src=\"{FeatureImageUrl}\"");
         sender.Emails[1].Body.Should().Contain("alt=\"KhataDhari All-in-One Retail ERP and WhatsApp Commerce Features\"");
-        sender.Emails[1].Body.IndexOf("What happens next?", StringComparison.Ordinal)
+        sender.Emails[1].Body.IndexOf("What Happens Next?", StringComparison.Ordinal)
             .Should().BeLessThan(sender.Emails[1].Body.IndexOf(FeatureImageUrl, StringComparison.Ordinal));
         sender.Emails[1].Body.IndexOf(FeatureImageUrl, StringComparison.Ordinal)
             .Should().BeLessThan(sender.Emails[1].Body.IndexOf("KhataDhari Team", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AcknowledgementContainsRefinedCopyStepsReferenceAndOfficialContactsWithoutDemoCta()
+    {
+        var sender = new FakeEmailSender();
+
+        await NotificationService(sender).NotifyAsync(Detail("requester@example.com"), CancellationToken.None);
+
+        var body = sender.Emails.Single(x => x.Recipient == "requester@example.com").Body;
+        var rendered = WebUtility.HtmlDecode(body);
+        rendered.Should().Contain("Thank You for Your Demo Request!");
+        rendered.Should().Contain("Hi Rahul Sharma,");
+        rendered.Should().Contain("Thank you for your interest in KhataDhari.");
+        rendered.Should().Contain("We have successfully received your request for a Free Demo. Our team will contact you shortly to understand your business requirements and schedule a convenient time for your personalized demonstration.");
+        rendered.Should().Contain("Reference:</strong> KD-000123");
+        rendered.Should().ContainAll(
+            "We’ll Contact You",
+            "Personalized Demo",
+            "WhatsApp Ecommerce Experience",
+            "Explore Retail ERP");
+        rendered.Should().ContainAll(
+            "Our team will connect with you to understand your business and current workflow.",
+            "We’ll demonstrate the KhataDhari features most relevant to your business.",
+            "See how customers can discover products and place orders through WhatsApp while your products, inventory, billing and orders remain connected.",
+            "See inventory management, billing, customers, reports, barcode scanning and other retail operations in action.");
+        body.Should().Contain($"src=\"{FeatureImageUrl}\"");
+        body.Should().Contain("href=\"https://www.khatadhari.com\"");
+        body.Should().Contain("href=\"mailto:support@khatadhari.com\"");
+        body.Should().NotContain("<button");
+        rendered.Should().NotContain("Book Demo").And.NotContain("Book Free Demo");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task AcknowledgementUsesFriendlyGreetingWhenCustomerNameIsUnavailable(string? name)
+    {
+        var sender = new FakeEmailSender();
+        var request = Detail("requester@example.com") with { Name = name! };
+
+        await NotificationService(sender).NotifyAsync(request, CancellationToken.None);
+
+        sender.Emails.Single(x => x.Recipient == "requester@example.com").Body.Should().Contain("Hi there,");
     }
 
     [Theory]
@@ -110,7 +156,7 @@ public sealed class DemoRequestTests
         var acknowledgement = sender.Emails.Single(x => x.Recipient == "requester@example.com");
         acknowledgement.IsBodyHtml.Should().BeTrue();
         acknowledgement.Body.Should().NotContain("<img");
-        acknowledgement.Body.Should().Contain("What happens next?");
+        acknowledgement.Body.Should().Contain("What Happens Next?");
     }
 
     [Fact]

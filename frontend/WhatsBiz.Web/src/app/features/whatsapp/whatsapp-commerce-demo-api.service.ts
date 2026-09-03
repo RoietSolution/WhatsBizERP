@@ -2,19 +2,19 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 export interface DemoMessage { sender:string; kind:string; text:string; }
 export interface DemoProductVariant { variantId:string; sku?:string; colour?:string; size?:string; material?:string; sellingPrice:number; availableQuantity:number; }
-export interface DemoProduct { productId:string; productCode:string; barcode?:string; productName:string; description?:string; imageUrl?:string; imageUrls?:string[]; sellingPrice:number; mrp:number; taxPercentage:number; availableQuantity:number; categoryId:string; categoryName:string; variants?:DemoProductVariant[]; }
+export interface DemoProduct { productId:string; productCode:string; barcode?:string; productName:string; description?:string; imageUrl?:string; imageUrls?:string[]; sellingPrice:number; mrp:number; taxPercentage:number; availableQuantity:number; categoryId:string; categoryName:string; brandName?:string; unitName?:string; variants?:DemoProductVariant[]; }
 export interface DemoCategory { categoryId:string; categoryName:string; description?:string; productCount:number; imageProductId?:string; imageUrl?:string; }
 export interface DemoCollection { collectionId:string; name:string; slug:string; productIds:string[]; }
 export interface DemoCustomer { customerId:string; customerCode:string; customerName:string; mobile?:string; }
 export interface DemoWarehouse { warehouseId:string; warehouseCode:string; warehouseName:string; }
 export interface DemoSetup { providerMode:string; storeName:string; customers:DemoCustomer[]; warehouses:DemoWarehouse[]; categories:DemoCategory[]; collections:DemoCollection[]; products:DemoProduct[]; messages:DemoMessage[]; }
-export interface CartLine extends DemoProduct { quantity:number; unitPrice:number; taxAmount:number; lineTotal:number; }
+export interface CartLine { productId:string; productCode:string; productName:string; imageUrl?:string; quantity:number; unitPrice:number; taxPercentage:number; taxAmount:number; lineTotal:number; availableQuantity:number; categoryName?:string; unitName?:string; }
 export interface DemoCart { warehouseId:string; items:CartLine[]; subtotal:number; taxAmount:number; grandTotal:number; }
 export interface DemoOrder { orderId:string; orderNumber:string; erpStatus:string; grandTotal:number; redeemedCoins:number; coinDiscount:number; messages:DemoMessage[]; }
 export interface CoinTransaction { coinTransactionId:string; transactionType:string; coins:number; sourceType:string; sourceId?:string; rupeeValue?:number; description?:string; createdOn:string; }
 export interface CoinWallet { customerId:string; availableCoins:number; totalEarned:number; totalRedeemed:number; transactions:CoinTransaction[]; }
 export interface ReadinessCheck { key:string; label:string; ready:boolean; setupRoute?:string; detail?:string; }
-export interface DemoReadiness { ready:boolean; checks:ReadinessCheck[]; }
+export interface DemoReadiness { providerMode:string; ready:boolean; checks:ReadinessCheck[]; }
 export interface OrderSummary { orderId:string; orderNumber:string; orderDate:string; grandTotal:number; erpStatus:string; displayStatus:string; sourceChannel:string; providerMode:string; deliveryStatus:string; courierName?:string; trackingNumber?:string; dispatchedOn?:string; deliveredOn?:string; customerName?:string; customerMobile?:string; deliveryAddress?:string; fulfillmentMethod?:string; paymentType?:string; }
 export interface OrderDetails { order:OrderSummary; items:CartLine[]; }
 export interface CommerceAnalyticsEvent { eventType:string; customerId?:string; conversationId?:string; productId?:string; variantId?:string; collectionId?:string; metadata?:Record<string,unknown>; }

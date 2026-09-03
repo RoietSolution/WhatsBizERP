@@ -156,7 +156,7 @@ Submitted On:
 
     private static string BuildRequesterBody(DemoRequestDetail x, string? logoUrl, string? featureImageUrl)
     {
-        var name = WebUtility.HtmlEncode(x.Name);
+        var name = string.IsNullOrWhiteSpace(x.Name) ? "there" : WebUtility.HtmlEncode(x.Name.Trim());
         var reference = WebUtility.HtmlEncode(x.ReferenceNo);
         var logo = BuildImage(logoUrl, "KhataDhari", "width:180px;max-width:55%;height:auto;display:block;margin:0 auto;");
         var features = BuildImage(featureImageUrl, "KhataDhari All-in-One Retail ERP and WhatsApp Commerce Features", "width:100%;max-width:720px;height:auto;display:block;margin:24px auto 0;");
@@ -170,19 +170,38 @@ Submitted On:
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:720px;background:#ffffff;border-radius:14px;overflow:hidden;">
         <tr><td align="center" style="padding:28px 24px 18px;background:#ffffff;">{logo}</td></tr>
         <tr><td style="padding:8px 32px 32px;">
-          <h1 style="margin:0 0 18px;font-size:26px;line-height:1.3;color:#17633c;text-align:center;">Your demo request has been received</h1>
-          <p style="margin:0 0 14px;font-size:16px;line-height:1.65;">Hello {name},</p>
-          <p style="margin:0 0 14px;font-size:16px;line-height:1.65;">Thank you for requesting a KhataDhari demo. We have received your request successfully.</p>
-          <p style="margin:0 0 22px;font-size:16px;line-height:1.65;"><strong>Reference:</strong> {reference}</p>
+          <h1 style="margin:0 0 18px;font-size:26px;line-height:1.3;color:#17633c;text-align:center;">Thank You for Your Demo Request!</h1>
+          <p style="margin:0 0 14px;font-size:16px;line-height:1.65;">Hi {name},</p>
+          <p style="margin:0 0 14px;font-size:16px;line-height:1.65;">Thank you for your interest in KhataDhari.</p>
+          <p style="margin:0 0 18px;font-size:16px;line-height:1.65;">We have successfully received your request for a Free Demo. Our team will contact you shortly to understand your business requirements and schedule a convenient time for your personalized demonstration.</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;background:#f6f8f7;border:1px solid #dce7e0;border-radius:8px;">
+            <tr><td style="padding:12px 16px;font-size:14px;line-height:1.5;color:#506158;"><strong style="color:#17633c;">Reference:</strong> {reference}</td></tr>
+          </table>
           <div style="background:#eef8f1;border-left:4px solid #23915a;border-radius:8px;padding:18px 20px;">
-            <h2 style="margin:0 0 10px;font-size:20px;line-height:1.35;color:#17633c;">What happens next?</h2>
-            <p style="margin:0 0 8px;font-size:15px;line-height:1.6;">A member of the KhataDhari team will contact you shortly to understand your business requirements.</p>
-            <p style="margin:0;font-size:15px;line-height:1.6;">We will arrange a convenient time to show you how KhataDhari can support your retail operations, billing, inventory and WhatsApp commerce.</p>
+            <h2 style="margin:0 0 14px;font-size:20px;line-height:1.35;color:#17633c;">What Happens Next?</h2>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+              <tr>
+                <td valign="top" width="34" style="padding:3px 10px 12px 0;"><span style="display:inline-block;width:26px;height:26px;line-height:26px;text-align:center;border-radius:50%;background:#17633c;color:#ffffff;font-size:13px;font-weight:bold;">1</span></td>
+                <td valign="top" style="padding:0 0 12px;"><strong style="display:block;margin-bottom:3px;color:#18372a;font-size:15px;line-height:1.4;">We&rsquo;ll Contact You</strong><span style="color:#42564b;font-size:14px;line-height:1.55;">Our team will connect with you to understand your business and current workflow.</span></td>
+              </tr>
+              <tr>
+                <td valign="top" width="34" style="padding:3px 10px 12px 0;"><span style="display:inline-block;width:26px;height:26px;line-height:26px;text-align:center;border-radius:50%;background:#17633c;color:#ffffff;font-size:13px;font-weight:bold;">2</span></td>
+                <td valign="top" style="padding:0 0 12px;"><strong style="display:block;margin-bottom:3px;color:#18372a;font-size:15px;line-height:1.4;">Personalized Demo</strong><span style="color:#42564b;font-size:14px;line-height:1.55;">We&rsquo;ll demonstrate the KhataDhari features most relevant to your business.</span></td>
+              </tr>
+              <tr>
+                <td valign="top" width="34" style="padding:3px 10px 12px 0;"><span style="display:inline-block;width:26px;height:26px;line-height:26px;text-align:center;border-radius:50%;background:#17633c;color:#ffffff;font-size:13px;font-weight:bold;">3</span></td>
+                <td valign="top" style="padding:0 0 12px;"><strong style="display:block;margin-bottom:3px;color:#18372a;font-size:15px;line-height:1.4;">WhatsApp Ecommerce Experience</strong><span style="color:#42564b;font-size:14px;line-height:1.55;">See how customers can discover products and place orders through WhatsApp while your products, inventory, billing and orders remain connected.</span></td>
+              </tr>
+              <tr>
+                <td valign="top" width="34" style="padding:3px 10px 0 0;"><span style="display:inline-block;width:26px;height:26px;line-height:26px;text-align:center;border-radius:50%;background:#17633c;color:#ffffff;font-size:13px;font-weight:bold;">4</span></td>
+                <td valign="top" style="padding:0;"><strong style="display:block;margin-bottom:3px;color:#18372a;font-size:15px;line-height:1.4;">Explore Retail ERP</strong><span style="color:#42564b;font-size:14px;line-height:1.55;">See inventory management, billing, customers, reports, barcode scanning and other retail operations in action.</span></td>
+              </tr>
+            </table>
           </div>
           {features}
-          <p style="margin:26px 0 0;font-size:16px;line-height:1.6;">Regards,<br><strong>KhataDhari Team</strong></p>
+          <p style="margin:26px 0 0;font-size:16px;line-height:1.6;">Regards,<br><br><strong>KhataDhari Team</strong><br><span style="color:#607168;font-size:13px;">Business Made Simple. One Platform. Endless Possibilities.</span></p>
         </td></tr>
-        <tr><td align="center" style="padding:18px 24px;background:#17633c;color:#ffffff;font-size:12px;line-height:1.5;">KhataDhari &ndash; Retail ERP &amp; WhatsApp Commerce</td></tr>
+        <tr><td align="center" style="padding:18px 24px;background:#17633c;color:#ffffff;font-size:12px;line-height:1.7;">KhataDhari &ndash; Retail ERP &amp; WhatsApp Commerce<br><a href="https://www.khatadhari.com" style="color:#ffffff!important;text-decoration:underline;">www.khatadhari.com</a><span style="color:#bfe0ce;"> &nbsp;&bull;&nbsp; </span><a href="mailto:support@khatadhari.com" style="color:#ffffff!important;text-decoration:underline;">support@khatadhari.com</a></td></tr>
       </table>
     </td></tr>
   </table>

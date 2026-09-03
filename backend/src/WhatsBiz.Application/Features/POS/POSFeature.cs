@@ -1,9 +1,12 @@
 #pragma warning disable CA1725
+using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using FluentValidation;
 using MediatR;
 using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Application.Common.Interfaces;
+using WhatsBiz.Application.Features.Printing;
 using WhatsBiz.Domain.Customers;
 using WhatsBiz.Domain.POS;
 
@@ -122,6 +125,7 @@ public sealed record POSReturnItem(Guid InvoiceItemId, decimal Quantity);
 public sealed record POSReturnInput(Guid InvoiceId, IReadOnlyCollection<POSReturnItem> Items, string Reason);
 public sealed record AddPaymentInput(Guid InvoiceId, string MethodCode, decimal Amount, string? ReferenceNumber);
 public sealed record PaymentMethodDto(Guid PaymentMethodId, string MethodCode, string MethodName, bool RequiresReference);
+public sealed record POSUpiQrDto(string QrCodeDataUrl, string UpiId, string PayeeName, decimal Amount);
 public sealed record TodaySalesDto(decimal GrossSales, decimal Collections, int InvoiceCount, decimal Cash, decimal UPI, decimal Card);
 public sealed record QuickCustomerInput(string CustomerName, string? Mobile, string? GSTIN);
 public sealed record PostedInvoiceDto(Guid InvoiceId, string InvoiceNumber, decimal GrandTotal, decimal PaidAmount, string Status);
@@ -138,6 +142,7 @@ public sealed record ResumeInvoice(Guid Id) : IRequest<POSInvoiceDto>;
 public sealed record ReturnInvoice(POSReturnInput Input) : IRequest;
 public sealed record AddPOSPayment(AddPaymentInput Input) : IRequest;
 public sealed record GetPaymentMethods : IRequest<IReadOnlyCollection<PaymentMethodDto>>;
+public sealed record GetPOSUpiQr(decimal Amount) : IRequest<POSUpiQrDto>;
 public sealed record GetTodaySales : IRequest<TodaySalesDto>;
 public sealed record PrintInvoice(Guid Id, string Paper) : IRequest<string>;
 public sealed record ExportSales(DateTimeOffset? From, DateTimeOffset? To) : IRequest<byte[]>;
@@ -189,12 +194,41 @@ public sealed class PaymentValidator : AbstractValidator<AddPOSPayment>
     }
 }
 
+public sealed class POSUpiQrValidator : AbstractValidator<GetPOSUpiQr>
+{
+    public POSUpiQrValidator() => RuleFor(x => x.Amount).GreaterThan(0).LessThanOrEqualTo(10000000);
+}
+
+internal static partial class POSUpiPayment
+{
+    internal const string UpiIdSettingKey = "POS_UPI_ID";
+    internal const string PayeeNameSettingKey = "POS_UPI_PAYEE_NAME";
+
+    internal static bool IsValidUpiId(string value) => UpiIdPattern().IsMatch(value);
+
+    internal static string BuildUri(string upiId, string payeeName, decimal amount)
+    {
+        var query = string.Join("&", new[]
+        {
+            $"pa={Uri.EscapeDataString(upiId)}",
+            $"pn={Uri.EscapeDataString(payeeName)}",
+            $"am={amount.ToString("0.00", CultureInfo.InvariantCulture)}",
+            "cu=INR"
+        });
+        return $"upi://pay?{query}";
+    }
+
+    [GeneratedRegex(@"^[A-Za-z0-9._-]{2,100}@[A-Za-z0-9.-]{2,100}$", RegexOptions.CultureInvariant)]
+    private static partial Regex UpiIdPattern();
+}
+
 /* Handlers */
 
 public sealed class POSHandlers(
     IPOSRepository repository,
     IPOSEngine engine,
     IPOSDocumentService documents,
+    IPrintingService printing,
     IAdminRepository admin,
     ICustomerRepository customers,
     ICurrentUserService user) :
@@ -208,6 +242,7 @@ public sealed class POSHandlers(
     IRequestHandler<ReturnInvoice>,
     IRequestHandler<AddPOSPayment>,
     IRequestHandler<GetPaymentMethods, IReadOnlyCollection<PaymentMethodDto>>,
+    IRequestHandler<GetPOSUpiQr, POSUpiQrDto>,
     IRequestHandler<GetTodaySales, TodaySalesDto>,
     IRequestHandler<PrintInvoice, string>,
     IRequestHandler<ExportSales, byte[]>
@@ -305,6 +340,22 @@ public sealed class POSHandlers(
 
     public async Task<IReadOnlyCollection<PaymentMethodDto>> Handle(GetPaymentMethods q, CancellationToken t) =>
         (await repository.PaymentMethods(t)).Select(x => new PaymentMethodDto(x.PaymentMethodId, x.MethodCode, x.MethodName, x.RequiresReference)).ToArray();
+
+    public async Task<POSUpiQrDto> Handle(GetPOSUpiQr q, CancellationToken t)
+    {
+        var settings = await admin.Settings(t);
+        var upiId = settings.FirstOrDefault(x => x.Key == POSUpiPayment.UpiIdSettingKey)?.Value?.Trim();
+        if (string.IsNullOrWhiteSpace(upiId) || !POSUpiPayment.IsValidUpiId(upiId))
+            throw new BusinessRuleException("UPI ID is not configured. Add a valid POS UPI ID in Application Settings.");
+
+        var company = await admin.Company(t);
+        var configuredName = settings.FirstOrDefault(x => x.Key == POSUpiPayment.PayeeNameSettingKey)?.Value?.Trim();
+        var payeeName = string.IsNullOrWhiteSpace(configuredName) ? company.CompanyName : configuredName;
+        var uri = POSUpiPayment.BuildUri(upiId, payeeName, q.Amount);
+        var artifact = printing.QrCode(new QRCodeInput(uri, 8, "M"));
+        var dataUrl = $"data:{artifact.ContentType};base64,{Convert.ToBase64String(artifact.Data)}";
+        return new(dataUrl, upiId, payeeName, q.Amount);
+    }
 
     public async Task<TodaySalesDto> Handle(GetTodaySales q, CancellationToken t)
     {

@@ -17,6 +17,13 @@ export interface POSWarehouse {
   isDefault: boolean;
 }
 
+export interface POSUpiQr {
+  qrCodeDataUrl: string;
+  upiId: string;
+  payeeName: string;
+  amount: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class POSApiService {
   constructor(private readonly http: HttpClient) {}
@@ -66,6 +73,11 @@ export class POSApiService {
   }
   methods() {
     return this.http.get<PaymentMethod[]>('/api/pos/payment-methods');
+  }
+  upiQr(amount: number) {
+    return this.http.get<POSUpiQr>('/api/pos/upi-qr', {
+      params: new HttpParams().set('amount', amount.toFixed(2)),
+    });
   }
   today() {
     return this.http.get<TodaySales>('/api/pos/today-sales');

@@ -1,11 +1,11 @@
 import { of, throwError } from 'rxjs';
 import { POSApiService } from './pos-api.service';
-import { POSProduct } from './pos.models';
+import { PaymentMethod, POSProduct } from './pos.models';
 import { POSScreenComponent } from './pos-screen.component';
 import { ProductAddedSoundService } from './product-added-sound.service';
 
 describe('POSScreenComponent barcode flow', () => {
-  function setup() {
+  function setup(paymentMethods: PaymentMethod[] = []) {
     const api = jasmine.createSpyObj<POSApiService>('POSApiService', [
       'methods',
       'warehouses',
@@ -16,7 +16,7 @@ describe('POSScreenComponent barcode flow', () => {
       'hold',
       'print',
     ]);
-    api.methods.and.returnValue(of([]));
+    api.methods.and.returnValue(of(paymentMethods));
     api.warehouses.and.returnValue(
       of([{ warehouseId: 'warehouse-1', warehouseName: 'Main', isDefault: true }]),
     );
@@ -111,6 +111,18 @@ describe('POSScreenComponent barcode flow', () => {
     expect(component.shortcuts.slice(0, 5).map((x) => x.label)).toEqual([
       'New Bill', 'Customer', 'Payment', 'Hold', 'Print',
     ]);
+  });
+
+  it('keeps only Cash and UPI available for sale settlement', () => {
+    const { component } = setup([
+      { paymentMethodId: 'cash', methodCode: 'CASH', methodName: 'Cash', requiresReference: false },
+      { paymentMethodId: 'upi', methodCode: 'UPI', methodName: 'UPI', requiresReference: true },
+      { paymentMethodId: 'card', methodCode: 'CARD', methodName: 'Card', requiresReference: true },
+      { paymentMethodId: 'wallet', methodCode: 'WALLET', methodName: 'Wallet', requiresReference: true },
+      { paymentMethodId: 'credit', methodCode: 'CREDIT', methodName: 'Credit', requiresReference: false },
+    ]);
+
+    expect(component.methods().map((method) => method.methodCode)).toEqual(['CASH', 'UPI']);
   });
 
   function product(overrides: Partial<POSProduct> = {}): POSProduct {

@@ -23,7 +23,7 @@ public sealed record SendCollectionInput(Guid CustomerId);
 public sealed record WhatsAppCommerceProduct(Guid ProductId, string ProductCode, string? Barcode,
     string ProductName, string? Description, string? ImageUrl, decimal SellingPrice, decimal Mrp,
     decimal TaxPercentage, decimal AvailableQuantity, Guid CategoryId, string CategoryName,
-    IReadOnlyCollection<string> ImageUrls);
+    string BrandName, string UnitName, IReadOnlyCollection<string> ImageUrls);
 public sealed record WhatsAppCommerceCategory(Guid CategoryId, string CategoryName, string? Description,
     int ProductCount, string? ImageProductId);
 public sealed record WhatsAppCommerceCollection(Guid CollectionId, string Name, string Slug,
@@ -40,7 +40,8 @@ public sealed record WhatsAppCommerceSetup(string ProviderMode, string StoreName
 public sealed record WhatsAppCommerceCartItem(Guid ProductId, decimal Quantity);
 public sealed record WhatsAppCommerceCartLine(Guid ProductId, string ProductCode, string ProductName,
     string? ImageUrl, decimal Quantity, decimal UnitPrice, decimal TaxPercentage,
-    decimal TaxAmount, decimal LineTotal, decimal AvailableQuantity);
+    decimal TaxAmount, decimal LineTotal, decimal AvailableQuantity, string? CategoryName = null,
+    string? UnitName = null);
 public sealed record WhatsAppCommerceCart(Guid WarehouseId, IReadOnlyCollection<WhatsAppCommerceCartLine> Items,
     decimal Subtotal, decimal TaxAmount, decimal GrandTotal);
 public sealed record PlaceWhatsAppDemoOrderInput(Guid CustomerId, Guid WarehouseId,
@@ -49,7 +50,7 @@ public sealed record PlaceWhatsAppDemoOrderInput(Guid CustomerId, Guid Warehouse
 public sealed record WhatsAppCommerceOrderResult(Guid OrderId, string OrderNumber, string ErpStatus,
     decimal GrandTotal, int RedeemedCoins, decimal CoinDiscount, IReadOnlyCollection<WhatsAppCommerceMessage> Messages);
 public sealed record WhatsAppCommerceReadinessCheck(string Key, string Label, bool Ready, string? SetupRoute, string? Detail);
-public sealed record WhatsAppCommerceReadiness(bool Ready, IReadOnlyCollection<WhatsAppCommerceReadinessCheck> Checks);
+public sealed record WhatsAppCommerceReadiness(string ProviderMode, bool Ready, IReadOnlyCollection<WhatsAppCommerceReadinessCheck> Checks);
 public sealed record WhatsAppCommerceOrderSummary(Guid OrderId, string OrderNumber, DateTimeOffset OrderDate,
     decimal GrandTotal, string ErpStatus, string DisplayStatus, string SourceChannel, string ProviderMode,
     string DeliveryStatus, string? CourierName, string? TrackingNumber, DateTimeOffset? DispatchedOn, DateTimeOffset? DeliveredOn,

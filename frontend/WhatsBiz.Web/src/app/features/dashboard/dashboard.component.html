@@ -88,7 +88,11 @@
           }
         </div>
         @if (sales(); as data) {
-          <app-chart [config]="salesChart()" [ariaLabel]="salesPeriod() + ` sales trend`" />
+          @defer (on viewport) {
+            <app-chart [config]="salesChart()" [ariaLabel]="salesPeriod() + ` sales trend`" />
+          } @placeholder {
+            <div class="chart-loading">Preparing sales chart…</div>
+          }
         } @else {
           <div class="chart-loading">Loading sales analytics…</div>
         }</app-statistics-card
@@ -98,7 +102,11 @@
         subtitle="Collection distribution"
       >
         @if (sales()) {
-          <app-chart [config]="paymentChart()" ariaLabel="Payment mode distribution" />
+          @defer (on viewport) {
+            <app-chart [config]="paymentChart()" ariaLabel="Payment mode distribution" />
+          } @placeholder {
+            <div class="chart-loading">Preparing payment chart…</div>
+          }
         } @else {
           <div class="chart-loading">Loading payment modes…</div>
         }</app-statistics-card
@@ -108,7 +116,11 @@
         subtitle="Monthly procurement value"
         ><a card-actions routerLink="/analytics/purchase">View report</a>
         @if (purchase()) {
-          <app-chart [config]="purchaseChart()" ariaLabel="Monthly purchase trend" />
+          @defer (on viewport) {
+            <app-chart [config]="purchaseChart()" ariaLabel="Monthly purchase trend" />
+          } @placeholder {
+            <div class="chart-loading">Preparing purchase chart…</div>
+          }
         } @else {
           <div class="chart-loading">Loading purchase analytics…</div>
         }</app-statistics-card
@@ -118,7 +130,11 @@
         subtitle="Top suppliers by purchase value"
       >
         @if (purchase()) {
-          <app-chart [config]="supplierChart()" ariaLabel="Supplier performance" />
+          @defer (on viewport) {
+            <app-chart [config]="supplierChart()" ariaLabel="Supplier performance" />
+          } @placeholder {
+            <div class="chart-loading">Preparing supplier chart…</div>
+          }
         } @else {
           <div class="chart-loading">Loading supplier performance…</div>
         }</app-statistics-card

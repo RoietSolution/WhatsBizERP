@@ -189,8 +189,10 @@ public sealed class SqlCommerceFixture
     public async Task VerifyWebhookAsync()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:DefaultConnection"] = ConnectionString }).Build();
-        var service = new WhatsAppService(configuration, DataProtectionProvider.Create("WhatsBiz.SqlCommerceTests"), new AlwaysOnFeatures(), new WhatsAppCommerceProviderResolver([new MockWhatsAppProvider()]), NullLogger<WhatsAppService>.Instance);
-        (await service.VerifyWebhookAsync("subscribe", VerifyToken, "challenge", default)).Should().Be("challenge");
+        var resolver = new WhatsAppCommerceProviderResolver([new MockWhatsAppProvider()]);
+        var verifier = new WhatsAppService(configuration, DataProtectionProvider.Create("WhatsBiz.SqlCommerceTests"), new DisabledFeatures(), resolver, NullLogger<WhatsAppService>.Instance);
+        (await verifier.VerifyWebhookAsync("subscribe", VerifyToken, "challenge", default)).Should().Be("challenge", "public verification must not depend on a tenant feature/JWT context");
+        var service = new WhatsAppService(configuration, DataProtectionProvider.Create("WhatsBiz.SqlCommerceTests"), new AlwaysOnFeatures(), resolver, NullLogger<WhatsAppService>.Instance);
         (await service.GetConfigurationAsync(TenantA, default)).PhoneNumberId.Should().NotBe(PhoneId, "a tenant lookup must never fall through to another retailer's configuration");
         var message = new { id = $"{Tag}-message", from = "919900000001", type = "text", timestamp = "1700000000" };
         var value = new { tenantId = TenantA, metadata = new { phone_number_id = PhoneId }, messages = new[] { message } };
@@ -274,6 +276,17 @@ public sealed class AlwaysOnFeatures : IFeatureService
 {
     public Task<bool> IsEnabledAsync(Guid tenantId, string featureKey, CancellationToken cancellationToken = default) => Task.FromResult(true);
     public Task<IReadOnlyDictionary<string, bool>> GetEffectiveFeaturesAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<string, bool>>(new Dictionary<string, bool> { [FeatureKeys.WhatsAppCommerce] = true });
+    public Task<TenantFeatureConfiguration> GetTenantConfigurationAsync(Guid tenantId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public Task<IReadOnlyCollection<FeatureTenantSummary>> GetTenantsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public Task<TenantFeatureConfiguration> UpdateTenantConfigurationAsync(Guid tenantId, IReadOnlyCollection<TenantFeatureUpdate> updates, string? changedBy, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public void InvalidateTenant(Guid tenantId) { }
+    public void InvalidateAll() { }
+}
+
+public sealed class DisabledFeatures : IFeatureService
+{
+    public Task<bool> IsEnabledAsync(Guid tenantId, string featureKey, CancellationToken cancellationToken = default) => Task.FromResult(false);
+    public Task<IReadOnlyDictionary<string, bool>> GetEffectiveFeaturesAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<string, bool>>(new Dictionary<string, bool>());
     public Task<TenantFeatureConfiguration> GetTenantConfigurationAsync(Guid tenantId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<IReadOnlyCollection<FeatureTenantSummary>> GetTenantsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<TenantFeatureConfiguration> UpdateTenantConfigurationAsync(Guid tenantId, IReadOnlyCollection<TenantFeatureUpdate> updates, string? changedBy, CancellationToken cancellationToken = default) => throw new NotSupportedException();

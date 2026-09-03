@@ -100,13 +100,22 @@ import { AdminApiService, Setting } from './admin-api.service';
 })
 export class ApplicationSettingsComponent {
   readonly items = signal<Setting[]>([]);
+  private readonly posPaymentDefaults: Setting[] = [
+    { key: 'POS_UPI_ID', value: '', dataType: 'STRING', category: 'POS Payments' },
+    { key: 'POS_UPI_PAYEE_NAME', value: '', dataType: 'STRING', category: 'POS Payments' },
+  ];
   title = 'Application Settings';
   constructor(
     private api: AdminApiService,
     route: ActivatedRoute,
   ) {
     this.title = route.snapshot.data['title'] ?? this.title;
-    api.settings().subscribe((x) => this.items.set(x));
+    api.settings().subscribe((x) => {
+      const settings = [...x];
+      for (const item of this.posPaymentDefaults)
+        if (!settings.some((existing) => existing.key === item.key)) settings.push({ ...item });
+      this.items.set(settings);
+    });
   }
   categories() {
     return [...new Set(this.items().map((x) => x.category))];

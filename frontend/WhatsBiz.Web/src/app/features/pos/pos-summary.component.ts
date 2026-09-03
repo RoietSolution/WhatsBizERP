@@ -24,9 +24,6 @@ export class PosSummaryComponent {
   readonly methods = [
     { code: 'CASH', label: 'Cash', icon: 'payments' },
     { code: 'UPI', label: 'UPI', icon: 'qr_code_2' },
-    { code: 'CARD', label: 'Card', icon: 'credit_card' },
-    { code: 'WALLET', label: 'Wallet', icon: 'account_balance_wallet' },
-    { code: 'CREDIT', label: 'Credit', icon: 'schedule' },
-    { code: 'SPLIT', label: 'Split', icon: 'call_split' },
+    { code: 'SPLIT', label: 'Split Payment', icon: 'call_split' },
   ];
 }

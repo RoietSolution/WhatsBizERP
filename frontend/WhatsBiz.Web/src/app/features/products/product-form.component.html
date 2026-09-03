@@ -115,7 +115,7 @@
           </mat-form-field>
           <div>
             <button mat-stroked-button type="button" (click)="openScanner('primary')">
-              <mat-icon>photo_camera</mat-icon> Scan primary
+              <mat-icon>photo_camera</mat-icon> Scan Primary Barcode
             </button>
           </div>
         </div>
@@ -125,34 +125,12 @@
             <h3>Additional manufacturer / custom codes</h3>
             <p>Store the decoded value only. URLs and QR contents are never opened or executed.</p>
           </div>
-          <button mat-flat-button type="button" (click)="openScanner('additional')">
-            <mat-icon>qr_code_scanner</mat-icon> Scan Barcode / QR
-          </button>
         </div>
-
-        @if (pendingScan()) {
-          <div class="scan-preview" aria-live="polite">
-            <strong>Detected: {{ pendingScan()!.barcodeType }}</strong>
-            <span class="scan-value">{{ pendingScan()!.value }}</span>
-            <button mat-flat-button type="button" (click)="saveScanned()">Save Code</button>
-            <button mat-stroked-button type="button" (click)="openScanner(scanTarget())">Scan Again</button>
-            <button mat-button type="button" (click)="pendingScan.set(null)">Cancel</button>
-          </div>
-        }
-
-        @for (code of additionalBarcodes(); track code.barcode) {
-          <div class="code-row">
-            <span class="code-value"><strong>{{ code.barcodeType }}</strong> · {{ code.barcode }}</span>
-            <button mat-button color="warn" type="button" (click)="removeBarcode(code)">Remove</button>
-          </div>
-        } @empty {
-          <p>No additional codes linked.</p>
-        }
 
         <div class="code-entry">
           <mat-form-field>
-            <mat-label>Enter additional code</mat-label>
-            <input matInput [(ngModel)]="newBarcode" [ngModelOptions]="{ standalone: true }" maxlength="450" />
+            <mat-label>Additional code</mat-label>
+            <input matInput [(ngModel)]="newBarcode" (ngModelChange)="additionalCodeError.set('')" [ngModelOptions]="{ standalone: true }" maxlength="450" />
           </mat-form-field>
           <mat-form-field>
             <mat-label>Type</mat-label>
@@ -162,8 +140,35 @@
               }
             </mat-select>
           </mat-form-field>
-          <button mat-stroked-button type="button" (click)="addManualBarcode()">Add code</button>
+          <div class="code-entry-actions">
+            <button mat-stroked-button type="button" (click)="openScanner('additional')">
+              <mat-icon>qr_code_scanner</mat-icon> Scan Additional Code
+            </button>
+            <button mat-flat-button type="button" (click)="addManualBarcode()">Add Code</button>
+          </div>
         </div>
+        @if (additionalCodeError()) {
+          <p class="additional-code-error" role="alert">{{ additionalCodeError() }}</p>
+        }
+
+        @if (additionalBarcodes().length) {
+          <div class="codes-table-wrap">
+            <table class="codes-table">
+              <thead><tr><th scope="col">Code</th><th scope="col">Type</th><th scope="col">Action</th></tr></thead>
+              <tbody>
+                @for (code of additionalBarcodes(); track code.barcode) {
+                  <tr>
+                    <td class="code-value">{{ code.barcode }}</td>
+                    <td>{{ code.barcodeType }}</td>
+                    <td><button mat-button color="warn" type="button" (click)="removeBarcode(code)">Remove</button></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p>No additional codes linked.</p>
+        }
       </mat-card-content>
     </mat-card>
     <mat-card

@@ -8,4 +8,5 @@ import { booleanAttribute, ChangeDetectionStrategy, Component, input } from '@an
 })
 export class PageContainerComponent {
   readonly wide = input(false, { transform: booleanAttribute });
+  readonly fill = input(false, { transform: booleanAttribute });
 }

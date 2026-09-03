@@ -46,7 +46,6 @@ describe('ProductFormComponent manufacturer codes', () => {
     component.openScanner('primary');
 
     component.scanned({ value: '8901234567890', barcodeType: 'EAN13' });
-    component.saveScanned();
 
     expect(component.form.controls.barcode.value).toBe('8901234567890');
     expect(component.form.controls.barcodeType.value).toBe('EAN13');
@@ -71,40 +70,91 @@ describe('ProductFormComponent manufacturer codes', () => {
     component.openScanner('additional');
 
     component.scanned({ value: qr, barcodeType: 'QR' });
-    component.saveScanned();
+    expect(component.newBarcode).toBe(qr);
+    expect(component.newBarcodeType).toBe('QR');
+    expect(component.additionalBarcodes()).toEqual([]);
+
+    component.addManualBarcode();
 
     expect(component.additionalBarcodes()).toEqual([{ barcode: qr, barcodeType: 'QR' }]);
+    expect(component.newBarcode).toBe('');
+    expect(component.newBarcodeType).toBe('CUSTOM');
     expect(open).not.toHaveBeenCalled();
   });
 
-  it('does not create a duplicate when the same code is scanned for the current product', () => {
+  it('does not create a duplicate additional code for the current product', () => {
     const { component, snack } = setup();
     component.additionalBarcodes.set([{ barcode: 'SAME-CODE', barcodeType: 'CODE128' }]);
-    component.openScanner('additional');
-    component.scanned({ value: 'SAME-CODE', barcodeType: 'CODE128' });
+    component.newBarcode = 'same-code';
+    component.newBarcodeType = 'CODE128';
 
-    component.saveScanned();
+    component.addManualBarcode();
 
     expect(component.additionalBarcodes()).toHaveSize(1);
     expect(snack.open).toHaveBeenCalledWith(
-      'This code is already linked to the current product.',
-      undefined,
+      'This additional code is already linked to the current product.',
+      'Dismiss',
       jasmine.any(Object),
     );
   });
 
   it('rejects QR content longer than the backend limit', () => {
     const { component, snack } = setup();
-    component.openScanner('additional');
-    component.scanned({ value: 'X'.repeat(451), barcodeType: 'QR' });
+    component.newBarcode = 'X'.repeat(451);
+    component.newBarcodeType = 'QR';
 
-    component.saveScanned();
+    component.addManualBarcode();
 
     expect(component.additionalBarcodes()).toEqual([]);
     expect(snack.open).toHaveBeenCalledWith(
       'Additional barcode/QR content cannot exceed 450 characters.',
       'Dismiss',
       jasmine.any(Object),
+    );
+  });
+
+  it('keeps primary and additional scanner destinations separate', () => {
+    const { component } = setup();
+    component.form.patchValue({ barcode: 'PRIMARY-1', barcodeType: 'CODE128' });
+    component.newBarcode = 'ADDITIONAL-DRAFT';
+
+    component.openScanner('primary');
+    component.scanned({ value: '8901234567890', barcodeType: 'EAN13' });
+
+    expect(component.form.controls.barcode.value).toBe('8901234567890');
+    expect(component.newBarcode).toBe('ADDITIONAL-DRAFT');
+
+    component.openScanner('additional');
+    component.scanned({ value: 'MANUFACTURER-2', barcodeType: 'CODE39' });
+
+    expect(component.form.controls.barcode.value).toBe('8901234567890');
+    expect(component.newBarcode).toBe('MANUFACTURER-2');
+    expect(component.newBarcodeType).toBe('CODE39');
+  });
+
+  it('maps UPC variants to UPC and unknown scan formats to CUSTOM', () => {
+    const { component } = setup();
+    component.openScanner('additional');
+    component.scanned({ value: '012345678905', barcodeType: 'UPCA' });
+    expect(component.newBarcodeType).toBe('UPC');
+
+    component.openScanner('additional');
+    component.scanned({ value: 'UNMAPPED', barcodeType: 'DATA_MATRIX' });
+    expect(component.newBarcodeType).toBe('CUSTOM');
+  });
+
+  it('rejects an empty additional code and a code matching the primary barcode', () => {
+    const { component } = setup();
+    component.addManualBarcode();
+    expect(component.additionalCodeError()).toContain('Enter or scan');
+
+    component.form.controls.barcode.setValue('PRIMARY-CODE');
+    component.newBarcode = ' primary-code ';
+    component.addManualBarcode();
+
+    expect(component.additionalBarcodes()).toEqual([]);
+    expect(component.additionalCodeError()).toBe(
+      'Additional code must be different from the primary barcode.',
     );
   });
 

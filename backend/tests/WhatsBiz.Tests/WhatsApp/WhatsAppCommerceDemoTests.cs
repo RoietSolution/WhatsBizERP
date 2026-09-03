@@ -46,6 +46,24 @@ public sealed class WhatsAppCommerceDemoTests
     public void CommerceStatusIsMappedFromActualErpStatus(string erpStatus, string expected) =>
         WhatsAppCommerceService.DisplayStatus(erpStatus).Should().Be(expected);
 
+    [Theory]
+    [InlineData("MOCK", true)]
+    [InlineData("mock", true)]
+    [InlineData("META_TEST", true)]
+    [InlineData("meta_test", true)]
+    [InlineData("LIVE", false)]
+    [InlineData("", false)]
+    public void DemoSupportsOnlyMockAndMetaTest(string mode, bool expected) =>
+        WhatsAppCommerceService.DemoModeSupported(mode).Should().Be(expected);
+
+    [Fact]
+    public void MetaTestOrderConfirmationUsesActualOrderValues()
+    {
+        var message = WhatsAppCommerceService.OrderConfirmationText("WB-2048", 987.65m);
+
+        message.Should().Contain("WB-2048").And.Contain("987.65").And.Contain("confirmed");
+    }
+
     [Fact]
     public async Task CompletedNotificationUsesCustomerFriendlyActualOrderMessage()
     {

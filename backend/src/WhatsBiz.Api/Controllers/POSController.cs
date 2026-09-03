@@ -38,6 +38,7 @@ public sealed class POSController(ISender sender, IConfiguration configuration, 
         return Ok();
     }
     [HttpGet("payment-methods"), HasPermission(Permissions.POS.View)] public Task<IReadOnlyCollection<PaymentMethodDto>> PaymentMethods(CancellationToken token) => sender.Send(new GetPaymentMethods(), token);
+    [HttpGet("upi-qr"), HasPermission(Permissions.POS.View)] public Task<POSUpiQrDto> UpiQr([FromQuery] decimal amount, CancellationToken token) => sender.Send(new GetPOSUpiQr(amount), token);
     [HttpGet("today-sales"), HasPermission(Permissions.POS.View)] public Task<TodaySalesDto> Today(CancellationToken token) => sender.Send(new GetTodaySales(), token);
     [HttpGet("invoice/{id:guid}/print"), HasPermission(Permissions.POS.View)] public async Task<ContentResult> Print(Guid id, [FromQuery] string? paper = null, CancellationToken token = default)
     {

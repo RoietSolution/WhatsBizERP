@@ -93,8 +93,6 @@ import {
         color: var(--mat-sys-error);
       }
       .codes-header,
-      .code-row,
-      .scan-preview,
       .code-entry,
       .lookup-with-action,
       .quick-master {
@@ -121,36 +119,58 @@ import {
         justify-content: space-between;
         margin-bottom: 0.75rem;
       }
-      .code-entry mat-form-field:first-child {
-        flex: 1;
+      .codes-header p {
+        margin-bottom: 0;
       }
-      .code-row {
-        justify-content: space-between;
-        padding: 0.65rem 0;
-        border-bottom: 1px solid var(--wb-border);
-      }
-      .code-value,
-      .scan-value {
-        min-width: 0;
-        overflow: hidden;
-        overflow-wrap: anywhere;
-        text-overflow: ellipsis;
-      }
-      .code-value {
-        max-width: min(70vw, 720px);
-        white-space: nowrap;
-      }
-      .scan-preview {
+      .code-entry {
         align-items: flex-start;
         flex-wrap: wrap;
-        margin: 0.75rem 0 1rem;
-        padding: 0.75rem;
-        background: var(--wb-primary-soft);
-        border-radius: 8px;
       }
-      .scan-preview .scan-value {
-        flex: 1 1 260px;
-        max-height: 5rem;
+      .code-entry mat-form-field:first-child {
+        flex: 1 1 320px;
+      }
+      .code-entry mat-form-field:nth-child(2) {
+        flex: 0 1 180px;
+      }
+      .code-entry-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        padding-top: 0.25rem;
+      }
+      .additional-code-error {
+        margin: -0.4rem 0 0.75rem;
+        color: var(--mat-sys-error);
+        font-size: 0.875rem;
+      }
+      .codes-table-wrap {
+        width: 100%;
+        overflow-x: auto;
+      }
+      .codes-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .codes-table th,
+      .codes-table td {
+        padding: 0.65rem 0.75rem;
+        border-bottom: 1px solid var(--wb-border);
+        text-align: left;
+        vertical-align: middle;
+      }
+      .codes-table th {
+        font-size: 0.8rem;
+        font-weight: 600;
+      }
+      .codes-table th:last-child,
+      .codes-table td:last-child {
+        width: 1%;
+        white-space: nowrap;
+      }
+      .code-value {
+        min-width: 220px;
+        max-width: min(70vw, 720px);
+        overflow-wrap: anywhere;
       }
       @media (max-width: 800px) {
         .grid {
@@ -164,6 +184,22 @@ import {
         .lookup-with-action {
           align-items: stretch;
           flex-direction: column;
+        }
+        .code-entry {
+          display: grid;
+          grid-template-columns: 1fr;
+          align-items: stretch;
+        }
+        .code-entry mat-form-field,
+        .code-entry mat-form-field:first-child,
+        .code-entry mat-form-field:nth-child(2) {
+          width: 100%;
+        }
+        .code-entry-actions {
+          padding-top: 0;
+        }
+        .code-entry-actions button {
+          flex: 1 1 190px;
         }
       }
     `,
@@ -183,12 +219,12 @@ export class ProductFormComponent {
   readonly additionalBarcodes = signal<ProductBarcodeInput[]>([]);
   readonly scannerOpen = signal(false);
   readonly scanTarget = signal<'primary' | 'additional'>('additional');
-  readonly pendingScan = signal<BarcodeScanResult | null>(null);
+  readonly additionalCodeError = signal('');
   readonly addingBrand = signal(false);
   readonly addingUnit = signal(false);
   readonly savingBrand = signal(false);
   readonly savingUnit = signal(false);
-  readonly barcodeTypes = ['EAN13', 'EAN8', 'UPCA', 'UPCE', 'CODE128', 'CODE39', 'QR', 'CUSTOM'];
+  readonly barcodeTypes = ['EAN13', 'EAN8', 'UPC', 'UPCA', 'UPCE', 'CODE128', 'CODE39', 'QR', 'CUSTOM'];
   readonly copySourceId: string | null;
   selectedImagesCount = () => this.selectedImages.length;
   readonly productId: string | null;
@@ -335,30 +371,25 @@ export class ProductFormComponent {
   }
   openScanner(target: 'primary' | 'additional'): void {
     this.scanTarget.set(target);
-    this.pendingScan.set(null);
+    if (target === 'additional') this.additionalCodeError.set('');
     this.scannerOpen.set(true);
   }
   scanned(result: BarcodeScanResult): void {
-    this.pendingScan.set(result);
     this.scannerOpen.set(false);
-  }
-  saveScanned(): void {
-    const result = this.pendingScan();
-    if (!result) return;
+    const barcodeType = this.scannedBarcodeType(result.barcodeType);
     if (this.scanTarget() === 'primary') {
       if (result.value.length > 100) {
         this.snackBar.open('Primary barcode cannot exceed 100 characters. Save it as an additional QR/code instead.', 'Dismiss', { duration: 5000 });
         return;
       }
-      this.form.patchValue({ barcode: result.value, barcodeType: result.barcodeType });
-      this.pendingScan.set(null);
+      this.form.patchValue({ barcode: result.value, barcodeType });
       this.snackBar.open('Primary barcode captured.', undefined, { duration: 2500 });
       return;
     }
-    if (this.addAdditional(result.value, result.barcodeType)) {
-      this.pendingScan.set(null);
-      this.snackBar.open('Code linked to product.', undefined, { duration: 2500 });
-    }
+    this.newBarcode = result.value;
+    this.newBarcodeType = barcodeType;
+    this.additionalCodeError.set('');
+    this.snackBar.open('Additional code captured. Review it and select Add Code.', undefined, { duration: 3500 });
   }
   addManualBarcode(): void {
     if (this.addAdditional(this.newBarcode, this.newBarcodeType)) {
@@ -408,21 +439,41 @@ export class ProductFormComponent {
       });
   }
   private addAdditional(value: string, barcodeType: string): boolean {
-    if (!value || !value.trim()) return false;
+    if (!value || !value.trim()) return this.rejectAdditional('Enter or scan an additional code before selecting Add Code.');
     if (value.length > 450) {
-      this.snackBar.open('Additional barcode/QR content cannot exceed 450 characters.', 'Dismiss', { duration: 5000 });
-      return false;
+      return this.rejectAdditional('Additional barcode/QR content cannot exceed 450 characters.');
     }
-    if (this.form.controls.barcode.value === value || this.additionalBarcodes().some((x) => x.barcode === value)) {
-      this.snackBar.open('This code is already linked to the current product.', undefined, { duration: 3000 });
-      return false;
+    const comparisonValue = this.comparisonValue(value);
+    const primaryBarcode = this.form.controls.barcode.value;
+    if (primaryBarcode && this.comparisonValue(primaryBarcode) === comparisonValue) {
+      return this.rejectAdditional('Additional code must be different from the primary barcode.');
+    }
+    if (this.additionalBarcodes().some((x) => this.comparisonValue(x.barcode) === comparisonValue)) {
+      return this.rejectAdditional('This additional code is already linked to the current product.');
     }
     if (this.additionalBarcodes().length >= 10) {
-      this.snackBar.open('A product can have a maximum of 10 additional codes.', 'Dismiss', { duration: 4000 });
-      return false;
+      return this.rejectAdditional('A product can have a maximum of 10 additional codes.');
     }
-    this.additionalBarcodes.update((items) => [...items, { barcode: value, barcodeType }]);
+    this.additionalBarcodes.update((items) => [...items, { barcode: value, barcodeType: this.manualBarcodeType(barcodeType) }]);
+    this.additionalCodeError.set('');
     return true;
+  }
+  private scannedBarcodeType(barcodeType: string): string {
+    const normalized = barcodeType.trim().toUpperCase();
+    if (normalized === 'UPCA' || normalized === 'UPCE' || normalized === 'UPC') return 'UPC';
+    return ['EAN13', 'EAN8', 'CODE128', 'CODE39', 'QR'].includes(normalized) ? normalized : 'CUSTOM';
+  }
+  private manualBarcodeType(barcodeType: string): string {
+    const normalized = barcodeType.trim().toUpperCase();
+    return this.barcodeTypes.includes(normalized) ? normalized : 'CUSTOM';
+  }
+  private comparisonValue(value: string): string {
+    return value.trim().toUpperCase();
+  }
+  private rejectAdditional(message: string): false {
+    this.additionalCodeError.set(message);
+    this.snackBar.open(message, 'Dismiss', { duration: 4000 });
+    return false;
   }
   private flatten(items: Category[]): Category[] {
     return items.flatMap((item) => [item, ...this.flatten(item.children)]);

@@ -1,4 +1,7 @@
 <mat-sidenav-container
+  [autosize]="!mobile()"
+  [class.sidebar-collapsed]="!mobile() && layout.sidebarCollapsed()"
+  [class.pos-sale-layout]="posSale()"
   ><mat-sidenav
     [mode]="mobile() ? `over` : `side`"
     [opened]="mobile() ? layout.mobileOpen() : true"

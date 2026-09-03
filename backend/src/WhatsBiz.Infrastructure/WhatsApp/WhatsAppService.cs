@@ -141,41 +141,111 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
             row?.DuplicateWebhookCount ?? 0, lastSentOn, lastSentId);
     }
 
-    public async Task<string?> VerifyWebhookAsync(string mode, string verifyToken, string challenge, CancellationToken token)
+    public async Task<string?> VerifyWebhookAsync(string? mode, string? verifyToken, string? challenge, CancellationToken token)
     {
-        if (!string.Equals(mode, "subscribe", StringComparison.Ordinal) || string.IsNullOrEmpty(verifyToken)) return null;
-        var platform=await ReadPlatform(token);
-        if(platform?.IsEnabled==true&&FixedTimeEquals(UnprotectOrNull(platform.WebhookVerifyTokenProtected),verifyToken))return challenge;
-        foreach (var row in await ReadEnabled(token))
-            if (row.ProviderMode != WhatsAppProviderModes.Mock
-                && await features.IsEnabledAsync(row.TenantId, WhatsBiz.Application.Common.Features.FeatureKeys.WhatsAppCommerce, token)
-                && FixedTimeEquals(UnprotectOrNull(row.WebhookVerifyTokenProtected), verifyToken))
-            { await MarkWebhookVerified(row.TenantId, token); return challenge; }
-        return null;
+        var modeValid = string.Equals(mode, "subscribe", StringComparison.Ordinal);
+        WhatsAppLogs.WebhookVerificationReceived(logger, modeValid);
+        if (!modeValid || string.IsNullOrEmpty(verifyToken) || challenge is null)
+        {
+            WhatsAppLogs.WebhookVerificationTokenResult(logger, "NONE", false);
+            return null;
+        }
+
+        var platform = await ReadPlatform(token);
+        if (platform?.IsEnabled == true)
+        {
+            WhatsAppLogs.WebhookVerificationConfiguration(logger, "SHARED_PLATFORM", true);
+            var configuredToken = UnprotectOrNull(platform.WebhookVerifyTokenProtected);
+            if (configuredToken is null)
+                WhatsAppLogs.WebhookVerificationCredentialUnreadable(logger, "SHARED_PLATFORM");
+            var matched = FixedTimeEquals(configuredToken, verifyToken);
+            WhatsAppLogs.WebhookVerificationTokenResult(logger, "SHARED_PLATFORM", matched);
+            if (!matched) return null;
+            WhatsAppLogs.WebhookVerificationChallengeReturned(logger, "SHARED_PLATFORM");
+            return challenge;
+        }
+
+        var rows = await ReadWebhookVerificationCandidates(token);
+        WhatsAppLogs.WebhookVerificationConfiguration(logger, "TENANT_CONFIGURATION", rows.Count > 0);
+        var candidates = new List<(Guid TenantId, string? VerifyToken)>(rows.Count);
+        foreach (var row in rows)
+        {
+            var configuredToken = UnprotectOrNull(row.WebhookVerifyTokenProtected);
+            if (configuredToken is null)
+                WhatsAppLogs.WebhookVerificationCredentialUnreadable(logger, "TENANT_CONFIGURATION");
+            candidates.Add((row.TenantId, configuredToken));
+        }
+
+        var tenantId = ResolveUniqueTenantToken(candidates, verifyToken);
+        var tenantMatched = tenantId is not null;
+        WhatsAppLogs.WebhookVerificationTokenResult(logger, "TENANT_CONFIGURATION", tenantMatched);
+        if (tenantId is not Guid matchedTenantId) return null;
+        await MarkWebhookVerified(matchedTenantId, token);
+        WhatsAppLogs.WebhookVerificationChallengeReturned(logger, "TENANT_CONFIGURATION");
+        return challenge;
     }
 
     public async Task<bool> ReceiveWebhookAsync(string? signature, ReadOnlyMemory<byte> body, CancellationToken token)
     {
+        var signaturePresent = !string.IsNullOrWhiteSpace(signature);
+        WhatsAppLogs.WebhookPostReceived(logger, signaturePresent);
         IReadOnlyCollection<WebhookEnvelope> envelopes;
         try
         {
             envelopes=ParseWebhook(body);
         }
-        catch (JsonException) { return false; }
-        if(envelopes.Count==0)return false;
+        catch (JsonException)
+        {
+            WhatsAppLogs.WebhookPostOutcome(logger, false, "INVALID_PAYLOAD");
+            return false;
+        }
+        if(envelopes.Count==0)
+        {
+            WhatsAppLogs.WebhookPostOutcome(logger, false, "NO_WHATSAPP_ENVELOPE");
+            return false;
+        }
         var platform=await ReadPlatform(token);var sharedSignatureValid=false;
         if(platform?.IsEnabled==true)
         {
-            var sharedSecret=UnprotectOrNull(platform.AppSecretProtected);sharedSignatureValid=!string.IsNullOrWhiteSpace(sharedSecret)&&ValidSignature(signature,body.Span,sharedSecret);
-            if(!sharedSignatureValid)return false;
+            WhatsAppLogs.WebhookPostConfiguration(logger, "SHARED_PLATFORM", true);
+            var sharedSecret=UnprotectOrNull(platform.AppSecretProtected);
+            var decrypted=!string.IsNullOrWhiteSpace(sharedSecret);
+            sharedSignatureValid=decrypted&&ValidSignature(signature,body.Span,sharedSecret!);
+            WhatsAppLogs.WebhookPostSignature(logger, "SHARED_PLATFORM", decrypted, sharedSignatureValid);
+            if(!sharedSignatureValid)
+            {
+                WhatsAppLogs.WebhookPostOutcome(logger, false, signaturePresent ? "INVALID_SIGNATURE" : "MISSING_SIGNATURE");
+                return false;
+            }
         }
         foreach(var envelope in envelopes)
         {
             var row=await ReadByPhone(envelope.PhoneNumberId,token);
-            if(row is null||row.ProviderMode==WhatsAppProviderModes.Mock||!row.IsEnabled||!string.Equals(row.WabaId,envelope.WabaId,StringComparison.Ordinal)
-                ||!await features.IsEnabledAsync(row.TenantId,WhatsBiz.Application.Common.Features.FeatureKeys.WhatsAppCommerce,token))return false;
+            var configurationResolved=row is not null&&row.ProviderMode!=WhatsAppProviderModes.Mock&&row.IsEnabled
+                &&string.Equals(row.WabaId,envelope.WabaId,StringComparison.Ordinal);
+            WhatsAppLogs.WebhookPostConfiguration(logger, "TENANT_WABA_PHONE", configurationResolved);
+            if(!configurationResolved)
+            {
+                WhatsAppLogs.WebhookPostOutcome(logger, false, "CONFIGURATION_NOT_RESOLVED");
+                return false;
+            }
             if(!sharedSignatureValid)
-            {var tenantSecret=UnprotectOrNull(row.AppSecretProtected);if(string.IsNullOrWhiteSpace(tenantSecret)||!ValidSignature(signature,body.Span,tenantSecret))return false;}
+            {
+                var tenantSecret=UnprotectOrNull(row!.AppSecretProtected);
+                var decrypted=!string.IsNullOrWhiteSpace(tenantSecret);
+                var signatureValid=decrypted&&ValidSignature(signature,body.Span,tenantSecret!);
+                WhatsAppLogs.WebhookPostSignature(logger, "TENANT_CONFIGURATION", decrypted, signatureValid);
+                if(!signatureValid)
+                {
+                    WhatsAppLogs.WebhookPostOutcome(logger, false, signaturePresent ? "INVALID_SIGNATURE" : "MISSING_SIGNATURE");
+                    return false;
+                }
+            }
+            if(!await features.IsEnabledAsync(row!.TenantId,WhatsBiz.Application.Common.Features.FeatureKeys.WhatsAppCommerce,token))
+            {
+                WhatsAppLogs.WebhookPostProcessingSkipped(logger, row.TenantId, "FEATURE_DISABLED");
+                continue;
+            }
             foreach(var item in envelope.Events)
             {
                 var inserted=await StoreEvent(row.TenantId,row.ProviderMode,item.EventKey,item.EventType,item.Direction,envelope.PhoneNumberId,item.ContactNumber,item.Status,item.EventTimestamp,token,item.MetaMessageId,item.MessageType);
@@ -189,6 +259,7 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
             }
             WhatsAppLogs.WebhookReceived(logger,row.TenantId,envelope.PhoneNumberId,string.Join(',',envelope.Events.Select(x=>x.EventType).Distinct(StringComparer.Ordinal)));
         }
+        WhatsAppLogs.WebhookPostOutcome(logger, true, "ACCEPTED");
         return true;
     }
 
@@ -336,8 +407,8 @@ END
     private Task<ConfigRow?> ReadByPhone(string phone, CancellationToken token) => ReadOne("PhoneNumberId", phone, token);
     private async Task<ConfigRow?> ReadOne(string column, object value, CancellationToken token)
     { await using var c = new SqlConnection(ConnectionString); await c.OpenAsync(token); await using var q = new SqlCommand($"SELECT TOP(1) c.TenantId,c.ProviderMode,c.MetaAppId,c.WhatsAppBusinessAccountId,c.PhoneNumberId,c.DisplayPhoneNumber,c.BusinessDisplayName,c.AccessTokenProtected,c.WebhookVerifyTokenProtected,c.AppSecretProtected,c.ApiVersion,c.TestRecipientNumber,c.IsEnabled,c.ConnectionStatus,c.LastValidatedOn,c.LastError,c.LastWebhookVerifiedOn,c.LastWebhookReceivedOn,c.LastWebhookEventType,c.LastWebhookMetaMessageId,c.DuplicateWebhookCount FROM integration.WhatsAppConfigurations c JOIN core.Tenants t ON t.TenantId=c.TenantId AND t.IsActive=1 WHERE c.{column}=@value;", c); q.Parameters.AddWithValue("@value", value); await using var r = await q.ExecuteReaderAsync(token); return await r.ReadAsync(token) ? Map(r) : null; }
-    private async Task<IReadOnlyCollection<ConfigRow>> ReadEnabled(CancellationToken token)
-    { var rows = new List<ConfigRow>(); await using var c = new SqlConnection(ConnectionString); await c.OpenAsync(token); await using var q = new SqlCommand("SELECT c.TenantId,c.ProviderMode,c.MetaAppId,c.WhatsAppBusinessAccountId,c.PhoneNumberId,c.DisplayPhoneNumber,c.BusinessDisplayName,c.AccessTokenProtected,c.WebhookVerifyTokenProtected,c.AppSecretProtected,c.ApiVersion,c.TestRecipientNumber,c.IsEnabled,c.ConnectionStatus,c.LastValidatedOn,c.LastError,c.LastWebhookVerifiedOn,c.LastWebhookReceivedOn,c.LastWebhookEventType,c.LastWebhookMetaMessageId,c.DuplicateWebhookCount FROM integration.WhatsAppConfigurations c JOIN core.Tenants t ON t.TenantId=c.TenantId AND t.IsActive=1 WHERE c.IsEnabled=1;", c); await using var r = await q.ExecuteReaderAsync(token); while (await r.ReadAsync(token)) rows.Add(Map(r)); return rows; }
+    private async Task<IReadOnlyCollection<ConfigRow>> ReadWebhookVerificationCandidates(CancellationToken token)
+    { var rows = new List<ConfigRow>(); await using var c = new SqlConnection(ConnectionString); await c.OpenAsync(token); await using var q = new SqlCommand("SELECT c.TenantId,c.ProviderMode,c.MetaAppId,c.WhatsAppBusinessAccountId,c.PhoneNumberId,c.DisplayPhoneNumber,c.BusinessDisplayName,c.AccessTokenProtected,c.WebhookVerifyTokenProtected,c.AppSecretProtected,c.ApiVersion,c.TestRecipientNumber,c.IsEnabled,c.ConnectionStatus,c.LastValidatedOn,c.LastError,c.LastWebhookVerifiedOn,c.LastWebhookReceivedOn,c.LastWebhookEventType,c.LastWebhookMetaMessageId,c.DuplicateWebhookCount FROM integration.WhatsAppConfigurations c JOIN core.Tenants t ON t.TenantId=c.TenantId AND t.IsActive=1 WHERE c.IsEnabled=1 AND c.ProviderMode<>N'MOCK' AND c.WebhookVerifyTokenProtected IS NOT NULL;", c); await using var r = await q.ExecuteReaderAsync(token); while (await r.ReadAsync(token)) rows.Add(Map(r)); return rows; }
     private async Task<PlatformRow?> ReadPlatform(CancellationToken token)
     {await using var c=new SqlConnection(ConnectionString);await c.OpenAsync(token);await using var q=new SqlCommand("SELECT MetaAppId,AppSecretProtected,WebhookVerifyTokenProtected,IsEnabled,ModifiedOn FROM integration.WhatsAppPlatformConfiguration WHERE PlatformConfigurationId=1;",c);await using var r=await q.ExecuteReaderAsync(token);return await r.ReadAsync(token)?new(r.GetString(0),r.GetString(1),r.GetString(2),r.GetBoolean(3),r.IsDBNull(4)?null:r.GetDateTimeOffset(4)):null;}
     private static ConfigRow Map(SqlDataReader r) => new(r.GetGuid(0), r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2), r.IsDBNull(3) ? null : r.GetString(3), r.IsDBNull(4) ? null : r.GetString(4), r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : r.GetString(6), r.IsDBNull(7) ? null : r.GetString(7), r.IsDBNull(8) ? null : r.GetString(8), r.IsDBNull(9) ? null : r.GetString(9), r.IsDBNull(10) ? null : r.GetString(10), r.IsDBNull(11) ? null : r.GetString(11), r.GetBoolean(12), r.GetString(13), r.IsDBNull(14) ? null : r.GetDateTimeOffset(14), r.IsDBNull(15) ? null : r.GetString(15), r.IsDBNull(16) ? null : r.GetDateTimeOffset(16), r.IsDBNull(17) ? null : r.GetDateTimeOffset(17), r.IsDBNull(18) ? null : r.GetString(18), r.IsDBNull(19) ? null : r.GetString(19), r.GetInt64(20));
@@ -347,7 +418,18 @@ END
     private string? UnprotectOrNull(string? value) { if (value is null) return null; try { return protector.Unprotect(value); } catch (CryptographicException) { return null; } }
     private static void ValidateInput(SaveWhatsAppConfigurationInput x, bool usesSharedPlatformCredentials) { if (!WhatsAppProviderModes.All.Contains(x.ProviderMode)) throw new BusinessRuleException("Provider mode must be MOCK, META_TEST, or LIVE."); if (x.ProviderMode.Equals(WhatsAppProviderModes.Mock, StringComparison.OrdinalIgnoreCase)) return; if ((!usesSharedPlatformCredentials && (string.IsNullOrWhiteSpace(x.MetaAppId) || !Digits().IsMatch(x.MetaAppId.Trim()))) || string.IsNullOrWhiteSpace(x.WhatsAppBusinessAccountId) || !Digits().IsMatch(x.WhatsAppBusinessAccountId.Trim()) || string.IsNullOrWhiteSpace(x.PhoneNumberId) || !Digits().IsMatch(x.PhoneNumberId.Trim())) throw new BusinessRuleException(usesSharedPlatformCredentials ? "WABA ID and phone number ID must contain only digits." : "Meta App ID, WABA ID, and phone number ID must contain only digits."); if (string.IsNullOrWhiteSpace(x.ApiVersion) || !Version().IsMatch(x.ApiVersion.Trim())) throw new BusinessRuleException("API version must use Meta's vNN.N format."); if (!string.IsNullOrWhiteSpace(x.TestRecipientNumber) && !Recipient().IsMatch(NonDigits().Replace(x.TestRecipientNumber, string.Empty))) throw new BusinessRuleException("Test recipient must be a valid international WhatsApp number including country code."); }
     private static bool FixedTimeEquals(string? a, string b) { if (a is null) return false; var x = Encoding.UTF8.GetBytes(a); var y = Encoding.UTF8.GetBytes(b); return x.Length == y.Length && CryptographicOperations.FixedTimeEquals(x, y); }
-    internal static bool ValidSignature(string? signature, ReadOnlySpan<byte> body, string secret) { if (signature is null || !signature.StartsWith("sha256=", StringComparison.OrdinalIgnoreCase)) return false; try { var supplied = Convert.FromHexString(signature[7..]); var expected = HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), body); return supplied.Length == expected.Length && CryptographicOperations.FixedTimeEquals(supplied, expected); } catch (FormatException) { return false; } }
+    internal static Guid? ResolveUniqueTenantToken(IEnumerable<(Guid TenantId, string? VerifyToken)> candidates, string verifyToken)
+    {
+        Guid? match = null;
+        foreach (var candidate in candidates)
+        {
+            if (!FixedTimeEquals(candidate.VerifyToken, verifyToken)) continue;
+            if (match is not null) return null;
+            match = candidate.TenantId;
+        }
+        return match;
+    }
+    internal static bool ValidSignature(string? signature, ReadOnlySpan<byte> body, string secret) { if (signature is null || signature.Length != 71 || !signature.StartsWith("sha256=", StringComparison.Ordinal)) return false; try { var supplied = Convert.FromHexString(signature[7..]); var expected = HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), body); return CryptographicOperations.FixedTimeEquals(supplied, expected); } catch (FormatException) { return false; } }
     [GeneratedRegex("^[0-9]+$")] private static partial Regex Digits();
     [GeneratedRegex("[^0-9]")] private static partial Regex NonDigits();
     [GeneratedRegex("^[1-9][0-9]{7,14}$")] private static partial Regex Recipient();
@@ -369,4 +451,24 @@ internal static partial class WhatsAppLogs
     [LoggerMessage(2103, LogLevel.Information, "WhatsApp transport {ProviderMode} tenant {TenantId} event {EventType} message {MetaMessageId} direction {Direction} result {Result}.")]
     public static partial void TransportProcessed(ILogger logger, string providerMode, Guid tenantId, string eventType,
         string metaMessageId, string direction, string result);
+    [LoggerMessage(2104, LogLevel.Information, "WhatsApp webhook verification request received; subscribe mode valid: {ModeValid}.")]
+    public static partial void WebhookVerificationReceived(ILogger logger, bool modeValid);
+    [LoggerMessage(2105, LogLevel.Information, "WhatsApp webhook verification configuration source {ConfigurationSource} resolved: {Resolved}.")]
+    public static partial void WebhookVerificationConfiguration(ILogger logger, string configurationSource, bool resolved);
+    [LoggerMessage(2106, LogLevel.Information, "WhatsApp webhook verification token match for source {ConfigurationSource}: {Matched}.")]
+    public static partial void WebhookVerificationTokenResult(ILogger logger, string configurationSource, bool matched);
+    [LoggerMessage(2107, LogLevel.Information, "WhatsApp webhook verification challenge returned for source {ConfigurationSource}.")]
+    public static partial void WebhookVerificationChallengeReturned(ILogger logger, string configurationSource);
+    [LoggerMessage(2108, LogLevel.Warning, "WhatsApp webhook verification credential for source {ConfigurationSource} could not be decrypted.")]
+    public static partial void WebhookVerificationCredentialUnreadable(ILogger logger, string configurationSource);
+    [LoggerMessage(2110, LogLevel.Information, "WhatsApp webhook POST received; X-Hub-Signature-256 header present: {SignaturePresent}.")]
+    public static partial void WebhookPostReceived(ILogger logger, bool signaturePresent);
+    [LoggerMessage(2111, LogLevel.Information, "WhatsApp webhook POST configuration source {ConfigurationSource} resolved: {Resolved}.")]
+    public static partial void WebhookPostConfiguration(ILogger logger, string configurationSource, bool resolved);
+    [LoggerMessage(2112, LogLevel.Information, "WhatsApp webhook POST signature check for source {ConfigurationSource}; App Secret decrypted: {AppSecretDecrypted}; signature valid: {SignatureValid}.")]
+    public static partial void WebhookPostSignature(ILogger logger, string configurationSource, bool appSecretDecrypted, bool signatureValid);
+    [LoggerMessage(2113, LogLevel.Information, "WhatsApp webhook POST accepted: {Accepted}; result: {Result}.")]
+    public static partial void WebhookPostOutcome(ILogger logger, bool accepted, string result);
+    [LoggerMessage(2114, LogLevel.Information, "WhatsApp webhook POST processing skipped for tenant {TenantId}; reason: {Reason}.")]
+    public static partial void WebhookPostProcessingSkipped(ILogger logger, Guid tenantId, string reason);
 }

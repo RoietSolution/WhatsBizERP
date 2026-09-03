@@ -91,7 +91,7 @@ export class POSScreenComponent {
     private addSound: ProductAddedSoundService,
   ) {
     api.methods().subscribe({
-      next: (x) => this.methods.set(x),
+      next: (x) => this.methods.set(x.filter((method) => ['CASH', 'UPI'].includes(method.methodCode))),
       error: () => this.snack.open('Payment methods could not be loaded. Refresh the page and retry.', 'Dismiss', { duration: 5000 }),
     });
     api.warehouses().subscribe({

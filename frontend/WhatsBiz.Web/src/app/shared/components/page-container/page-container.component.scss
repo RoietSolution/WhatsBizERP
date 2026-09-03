@@ -7,3 +7,10 @@
 .page-container--wide {
   max-width: var(--wb-content-max-width);
 }
+.page-container--fill {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  max-width: none;
+  flex-direction: column;
+}

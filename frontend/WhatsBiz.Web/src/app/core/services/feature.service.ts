@@ -31,6 +31,10 @@ export class FeatureService {
       shareReplay({ bufferSize: 1, refCount: false }));
     return this.request;
   }
+  reset(): void {
+    this.configurationState.set(null);
+    this.request = undefined;
+  }
   refresh(): Observable<TenantFeatureConfiguration | null> { this.request = undefined; return this.load(true); }
   tenants(): Observable<FeatureTenantSummary[]> { return this.http.get<FeatureTenantSummary[]>('/api/features/administration/tenants'); }
   tenant(tenantId: string): Observable<TenantFeatureConfiguration> { return this.http.get<TenantFeatureConfiguration>(`/api/features/administration/tenants/${tenantId}`); }

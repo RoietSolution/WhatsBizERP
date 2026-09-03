@@ -53,6 +53,8 @@ export class ProductListComponent {
     newRoute: '/products/new',
     rowId: 'productId',
     rowName: 'productName',
+    templateEnabled: true,
+    templateLabel: 'Product Import Template',
     importEnabled: true,
     exportEnabled: true,
     columns: [
@@ -126,6 +128,16 @@ export class ProductListComponent {
   }
   handle(e: MasterActionEvent<ProductListItem>) {
     if (e.action === 'refresh') this.load();
+    else if (e.action === 'template')
+      this.api
+        .template()
+        .subscribe({
+          next: (file) => this.download(file, 'product-import-template.xlsx'),
+          error: () =>
+            this.snack.open('Unable to download the product import template.', 'Dismiss', {
+              duration: 4000,
+            }),
+        });
     else if (e.action === 'import') this.fileInput()?.nativeElement.click();
     else if (e.action === 'export')
       this.api

@@ -35,6 +35,13 @@
     ><button mat-button (click)="emitAction('refresh')">
       <span class="material-symbols-rounded">refresh</span>Refresh
     </button>
+    @if (config().templateEnabled) {
+      <button mat-button (click)="emitAction('template')">
+        <span class="material-symbols-rounded">download</span>{{
+          config().templateLabel || 'Import Template'
+        }}
+      </button>
+    }
     @if (config().importEnabled) {
       <button mat-button (click)="emitAction('import')">
         <span class="material-symbols-rounded">upload</span>Import

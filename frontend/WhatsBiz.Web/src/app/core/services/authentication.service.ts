@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { finalize, Observable, shareReplay, tap, throwError } from 'rxjs';
 import { AuthSession, CurrentUser, JwtStorageService } from './jwt-storage.service';
 import { CurrentUserService } from './current-user.service';
+import { FeatureService } from './feature.service';
 
 export interface ForgotPasswordResponse {
   message: string;
@@ -20,6 +21,7 @@ export class AuthenticationService {
     private readonly http: HttpClient,
     private readonly storage: JwtStorageService,
     private readonly currentUser: CurrentUserService,
+    private readonly features: FeatureService,
     private readonly router: Router,
   ) {
     const session = storage.session;
@@ -73,11 +75,13 @@ export class AuthenticationService {
   }
   clearSession(): void {
     this.storage.clear();
+    this.features.reset();
     this.currentUser.clear();
     this.isAuthenticated.set(false);
     void this.router.navigateByUrl('/login');
   }
   private apply(session: AuthSession): void {
+    if (this.currentUser.user()?.tenantId !== session.user.tenantId) this.features.reset();
     this.storage.save(session);
     this.currentUser.set(session.user);
     this.isAuthenticated.set(true);

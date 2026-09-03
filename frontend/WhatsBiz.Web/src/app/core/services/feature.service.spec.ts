@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { signal } from '@angular/core';
+import { of } from 'rxjs';
 import { CurrentUserService } from './current-user.service';
 import { FeatureService } from './feature.service';
 
@@ -21,5 +22,41 @@ describe('FeatureService', () => {
     expect(value.hasFeature('V1')).toBeTrue();
     expect(value.hasFeature('POS')).toBeFalse();
     expect(value.hasFeature('WHATSAPP_COMMERCE')).toBeFalse();
+  });
+  it('clears tenant feature state when the authenticated session changes', () => {
+    const current = signal({ features: { DASHBOARD: false } });
+    const http = jasmine.createSpyObj<HttpClient>('HttpClient', ['get']);
+    http.get.and.returnValue(
+      of({
+        tenantId: 'tenant-1',
+        tenantName: 'Retailer',
+        features: [
+          {
+            featureId: 'dashboard',
+            featureKey: 'DASHBOARD',
+            featureName: 'Dashboard',
+            featureType: 'MODULE',
+            version: 'V1',
+            sortOrder: 1,
+            configuredEnabled: true,
+            effectiveEnabled: true,
+            subscriptionAllowed: true,
+            globalAllowed: true,
+            dependencies: [],
+          },
+        ],
+      }),
+    );
+    const value = new FeatureService(
+      http,
+      { user: current } as unknown as CurrentUserService,
+    );
+    value.load().subscribe();
+    expect(value.hasFeature('DASHBOARD')).toBeTrue();
+
+    value.reset();
+
+    expect(value.configuration()).toBeNull();
+    expect(value.hasFeature('DASHBOARD')).toBeFalse();
   });
 });

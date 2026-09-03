@@ -7,11 +7,10 @@
 </header>
 <mat-dialog-content
   ><section class="method-grid" aria-label="Payment method">
-    @for (x of data.methods; track x.methodCode) {
+    @for (x of visibleMethods; track x.methodCode) {
       <button
         type="button"
         [class.active]="method === x.methodCode"
-        [disabled]="x.methodCode === 'CREDIT' && !data.hasCustomer"
         (click)="selectMethod(x.methodCode)"
       >
         <span class="material-symbols-rounded">{{ icon(x.methodCode) }}</span
@@ -19,24 +18,37 @@
       </button>
     }
   </section>
-  @if (!data.hasCustomer) { <p class="credit-help">Select or create a customer before making a credit sale.</p> }
-  @if (method === 'CREDIT') { <p class="credit-help">The remaining balance will be recorded against the selected customer. Credit is not recorded as a received payment.</p> }
+  @if (splitPayment) {
+    <p class="split-help">Split payment: add the Cash and UPI amounts as separate payment lines.</p>
+  }
   <div class="entry">
     <mat-form-field appearance="outline"
       ><mat-label>Amount</mat-label><span matPrefix>₹&nbsp;</span
-      ><input matInput type="number" min="0" [(ngModel)]="amount" /></mat-form-field
+      ><input matInput type="number" min="0" [(ngModel)]="amount" (ngModelChange)="paymentAmountChanged()" /></mat-form-field
     ><mat-form-field appearance="outline"
       ><mat-label>{{ requiresReference() ? 'Reference (required)' : 'Reference' }}</mat-label
       ><input matInput [(ngModel)]="reference" [required]="requiresReference()" placeholder="Transaction/reference number" /></mat-form-field
-    ><button mat-flat-button color="primary" [disabled]="method === 'CREDIT' || amount <= 0 || amount > balance() || (requiresReference() && !reference.trim())" (click)="add()">
+    ><button mat-flat-button color="primary" [disabled]="amount <= 0 || amount > balance() || (requiresReference() && !reference.trim())" (click)="add()">
       <span class="material-symbols-rounded">add</span>Add payment
     </button>
   </div>
+  @if (method === 'UPI') {
+    <section class="upi-payment" aria-live="polite">
+      @if (upiQrLoading()) {
+        <div class="upi-placeholder"><span class="material-symbols-rounded">hourglass_top</span>Preparing payment QR...</div>
+      } @else if (upiQrUrl()) {
+        <img [src]="upiQrUrl()" alt="Scan to pay the current bill amount by UPI" />
+        <div><strong>Scan and pay {{ amount | currency: 'INR' }}</strong><span>After payment, enter the UPI transaction/reference number above.</span></div>
+      } @else if (upiQrError()) {
+        <p class="upi-error">{{ upiQrError() }}</p>
+      }
+    </section>
+  }
   <div class="quick">
-    <button mat-stroked-button (click)="amount = 500">₹500</button
-    ><button mat-stroked-button (click)="amount = 1000">₹1,000</button
-    ><button mat-stroked-button (click)="amount = 2000">₹2,000</button
-    ><button mat-stroked-button (click)="amount = balance()">Exact balance</button>
+    <button mat-stroked-button (click)="amount = 500; paymentAmountChanged()">₹500</button
+    ><button mat-stroked-button (click)="amount = 1000; paymentAmountChanged()">₹1,000</button
+    ><button mat-stroked-button (click)="amount = 2000; paymentAmountChanged()">₹2,000</button
+    ><button mat-stroked-button (click)="amount = balance(); paymentAmountChanged()">Exact balance</button>
   </div>
   <section class="payment-list">
     @for (x of payments(); track $index) {
@@ -67,6 +79,6 @@
     [disabled]="!canComplete()"
     (click)="complete()"
   >
-    <span class="material-symbols-rounded">check</span>{{ method === 'CREDIT' && balance() > 0 ? 'Complete Credit Sale' : 'Complete Sale' }}
+    <span class="material-symbols-rounded">check</span>Complete Sale
   </button></mat-dialog-actions
 >

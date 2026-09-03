@@ -5,6 +5,7 @@ export type MasterAction =
   | 'edit'
   | 'delete'
   | 'refresh'
+  | 'template'
   | 'import'
   | 'export'
   | 'print'
@@ -23,6 +24,8 @@ export interface MasterPageConfig<T extends object> {
   rowName: keyof T & string;
   columns: ColDef<T>[];
   detailFields: MasterDetailField<T>[];
+  templateEnabled?: boolean;
+  templateLabel?: string;
   importEnabled?: boolean;
   exportEnabled?: boolean;
   printEnabled?: boolean;

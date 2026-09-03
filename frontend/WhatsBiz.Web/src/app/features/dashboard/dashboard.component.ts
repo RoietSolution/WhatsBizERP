@@ -267,19 +267,19 @@ export class DashboardComponent {
     this.coreLoading.set(true);
     const query = this.query(refresh);
     forkJoin({
-      summary: this.api.summary(query),
-      inventory: this.api.inventory(refresh),
-      finance: this.api.finance(query),
-      customers: this.api.customers(query),
-      suppliers: this.api.suppliers(query),
-      notifications: this.api.notifications(refresh),
+      summary: this.api.summary(query).pipe(catchError(() => of(null))),
+      inventory: this.api.inventory(refresh).pipe(catchError(() => of(null))),
+      finance: this.api.finance(query).pipe(catchError(() => of(null))),
+      customers: this.api.customers(query).pipe(catchError(() => of(null))),
+      suppliers: this.api.suppliers(query).pipe(catchError(() => of(null))),
+      notifications: this.api.notifications(refresh).pipe(catchError(() => of([]))),
     }).subscribe({
       next: (data) => {
-        this.summary.set(data.summary);
-        this.inventory.set(data.inventory);
-        this.finance.set(data.finance);
-        this.customers.set(data.customers);
-        this.suppliers.set(data.suppliers);
+        if (data.summary) this.summary.set(data.summary);
+        if (data.inventory) this.inventory.set(data.inventory);
+        if (data.finance) this.finance.set(data.finance);
+        if (data.customers) this.customers.set(data.customers);
+        if (data.suppliers) this.suppliers.set(data.suppliers);
         this.notifications.set(data.notifications);
         this.coreLoading.set(false);
       },

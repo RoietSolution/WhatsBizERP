@@ -23,7 +23,7 @@ import { BarcodeScannerComponent } from './barcode-scanner.component';
 import { PosCartGridComponent } from './pos-cart-grid.component';
 import { PosSummaryComponent } from './pos-summary.component';
 import { POSApiService, POSWarehouse } from './pos-api.service';
-import { CartItem, PaymentMethod, POSCustomer, POSProduct } from './pos.models';
+import { CartItem, PaymentMethod, POSBrand, POSCategory, POSCustomer, POSProduct } from './pos.models';
 import { ProductAddedSoundService } from './product-added-sound.service';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 
@@ -53,6 +53,8 @@ export class POSScreenComponent implements OnDestroy {
   readonly cart = signal<CartItem[]>([]);
   readonly products = signal<POSProduct[]>([]);
   readonly customers = signal<POSCustomer[]>([]);
+  readonly categories = signal<POSCategory[]>([]);
+  readonly brands = signal<POSBrand[]>([]);
   readonly customer = signal<POSCustomer | null>(null);
   readonly methods = signal<PaymentMethod[]>([]);
   readonly warehouses = signal<POSWarehouse[]>([]);
@@ -78,6 +80,8 @@ export class POSScreenComponent implements OnDestroy {
   barcode = '';
   search = '';
   customerSearch = '';
+  categoryId = '';
+  brandId = '';
   warehouseId = '';
   billDiscount = 0;
   remarks = '';
@@ -103,6 +107,14 @@ export class POSScreenComponent implements OnDestroy {
         this.warehouseId = (x.find((warehouse) => warehouse.isDefault) ?? x[0])?.warehouseId ?? '';
       },
       error: (error) => this.showOrderError(error, 'Warehouses could not be loaded.'),
+    });
+    api.categories().subscribe({
+      next: (items) => this.categories.set(this.flattenCategories(items)),
+      error: () => this.snack.open('Product categories could not be loaded.', 'Dismiss', { duration: 4000 }),
+    });
+    api.brands().subscribe({
+      next: (items) => this.brands.set(items),
+      error: () => this.snack.open('Product brands could not be loaded.', 'Dismiss', { duration: 4000 }),
     });
     setTimeout(() => this.barcodeInput?.nativeElement.focus());
   }
@@ -154,14 +166,17 @@ export class POSScreenComponent implements OnDestroy {
     this.lookupBarcode(barcode, true);
   }
   findProducts() {
-    if (this.search.trim().length < 2) {
+    if (this.search.trim().length < 2 && !this.categoryId && !this.brandId) {
       this.products.set([]);
       return;
     }
-    this.api.products(this.search, undefined, this.warehouseId).subscribe({
+    this.api.products(this.search || undefined, undefined, this.warehouseId, undefined, this.categoryId || undefined, this.brandId || undefined).subscribe({
       next: (x) => this.products.set(x),
       error: () => this.snack.open('Product search failed. Please retry.', 'Dismiss', { duration: 5000 }),
     });
+  }
+  private flattenCategories(items: POSCategory[]): POSCategory[] {
+    return items.flatMap((item) => [item, ...this.flattenCategories(item.children ?? [])]);
   }
   findCustomers() {
     if (this.customerSearch.trim().length < 2) {
@@ -427,11 +442,11 @@ export class POSScreenComponent implements OnDestroy {
 @Component({
   standalone: true,
   imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatDialogModule],
-  template: `<h2 mat-dialog-title>Quick customer</h2><mat-dialog-content><mat-form-field appearance="outline"><mat-label>Customer name</mat-label><input matInput [(ngModel)]="name" required /></mat-form-field><mat-form-field appearance="outline"><mat-label>Mobile (optional)</mat-label><input matInput [(ngModel)]="mobile" /></mat-form-field><mat-form-field appearance="outline"><mat-label>GSTIN (optional)</mat-label><input matInput [(ngModel)]="gstin" /></mat-form-field></mat-dialog-content><mat-dialog-actions align="end"><button mat-button mat-dialog-close>Cancel</button><button mat-flat-button color="primary" [disabled]="!name.trim()" (click)="save()">Create customer</button></mat-dialog-actions>`,
+  template: `<h2 mat-dialog-title>Add Customer</h2><mat-dialog-content><mat-form-field appearance="outline"><mat-label>Customer name</mat-label><input matInput [(ngModel)]="name" required /></mat-form-field><mat-form-field appearance="outline"><mat-label>Mobile (optional)</mat-label><input matInput [(ngModel)]="mobile" /></mat-form-field><mat-form-field appearance="outline"><mat-label>GSTIN (optional)</mat-label><input matInput [(ngModel)]="gstin" /></mat-form-field></mat-dialog-content><mat-dialog-actions align="end"><button mat-button mat-dialog-close>Cancel</button><button mat-flat-button color="primary" [disabled]="!name.trim()" (click)="save()">Create customer</button></mat-dialog-actions>`,
   styles: [`mat-dialog-content{display:grid;gap:8px;padding-top:8px}mat-form-field{width:100%}`],
 })
 class QuickCustomerDialogComponent {
   name = ''; mobile = ''; gstin = '';
   constructor(private readonly api: POSApiService, private readonly ref: MatDialogRef<QuickCustomerDialogComponent>, private readonly snack: MatSnackBar) {}
-  save() { this.api.quickCustomer({ customerName: this.name.trim(), mobile: this.mobile.trim() || null, gstin: this.gstin.trim() || null }).subscribe({ next: x => this.ref.close(x), error: () => this.snack.open('Quick customer could not be created.', 'Dismiss', { duration: 4000 }) }); }
+  save() { this.api.quickCustomer({ customerName: this.name.trim(), mobile: this.mobile.trim() || null, gstin: this.gstin.trim() || null }).subscribe({ next: x => this.ref.close(x), error: () => this.snack.open('Customer could not be created.', 'Dismiss', { duration: 4000 }) }); }
 }

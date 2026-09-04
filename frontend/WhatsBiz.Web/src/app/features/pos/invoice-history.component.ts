@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTableModule } from '@angular/material/table';
@@ -5,7 +6,7 @@ import { POSApiService } from './pos-api.service';
 import { InvoiceList } from './pos.models';
 import { PaperSize } from '../printing/paper-size';
 @Component({
-  imports: [MatButtonModule, MatTableModule],
+  imports: [DatePipe, MatButtonModule, MatTableModule],
   templateUrl: './invoice-history.component.html',
   styles: [
     `

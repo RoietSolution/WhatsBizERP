@@ -17,8 +17,7 @@
   <main>
     <section class="workspace">
       <section class="customer-card">
-        <div class="customer-icon material-symbols-rounded">person</div>
-        <div>
+        <div class="customer-details">
           <small>Billing customer</small
           ><strong>{{ customer()?.customerName || 'Walk-in Customer' }}</strong
           ><span
@@ -56,8 +55,8 @@
             }
           </mat-select></mat-form-field
         >
-        <button mat-stroked-button class="quick-customer" type="button" (click)="quickCustomer()">
-          <span class="material-symbols-rounded">person_add</span>Quick Customer
+        <button mat-flat-button color="primary" class="quick-customer" type="button" (click)="quickCustomer()">
+          <span class="material-symbols-rounded">person_add</span>Add Customer
         </button>
       </section>
       <section class="search-panel">
@@ -116,13 +115,21 @@
         </div>
         <mat-form-field appearance="outline" subscriptSizing="dynamic"
           ><mat-label>Category</mat-label
-          ><mat-select value="all"
-            ><mat-option value="all">All categories</mat-option></mat-select
+          ><mat-select [(ngModel)]="categoryId" (selectionChange)="findProducts()"
+            ><mat-option value="">All categories</mat-option>
+            @for (category of categories(); track category.productCategoryId) {
+              <mat-option [value]="category.productCategoryId">{{ category.categoryName }}</mat-option>
+            }
+          </mat-select
           ></mat-form-field
         ><mat-form-field appearance="outline" subscriptSizing="dynamic"
           ><mat-label>Brand</mat-label
-          ><mat-select value="all"
-            ><mat-option value="all">All brands</mat-option></mat-select
+          ><mat-select [(ngModel)]="brandId" (selectionChange)="findProducts()"
+            ><mat-option value="">All brands</mat-option>
+            @for (brand of brands(); track brand.brandId) {
+              <mat-option [value]="brand.brandId">{{ brand.brandName }}</mat-option>
+            }
+          </mat-select
           ></mat-form-field
         >
       </section>

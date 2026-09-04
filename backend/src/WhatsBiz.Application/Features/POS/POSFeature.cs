@@ -24,6 +24,8 @@ public sealed record POSProductDto(
     string ProductCode,
     string? Barcode,
     string ProductName,
+    Guid CategoryId,
+    Guid BrandId,
     decimal SellingPrice,
     decimal MRP,
     decimal GSTPercentage,
@@ -132,7 +134,7 @@ public sealed record PostedInvoiceDto(Guid InvoiceId, string InvoiceNumber, deci
 
 /* Requests */
 
-public sealed record SearchPOSProducts(string? Search, string? Barcode, Guid? WarehouseId, int Size = 20) : IRequest<IReadOnlyCollection<POSProductDto>>;
+public sealed record SearchPOSProducts(string? Search, string? Barcode, Guid? WarehouseId, Guid? CategoryId, Guid? BrandId, int Size = 20) : IRequest<IReadOnlyCollection<POSProductDto>>;
 public sealed record SearchPOSCustomers(string? Search, int Size = 20) : IRequest<IReadOnlyCollection<POSCustomerDto>>;
 public sealed record CreateQuickCustomer(QuickCustomerInput Input) : IRequest<POSCustomerDto>;
 public sealed record PostInvoice(POSInvoiceInput Input, string Status = "COMPLETED") : IRequest<PostedInvoiceDto>;
@@ -248,8 +250,8 @@ public sealed class POSHandlers(
     IRequestHandler<ExportSales, byte[]>
 {
     public async Task<IReadOnlyCollection<POSProductDto>> Handle(SearchPOSProducts q, CancellationToken t) =>
-        (await repository.Products(q.Search, q.Barcode, q.WarehouseId, q.Size, t))
-            .Select(x => new POSProductDto(x.Product.ProductId, x.Product.ProductCode, x.MatchedBarcode, x.Product.ProductName, x.Product.SellingPrice, x.Product.MRP, x.Product.GSTPercentage, x.Product.IsBatchManaged, x.Product.IsSerialManaged, x.AvailableQuantity, x.NegativeStockAllowed))
+        (await repository.Products(q.Search, q.Barcode, q.WarehouseId, q.CategoryId, q.BrandId, q.Size, t))
+            .Select(x => new POSProductDto(x.Product.ProductId, x.Product.ProductCode, x.MatchedBarcode, x.Product.ProductName, x.Product.CategoryId, x.Product.BrandId, x.Product.SellingPrice, x.Product.MRP, x.Product.GSTPercentage, x.Product.IsBatchManaged, x.Product.IsSerialManaged, x.AvailableQuantity, x.NegativeStockAllowed))
             .ToArray();
 
     public async Task<IReadOnlyCollection<POSCustomerDto>> Handle(SearchPOSCustomers q, CancellationToken t) =>

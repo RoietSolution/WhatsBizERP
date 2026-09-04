@@ -3,6 +3,8 @@ export interface POSProduct {
   productCode: string;
   barcode?: string;
   productName: string;
+  categoryId: string;
+  brandId: string;
   sellingPrice: number;
   mrp: number;
   gstPercentage: number;
@@ -10,6 +12,15 @@ export interface POSProduct {
   isSerialManaged: boolean;
   availableQuantity?: number | null;
   negativeStockAllowed: boolean;
+}
+export interface POSCategory {
+  productCategoryId: string;
+  categoryName: string;
+  children: POSCategory[];
+}
+export interface POSBrand {
+  brandId: string;
+  brandName: string;
 }
 export interface POSCustomer {
   customerId: string;

@@ -6,6 +6,8 @@ import {
   Invoice,
   PagedInvoices,
   PaymentMethod,
+  POSBrand,
+  POSCategory,
   POSCustomer,
   POSProduct,
   TodaySales,
@@ -27,13 +29,21 @@ export interface POSUpiQr {
 @Injectable({ providedIn: 'root' })
 export class POSApiService {
   constructor(private readonly http: HttpClient) {}
-  products(search?: string, barcode?: string, warehouseId?: string, size?: number) {
+  products(search?: string, barcode?: string, warehouseId?: string, size?: number, categoryId?: string, brandId?: string) {
     let params = new HttpParams();
     if (search) params = params.set('search', search);
     if (barcode) params = params.set('barcode', barcode);
     if (warehouseId) params = params.set('warehouseId', warehouseId);
     if (size) params = params.set('size', size);
+    if (categoryId) params = params.set('categoryId', categoryId);
+    if (brandId) params = params.set('brandId', brandId);
     return this.http.get<POSProduct[]>('/api/pos/products', { params });
+  }
+  categories() {
+    return this.http.get<POSCategory[]>('/api/pos/categories');
+  }
+  brands() {
+    return this.http.get<POSBrand[]>('/api/pos/brands');
   }
   productImage(productId: string) {
     return this.http.get(`/api/pos/products/${productId}/image`, { responseType: 'blob' });

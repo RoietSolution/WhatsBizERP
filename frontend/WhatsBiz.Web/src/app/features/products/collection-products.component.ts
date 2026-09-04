@@ -39,7 +39,8 @@ import { CollectionDetail, CollectionProduct } from './collection.models';
     @media(max-width:700px) {
       .section-heading { align-items:flex-start;flex-direction:column; }
       .toolbar { align-items:stretch;flex-direction:column; }
-      .toolbar mat-form-field,.toolbar button { width:100%;min-width:0; }
+      .toolbar mat-form-field { width:100%;min-width:0;flex:none; }
+      .toolbar button { width:100%;min-width:0; }
       .grid { grid-template-columns:1fr; }
       .product { padding:12px 44px 12px 12px; }
     }

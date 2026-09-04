@@ -25,8 +25,7 @@
         ><span class="product"
           ><strong>{{ item.productName }}</strong
           ><small>{{ item.productCode }}</small></span
-        ><div class="line-editors"
-          ><label class="quantity-control"
+        ><label class="quantity-control"
           ><span class="mobile-label">Qty</span
           ><input
             [attr.aria-label]="'Quantity for ' + item.productName"
@@ -35,7 +34,9 @@
             step="1"
             [(ngModel)]="item.quantity"
             (change)="changed.emit()" /></label
-          ><label class="discount-control"
+        ><span class="unit">Unit</span
+        ><span class="mrp">{{ item.mrp | currency: 'INR' : 'symbol' : '1.2-2' }}</span
+        ><label class="discount-control"
           ><span class="mobile-label">Discount</span
           ><input
             [attr.aria-label]="'Discount for ' + item.productName"
@@ -43,9 +44,7 @@
             min="0"
             max="100"
             [(ngModel)]="item.discountPercentage"
-            (change)="changed.emit()" /></label></div
-        ><span class="unit">Unit</span
-        ><span class="mrp">{{ item.mrp | currency: 'INR' : 'symbol' : '1.2-2' }}</span
+            (change)="changed.emit()" /></label
         ><span class="gst">{{ item.taxPercentage }}%</span
         ><strong class="amount">{{ lineTotal(item) | currency: 'INR' : 'symbol' : '1.2-2' }}</strong
         ><span class="row-actions"

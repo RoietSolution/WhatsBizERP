@@ -6,7 +6,7 @@
       <td mat-cell *matCellDef="let x">{{ x.invoiceNumber }}</td></ng-container
     ><ng-container matColumnDef="date"
       ><th mat-header-cell *matHeaderCellDef>Date</th>
-      <td mat-cell *matCellDef="let x">{{ x.invoiceDate }}</td></ng-container
+      <td mat-cell *matCellDef="let x">{{ x.invoiceDate | date: 'dd/MM/yyyy' }}</td></ng-container
     ><ng-container matColumnDef="customer"
       ><th mat-header-cell *matHeaderCellDef>Customer</th>
       <td mat-cell *matCellDef="let x">{{ x.customerName || 'Walk-in' }}</td></ng-container

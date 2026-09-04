@@ -10,12 +10,15 @@ public sealed class POSRepository(ApplicationDbContext db, ICurrentUserService c
 {
     private IQueryable<Product> TenantProducts => currentUser.TenantId is Guid tenant ? db.Products.Where(x => x.TenantId == tenant) : db.Products.Where(_ => false);
     private IQueryable<Customer> TenantCustomers => currentUser.TenantId is Guid tenant ? db.Customers.Where(x => x.TenantId == tenant) : db.Customers.Where(_ => false);
+    public Task<IReadOnlyCollection<POSProductLookup>> Products(string? search, string? barcode, Guid? warehouseId, int size, CancellationToken token) => Products(search, barcode, warehouseId, null, null, size, token);
     public async Task<IReadOnlyDictionary<Guid,string>> SourceChannels(IReadOnlyCollection<Guid> invoiceIds, CancellationToken token) { if (invoiceIds.Count == 0) return new Dictionary<Guid,string>(); var connection=(SqlConnection)db.Database.GetDbConnection(); var opened=connection.State!=System.Data.ConnectionState.Open; if(opened)await connection.OpenAsync(token); try { await using var command=connection.CreateCommand(); var names=invoiceIds.Select((id,index)=>{var name=$"@p{index}";command.Parameters.AddWithValue(name,id);return name;}); command.CommandText=$"SELECT InvoiceId,SourceChannel FROM integration.WhatsAppCommerceOrders WHERE InvoiceId IN ({string.Join(',',names)});"; var result=new Dictionary<Guid,string>(); await using var reader=await command.ExecuteReaderAsync(token); while(await reader.ReadAsync(token))result[reader.GetGuid(0)]=reader.GetString(1); return result; } finally { if(opened)await connection.CloseAsync(); } }
     public async Task<POSCoinSummary> CoinSummary(Guid invoiceId, CancellationToken token) { var connection=(SqlConnection)db.Database.GetDbConnection(); var opened=connection.State!=System.Data.ConnectionState.Open; if(opened)await connection.OpenAsync(token); try { await using var command=connection.CreateCommand(); command.CommandText="SELECT EarnedCoins,RedeemedCoins,RedemptionDiscount FROM loyalty.OrderCoins WHERE OrderId=@order;"; command.Parameters.AddWithValue("@order",invoiceId); await using var reader=await command.ExecuteReaderAsync(token); return await reader.ReadAsync(token) ? new(reader.GetInt32(0),reader.GetInt32(1),reader.GetDecimal(2)) : new(0,0,0); } finally { if(opened)await connection.CloseAsync(); } }
-    public async Task<IReadOnlyCollection<POSProductLookup>> Products(string? search, string? barcode, Guid? warehouseId, int size, CancellationToken token)
+    public async Task<IReadOnlyCollection<POSProductLookup>> Products(string? search, string? barcode, Guid? warehouseId, Guid? categoryId, Guid? brandId, int size, CancellationToken token)
     {
         var exactBarcode = string.IsNullOrWhiteSpace(barcode) ? null : barcode;
         var q = TenantProducts.AsNoTracking().Where(x => x.IsActive && !x.IsDeleted);
+        if (categoryId.HasValue) q = q.Where(x => x.CategoryId == categoryId.Value);
+        if (brandId.HasValue) q = q.Where(x => x.BrandId == brandId.Value);
         if (exactBarcode is not null)
             q = q.Where(x => x.Barcode == exactBarcode || db.ProductBarcodes.Any(b => b.TenantId == x.TenantId && b.ProductId == x.ProductId && b.Barcode == exactBarcode && b.IsActive && !b.IsDeleted));
         else if (!string.IsNullOrWhiteSpace(search))

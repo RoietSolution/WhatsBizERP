@@ -7,13 +7,17 @@ using WhatsBiz.Application.Features.POS;
 using WhatsBiz.Application.Features.CustomerNotifications;
 using WhatsBiz.Application.Features.Printing;
 using WhatsBiz.Application.Features.Products.Products;
+using WhatsBiz.Application.Features.Products.DTOs;
+using WhatsBiz.Application.Features.Products.MasterData;
 using WhatsBiz.Application.Features.Warehouses;
 using WhatsBiz.SharedKernel;
 namespace WhatsBiz.Api.Controllers;
 [ApiController, Route("api/pos")]
 public sealed class POSController(ISender sender, IConfiguration configuration, ICurrentUserService currentUser, ICustomerNotificationService notifications, IPOSLifecycleService lifecycle) : ControllerBase
 {
-    [HttpGet("products"), HasPermission(Permissions.POS.View)] public Task<IReadOnlyCollection<POSProductDto>> Products([FromQuery] string? search, [FromQuery] string? barcode, [FromQuery] Guid? warehouseId, [FromQuery] int size = 20, CancellationToken token = default) => sender.Send(new SearchPOSProducts(search, barcode, warehouseId, size), token);
+    [HttpGet("products"), HasPermission(Permissions.POS.View)] public Task<IReadOnlyCollection<POSProductDto>> Products([FromQuery] string? search, [FromQuery] string? barcode, [FromQuery] Guid? warehouseId, [FromQuery] Guid? categoryId, [FromQuery] Guid? brandId, [FromQuery] int size = 20, CancellationToken token = default) => sender.Send(new SearchPOSProducts(search, barcode, warehouseId, categoryId, brandId, size), token);
+    [HttpGet("categories"), HasPermission(Permissions.POS.View)] public Task<IReadOnlyCollection<ProductCategoryDto>> Categories(CancellationToken token) => sender.Send(new GetProductCategoriesQuery(null, true), token);
+    [HttpGet("brands"), HasPermission(Permissions.POS.View)] public Task<IReadOnlyCollection<BrandDto>> Brands(CancellationToken token) => sender.Send(new GetBrandsQuery(null, true), token);
     [HttpGet("products/{id:guid}/image"), HasPermission(Permissions.POS.View)] public async Task<IActionResult> ProductImage(Guid id, CancellationToken token) { var image = await sender.Send(new GetProductImageQuery(id, true), token); return image is null ? NotFound() : File(image.Content, image.ContentType, image.FileName); }
     [HttpGet("customers"), HasPermission(Permissions.POS.View)] public Task<IReadOnlyCollection<POSCustomerDto>> Customers([FromQuery] string? search, [FromQuery] int size = 20, CancellationToken token = default) => sender.Send(new SearchPOSCustomers(search, size), token);
     [HttpGet("warehouses"), HasPermission(Permissions.POS.View)] public Task<PagedWarehouses> Warehouses(CancellationToken token) => sender.Send(new GetWarehouses(null, true, null, "warehouseName", false, 1, 100), token);

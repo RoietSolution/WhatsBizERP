@@ -178,3 +178,9 @@ nav {
   justify-content: center;
   padding-inline: 0;
 }
+@media (max-width: 1199px) {
+  aside {
+    width: 100%;
+    max-width: 100%;
+  }
+}

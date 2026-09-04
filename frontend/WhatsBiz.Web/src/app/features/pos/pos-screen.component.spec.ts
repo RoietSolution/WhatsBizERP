@@ -9,6 +9,8 @@ describe('POSScreenComponent barcode flow', () => {
     const api = jasmine.createSpyObj<POSApiService>('POSApiService', [
       'methods',
       'warehouses',
+      'categories',
+      'brands',
       'products',
       'productImage',
       'customers',
@@ -21,6 +23,8 @@ describe('POSScreenComponent barcode flow', () => {
     api.warehouses.and.returnValue(
       of([{ warehouseId: 'warehouse-1', warehouseName: 'Main', isDefault: true }]),
     );
+    api.categories.and.returnValue(of([]));
+    api.brands.and.returnValue(of([]));
     api.productImage.and.returnValue(EMPTY);
     const snack = jasmine.createSpyObj('MatSnackBar', ['open']);
     const dialog = jasmine.createSpyObj('MatDialog', ['open']);
@@ -92,7 +96,23 @@ describe('POSScreenComponent barcode flow', () => {
 
     component.findProducts();
 
-    expect(api.products).toHaveBeenCalledWith('Test', undefined, 'warehouse-1');
+    expect(api.products).toHaveBeenCalledWith(
+      'Test', undefined, 'warehouse-1', undefined, undefined, undefined,
+    );
+    expect(component.products()).toHaveSize(1);
+  });
+
+  it('loads products when a category or brand filter is selected', () => {
+    const { api, component } = setup();
+    api.products.and.returnValue(of([product()]));
+    component.categoryId = 'category-1';
+    component.brandId = 'brand-1';
+
+    component.findProducts();
+
+    expect(api.products).toHaveBeenCalledWith(
+      undefined, undefined, 'warehouse-1', undefined, 'category-1', 'brand-1',
+    );
     expect(component.products()).toHaveSize(1);
   });
 
@@ -155,6 +175,8 @@ describe('POSScreenComponent barcode flow', () => {
       productCode: 'P-001',
       barcode: '8901234567890',
       productName: 'Test product',
+      categoryId: 'category-1',
+      brandId: 'brand-1',
       sellingPrice: 100,
       mrp: 110,
       gstPercentage: 18,

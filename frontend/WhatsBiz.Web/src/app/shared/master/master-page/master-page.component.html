@@ -153,9 +153,15 @@
                 }
               </dl>
               <div class="card-actions">
-                <button mat-button (click)="open(item)">View details</button>
-                <button mat-button (click)="row({ action: 'edit', row: item })">Edit</button>
-                <button mat-button class="danger-action" (click)="row({ action: 'delete', row: item })">Delete</button>
+                @if (config().compactCardActions) {
+                  <button mat-icon-button type="button" aria-label="View details" title="View details" (click)="open(item)"><span class="material-symbols-rounded">visibility</span></button>
+                  <button mat-icon-button type="button" aria-label="Edit" title="Edit" (click)="row({ action: 'edit', row: item })"><span class="material-symbols-rounded">edit</span></button>
+                  <button mat-icon-button type="button" class="danger-action" aria-label="Delete" title="Delete" (click)="row({ action: 'delete', row: item })"><span class="material-symbols-rounded">delete</span></button>
+                } @else {
+                  <button mat-button (click)="open(item)">View details</button>
+                  <button mat-button (click)="row({ action: 'edit', row: item })">Edit</button>
+                  <button mat-button class="danger-action" (click)="row({ action: 'delete', row: item })">Delete</button>
+                }
               </div>
             </div>
           </article>

@@ -205,7 +205,7 @@ public sealed class DemoRequestTests
 
         var status = await NotificationService(sender, logger, secret).NotifyAsync(Detail("requester@example.com"), CancellationToken.None);
 
-        status.Should().Be("SENT");
+        status.Should().Be("FAILED");
         sender.Emails.Should().ContainSingle().Which.Recipient.Should().Be("support@khatadhari.com");
         logger.Messages.Should().Contain(message => message.Contains("requester acknowledgement failed", StringComparison.Ordinal));
         logger.Messages.Should().NotContain(message => message.Contains(secret, StringComparison.Ordinal));

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnDestroy, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,7 +10,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { finalize, forkJoin, of } from 'rxjs';
+import { catchError, finalize, forkJoin, map, of } from 'rxjs';
 import { BarcodeScanResult } from '../pos/barcode-camera.service';
 import { BarcodeScannerComponent } from '../pos/barcode-scanner.component';
 import { ProductApiService } from './product-api.service';
@@ -272,7 +272,7 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ProductFormComponent {
+export class ProductFormComponent implements OnDestroy {
   private readonly formBuilder = inject(FormBuilder);
   readonly loading = signal(true);
   readonly saving = signal(false);
@@ -282,6 +282,7 @@ export class ProductFormComponent {
   readonly flatCategories = signal<Category[]>([]);
   readonly imagePreview = signal<string | null>(null);
   readonly images = signal<ProductImage[]>([]);
+  private imageObjectUrls: string[] = [];
   readonly additionalBarcodes = signal<ProductBarcodeInput[]>([]);
   readonly scannerOpen = signal(false);
   readonly scanTarget = signal<'primary' | 'additional'>('additional');
@@ -364,8 +365,7 @@ export class ProductFormComponent {
                 : data.product,
             );
             this.additionalBarcodes.set(this.copySourceId ? [] : (data.product.additionalBarcodes ?? []));
-            if (!this.copySourceId)
-              this.api.images(data.product.productId).subscribe((images) => { this.images.set(images); if (images[0]) this.imagePreview.set(images[0].url); });
+            if (!this.copySourceId) this.loadImages(data.product.productId);
           }
         },
         error: () =>
@@ -428,12 +428,46 @@ export class ProductFormComponent {
     if (!this.productId) return;
     this.api.deleteProductImage(this.productId, image.productImageId).subscribe({
       next: () => {
+        if (image.url.startsWith('blob:')) URL.revokeObjectURL(image.url);
+        this.imageObjectUrls = this.imageObjectUrls.filter((url) => url !== image.url);
         this.images.update((items) => items.filter((x) => x.productImageId !== image.productImageId));
         this.imagePreview.set(this.images()[0]?.url ?? null);
         this.snackBar.open('Image deleted.', undefined, { duration: 2500 });
       },
       error: () => this.snackBar.open('Image could not be deleted.', 'Dismiss', { duration: 4000 }),
     });
+  }
+  ngOnDestroy(): void {
+    this.releaseImageObjectUrls();
+  }
+  private loadImages(productId: string): void {
+    this.releaseImageObjectUrls();
+    this.api.images(productId).subscribe({
+      next: (images) => {
+        if (!images.length) {
+          this.images.set([]);
+          this.imagePreview.set(null);
+          return;
+        }
+        forkJoin(images.map((image) => this.api.imageByUrl(image.url).pipe(
+          map((blob) => {
+            const url = URL.createObjectURL(blob);
+            this.imageObjectUrls.push(url);
+            return { ...image, url };
+          }),
+          catchError(() => of(null)),
+        ))).subscribe((loaded) => {
+          const available = loaded.filter((image): image is ProductImage => image !== null);
+          this.images.set(available);
+          this.imagePreview.set(available[0]?.url ?? null);
+        });
+      },
+      error: () => this.snackBar.open('Product images could not be loaded.', 'Dismiss', { duration: 4000 }),
+    });
+  }
+  private releaseImageObjectUrls(): void {
+    for (const url of this.imageObjectUrls) URL.revokeObjectURL(url);
+    this.imageObjectUrls = [];
   }
   openScanner(target: 'primary' | 'additional'): void {
     this.scanTarget.set(target);

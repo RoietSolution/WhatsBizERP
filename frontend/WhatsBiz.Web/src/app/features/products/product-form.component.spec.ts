@@ -17,6 +17,7 @@ describe('ProductFormComponent manufacturer codes', () => {
       'units',
       'get',
       'images',
+      'imageByUrl',
       'create',
       'update',
       'uploadImage',
@@ -61,6 +62,22 @@ describe('ProductFormComponent manufacturer codes', () => {
 
     expect(component.form.getRawValue().isWhatsAppVisible).toBeFalse();
     expect(component.form.controls.isActive.value).toBeTrue();
+  });
+
+  it('loads protected product images as authenticated blob URLs on the edit form', () => {
+    const { component, api } = setup();
+    api.images.and.returnValue(of([{
+      productImageId: 'image-1', productId: 'product-1', fileName: 'item.png',
+      contentType: 'image/png', isPrimary: true, url: '/api/products/product-1/images/image-1',
+    }]));
+    api.imageByUrl.and.returnValue(of(new Blob(['image'], { type: 'image/png' })));
+    spyOn(URL, 'createObjectURL').and.returnValue('blob:authenticated-image');
+
+    (component as unknown as { loadImages(id: string): void }).loadImages('product-1');
+
+    expect(api.imageByUrl).toHaveBeenCalledWith('/api/products/product-1/images/image-1');
+    expect(component.images()[0].url).toBe('blob:authenticated-image');
+    expect(component.imagePreview()).toBe('blob:authenticated-image');
   });
 
   it('stores exact manufacturer QR URL text without navigating to it', () => {

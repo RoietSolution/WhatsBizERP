@@ -82,6 +82,10 @@ public sealed class DemoRequestNotificationService(
         LoggerMessage.Define<long, string, string>(LogLevel.Error, new EventId(3101, nameof(InternalNotificationFailed)), "Demo request internal notification failed for lead {LeadId} ({ReferenceNo}); failure type: {FailureType}");
     private static readonly Action<ILogger, long, string, string, Exception?> RequesterAcknowledgementFailed =
         LoggerMessage.Define<long, string, string>(LogLevel.Error, new EventId(3102, nameof(RequesterAcknowledgementFailed)), "Demo request requester acknowledgement failed for lead {LeadId} ({ReferenceNo}); failure type: {FailureType}");
+    private static readonly Action<ILogger, long, string, Exception?> InternalNotificationSent =
+        LoggerMessage.Define<long, string>(LogLevel.Information, new EventId(3103, nameof(InternalNotificationSent)), "Demo request internal notification sent for lead {LeadId} ({ReferenceNo})");
+    private static readonly Action<ILogger, long, string, Exception?> RequesterAcknowledgementSent =
+        LoggerMessage.Define<long, string>(LogLevel.Information, new EventId(3104, nameof(RequesterAcknowledgementSent)), "Demo request requester acknowledgement sent for lead {LeadId} ({ReferenceNo})");
     private readonly DemoRequestOptions settings = options.Value;
 
     public async Task<string> NotifyAsync(DemoRequestDetail request, CancellationToken token)
@@ -90,7 +94,10 @@ public sealed class DemoRequestNotificationService(
 
         var internalStatus = await SendInternalNotificationAsync(request, token);
         if (!string.IsNullOrWhiteSpace(request.Email))
-            await SendRequesterAcknowledgementAsync(request, token);
+        {
+            var acknowledgementSent = await SendRequesterAcknowledgementAsync(request, token);
+            if (!acknowledgementSent) return "FAILED";
+        }
         return internalStatus;
     }
 
@@ -105,6 +112,7 @@ public sealed class DemoRequestNotificationService(
                 settings.Email.SupportAddress,
                 $"New KhataDhari Demo Request - {request.ReferenceNo}",
                 BuildInternalBody(request)), token);
+            InternalNotificationSent(logger, request.Id, request.ReferenceNo, null);
             return "SENT";
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -114,7 +122,7 @@ public sealed class DemoRequestNotificationService(
         }
     }
 
-    private async Task SendRequesterAcknowledgementAsync(DemoRequestDetail request, CancellationToken token)
+    private async Task<bool> SendRequesterAcknowledgementAsync(DemoRequestDetail request, CancellationToken token)
     {
         try
         {
@@ -123,10 +131,13 @@ public sealed class DemoRequestNotificationService(
                 "Your KhataDhari Demo Request Has Been Received",
                 BuildRequesterBody(request, settings.Email.LogoUrl, settings.Email.FeatureImageUrl),
                 true), token);
+            RequesterAcknowledgementSent(logger, request.Id, request.ReferenceNo, null);
+            return true;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             RequesterAcknowledgementFailed(logger, request.Id, request.ReferenceNo, exception.GetType().Name, null);
+            return false;
         }
     }
 

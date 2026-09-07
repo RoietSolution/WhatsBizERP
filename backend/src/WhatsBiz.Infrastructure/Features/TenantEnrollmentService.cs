@@ -169,6 +169,9 @@ public sealed partial class TenantEnrollmentService(
         var tenant = RequiredSheet(book, "Tenant");
         var administrator = RequiredSheet(book, "Administrator");
         var subscription = RequiredSheet(book, "Subscription");
+        var tenantCells = DataCells(tenant, ["Tenant Key", "Tenant Name"]);
+        var administratorCells = DataCells(administrator, ["Username", "Email", "Temporary Password"]);
+        var subscriptionCells = DataCells(subscription, ["Plan Key", "Start Date", "End Date (Optional)"]);
         var overrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         if (book.TryGetWorksheet("Features", out var featureSheet))
             foreach (var row in featureSheet.RowsUsed().Skip(1))
@@ -180,14 +183,14 @@ public sealed partial class TenantEnrollmentService(
                     throw new BusinessRuleException($"Features row {row.RowNumber()}: feature '{key}' is duplicated.");
             }
         return new(
-            tenant.Cell(2, 1).GetString().Trim().ToUpperInvariant(),
-            tenant.Cell(2, 2).GetString().Trim(),
-            administrator.Cell(2, 1).GetString().Trim(),
-            administrator.Cell(2, 2).GetString().Trim(),
-            administrator.Cell(2, 3).GetString(),
-            subscription.Cell(2, 1).GetString().Trim().ToUpperInvariant(),
-            Date(subscription.Cell(2, 2), DateTimeOffset.UtcNow),
-            subscription.Cell(2, 3).IsEmpty() ? null : Date(subscription.Cell(2, 3), DateTimeOffset.UtcNow),
+            tenantCells["Tenant Key"].GetString().Trim().ToUpperInvariant(),
+            tenantCells["Tenant Name"].GetString().Trim(),
+            administratorCells["Username"].GetString().Trim(),
+            administratorCells["Email"].GetString().Trim(),
+            administratorCells["Temporary Password"].GetString(),
+            subscriptionCells["Plan Key"].GetString().Trim().ToUpperInvariant(),
+            Date(subscriptionCells["Start Date"], DateTimeOffset.UtcNow),
+            subscriptionCells["End Date (Optional)"].IsEmpty() ? null : Date(subscriptionCells["End Date (Optional)"], DateTimeOffset.UtcNow),
             overrides);
     }
 
@@ -213,6 +216,25 @@ public sealed partial class TenantEnrollmentService(
     }
     private static IXLWorksheet RequiredSheet(XLWorkbook book, string name) =>
         book.TryGetWorksheet(name, out var sheet) ? sheet : throw new BusinessRuleException($"Required worksheet '{name}' is missing.");
+    internal static IReadOnlyDictionary<string, IXLCell> DataCells(IXLWorksheet sheet, IReadOnlyCollection<string> expectedHeaders)
+    {
+        foreach (var headerRow in sheet.RowsUsed().Take(10))
+        {
+            var columns = headerRow.CellsUsed()
+                .Select(cell => new { Name = NormalizeHeader(cell.GetString()), Cell = cell })
+                .Where(x => x.Name.Length > 0)
+                .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(x => x.Key, x => x.First().Cell.Address.ColumnNumber, StringComparer.OrdinalIgnoreCase);
+            if (!expectedHeaders.All(columns.ContainsKey)) continue;
+
+            var dataRow = sheet.RowsUsed()
+                .FirstOrDefault(row => row.RowNumber() > headerRow.RowNumber() && expectedHeaders.Any(header => !row.Cell(columns[header]).IsEmpty()));
+            if (dataRow is null) return expectedHeaders.ToDictionary(header => header, header => sheet.Cell(headerRow.RowNumber() + 1, columns[header]), StringComparer.OrdinalIgnoreCase);
+            return expectedHeaders.ToDictionary(header => header, header => dataRow.Cell(columns[header]), StringComparer.OrdinalIgnoreCase);
+        }
+        throw new BusinessRuleException($"Worksheet '{sheet.Name}' does not contain the expected columns: {string.Join(", ", expectedHeaders)}.");
+    }
+    private static string NormalizeHeader(string value) => Regex.Replace(value.Replace('\u00a0', ' ').Trim(), "\\s+", " ");
     private static bool Boolean(string value, int row) => value.Trim().ToUpperInvariant() switch
     {
         "TRUE" or "YES" or "Y" or "1" => true,

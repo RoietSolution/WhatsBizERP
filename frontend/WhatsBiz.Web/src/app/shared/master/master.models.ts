@@ -35,6 +35,7 @@ export interface MasterPageConfig<T extends object> {
   cardSubtitleField?: keyof T & string;
   cardPriceField?: keyof T & string;
   cardFields?: MasterDetailField<T>[];
+  compactCardActions?: boolean;
   viewRoute?: string;
   recentEnabled?: boolean;
 }

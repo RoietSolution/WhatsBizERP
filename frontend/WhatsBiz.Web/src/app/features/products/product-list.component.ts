@@ -64,6 +64,7 @@ export class ProductListComponent implements OnDestroy {
     cardImageEnabled: true,
     cardSubtitleField: 'productCode',
     cardPriceField: 'sellingPrice',
+    compactCardActions: true,
     viewRoute: '/products',
     cardFields: [
       { label: 'Category', key: 'categoryName' },

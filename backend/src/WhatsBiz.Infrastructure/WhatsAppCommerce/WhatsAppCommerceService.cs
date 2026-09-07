@@ -288,7 +288,7 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
             WHERE p.IsWhatsAppVisible=1 AND p.IsActive=1 AND p.IsDeleted=0
               AND c.IsActive=1 AND c.IsDeleted=0 AND p.TenantId=@tenant
             GROUP BY p.ProductId,p.ProductCode,p.Barcode,p.ProductName,p.ShortDescription,p.ImageUrl,p.SellingPrice,p.MRP,p.GSTPercentage,p.CategoryId,c.CategoryName,br.BrandName,u.UnitName
-            HAVING ISNULL(SUM(b.QuantityAvailable),0)>0 ORDER BY p.ProductName;
+            ORDER BY p.ProductName;
             """, connection);
         command.Parameters.AddWithValue("@warehouse", warehouseId);
         command.Parameters.AddWithValue("@tenant", tenantId);

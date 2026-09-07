@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using WhatsBiz.Infrastructure.Identity;
 using WhatsBiz.Domain.Products;
 using WhatsBiz.Domain.Suppliers;
@@ -9,12 +10,27 @@ using WhatsBiz.Domain.Inventory;
 using WhatsBiz.Domain.POS;
 using WhatsBiz.Domain.Purchases;
 using WhatsBiz.Domain.Commerce;
+using WhatsBiz.Application.Common.Interfaces;
 
 namespace WhatsBiz.Infrastructure.Persistence;
 
-public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, ICurrentUserService? currentUser = null)
     : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
 {
+    private static readonly Type[] TenantOwnedTypes = [typeof(Supplier), typeof(Warehouse), typeof(SalesInvoice), typeof(PurchaseInvoice)];
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var tenant = currentUser?.TenantId;
+        foreach (var entry in ChangeTracker.Entries().Where(e => e.State == EntityState.Added && TenantOwnedTypes.Contains(e.Entity.GetType())))
+        {
+            if (!tenant.HasValue || tenant.Value == Guid.Empty)
+                throw new UnauthorizedAccessException("Tenant context is required to create tenant-owned records.");
+            entry.Property("TenantId").CurrentValue = tenant.Value;
+        }
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
@@ -72,6 +88,24 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         ConfigureInventory(builder);
         ConfigurePOS(builder);
         ConfigurePurchases(builder);
+        ConfigureTenantOwnership(builder);
+    }
+
+    // Phase 1 ownership columns are nullable while historical ownership is audited.
+    // Shadow properties keep the domain model backwards-compatible during rollout.
+    private static void ConfigureTenantOwnership(ModelBuilder b)
+    {
+        ConfigureTenantProperty(b.Entity<Supplier>(), "SupplierId");
+        ConfigureTenantProperty(b.Entity<Warehouse>(), "WarehouseId");
+        ConfigureTenantProperty(b.Entity<SalesInvoice>(), "InvoiceId");
+        ConfigureTenantProperty(b.Entity<PurchaseInvoice>(), "PurchaseInvoiceId");
+    }
+
+    private static void ConfigureTenantProperty<TEntity>(EntityTypeBuilder<TEntity> entity, string key)
+        where TEntity : class
+    {
+        entity.Property<Guid?>("TenantId");
+        entity.HasIndex("TenantId", key);
     }
 
     private static void ConfigurePurchases(ModelBuilder b) { b.Entity<PurchaseInvoice>(e => { e.ToTable("PurchaseInvoices", "purchase"); e.HasKey(x => x.PurchaseInvoiceId); foreach (var p in new[] { nameof(PurchaseInvoice.Subtotal), nameof(PurchaseInvoice.DiscountAmount), nameof(PurchaseInvoice.TaxAmount), nameof(PurchaseInvoice.ExpenseAmount), nameof(PurchaseInvoice.RoundOff), nameof(PurchaseInvoice.GrandTotal), nameof(PurchaseInvoice.PaidAmount) }) e.Property(p).HasPrecision(18, 2); e.Property(x => x.BalanceAmount).HasPrecision(18, 2).HasComputedColumnSql("[GrandTotal]-[PaidAmount]", true); e.Property(x => x.RowVersion).IsRowVersion(); e.HasOne(x => x.Supplier).WithMany().HasForeignKey(x => x.SupplierId).OnDelete(DeleteBehavior.Restrict); e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict); }); b.Entity<PurchaseInvoiceItem>(e => { e.ToTable("PurchaseInvoiceItems", "purchase"); e.HasKey(x => x.PurchaseItemId); foreach (var p in new[] { nameof(PurchaseInvoiceItem.Quantity), nameof(PurchaseInvoiceItem.FreeQuantity), nameof(PurchaseInvoiceItem.ReturnedQuantity), nameof(PurchaseInvoiceItem.PurchasePrice), nameof(PurchaseInvoiceItem.MRP), nameof(PurchaseInvoiceItem.SellingPrice) }) e.Property(p).HasPrecision(18, 4); foreach (var p in new[] { nameof(PurchaseInvoiceItem.DiscountAmount), nameof(PurchaseInvoiceItem.GSTAmount), nameof(PurchaseInvoiceItem.AllocatedExpense), nameof(PurchaseInvoiceItem.LineTotal) }) e.Property(p).HasPrecision(18, 2); foreach (var p in new[] { nameof(PurchaseInvoiceItem.DiscountPercentage), nameof(PurchaseInvoiceItem.GSTPercentage) }) e.Property(p).HasPrecision(5, 2); e.HasOne<PurchaseInvoice>().WithMany(x => x.Items).HasForeignKey(x => x.PurchaseInvoiceId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict); }); b.Entity<PurchasePayment>(e => { e.ToTable("PurchasePayments", "purchase"); e.HasKey(x => x.PurchasePaymentId); e.Property(x => x.Amount).HasPrecision(18, 2); e.HasOne<PurchaseInvoice>().WithMany(x => x.Payments).HasForeignKey(x => x.PurchaseInvoiceId).OnDelete(DeleteBehavior.Restrict); e.HasOne(x => x.PaymentMethod).WithMany().HasForeignKey(x => x.PaymentMethodId).OnDelete(DeleteBehavior.Restrict); }); b.Entity<PurchaseExpense>(e => { e.ToTable("PurchaseExpenses", "purchase"); e.HasKey(x => x.PurchaseExpenseId); e.Property(x => x.Amount).HasPrecision(18, 2); e.HasOne<PurchaseInvoice>().WithMany(x => x.Expenses).HasForeignKey(x => x.PurchaseInvoiceId).OnDelete(DeleteBehavior.Cascade); }); b.Entity<PurchaseReturn>(e => { e.ToTable("PurchaseReturns", "purchase"); e.HasKey(x => x.PurchaseReturnId); e.Property(x => x.Quantity).HasPrecision(18, 4); e.Property(x => x.AdjustmentAmount).HasPrecision(18, 2); }); b.Entity<PurchaseAttachment>(e => { e.ToTable("PurchaseAttachments", "purchase"); e.HasKey(x => x.PurchaseAttachmentId); e.HasOne<PurchaseInvoice>().WithMany(x => x.Attachments).HasForeignKey(x => x.PurchaseInvoiceId).OnDelete(DeleteBehavior.Cascade); }); }

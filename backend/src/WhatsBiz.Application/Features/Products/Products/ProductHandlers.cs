@@ -1,6 +1,7 @@
 using AutoMapper;
 using MediatR;
 using WhatsBiz.Application.Common.Exceptions;
+using UnauthorizedAccessException = System.UnauthorizedAccessException;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Products.DTOs;
 using WhatsBiz.Domain.Products;

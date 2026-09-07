@@ -8,6 +8,7 @@
     ><span class="material-symbols-rounded">tune</span>Adjust Stock</a
   >
   <div workspace-toolbar-actions class="actions">
+    <button mat-button type="button" (click)="view.set(view()==='card'?'table':'card')"><span class="material-symbols-rounded">{{view()==='card'?'table_rows':'grid_view'}}</span>{{view()==='card'?'Table view':'Card view'}}</button>
     <a mat-button routerLink="/inventory/transfer"
       ><span class="material-symbols-rounded">swap_horiz</span>Transfer</a
     ><a mat-button routerLink="/inventory/verification"
@@ -52,13 +53,13 @@
         ></mat-form-field
       >
     </div></app-filter-panel
-  ><app-data-table
+  ><div class="inventory-cards" [class.hidden]="view()!=='card'">@for(x of items();track x.inventoryBalanceId){<article class="inventory-card"><div class="product-icon"><span class="material-symbols-rounded">inventory_2</span></div><div class="product-copy"><strong>{{x.productName}}</strong><small>{{x.productCode}} · {{x.warehouseName}}</small></div><span class="stock-status" [class.out]="x.quantityAvailable<=0" [class.low]="x.quantityAvailable>0 && x.quantityAvailable<=1">{{x.quantityAvailable<=0?'Out of stock':x.quantityAvailable<=1?'Low stock':'In stock'}}</span><dl><dt>Available</dt><dd>{{x.quantityAvailable | number:'1.0-2'}}</dd><dt>Reserved</dt><dd>{{x.quantityReserved | number:'1.0-2'}}</dd><dt>Value</dt><dd>₹{{x.stockValue | number:'1.2-2'}}</dd></dl></article>}@empty{<p class="empty">No inventory records found.</p>}</div><div [class.hidden]="view()!=='table'"><app-data-table
     [rows]="items()"
     [columns]="columns"
     [loading]="loading()"
     searchPlaceholder="Search product or scan barcode"
     (searchChange)="search.setValue($event); page = 1; load()"
-  /><mat-paginator
+  /></div><mat-paginator
     [length]="total()"
     [pageIndex]="page - 1"
     [pageSize]="size"

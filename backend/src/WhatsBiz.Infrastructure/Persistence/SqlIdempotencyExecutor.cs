@@ -7,6 +7,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using WhatsBiz.Application.Common.Exceptions;
+using WhatsBiz.Application.Common.Interfaces;
 
 namespace WhatsBiz.Infrastructure.Persistence;
 
@@ -23,9 +24,11 @@ public sealed class SqlIdempotencyExecutor
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly string connectionString;
+    private readonly ICurrentUserService? currentUser;
 
-    public SqlIdempotencyExecutor(IConfiguration configuration)
+    public SqlIdempotencyExecutor(IConfiguration configuration, ICurrentUserService? currentUser = null)
     {
+        this.currentUser = currentUser;
         connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? string.Empty;
 
@@ -47,6 +50,10 @@ public sealed class SqlIdempotencyExecutor
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, token);
         try
         {
+            var tenant = currentUser?.TenantId;
+            if (!tenant.HasValue || tenant.Value == Guid.Empty)
+                throw new WhatsBiz.Application.Common.Exceptions.UnauthorizedAccessException("Tenant context is required for operational database writes.");
+            await SetTenantContext(connection, transaction, tenant.Value, token);
             await AcquireLock(connection, transaction, key.Value, token);
             var existing = await Find(connection, transaction, key.Value, token);
             if (existing is not null)
@@ -74,6 +81,15 @@ public sealed class SqlIdempotencyExecutor
             await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
+    }
+
+    private static async Task SetTenantContext(SqlConnection c, SqlTransaction tx, Guid tenant, CancellationToken token)
+    {
+        await using var q = c.CreateCommand();
+        q.Transaction = tx;
+        q.CommandText = "EXEC sys.sp_set_session_context @key=N'TenantId', @value=@tenant;";
+        q.Parameters.AddWithValue("@tenant", tenant);
+        await q.ExecuteNonQueryAsync(token);
     }
 
     private static async Task AcquireLock(SqlConnection c, SqlTransaction tx, Guid key, CancellationToken token)

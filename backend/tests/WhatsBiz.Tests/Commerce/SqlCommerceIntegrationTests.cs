@@ -99,7 +99,8 @@ public sealed class SqlCommerceIntegrationTests(SqlCommerceFixture fixture)
 
 public sealed class SqlCommerceFixture
 {
-    public const string ConnectionString = "Server=DESKTOP-DQ0868S;Database=WhatsBizERP;Integrated Security=True;Encrypt=False;TrustServerCertificate=True;Connection Timeout=10";
+    public static string ConnectionString => Environment.GetEnvironmentVariable("ConnectionStrings__IntegrationTests")
+        ?? "Server=DESKTOP-DQ0868S;Database=WhatsBizERP;Integrated Security=True;Encrypt=False;TrustServerCertificate=True;Connection Timeout=10";
     private string Tag { get; } = $"SQLIT-{Guid.NewGuid():N}";
     public Guid TenantA { get; private set; }
     public Guid TenantB { get; private set; }
@@ -160,7 +161,7 @@ public sealed class SqlCommerceFixture
         Provider = new RecordingProvider();
         var resolver = new WhatsAppCommerceProviderResolver([Provider]);
         var features = new AlwaysOnFeatures();
-        Commerce = new WhatsAppCommerceService(configuration, null!, resolver, features, DataProtectionProvider.Create("WhatsBiz.SqlCommerceTests"));
+        Commerce = new WhatsAppCommerceService(configuration, null!, resolver, features, DataProtectionProvider.Create("WhatsBiz.SqlCommerceTests"), new StubCurrentUser(TenantA));
     }
 
     private Product Product(Guid id, Guid tenant, string name, decimal price, string category = "T-Shirts", bool visible = true) => new() { ProductId = id, TenantId = tenant, ProductCode = $"{Tag}-{id:N}"[..Math.Min(49, Tag.Length + 1 + 32)], ProductName = name, ShortDescription = name, CategoryId = category switch { "Shirts" => ShirtCategoryId, "Sarees" => SareeCategoryId, _ => TshirtCategoryId }, BrandId = BrandId, UnitId = UnitId, PurchasePrice = price / 2, SellingPrice = price, MRP = price, GSTPercentage = 5, IsWhatsAppVisible = visible, CreatedBy = Tag };

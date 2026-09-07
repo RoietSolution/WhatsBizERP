@@ -25,18 +25,6 @@
         </button>
       </div></app-page-header
     >
-    <section class="business-summary" aria-label="Quick business summary">
-      <div>
-        <span class="material-symbols-rounded">auto_awesome</span>
-        <div>
-          <strong>Your business at a glance</strong>
-          <p>{{ businessSummary() }}</p>
-        </div>
-      </div>
-      <a routerLink="/analytics/sales"
-        >Open detailed analytics <span class="material-symbols-rounded">arrow_forward</span></a
-      >
-    </section>
     <section class="kpi-grid" aria-label="Key performance indicators">
       @for (kpi of kpis(); track kpi.label) {
         <app-summary-card
@@ -46,7 +34,6 @@
           [tone]="kpi.tone"
           [trend]="kpi.comparison"
           [trendPositive]="kpi.positive"
-          [sparkline]="kpi.sparkline"
         />
       } @empty {
         @for (placeholder of placeholders; track placeholder) {

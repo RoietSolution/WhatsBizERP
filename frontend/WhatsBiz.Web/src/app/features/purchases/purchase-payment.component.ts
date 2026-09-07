@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { PurchaseApiService } from './purchase-api.service';
 import { Purchase } from './purchase.models';
 @Component({
@@ -28,6 +29,7 @@ export class PurchasePaymentComponent {
     private api: PurchaseApiService,
     route: ActivatedRoute,
     private router: Router,
+    private snack: MatSnackBar,
   ) {
     api.get(route.snapshot.paramMap.get('id')!).subscribe((x) => {
       this.p.set(x);
@@ -44,6 +46,6 @@ export class PurchasePaymentComponent {
           amount: this.amount,
           referenceNumber: this.reference,
         })
-        .subscribe(() => this.router.navigate(['/purchases', x.purchaseInvoiceId]));
+        .subscribe({next: () => this.router.navigate(['/purchases', x.purchaseInvoiceId]), error: e => this.snack.open(e?.error?.detail || 'Unable to record payment.', 'Close', {duration:5000})});
   }
 }

@@ -177,4 +177,6 @@ dd input {
   .payments {
     grid-template-columns: repeat(3, 1fr);
   }
+  .quick-amounts { gap: 10px; margin-top: 8px; }
+  .quick-amounts button { min-height: 40px; }
 }

@@ -14,11 +14,4 @@
       >
     }
   </div>
-  @if (sparkline().length) {
-    <div class="summary-card__sparkline" aria-hidden="true">
-      @for (point of sparkline(); track $index) {
-        <i [style.height.%]="point"></i>
-      }
-    </div>
-  }
 </article>

@@ -13,7 +13,7 @@
       <mat-error>Invoice Number is required.</mat-error>
     }
   </mat-form-field
-  ><button mat-button (click)="load()">Load</button>
+  ><button mat-flat-button color="primary" type="button" (click)="load()">Load</button>
 </div>
 @if (invoice(); as x) {
   <h2>{{ x.invoiceNumber }}</h2>

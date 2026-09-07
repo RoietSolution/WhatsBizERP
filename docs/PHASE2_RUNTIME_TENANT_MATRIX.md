@@ -1,0 +1,20 @@
+# Phase 2 runtime tenant enforcement matrix
+
+| Operation | Caller / SQL path | Tables written | Tenant source before | Explicit tenant after | Cross-tenant validation | Status |
+|---|---|---|---|---|---|---|
+| Supplier CRUD/read | Supplier handlers → `SupplierRepository` | `purchase.Suppliers` | EF context only | Authenticated `ICurrentUserService.TenantId` | Repository predicate | Implemented |
+| Warehouse CRUD/read | Warehouse handlers → `WarehouseRepository` | `inventory.Warehouses` | EF context only | Authenticated `ICurrentUserService.TenantId` | Repository predicate | Implemented |
+| POS sale | `POSEngine` → `sales.POS_PostInvoice` | `sales.SalesInvoices`, invoice items, inventory rows | Authenticated `ICurrentUserService` tenant passed as `@TenantId`; SQL session context is defense-in-depth | **IMPLEMENTED / SQL DEPLOYMENT PENDING** (V18 deterministic definition) | Procedure validates session, warehouse, customer and every product before mutation | Not yet executed; SQL-backed verification pending |
+| Purchase post | Purchase handlers → `purchase.Purchase_Post` | `purchase.PurchaseInvoices`, inventory rows | Authenticated `ICurrentUserService.TenantId` | YES (`@TenantId` deployed) | Supplier, warehouse and product predicates are procedure-level; SQL test pending | IMPLEMENTED / SQL VERIFICATION BLOCKED |
+| Inventory adjustment/transfer | Inventory handlers → stock procedures | balances/transactions | Authenticated context on idempotent SQL connection | Trigger guards populate/reject TenantId | Product + warehouse checks on balances/transactions; transfer SQL still requires verification | IMPLEMENTED / SQL VERIFICATION BLOCKED |
+| Sales/Purchase payment | payment handlers → finance procedures | payment + finance records | Authenticated context and parent guard | Parent ownership enforced by trigger | Parent invoice tenant required before payment row | IMPLEMENTED / SQL VERIFICATION BLOCKED |
+| Sales/Purchase return | return handlers → return procedures | return + inventory/ledger | Authenticated context and parent guard | Parent ownership enforced by trigger | Parent invoice tenant required before return row | IMPLEMENTED / SQL VERIFICATION BLOCKED |
+| WhatsApp Commerce sale | commerce service → POS posting | sales/inventory rows | Commerce tenant context | Must pass server-resolved tenant | Required | Pending SQL deployment |
+
+Runtime EF creation safeguards set TenantId for Supplier, Warehouse, SalesInvoice and PurchaseInvoice and reject missing tenant context. V7/V8/V10 have been applied and validated in Development; finance JournalEntries remain intentionally unresolved for Phase 3. SQL procedures that still insert operational rows without explicit TenantId must be updated before Phase 2 can be complete.
+
+V12 and corrective V13–V17 scripts used dynamic text transformations. They left eight procedures with `@TenantId`, but did not change the live `sales.POS_PostInvoice` contract (metadata still reports the original 14 parameters). V18 is a deterministic `CREATE OR ALTER` definition based on the repository/live baseline and must be deployed and verified in Development before Phase 2 can progress. V11 guards remain active as defense-in-depth.
+
+V17 execution returned success but its postcondition was false: Development metadata still showed the original 14-parameter POS contract and the live definition contained no tenant/session checks. The corrective scripts depended on matching one-line procedure text and value-list positions; this does not reliably describe the deployed procedure and is now retired for POS. The source backup is recorded at `Scripts/Backups/POS_PostInvoice_PreTenantHardening.sql`.
+
+Integration tests currently use hard-coded Windows Integrated Security settings in legacy fixtures. The supported test-only setting should be `ConnectionStrings__IntegrationTests`; configure it in the test process/user secrets with a least-privilege SQL login or a working integrated account. No credentials belong in source control.

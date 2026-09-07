@@ -50,6 +50,13 @@ import { Balance, ProductOption, WarehouseOption } from './inventory.models';
       .context-card p {
         color: var(--wb-text-secondary);
       }
+      .inventory-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
+      .inventory-card { display:grid; grid-template-columns:auto 1fr auto; gap:10px; padding:16px; background:var(--wb-surface); border:1px solid var(--wb-border); border-radius:var(--wb-radius-md); }
+      .inventory-card .product-icon { display:grid; width:40px; height:40px; color:var(--wb-primary); background:var(--wb-primary-soft); border-radius:10px; place-items:center; }
+      .product-copy { min-width:0; display:flex; flex-direction:column; gap:3px; } .product-copy strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .product-copy small { color:var(--wb-text-secondary); }
+      .stock-status { color:var(--wb-success); font-size:12px; font-weight:600; } .stock-status.low { color:var(--wb-warning); } .stock-status.out { color:var(--wb-danger); }
+      .inventory-card dl { grid-column:1/-1; display:grid; grid-template-columns:1fr auto; gap:6px; margin:4px 0 0; padding-top:10px; border-top:1px solid var(--wb-border); font-size:13px; } .inventory-card dt { color:var(--wb-text-secondary); } .inventory-card dd { margin:0; font-weight:600; }
+      .hidden { display:none !important; }
       dl {
         display: grid;
         grid-template-columns: 1fr auto;
@@ -69,6 +76,7 @@ import { Balance, ProductOption, WarehouseOption } from './inventory.models';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StockBalanceComponent {
+  readonly view = signal<'card'|'table'>('card');
   readonly items = signal<Balance[]>([]);
   readonly products = signal<ProductOption[]>([]);
   readonly warehouses = signal<WarehouseOption[]>([]);

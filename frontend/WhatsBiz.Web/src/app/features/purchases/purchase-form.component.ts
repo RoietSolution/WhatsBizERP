@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -46,6 +47,7 @@ type ProductLookup = {
     PageContainerComponent,
     PageHeaderComponent,
     StatusChipComponent,
+    CurrencyPipe,
   ],
   templateUrl: './purchase-form.component.html',
   styleUrl: './purchase-form.component.scss',
@@ -98,7 +100,8 @@ export class PurchaseFormComponent {
     return typeof value === 'string' ? value : `${value.productCode} · ${value.productName}`;
   }
   selectProduct(event: MatAutocompleteSelectedEvent) {
-    this.addProduct(event.option.value as ProductLookup);
+    this.lookup = event.option.value as ProductLookup;
+    this.productOptions.set([]);
   }
   find() {
     if (!this.lookup) return;
@@ -201,6 +204,7 @@ export class PurchaseFormComponent {
         this.snack.open(e.error?.detail ?? 'Unable to save', 'Close', { duration: 4000 }),
     });
   }
+  quickPayment() { if (this.id) this.router.navigate(['/purchases', this.id, 'payment']); else this.snack.open('Save or post the purchase before recording a payment.', 'Close', {duration:3000}); }
   private dateOnly(value?: Date | null): string | null {
     if (!value) return null;
     const year = value.getFullYear();

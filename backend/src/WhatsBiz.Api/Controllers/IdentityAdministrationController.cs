@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using UnauthorizedAccessException = System.UnauthorizedAccessException;
 using Microsoft.EntityFrameworkCore;
 using WhatsBiz.Api.Authorization;
 using WhatsBiz.Application.Common.Exceptions;

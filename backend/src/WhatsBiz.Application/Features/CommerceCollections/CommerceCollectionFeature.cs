@@ -2,6 +2,7 @@
 using FluentValidation;
 using MediatR;
 using WhatsBiz.Application.Common.Exceptions;
+using UnauthorizedAccessException = System.UnauthorizedAccessException;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Domain.Commerce;
 

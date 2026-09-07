@@ -17,6 +17,7 @@ import { PaperSize } from '../printing/paper-size';
         width: 100%;
         min-width: 800px;
       }
+      th { background: var(--wb-background); color: var(--wb-text-primary); font-weight: 700; }
       .print-actions {
         display: flex;
         align-items: center;

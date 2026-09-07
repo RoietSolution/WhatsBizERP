@@ -1,5 +1,6 @@
 CREATE TABLE [inventory].[Warehouses] (
     [WarehouseId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_Warehouses_Id] DEFAULT NEWSEQUENTIALID(),
+    [TenantId] UNIQUEIDENTIFIER NULL,
     [WarehouseCode] NVARCHAR(50) NOT NULL,
     [WarehouseName] NVARCHAR(200) NOT NULL,
     [WarehouseTypeId] UNIQUEIDENTIFIER NOT NULL,
@@ -21,6 +22,7 @@ CREATE TABLE [inventory].[Warehouses] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_Warehouses] PRIMARY KEY ([WarehouseId]),
     CONSTRAINT [FK_Warehouses_Type] FOREIGN KEY ([WarehouseTypeId]) REFERENCES [inventory].[WarehouseTypes]([WarehouseTypeId]),
+    CONSTRAINT [FK_Warehouses_Tenants] FOREIGN KEY ([TenantId]) REFERENCES [core].[Tenants]([TenantId]),
     CONSTRAINT [CK_Warehouses_Capacity] CHECK ([Capacity] >= 0)
 );
 GO
@@ -31,3 +33,5 @@ GO
 CREATE UNIQUE INDEX [UX_Warehouses_Default] ON [inventory].[Warehouses]([IsDefault]) WHERE [IsDefault] = 1 AND [IsDeleted] = 0;
 GO
 CREATE INDEX [IX_Warehouses_Search] ON [inventory].[Warehouses]([WarehouseName],[WarehouseTypeId],[IsActive]);
+GO
+CREATE INDEX [IX_Warehouses_TenantId] ON [inventory].[Warehouses]([TenantId],[WarehouseId]);

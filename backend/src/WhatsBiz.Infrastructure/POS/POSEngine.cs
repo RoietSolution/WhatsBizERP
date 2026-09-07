@@ -28,7 +28,7 @@ public sealed class POSEngine(
                 {
                     if (r.CustomerId is Guid customerId)
                     {
-                        var tenantId = currentUser.TenantId ?? r.TenantId ?? throw new BusinessRuleException("A tenant context is required for customer transactions.");
+                        var tenantId = currentUser.TenantId ?? throw new BusinessRuleException("A tenant context is required for customer transactions.");
                         if (r.TenantId is Guid requestTenant && requestTenant != tenantId) throw new BusinessRuleException("The transaction tenant does not match the authenticated tenant.");
                         await using var customer = new SqlCommand("SELECT COUNT(1) FROM sales.Customers WHERE CustomerId=@customer AND TenantId=@tenant AND IsDeleted=0;", connection, transaction);
                         customer.Parameters.AddWithValue("@customer", customerId); customer.Parameters.AddWithValue("@tenant", tenantId);
@@ -36,6 +36,7 @@ public sealed class POSEngine(
                     }
                     await using var command = Command(connection, transaction, "sales.POS_PostInvoice",
                     [
+                        ("@TenantId", currentUser.TenantId ?? throw new BusinessRuleException("A tenant context is required.")),
                         ("@CounterId", r.CounterId), ("@ShiftId", r.ShiftId),
                         ("@CustomerId", r.CustomerId), ("@WarehouseId", r.WarehouseId),
                         ("@SalesPersonId", r.SalesPersonId), ("@ItemsJson", r.ItemsJson),
@@ -90,7 +91,7 @@ public sealed class POSEngine(
         [
             ("@InvoiceId", r.InvoiceId), ("@MethodCode", r.MethodCode),
             ("@Amount", r.Amount), ("@ReferenceNumber", r.ReferenceNumber),
-            ("@CreatedBy", r.User)
+            ("@CreatedBy", r.User), ("@TenantId", currentUser.TenantId ?? throw new BusinessRuleException("A tenant context is required."))
         ], token);
     }
 
@@ -99,7 +100,7 @@ public sealed class POSEngine(
         await ExecuteMutation("POS_RETURN", r, r.User, "sales.POS_ReturnInvoice",
         [
             ("@InvoiceId", r.InvoiceId), ("@ItemsJson", r.ItemsJson),
-            ("@Reason", r.Reason), ("@CreatedBy", r.User)
+            ("@Reason", r.Reason), ("@CreatedBy", r.User), ("@TenantId", currentUser.TenantId ?? throw new BusinessRuleException("A tenant context is required."))
         ], token);
         if (currentUser.TenantId is Guid tenantId)
             await loyalty.ProcessOrderAsync(tenantId, r.InvoiceId, "CURRENT", r.User, token);

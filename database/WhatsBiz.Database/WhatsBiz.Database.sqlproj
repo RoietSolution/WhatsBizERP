@@ -10,6 +10,8 @@
     <Build Remove="Scripts\V2-WC-DEMO-003-DemoTenantEnablement.sql"/>
     <Build Remove="Scripts\V3-ProductImageOptimization.sql"/>
     <Build Remove="Scripts\V4-DashboardNotificationDetails.sql"/>
+    <Build Remove="Scripts\QA-TenantHardening-Preflight.sql"/>
+    <Build Remove="Scripts\QA-TenantHardening-PostValidation.sql"/>
     <Build Update="StoredProcedures\Finance_PostSource.sql"><SuppressTSqlWarnings>71502</SuppressTSqlWarnings></Build>
     <None Include="SeedData\DemoData.sql"/><None Include="SeedData\ApplyRealDemoImages.sql"/><None Include="Scripts\VerifyPOS.sql"/><None Include="Scripts\VerifyPurchase.sql"/><None Include="Scripts\V1_ReleaseHardening.sql"/>
     <None Include="Scripts\RCDEV008-RuntimeObjects.sql"/>
@@ -43,9 +45,30 @@
     <None Include="Scripts\V21-POSMobileBarcodeScanner.sql"/>
     <None Include="Scripts\V22-ProductManufacturerCodes.sql"/>
     <None Include="Scripts\V23-WhatsAppProductVisibility.sql"/>
+    <None Include="Scripts\V5-DashboardInventoryAvailability.sql"/>
+    <None Include="Scripts\V6-DashboardTenantOwnershipAudit.sql"/>
+    <None Include="Scripts\V7-SafeInventoryTenantColumns.sql"/>
+    <None Include="Scripts\V8-TenantOwnershipPhase1.sql"/>
+    <None Include="Scripts\V9-TenantOwnershipResolutionReport.sql"/>
+    <None Include="Scripts\V10-ApprovedLegacyTenantBackfill.sql"/>
+    <None Include="Scripts\V11-OperationalTenantWriteGuards.sql"/>
+    <None Include="Scripts\V12-ExplicitOperationalTenantProcedures.sql"/>
+    <None Include="Scripts\V13-Fix-Remaining-TenantProcedureContracts.sql"/>
+    <None Include="Scripts\V14-Fix-POS-TenantProcedure.sql"/>
+    <None Include="Scripts\V15-Ensure-Procedure-Session-Checks.sql"/>
+    <None Include="Scripts\V16-Fix-POS-Parameter.sql"/>
+    <None Include="Scripts\V17-Final-POS-Procedure-Contract.sql"/>
+    <None Include="Scripts\V18-POS-PostInvoice-TenantHardening.sql"/>
+    <None Include="Scripts\Backups\POS_PostInvoice_PreTenantHardening.sql"/>
+    <None Include="Scripts\V24-RecreateOperationalTenantGuards-WithRequiredSetOptions.sql"/>
+    <None Include="Scripts\V25-FinanceTenantOwnershipAudit.sql"/>
+    <None Include="Scripts\V26-FinanceTenantIsolationAndPostingRepair.sql"/>
+    <None Include="Scripts\V8-TenantOwnershipPhase1.sql"/>
     <None Include="Scripts\Onboarding_Retailer.sql"/>
     <None Include="Scripts\Bootstrap_QA.sql"/>
     <None Include="Scripts\Validate_QA_Bootstrap.sql"/>
+    <None Include="Scripts\QA-TenantHardening-Preflight.sql"/>
+    <None Include="Scripts\QA-TenantHardening-PostValidation.sql"/>
     <None Include="Scripts\Deboarding_Retailer.sql"/>
     <PostDeploy Include="Scripts\PostDeployment.sql"/>
   </ItemGroup>

@@ -10,7 +10,8 @@ namespace WhatsBiz.Tests.DemoRequests;
 [Collection("SQL demo requests")]
 public sealed class DemoRequestSqlIntegrationTests
 {
-    private const string ConnectionString = "Server=DESKTOP-DQ0868S;Database=WhatsBizERP;Integrated Security=True;Encrypt=False;TrustServerCertificate=True;Connection Timeout=10";
+    private static string ConnectionString => Environment.GetEnvironmentVariable("ConnectionStrings__IntegrationTests")
+        ?? "Server=DESKTOP-DQ0868S;Database=WhatsBizERP;Integrated Security=True;Encrypt=False;TrustServerCertificate=True;Connection Timeout=10";
 
     [Fact]
     public async Task SqlPersistenceReferenceAndRapidDuplicateProtectionWorkTogether()

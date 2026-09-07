@@ -8,6 +8,13 @@
 */
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET ARITHABORT ON;
+SET NUMERIC_ROUNDABORT OFF;
 
 IF DB_NAME() <> N'WhatsBizERP_QA'
     THROW 51250, 'Bootstrap_QA.sql may run only in database WhatsBizERP_QA.', 1;
@@ -144,9 +151,9 @@ BEGIN TRY
     IF @WarehouseTypeId IS NULL THROW 51257, 'GENERAL warehouse type seed is missing.', 1;
     DECLARE @WarehouseId uniqueidentifier=COALESCE((SELECT WarehouseId FROM inventory.Warehouses WHERE WarehouseCode=N'QA-MAIN' AND IsDeleted=0),CONVERT(uniqueidentifier,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa4'));
     IF NOT EXISTS(SELECT 1 FROM inventory.Warehouses WHERE WarehouseId=@WarehouseId)
-        INSERT inventory.Warehouses(WarehouseId,WarehouseCode,WarehouseName,WarehouseTypeId,Capacity,IsDefault,IsActive,IsDeleted,CreatedBy)
-        VALUES(@WarehouseId,N'QA-MAIN',N'QA Main Warehouse',@WarehouseTypeId,10000,1,1,0,@Actor);
-    ELSE UPDATE inventory.Warehouses SET WarehouseName=N'QA Main Warehouse',WarehouseTypeId=@WarehouseTypeId,IsDefault=1,IsActive=1,IsDeleted=0,ModifiedOn=SYSUTCDATETIME(),ModifiedBy=@Actor WHERE WarehouseId=@WarehouseId;
+        INSERT inventory.Warehouses(WarehouseId,WarehouseCode,WarehouseName,WarehouseTypeId,Capacity,IsDefault,IsActive,IsDeleted,CreatedBy,TenantId)
+        VALUES(@WarehouseId,N'QA-MAIN',N'QA Main Warehouse',@WarehouseTypeId,10000,1,1,0,@Actor,@TenantId);
+    ELSE UPDATE inventory.Warehouses SET TenantId=@TenantId,WarehouseName=N'QA Main Warehouse',WarehouseTypeId=@WarehouseTypeId,IsDefault=1,IsActive=1,IsDeleted=0,ModifiedOn=SYSUTCDATETIME(),ModifiedBy=@Actor WHERE WarehouseId=@WarehouseId;
 
     DECLARE @BranchId uniqueidentifier=COALESCE((SELECT BranchId FROM admin.Branches WHERE CompanyId=@CompanyId AND BranchCode=N'QA-MAIN'),CONVERT(uniqueidentifier,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa5'));
     IF NOT EXISTS(SELECT 1 FROM admin.Branches WHERE BranchId=@BranchId)
@@ -162,8 +169,9 @@ BEGIN TRY
     ELSE UPDATE sales.Customers SET TenantId=@TenantId,IsActive=1,IsDeleted=0 WHERE CustomerCode=N'QA-CUST-001';
     DECLARE @SupplierTerm uniqueidentifier=(SELECT PaymentTermId FROM purchase.SupplierPaymentTerms WHERE PaymentTermCode=N'NET30');
     IF NOT EXISTS(SELECT 1 FROM purchase.Suppliers WHERE SupplierCode=N'QA-SUP-001' AND IsDeleted=0)
-        INSERT purchase.Suppliers(SupplierCode,SupplierName,SupplierType,Currency,PaymentTermId,CreditLimit,OpeningBalance,IsGSTRegistered,IsTDSApplicable,IsActive,IsDeleted,Remarks,CreatedBy)
-        VALUES(N'QA-SUP-001',N'QA Test Supplier',N'LOCAL',N'INR',@SupplierTerm,0,0,0,0,1,0,N'QA bootstrap supplier',@Actor);
+        INSERT purchase.Suppliers(SupplierCode,SupplierName,SupplierType,Currency,PaymentTermId,CreditLimit,OpeningBalance,IsGSTRegistered,IsTDSApplicable,IsActive,IsDeleted,Remarks,CreatedBy,TenantId)
+        VALUES(N'QA-SUP-001',N'QA Test Supplier',N'LOCAL',N'INR',@SupplierTerm,0,0,0,0,1,0,N'QA bootstrap supplier',@Actor,@TenantId);
+    ELSE UPDATE purchase.Suppliers SET TenantId=@TenantId,IsActive=1,IsDeleted=0 WHERE SupplierCode=N'QA-SUP-001';
 
     DECLARE @CategoryId uniqueidentifier=COALESCE((SELECT ProductCategoryId FROM master.ProductCategories WHERE CategoryCode=N'QA-CATALOG' AND IsDeleted=0),CONVERT(uniqueidentifier,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa6'));
     IF NOT EXISTS(SELECT 1 FROM master.ProductCategories WHERE ProductCategoryId=@CategoryId)

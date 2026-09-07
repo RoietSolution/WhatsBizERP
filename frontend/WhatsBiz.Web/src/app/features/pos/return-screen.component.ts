@@ -18,6 +18,7 @@ import { Invoice } from './pos.models';
         padding: 1rem;
         border-bottom: 1px solid var(--mat-sys-outline-variant);
       }
+      button[type='button'] { min-height: 40px; padding: 0 18px; border-radius: 7px; }
     `,
   ],
 })

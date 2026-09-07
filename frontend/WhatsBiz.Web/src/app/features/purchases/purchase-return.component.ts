@@ -51,6 +51,6 @@ export class PurchaseReturnComponent {
     }
     this.api
       .return({ purchaseInvoiceId: x.purchaseInvoiceId, items, reason: this.reason })
-      .subscribe(() => this.router.navigate(['/purchases', x.purchaseInvoiceId]));
+      .subscribe({next: () => this.router.navigate(['/purchases', x.purchaseInvoiceId]), error: e => this.snack.open(e?.error?.detail || 'Unable to post purchase return.', 'Close', {duration:5000})});
   }
 }

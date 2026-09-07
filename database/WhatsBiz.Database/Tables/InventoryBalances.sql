@@ -2,6 +2,7 @@ CREATE TABLE [inventory].[InventoryBalances] (
     [InventoryBalanceId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_InventoryBalances_Id] DEFAULT NEWSEQUENTIALID(),
     [ProductId] UNIQUEIDENTIFIER NOT NULL,
     [WarehouseId] UNIQUEIDENTIFIER NOT NULL,
+    [TenantId] UNIQUEIDENTIFIER NULL,
     [ZoneId] UNIQUEIDENTIFIER NULL,
     [BinId] UNIQUEIDENTIFIER NULL,
     [BatchNo] NVARCHAR(100) NULL,
@@ -17,6 +18,7 @@ CREATE TABLE [inventory].[InventoryBalances] (
     CONSTRAINT [PK_InventoryBalances] PRIMARY KEY ([InventoryBalanceId]),
     CONSTRAINT [FK_InventoryBalances_Product] FOREIGN KEY ([ProductId]) REFERENCES [master].[Products]([ProductId]),
     CONSTRAINT [FK_InventoryBalances_Warehouse] FOREIGN KEY ([WarehouseId]) REFERENCES [inventory].[Warehouses]([WarehouseId]),
+    CONSTRAINT [FK_InventoryBalances_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [core].[Tenants]([TenantId]),
     CONSTRAINT [FK_InventoryBalances_Zone] FOREIGN KEY ([ZoneId]) REFERENCES [inventory].[WarehouseZones]([ZoneId]),
     CONSTRAINT [FK_InventoryBalances_Bin] FOREIGN KEY ([BinId]) REFERENCES [inventory].[WarehouseBins]([BinId]),
     CONSTRAINT [CK_InventoryBalances_Reserved] CHECK ([QuantityReserved]>=0)
@@ -25,3 +27,5 @@ GO
 CREATE UNIQUE INDEX [UX_InventoryBalances_Location] ON [inventory].[InventoryBalances]([ProductId],[WarehouseId],[ZoneId],[BinId],[BatchNo],[SerialNo]);
 GO
 CREATE INDEX [IX_InventoryBalances_WarehouseProduct] ON [inventory].[InventoryBalances]([WarehouseId],[ProductId]) INCLUDE([QuantityOnHand],[QuantityReserved],[QuantityAvailable],[AverageCost]);
+GO
+CREATE INDEX [IX_InventoryBalances_Tenant_Product] ON [inventory].[InventoryBalances]([TenantId],[ProductId],[WarehouseId]);

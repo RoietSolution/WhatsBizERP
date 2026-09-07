@@ -101,11 +101,11 @@
       <h3>Purchase Summary</h3>
       <dl>
         <dt>Subtotal</dt>
-        <dd>{{ subtotal() }}</dd>
+        <dd>{{ subtotal() | currency:'INR':'symbol':'1.2-2' }}</dd>
         <dt>Discount</dt>
-        <dd>{{ discount() }}</dd>
+        <dd>{{ discount() | currency:'INR':'symbol':'1.2-2' }}</dd>
         <dt>GST</dt>
-        <dd>{{ tax() }}</dd>
+        <dd>{{ tax() | currency:'INR':'symbol':'1.2-2' }}</dd>
       </dl>
       <mat-form-field appearance="outline"
         ><mat-label>Bill Discount</mat-label
@@ -117,11 +117,11 @@
         ><mat-label>Round Off</mat-label><input matInput type="number" [(ngModel)]="roundOff"
       /></mat-form-field>
       <div class="grand">
-        <span>Grand Total</span><strong>{{ total() }}</strong>
+        <span>Grand Total</span><strong>{{ total() | currency:'INR':'symbol':'1.2-2' }}</strong>
       </div>
       <button mat-stroked-button (click)="save('DRAFT')">Save Draft</button
       ><button mat-flat-button color="primary" (click)="save('POSTED')">Post Purchase</button
-      ><button mat-button>
+      ><button mat-button type="button" (click)="quickPayment()">
         <span class="material-symbols-rounded">payments</span>Quick Payment
       </button>
     </aside>

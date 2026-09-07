@@ -26,6 +26,11 @@ After a new API release or environment-file change:
 sudo systemctl restart whatsbiz-qa
 sudo systemctl status whatsbiz-qa --no-pager
 sudo journalctl -u whatsbiz-qa -n 100 --no-pager
+sudo journalctl -u whatsbiz-qa -n 200 --no-pager
+sudo journalctl -u whatsbiz-qa -f
+sudo journalctl -u whatsbiz-qa --since "30 minutes ago"
+# Match a browser/API error reference returned as X-Correlation-ID:
+sudo journalctl -u whatsbiz-qa --since "1 hour ago" | grep '<correlation-id>'
 ```
 
 ## Nginx setup

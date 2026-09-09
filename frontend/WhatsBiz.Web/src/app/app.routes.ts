@@ -194,13 +194,13 @@ export const routes: Routes = [
       {
         path: 'admin/features',
         canActivate: [roleGuard, permissionGuard],
-        data: { role: 'ApplicationOwner', permission: 'feature.manage', title: 'Tenant Feature Management' },
+        data: { platform: true, role: 'ApplicationOwner', permission: 'feature.manage', title: 'Tenant Feature Management' },
         loadComponent: () => import('./features/administration/feature-management.component').then(m => m.FeatureManagementComponent),
       },
       {
         path: 'application-owner',
         canActivate: [roleGuard],
-        data: { role: 'ApplicationOwner', title: 'Application Owner Center' },
+        data: { platform: true, role: 'ApplicationOwner', title: 'Application Owner Center' },
         loadComponent: () => import('./features/administration/application-owner-hub.component').then(m => m.ApplicationOwnerHubComponent),
       },
       {
@@ -384,7 +384,7 @@ export const routes: Routes = [
       {
         path: 'admin/demo-requests',
         canActivate: [roleGuard],
-        data: { role: 'ApplicationOwner', title: 'Demo Requests' },
+        data: { platform: true, role: 'ApplicationOwner', title: 'Demo Requests' },
         loadComponent: () =>
           import('./features/administration/demo-requests.component').then(
             (m) => m.DemoRequestsComponent,
@@ -449,7 +449,7 @@ export const routes: Routes = [
       {
         path: 'admin/whatsapp-platform',
         canActivate: [roleGuard, permissionGuard],
-        data: { role: 'ApplicationOwner', permission: 'feature.manage', title: 'KhataDhari Meta App & Retailer Connections' },
+        data: { platform: true, role: 'ApplicationOwner', permission: 'feature.manage', title: 'KhataDhari Meta App & Retailer Connections' },
         loadComponent: () => import('./features/whatsapp/whatsapp-platform-administration.component').then(m => m.WhatsAppPlatformAdministrationComponent),
       },
       {
@@ -523,7 +523,7 @@ export const routes: Routes = [
       {
         path: 'admin/backup',
         canActivate: [roleGuard],
-        data: { role: 'ApplicationOwner', title: 'Backup Center' },
+        data: { platform: true, role: 'ApplicationOwner', title: 'Backup Center' },
         loadComponent: () =>
           import('./features/administration/backup-restore.component').then(
             (m) => m.BackupRestoreComponent,
@@ -532,7 +532,7 @@ export const routes: Routes = [
       {
         path: 'admin/restore',
         canActivate: [roleGuard],
-        data: { role: 'ApplicationOwner', title: 'Restore Center', restore: true },
+        data: { platform: true, role: 'ApplicationOwner', title: 'Restore Center', restore: true },
         loadComponent: () =>
           import('./features/administration/backup-restore.component').then(
             (m) => m.BackupRestoreComponent,
@@ -541,7 +541,7 @@ export const routes: Routes = [
       {
         path: 'admin/audit',
         canActivate: [roleGuard],
-        data: { role: 'ApplicationOwner', title: 'Audit Log' },
+        data: { platform: true, role: 'ApplicationOwner', title: 'Audit Log' },
         loadComponent: () =>
           import('./features/administration/audit-history.component').then(
             (m) => m.AuditHistoryComponent,
@@ -550,7 +550,7 @@ export const routes: Routes = [
       {
         path: 'admin/login-history',
         canActivate: [roleGuard],
-        data: { role: 'ApplicationOwner', title: 'Login History', login: true },
+        data: { platform: true, role: 'ApplicationOwner', title: 'Login History', login: true },
         loadComponent: () =>
           import('./features/administration/audit-history.component').then(
             (m) => m.AuditHistoryComponent,

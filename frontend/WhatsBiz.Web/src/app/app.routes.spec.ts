@@ -20,5 +20,27 @@ describe('application routes', () => {
 
     expect(ownerLogin?.data?.['portal']).toBe('application-owner');
     expect(ownerCenter?.data?.['role']).toBe('ApplicationOwner');
+    expect(ownerCenter?.data?.['platform']).toBeTrue();
+  });
+
+  it('marks every application-owner route as platform-wide', () => {
+    const mainRoute = routes.find((route) => route.canActivateChild);
+    const ownerPaths = [
+      'application-owner',
+      'admin/features',
+      'admin/demo-requests',
+      'admin/whatsapp-platform',
+      'admin/backup',
+      'admin/restore',
+      'admin/audit',
+      'admin/login-history',
+    ];
+
+    for (const path of ownerPaths) {
+      const route = mainRoute?.children?.find((candidate) => candidate.path === path);
+      expect(route).withContext(`missing owner route ${path}`).toBeDefined();
+      expect(route?.data?.['role']).withContext(path).toBe('ApplicationOwner');
+      expect(route?.data?.['platform']).withContext(path).toBeTrue();
+    }
   });
 });

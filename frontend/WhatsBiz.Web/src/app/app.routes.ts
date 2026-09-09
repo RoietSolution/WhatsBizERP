@@ -204,6 +204,18 @@ export const routes: Routes = [
         loadComponent: () => import('./features/administration/application-owner-hub.component').then(m => m.ApplicationOwnerHubComponent),
       },
       {
+        path: 'application-owner/whatsapp-business',
+        canActivate: [roleGuard, permissionGuard],
+        data: { platform: true, role: 'ApplicationOwner', permission: 'feature.manage', title: 'WhatsApp Business Connection' },
+        loadComponent: () => import('./features/whatsapp/whatsapp-configuration.component').then(m => m.WhatsAppConfigurationComponent),
+      },
+      {
+        path: 'application-owner/whatsapp-demo',
+        canActivate: [roleGuard, permissionGuard],
+        data: { platform: true, role: 'ApplicationOwner', permission: 'feature.manage', title: 'WhatsApp Ecommerce Demo' },
+        loadComponent: () => import('./features/whatsapp/whatsapp-commerce-demo.component').then(m => m.WhatsAppCommerceDemoComponent),
+      },
+      {
         path: 'profile',
         title: 'My Profile | KhataDhari ERP',
         loadComponent: () =>

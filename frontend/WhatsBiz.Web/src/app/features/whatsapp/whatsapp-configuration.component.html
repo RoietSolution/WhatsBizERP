@@ -1,8 +1,11 @@
 <app-page-container>
-  <app-page-header eyebrow="WhatsApp Commerce" title="WhatsApp Business Connection" description="Connect this tenant to its Meta WhatsApp Business Platform account.">
-    <a mat-button routerLink="/admin"><span class="material-symbols-rounded">arrow_back</span>Admin Center</a>
+  <app-page-header eyebrow="Platform administration" title="WhatsApp Business Connection" description="Select a retailer explicitly, then manage its Meta WhatsApp Business Platform connection.">
+    <a mat-button [routerLink]="applicationOwner ? '/application-owner' : '/admin'"><span class="material-symbols-rounded">arrow_back</span>{{applicationOwner ? 'Owner Center' : 'Admin Center'}}</a>
     <app-status-chip [label]="model().connectionStatus" [tone]="tone()" />
   </app-page-header>
+  @if(applicationOwner){<mat-form-field appearance="outline"><mat-label>Retailer</mat-label><mat-select [(ngModel)]="tenantId" (selectionChange)="selectTenant()"><mat-option value="">Select a retailer</mat-option>@for(tenant of tenants();track tenant.tenantId){<mat-option [value]="tenant.tenantId">{{tenant.tenantName}} — {{tenant.tenantKey}}</mat-option>}</mat-select></mat-form-field>}
+  @if(applicationOwner&&!tenantId){<p class="notice">Choose a retailer before viewing or changing its WhatsApp Business connection.</p>}
+  @if(!applicationOwner||tenantId){
   <section class="card">
     <div class="notice">MOCK runs entirely inside WhatsBiz. Each Meta connection uses this retailer's WABA, phone number ID, business identity, and encrypted access token. @if(model().usesSharedPlatformCredentials){The Meta App ID, App Secret, and webhook verify token are supplied by the shared KhataDhari platform configuration.} Saved secrets are never displayed again.</div>
     <div class="meta">
@@ -57,4 +60,5 @@
     @if (message()) { <p>{{ message() }}</p> }
     <footer>@if (model().providerMode === 'META_TEST') { <button mat-stroked-button (click)="sendTestMessage()" [disabled]="saving() || !recipientNumber || model().connectionStatus!=='CONNECTED'">Send Test Message</button><button mat-stroked-button (click)="validate()" [disabled]="saving() || (!model().hasAccessToken && !accessToken)">Validate Meta Connection</button> }<button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">Save Configuration</button></footer>
   </section>
+  }
 </app-page-container>

@@ -325,7 +325,7 @@ export class AdministrationHubComponent {
         },
         {
           title: 'WhatsApp Ecommerce Demo',
-          description: 'Run a retailer-ready WhatsApp shopping conversation with the live MOCK catalog.',
+          description: 'Run a retailer-ready WhatsApp shopping conversation with the live ERP catalog.',
           icon: 'forum',
           route: '/admin/whatsapp-demo',
           feature: 'WHATSAPP_COMMERCE',

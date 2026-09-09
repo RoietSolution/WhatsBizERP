@@ -1,6 +1,8 @@
 import { of, throwError } from 'rxjs';
 import { DemoProduct, DemoSetup, WhatsAppCommerceDemoApiService } from './whatsapp-commerce-demo-api.service';
 import { WhatsAppCommerceDemoComponent } from './whatsapp-commerce-demo.component';
+import { FeatureService } from '../../core/services/feature.service';
+import { ActivatedRoute } from '@angular/router';
 
 describe('WhatsAppCommerceDemoComponent', () => {
   function product(overrides: Partial<DemoProduct> = {}): DemoProduct {
@@ -33,7 +35,12 @@ describe('WhatsAppCommerceDemoComponent', () => {
     api.wallet.and.returnValue(of({ customerId: 'customer-1', availableCoins: 0, totalEarned: 0, totalRedeemed: 0, transactions: [] }));
     api.orders.and.returnValue(of([]));
     api.analytics.and.returnValue(of(void 0));
-    const component = new WhatsAppCommerceDemoComponent(api);
+    const features = jasmine.createSpyObj<FeatureService>('FeatureService', ['tenants']);
+    features.tenants.and.returnValue(of([{ tenantId: 'tenant-1', tenantKey: 'TEST', tenantName: 'Test Retailer' }]));
+    const route = { snapshot: { data: { platform: true } } } as unknown as ActivatedRoute;
+    const component = new WhatsAppCommerceDemoComponent(api, features, route);
+    component.tenantId = 'tenant-1';
+    component.selectTenant();
     return { api, component };
   }
 

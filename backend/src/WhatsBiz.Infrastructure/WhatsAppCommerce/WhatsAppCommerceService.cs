@@ -20,6 +20,7 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
     private Guid AuthenticatedTenant(Guid requested)
     {
+        if (currentUser.Roles.Contains("ApplicationOwner", StringComparer.Ordinal)) return requested;
         var tenant = currentUser.TenantId ?? throw new WhatsBiz.Application.Common.Exceptions.UnauthorizedAccessException("A tenant context is required.");
         if (tenant != requested) throw new EntityNotFoundException("WhatsApp Commerce resource was not found.");
         return tenant;

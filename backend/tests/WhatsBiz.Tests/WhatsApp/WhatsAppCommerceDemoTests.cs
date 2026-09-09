@@ -30,12 +30,14 @@ public sealed class WhatsAppCommerceDemoTests
     }
 
     [Fact]
-    public void CommerceControllerRequiresFeatureAndEachEndpointRequiresPermission()
+    public void CommerceControllerSeparatesOwnerDemoFromTenantOperations()
     {
-        typeof(WhatsAppCommerceController).GetCustomAttributes<RequireFeatureAttribute>().Single().Policy
-            .Should().Be(PermissionPolicyProvider.FeaturePrefix + FeatureKeys.WhatsAppCommerce);
-        foreach (var method in typeof(WhatsAppCommerceController).GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly).Where(x => x.Name != "TenantId"))
-            method.GetCustomAttributes<HasPermissionAttribute>().Should().ContainSingle(method.Name);
+        var actions = typeof(WhatsAppCommerceController).GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly)
+            .Where(method => method.GetCustomAttributes<Microsoft.AspNetCore.Mvc.Routing.HttpMethodAttribute>().Any()).ToArray();
+        actions.Should().OnlyContain(method => method.GetCustomAttributes<HasPermissionAttribute>().Count() == 1);
+        actions.Where(method => method.GetCustomAttributes<Microsoft.AspNetCore.Mvc.Routing.HttpMethodAttribute>()
+                .Any(attribute => attribute.Template?.Contains("administration/tenants/{tenantId:guid}", StringComparison.Ordinal) == true))
+            .Should().OnlyContain(method => method.GetCustomAttributes<PlatformAuthorizeAttribute>().Count() == 1);
     }
 
     [Theory]

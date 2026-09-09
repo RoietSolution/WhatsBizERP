@@ -3,7 +3,7 @@ import { catchError, from, map, mergeMap, of, Subscription, toArray } from 'rxjs
 import { HttpErrorResponse } from '@angular/common/http';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
@@ -12,6 +12,7 @@ import { PageHeaderComponent } from '../../shared/components/page-header/page-he
 import { StatusChipComponent } from '../../shared/components/status-chip/status-chip.component';
 import { CoinWallet, DemoCart, DemoCategory, DemoMessage, DemoOrder, DemoProduct, DemoReadiness, DemoSetup, OrderDetails, OrderSummary, WhatsAppCommerceDemoApiService } from './whatsapp-commerce-demo-api.service';
 import { LocalCommerceIntentEngine } from './local-commerce-intent-engine';
+import { FeatureService, FeatureTenantSummary } from '../../core/services/feature.service';
 
 type CatalogView='home'|'categories'|'products'|'detail'|'cart'|'orders';
 type FulfillmentOption='WALK_IN'|'RETAILER_DELIVERY'|'COURIER';
@@ -25,11 +26,14 @@ export class WhatsAppCommerceDemoComponent implements OnDestroy {
   readonly selectedImageIndex=signal(0); readonly typing=signal(false);
   readonly fulfillmentOption=signal<FulfillmentOption|null>(null); readonly checkoutPaymentType=signal<CheckoutPaymentType|null>(null); readonly wallet=signal<CoinWallet|null>(null);
   readonly assistantProductIds=signal<Set<string>|null>(null);
+  readonly tenants=signal<FeatureTenantSummary[]>([]);
+  readonly applicationOwner:boolean;
   readonly providerMode=computed(()=>this.setup()?.providerMode??this.readiness()?.providerMode??'NOT_CONFIGURED');
   readonly isMetaTest=computed(()=>this.providerMode()==='META_TEST');
   readonly visibleProducts=computed(()=>{const data=this.setup();if(!data)return[];const term=this.search().trim().toLowerCase();const category=this.selectedCategory()?.categoryId;const assistantIds=this.assistantProductIds();return data.products.filter(x=>(!assistantIds||assistantIds.has(x.productId))&&(!category||x.categoryId===category)&&(!term||`${x.productName} ${x.productCode} ${x.categoryName}`.toLowerCase().includes(term)));});
-  customerId=''; warehouseId=''; draftMessage=''; deliveryAddress=''; deliveryStatus='PENDING'; courierName=''; trackingNumber=''; redeemCoins=0; private quantities=new Map<string,number>(); private imageUrls:string[]=[]; private imageLoad?:Subscription; private cartLoad?:Subscription; private readonly intentEngine=new LocalCommerceIntentEngine();
-  constructor(private readonly api:WhatsAppCommerceDemoApiService){this.checkReadiness();}
+  customerId=''; warehouseId=''; tenantId=''; draftMessage=''; deliveryAddress=''; deliveryStatus='PENDING'; courierName=''; trackingNumber=''; redeemCoins=0; private quantities=new Map<string,number>(); private imageUrls:string[]=[]; private imageLoad?:Subscription; private cartLoad?:Subscription; private readonly intentEngine=new LocalCommerceIntentEngine();
+  constructor(private readonly api:WhatsAppCommerceDemoApiService,private readonly features:FeatureService,route:ActivatedRoute){this.applicationOwner=route.snapshot.data['platform']===true;if(this.applicationOwner)this.features.tenants().subscribe({next:x=>this.tenants.set(x),error:()=>this.error.set('Retailers could not be loaded.')});else this.checkReadiness();}
+  selectTenant(){this.api.targetTenantId=this.tenantId;this.setup.set(null);this.readiness.set(null);this.messages.set([]);this.cart.set(null);this.order.set(null);this.started.set(false);this.error.set('');if(this.tenantId)this.checkReadiness();}
   checkReadiness(){this.busy.set(true);this.api.readiness().subscribe({next:x=>{this.readiness.set(x);this.busy.set(false);if(x.ready)this.load();},error:()=>{this.error.set('Demo readiness could not be checked.');this.busy.set(false);}});}
   load(warehouseId?:string){this.busy.set(true);this.error.set('');this.api.setup(warehouseId).subscribe({next:x=>{this.loadImages(x);this.messages.set(x.messages);this.warehouseId=warehouseId??x.warehouses[0]?.warehouseId??'';this.customerId=x.customers[0]?.customerId??'';},error:()=>{this.error.set("We couldn't load the ERP catalogue. Please try again.");this.busy.set(false);}});}
   changeWarehouse(){this.quantities.clear();this.cart.set(null);this.selectedCategory.set(null);this.load(this.warehouseId);}

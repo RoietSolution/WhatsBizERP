@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Runtime.CompilerServices;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Routing;
 using WhatsBiz.Api.Authorization;
 using WhatsBiz.Api.Controllers;
 using WhatsBiz.Api.Middleware;
@@ -101,6 +102,25 @@ public sealed class PlatformIdentityTests
         operations.Should().NotContainNulls();
         foreach (var method in operations)
             method!.GetCustomAttributes(typeof(PlatformAuthorizeAttribute), true).Should().ContainSingle();
+    }
+
+    [Fact]
+    public void WhatsAppBusinessAndEcommerceDemoAreOwnerOnlyExplicitTenantOperations()
+    {
+        var methods = new[] { typeof(WhatsAppController), typeof(WhatsAppCommerceController) }
+            .SelectMany(type => type.GetMethods())
+            .Select(method => new
+            {
+                Method = method,
+                Route = method.GetCustomAttributes(typeof(HttpMethodAttribute), true)
+                    .Cast<HttpMethodAttribute>().SelectMany(attribute => attribute.Template is null ? [] : new[] { attribute.Template }).FirstOrDefault()
+            })
+            .Where(item => item.Route?.Contains("administration/tenants/{tenantId:guid}", StringComparison.Ordinal) == true)
+            .ToArray();
+
+        methods.Should().NotBeEmpty();
+        methods.Should().OnlyContain(item => item.Method.GetCustomAttributes(typeof(PlatformAuthorizeAttribute), true).Length == 1);
+        methods.Should().OnlyContain(item => item.Method.GetParameters().Any(parameter => parameter.Name == "tenantId" && parameter.ParameterType == typeof(Guid)));
     }
 
     private static DefaultHttpContext Context(bool owner, Guid? tenantId, bool platform)

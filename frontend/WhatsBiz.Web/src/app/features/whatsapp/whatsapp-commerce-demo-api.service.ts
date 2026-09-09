@@ -20,20 +20,21 @@ export interface OrderDetails { order:OrderSummary; items:CartLine[]; }
 export interface CommerceAnalyticsEvent { eventType:string; customerId?:string; conversationId?:string; productId?:string; variantId?:string; collectionId?:string; metadata?:Record<string,unknown>; }
 @Injectable({providedIn:'root'})
 export class WhatsAppCommerceDemoApiService {
-  private readonly root='/api/whatsapp-commerce/demo';
+  targetTenantId='';
   constructor(private readonly http:HttpClient){}
-  setup(warehouseId?:string){return this.http.get<DemoSetup>(`${this.root}/setup`,{params:warehouseId?new HttpParams().set('warehouseId',warehouseId):undefined});}
-  readiness(){return this.http.get<DemoReadiness>(`${this.root}/readiness`);}
-  cart(warehouseId:string,items:{productId:string;quantity:number}[]){return this.http.post<DemoCart>(`${this.root}/cart`,{warehouseId,items});}
-  order(customerId:string,warehouseId:string,items:{productId:string;quantity:number}[],deliveryAddress:string,fulfillmentMethod:string,paymentType:string,redeemCoins=0){return this.http.post<DemoOrder>(`${this.root}/orders`,{customerId,warehouseId,items,deliveryAddress,fulfillmentMethod,paymentType,redeemCoins});}
+  private root(){return this.targetTenantId ? `/api/whatsapp-commerce/administration/tenants/${this.targetTenantId}/demo` : '/api/whatsapp-commerce/demo';}
+  setup(warehouseId?:string){return this.http.get<DemoSetup>(`${this.root()}/setup`,{params:warehouseId?new HttpParams().set('warehouseId',warehouseId):undefined});}
+  readiness(){return this.http.get<DemoReadiness>(`${this.root()}/readiness`);}
+  cart(warehouseId:string,items:{productId:string;quantity:number}[]){return this.http.post<DemoCart>(`${this.root()}/cart`,{warehouseId,items});}
+  order(customerId:string,warehouseId:string,items:{productId:string;quantity:number}[],deliveryAddress:string,fulfillmentMethod:string,paymentType:string,redeemCoins=0){return this.http.post<DemoOrder>(`${this.root()}/orders`,{customerId,warehouseId,items,deliveryAddress,fulfillmentMethod,paymentType,redeemCoins});}
   wallet(customerId:string){return this.http.get<CoinWallet>(`/api/loyalty/customers/${customerId}/wallet`,{params:new HttpParams().set('take',10)});}
-  orders(customerId:string){return this.http.get<OrderSummary[]>(`${this.root}/orders`,{params:new HttpParams().set('customerId',customerId)});}
-  orderDetails(orderId:string,customerId:string){return this.http.get<OrderDetails>(`${this.root}/orders/${orderId}`,{params:new HttpParams().set('customerId',customerId)});}
-  updateDelivery(orderId:string,deliveryStatus:string,courierName?:string,trackingNumber?:string){return this.http.put<OrderSummary>(`${this.root}/orders/${orderId}/delivery`,{deliveryStatus,courierName: courierName||undefined,trackingNumber: trackingNumber||undefined});}
+  orders(customerId:string){return this.http.get<OrderSummary[]>(`${this.root()}/orders`,{params:new HttpParams().set('customerId',customerId)});}
+  orderDetails(orderId:string,customerId:string){return this.http.get<OrderDetails>(`${this.root()}/orders/${orderId}`,{params:new HttpParams().set('customerId',customerId)});}
+  updateDelivery(orderId:string,deliveryStatus:string,courierName?:string,trackingNumber?:string){return this.http.put<OrderSummary>(`${this.root()}/orders/${orderId}/delivery`,{deliveryStatus,courierName: courierName||undefined,trackingNumber: trackingNumber||undefined});}
   deliveryOrders(from?:string,to?:string,deliveryStatus?:string,trackingNumber?:string){let params=new HttpParams();if(from)params=params.set('from',from);if(to)params=params.set('to',to);if(deliveryStatus)params=params.set('deliveryStatus',deliveryStatus);if(trackingNumber)params=params.set('trackingNumber',trackingNumber);return this.http.get<OrderSummary[]>('/api/whatsapp-commerce/delivery-orders',{params});}
-  notifications(customerId:string){return this.http.post<DemoMessage[]>(`${this.root}/status-notifications`,null,{params:new HttpParams().set('customerId',customerId)});}
+  notifications(customerId:string){return this.http.post<DemoMessage[]>(`${this.root()}/status-notifications`,null,{params:new HttpParams().set('customerId',customerId)});}
   productImage(productId:string){return this.http.get(`/api/products/${productId}/image`,{responseType:'blob'});}
   productImageUrl(url:string){return this.http.get(url,{responseType:'blob'});}
   printReceipt(invoiceId:string){return this.http.get(`/api/pos/invoice/${invoiceId}/print`,{responseType:'blob'});}
-  analytics(event:CommerceAnalyticsEvent){return this.http.post<void>('/api/whatsapp-commerce/analytics',event);}
+  analytics(event:CommerceAnalyticsEvent){const url=this.targetTenantId?`/api/whatsapp-commerce/administration/tenants/${this.targetTenantId}/analytics`:'/api/whatsapp-commerce/analytics';return this.http.post<void>(url,event);}
 }

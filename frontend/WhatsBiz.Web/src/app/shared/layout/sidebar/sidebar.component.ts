@@ -253,6 +253,8 @@ const navigation: NavigationItem[] = [
       { label: 'Tenant Features', icon: 'account_tree', route: '/admin/features', permission: 'feature.manage', role: 'ApplicationOwner' },
       { label: 'Demo Requests', icon: 'campaign', route: '/admin/demo-requests', role: 'ApplicationOwner' },
       { label: 'WhatsApp Platform', icon: 'hub', route: '/admin/whatsapp-platform', permission: 'feature.manage', role: 'ApplicationOwner' },
+      { label: 'WhatsApp Business', icon: 'chat', route: '/application-owner/whatsapp-business', permission: 'feature.manage', role: 'ApplicationOwner' },
+      { label: 'WhatsApp Ecommerce Demo', icon: 'forum', route: '/application-owner/whatsapp-demo', permission: 'feature.manage', role: 'ApplicationOwner' },
       { label: 'Backup & Restore', icon: 'backup', route: '/admin/backup', role: 'ApplicationOwner' },
       { label: 'Audit Log', icon: 'history', route: '/admin/audit', role: 'ApplicationOwner' },
       { label: 'Login History', icon: 'login', route: '/admin/login-history', role: 'ApplicationOwner' },
@@ -280,6 +282,8 @@ const navigation: NavigationItem[] = [
       },
       { label: 'Delivery Agents', icon: 'two_wheeler', route: '/admin/delivery-agents', permission: 'delivery.agent-manage', feature: 'DELIVERY_MANAGEMENT' },
       { label: 'Delivery Settings', icon: 'local_shipping', route: '/admin/delivery-settings', permission: 'delivery.settings', feature: 'DELIVERY_MANAGEMENT' },
+      { label: 'WhatsApp Business', icon: 'chat', route: '/admin/whatsapp', permission: 'admin.settings', feature: 'WHATSAPP_COMMERCE' },
+      { label: 'WhatsApp Ecommerce Demo', icon: 'forum', route: '/admin/whatsapp-demo', permission: 'pos.view', feature: 'WHATSAPP_COMMERCE' },
       {
         label: 'Printer Configuration',
         icon: 'print',

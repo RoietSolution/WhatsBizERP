@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using WhatsBiz.Api.Authorization;
+using WhatsBiz.Api.Middleware;
 using WhatsBiz.Application.Common.Features;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.WhatsApp;
@@ -9,23 +10,38 @@ using WhatsBiz.SharedKernel;
 namespace WhatsBiz.Api.Controllers;
 
 [ApiController, Route("api/whatsapp")]
-public sealed class WhatsAppController(IWhatsAppService service, ICurrentUserService currentUser) : ControllerBase
+public sealed class WhatsAppController(IWhatsAppService service, ICurrentUserService currentUser, IFeatureService? features = null) : ControllerBase
 {
     [HttpGet("configuration"), HasPermission(Permissions.Admin.View), RequireFeature(FeatureKeys.WhatsAppConfiguration)]
-    public Task<WhatsAppConfigurationDto> Get(CancellationToken token) => service.GetConfigurationAsync(TenantId(), token);
+    public Task<WhatsAppConfigurationDto> GetForRetailer(CancellationToken token) => service.GetConfigurationAsync(TenantId(), token);
 
     [HttpPut("configuration"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.WhatsAppConfiguration)]
-    public Task<WhatsAppConfigurationDto> Save(SaveWhatsAppConfigurationInput input, CancellationToken token) => service.SaveConfigurationAsync(TenantId(), input, currentUser.Username, token);
+    public Task<WhatsAppConfigurationDto> SaveForRetailer(SaveWhatsAppConfigurationInput input, CancellationToken token) => service.SaveConfigurationAsync(TenantId(), input, currentUser.Username, token);
 
     [HttpPost("configuration/validate"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.MetaWhatsAppIntegration)]
-    public Task<WhatsAppConnectionResult> Validate(ValidateWhatsAppConnectionInput? input, CancellationToken token) => service.ValidateConnectionAsync(TenantId(), input?.AccessToken, token);
+    public Task<WhatsAppConnectionResult> ValidateForRetailer(ValidateWhatsAppConnectionInput? input, CancellationToken token) => service.ValidateConnectionAsync(TenantId(), input?.AccessToken, token);
 
     [HttpPost("configuration/test-message"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.MetaWhatsAppIntegration)]
-    public Task<WhatsAppTestMessageResult> SendTestMessage(SendWhatsAppTestMessageInput input, CancellationToken token) =>
-        service.SendTestMessageAsync(TenantId(), input, token);
+    public Task<WhatsAppTestMessageResult> SendTestMessageForRetailer(SendWhatsAppTestMessageInput input, CancellationToken token) => service.SendTestMessageAsync(TenantId(), input, token);
 
     [HttpGet("configuration/diagnostics"), HasPermission(Permissions.Admin.View), RequireFeature(FeatureKeys.WebhookDiagnostics)]
-    public Task<WhatsAppMetaTestDiagnosticsDto> Diagnostics(CancellationToken token) => service.GetDiagnosticsAsync(TenantId(), token);
+    public Task<WhatsAppMetaTestDiagnosticsDto> DiagnosticsForRetailer(CancellationToken token) => service.GetDiagnosticsAsync(TenantId(), token);
+
+    [HttpGet("administration/tenants/{tenantId:guid}/configuration"), PlatformAuthorize, HasPermission(Permissions.Features.Manage)]
+    public async Task<WhatsAppConfigurationDto> Get(Guid tenantId, CancellationToken token) => await service.GetConfigurationAsync(await TargetTenant(tenantId, token), token);
+
+    [HttpPut("administration/tenants/{tenantId:guid}/configuration"), PlatformAuthorize, HasPermission(Permissions.Features.Manage)]
+    public async Task<WhatsAppConfigurationDto> Save(Guid tenantId, SaveWhatsAppConfigurationInput input, CancellationToken token) => await service.SaveConfigurationAsync(await TargetTenant(tenantId, token), input, currentUser.Username, token);
+
+    [HttpPost("administration/tenants/{tenantId:guid}/configuration/validate"), PlatformAuthorize, HasPermission(Permissions.Features.Manage)]
+    public async Task<WhatsAppConnectionResult> Validate(Guid tenantId, ValidateWhatsAppConnectionInput? input, CancellationToken token) => await service.ValidateConnectionAsync(await TargetTenant(tenantId, token), input?.AccessToken, token);
+
+    [HttpPost("administration/tenants/{tenantId:guid}/configuration/test-message"), PlatformAuthorize, HasPermission(Permissions.Features.Manage)]
+    public async Task<WhatsAppTestMessageResult> SendTestMessage(Guid tenantId, SendWhatsAppTestMessageInput input, CancellationToken token) =>
+        await service.SendTestMessageAsync(await TargetTenant(tenantId, token), input, token);
+
+    [HttpGet("administration/tenants/{tenantId:guid}/configuration/diagnostics"), PlatformAuthorize, HasPermission(Permissions.Features.Manage)]
+    public async Task<WhatsAppMetaTestDiagnosticsDto> Diagnostics(Guid tenantId, CancellationToken token) => await service.GetDiagnosticsAsync(await TargetTenant(tenantId, token), token);
 
     [HttpGet("administration/platform"), PlatformAuthorize, HasPermission(Permissions.Features.Manage)]
     public Task<WhatsAppPlatformConfigurationDto> Platform(CancellationToken token) => service.GetPlatformConfigurationAsync(token);
@@ -57,7 +73,16 @@ public sealed class WhatsAppController(IWhatsAppService service, ICurrentUserSer
         return accepted ? Ok() : Unauthorized();
     }
 
+    private async Task<Guid> TargetTenant(Guid tenantId, CancellationToken token)
+    {
+        await (features ?? throw new InvalidOperationException("Feature service is unavailable."))
+            .GetTenantConfigurationAsync(tenantId, token);
+        HttpContext.Items[AuditMiddleware.TargetTenantItemKey] = tenantId;
+        return tenantId;
+    }
+
     private Guid TenantId() => currentUser.TenantId ?? throw new UnauthorizedAccessException("A tenant context is required.");
+
 }
 
 public sealed record ValidateWhatsAppConnectionInput(string? AccessToken);

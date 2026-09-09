@@ -30,6 +30,8 @@ describe('application routes', () => {
       'admin/features',
       'admin/demo-requests',
       'admin/whatsapp-platform',
+      'application-owner/whatsapp-business',
+      'application-owner/whatsapp-demo',
       'admin/backup',
       'admin/restore',
       'admin/audit',

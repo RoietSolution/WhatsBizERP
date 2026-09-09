@@ -7,6 +7,7 @@ using WhatsBiz.Api.Controllers;
 using WhatsBiz.Application.Common.Features;
 using WhatsBiz.Application.Features.WhatsApp;
 using WhatsBiz.Infrastructure.WhatsApp;
+using WhatsBiz.SharedKernel;
 
 namespace WhatsBiz.Tests.WhatsApp;
 
@@ -25,17 +26,18 @@ public sealed class WhatsAppFoundationTests
     }
 
     [Theory]
-    [InlineData(nameof(WhatsAppController.Get), FeatureKeys.WhatsAppConfiguration)]
-    [InlineData(nameof(WhatsAppController.Save), FeatureKeys.WhatsAppConfiguration)]
-    [InlineData(nameof(WhatsAppController.Validate), FeatureKeys.MetaWhatsAppIntegration)]
-    [InlineData(nameof(WhatsAppController.SendTestMessage), FeatureKeys.MetaWhatsAppIntegration)]
-    [InlineData(nameof(WhatsAppController.Diagnostics), FeatureKeys.WebhookDiagnostics)]
-    public void ConfigurationEndpointsRequireWhatsAppEntitlement(string methodName, string featureKey)
+    [InlineData(nameof(WhatsAppController.Get))]
+    [InlineData(nameof(WhatsAppController.Save))]
+    [InlineData(nameof(WhatsAppController.Validate))]
+    [InlineData(nameof(WhatsAppController.SendTestMessage))]
+    [InlineData(nameof(WhatsAppController.Diagnostics))]
+    public void ConfigurationEndpointsRequireApplicationOwnerAndExplicitTenant(string methodName)
     {
         var method = typeof(WhatsAppController).GetMethod(methodName)!;
-        method.GetCustomAttributes<RequireFeatureAttribute>().Single().Policy
-            .Should().Be(PermissionPolicyProvider.FeaturePrefix + featureKey);
-        method.GetCustomAttributes<HasPermissionAttribute>().Should().ContainSingle();
+        method.GetCustomAttributes<PlatformAuthorizeAttribute>().Should().ContainSingle();
+        method.GetParameters().Should().Contain(parameter => parameter.Name == "tenantId" && parameter.ParameterType == typeof(Guid));
+        method.GetCustomAttributes<HasPermissionAttribute>().Single().Policy
+            .Should().Be(PermissionPolicyProvider.Prefix + Permissions.Features.Manage);
     }
 
     [Fact]

@@ -23,6 +23,8 @@ export class ApplicationOwnerHubComponent {
     { title: 'Tenant Features', description: 'Enroll retailers and control plan feature access.', icon: 'account_tree', route: '/admin/features' },
     { title: 'Demo Requests', description: 'Review website leads and manage their sales status.', icon: 'campaign', route: '/admin/demo-requests' },
     { title: 'WhatsApp Platform', description: 'Configure the shared Meta app and inspect retailer connections.', icon: 'hub', route: '/admin/whatsapp-platform' },
+    { title: 'WhatsApp Business', description: 'Configure and validate a selected retailer WhatsApp connection.', icon: 'chat', route: '/application-owner/whatsapp-business' },
+    { title: 'WhatsApp Ecommerce Demo', description: 'Run the commerce preview explicitly for a selected retailer.', icon: 'forum', route: '/application-owner/whatsapp-demo' },
     { title: 'Backup & Restore', description: 'Protect and recover the application database.', icon: 'backup', route: '/admin/backup' },
     { title: 'Audit Log', description: 'Review application-wide configuration and security events.', icon: 'history', route: '/admin/audit' },
     { title: 'Login History', description: 'Monitor successful and failed account access.', icon: 'login', route: '/admin/login-history' },

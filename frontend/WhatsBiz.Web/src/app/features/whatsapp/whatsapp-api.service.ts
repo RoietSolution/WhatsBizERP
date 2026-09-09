@@ -53,11 +53,12 @@ export interface PagedWhatsAppContacts { items:WhatsAppContact[];totalCount:numb
 export class WhatsAppApiService {
   private readonly root = '/api/whatsapp';
   constructor(private readonly http: HttpClient) {}
-  get() { return this.http.get<WhatsAppConfiguration>(`${this.root}/configuration`); }
-  save(input: SaveWhatsAppConfiguration) { return this.http.put<WhatsAppConfiguration>(`${this.root}/configuration`, input); }
-  validate(accessToken?: string) { return this.http.post<WhatsAppConnectionResult>(`${this.root}/configuration/validate`, { accessToken: accessToken || null }); }
-  sendTestMessage(recipientNumber:string,message?:string) { return this.http.post<WhatsAppTestMessageResult>(`${this.root}/configuration/test-message`, { recipientNumber, message:message||null }); }
-  diagnostics() { return this.http.get<WhatsAppMetaTestDiagnostics>(`${this.root}/configuration/diagnostics`); }
+  private tenantConfiguration(tenantId?:string) { return tenantId ? `${this.root}/administration/tenants/${tenantId}/configuration` : `${this.root}/configuration`; }
+  get(tenantId?:string) { return this.http.get<WhatsAppConfiguration>(this.tenantConfiguration(tenantId)); }
+  save(tenantId:string|undefined,input: SaveWhatsAppConfiguration) { return this.http.put<WhatsAppConfiguration>(this.tenantConfiguration(tenantId), input); }
+  validate(tenantId?:string,accessToken?: string) { return this.http.post<WhatsAppConnectionResult>(`${this.tenantConfiguration(tenantId)}/validate`, { accessToken: accessToken || null }); }
+  sendTestMessage(tenantId:string|undefined,recipientNumber:string,message?:string) { return this.http.post<WhatsAppTestMessageResult>(`${this.tenantConfiguration(tenantId)}/test-message`, { recipientNumber, message:message||null }); }
+  diagnostics(tenantId?:string) { return this.http.get<WhatsAppMetaTestDiagnostics>(`${this.tenantConfiguration(tenantId)}/diagnostics`); }
   platform(){return this.http.get<WhatsAppPlatformConfiguration>(`${this.root}/administration/platform`);}
   savePlatform(input:{metaAppId:string;isEnabled:boolean;appSecret?:string;webhookVerifyToken?:string}){return this.http.put<WhatsAppPlatformConfiguration>(`${this.root}/administration/platform`,input);}
   retailerConnections(){return this.http.get<RetailerWhatsAppConnection[]>(`${this.root}/administration/retailer-connections`);}

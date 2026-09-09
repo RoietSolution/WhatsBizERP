@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -11,6 +11,7 @@ import { PageContainerComponent } from '../../shared/components/page-container/p
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 import { StatusChipComponent } from '../../shared/components/status-chip/status-chip.component';
 import { WhatsAppApiService, WhatsAppConfiguration, WhatsAppMetaTestDiagnostics } from './whatsapp-api.service';
+import { FeatureService, FeatureTenantSummary } from '../../core/services/feature.service';
 
 @Component({
   imports: [FormsModule, DatePipe, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule,
@@ -33,14 +34,21 @@ import { WhatsAppApiService, WhatsAppConfiguration, WhatsAppMetaTestDiagnostics 
 export class WhatsAppConfigurationComponent {
   readonly loading = signal(true); readonly saving = signal(false); readonly message = signal('');
   readonly diagnostics = signal<WhatsAppMetaTestDiagnostics | null>(null);
+  readonly tenants = signal<FeatureTenantSummary[]>([]);
+  readonly applicationOwner:boolean;
   readonly model = signal<WhatsAppConfiguration>({ providerMode:'MOCK', isEnabled:false, connectionStatus:'NOT_CONFIGURED', hasAccessToken:false, hasWebhookVerifyToken:false, hasAppSecret:false, usesSharedPlatformCredentials:false });
-  accessToken = ''; webhookVerifyToken = ''; appSecret = ''; recipientNumber=''; testMessage='WhatsBiz META_TEST connection successful.';
-  constructor(private readonly api: WhatsAppApiService) { this.reload(); }
-  reload() { this.api.get().subscribe({ next:x=>{this.model.set(x);this.recipientNumber=x.testRecipientNumber??'';this.loading.set(false);if(x.providerMode==='META_TEST')this.reloadDiagnostics();}, error:()=>{this.message.set('Unable to load WhatsApp configuration.');this.loading.set(false);} }); }
-  reloadDiagnostics(){this.api.diagnostics().subscribe({next:x=>this.diagnostics.set(x),error:()=>this.diagnostics.set(null)});}
-  save() { const x=this.model(); this.saving.set(true); this.message.set(''); this.api.save({ providerMode:x.providerMode, metaAppId:x.metaAppId??'', whatsAppBusinessAccountId:x.whatsAppBusinessAccountId??'', phoneNumberId:x.phoneNumberId??'', apiVersion:x.apiVersion??'', testRecipientNumber:this.recipientNumber||undefined, isEnabled:x.isEnabled, accessToken:this.accessToken||undefined, webhookVerifyToken:this.webhookVerifyToken||undefined, appSecret:this.appSecret||undefined }).subscribe({next:y=>{this.model.set(y);this.clearSecrets();this.message.set(x.providerMode==='MOCK'?'Mock provider configured. No Meta registration or credentials are used.':'Configuration saved. Validate the Meta connection next.');this.saving.set(false);this.reloadDiagnostics();},error:()=>{this.message.set('Configuration could not be saved. Check the values and try again.');this.saving.set(false);}}); }
-  validate() { this.saving.set(true);this.message.set('');this.api.validate(this.accessToken).subscribe({next:r=>{this.message.set(r.message??'Validation completed.');this.clearSecrets();this.reload();this.saving.set(false);},error:()=>{this.message.set('Connection validation failed safely. Review the configuration and server logs.');this.saving.set(false);}}); }
-  sendTestMessage(){this.saving.set(true);this.message.set('');this.api.sendTestMessage(this.recipientNumber,this.testMessage).subscribe({next:r=>{this.message.set(r.succeeded?`${r.message} Meta message ID: ${r.metaMessageId}; sent ${new Date(r.attemptedAt).toLocaleString()}.`:r.message??'Meta rejected the test message.');this.saving.set(false);this.reloadDiagnostics();},error:()=>{this.message.set('The test message could not be sent. Check the recipient and META_TEST configuration.');this.saving.set(false);}});}
+  accessToken = ''; webhookVerifyToken = ''; appSecret = ''; recipientNumber=''; testMessage='WhatsBiz META_TEST connection successful.'; tenantId='';
+  constructor(private readonly api: WhatsAppApiService, private readonly features:FeatureService, route:ActivatedRoute) {
+    this.applicationOwner=route.snapshot.data['platform']===true;
+    if(this.applicationOwner)this.features.tenants().subscribe({next:tenants=>{this.tenants.set(tenants);this.loading.set(false);},error:()=>{this.message.set('Unable to load retailers.');this.loading.set(false);}});
+    else this.reload();
+  }
+  selectTenant(){this.diagnostics.set(null);this.clearSecrets();if(this.tenantId)this.reload();}
+  reload() { if(this.applicationOwner&&!this.tenantId)return;this.loading.set(true);this.api.get(this.tenantId||undefined).subscribe({ next:x=>{this.model.set(x);this.recipientNumber=x.testRecipientNumber??'';this.loading.set(false);if(x.providerMode==='META_TEST')this.reloadDiagnostics();}, error:()=>{this.message.set('Unable to load WhatsApp configuration.');this.loading.set(false);} }); }
+  reloadDiagnostics(){if(this.applicationOwner&&!this.tenantId)return;this.api.diagnostics(this.tenantId||undefined).subscribe({next:x=>this.diagnostics.set(x),error:()=>this.diagnostics.set(null)});}
+  save() { if(this.applicationOwner&&!this.tenantId)return;const x=this.model(); this.saving.set(true); this.message.set(''); this.api.save(this.tenantId||undefined,{ providerMode:x.providerMode, metaAppId:x.metaAppId??'', whatsAppBusinessAccountId:x.whatsAppBusinessAccountId??'', phoneNumberId:x.phoneNumberId??'', apiVersion:x.apiVersion??'', testRecipientNumber:this.recipientNumber||undefined, isEnabled:x.isEnabled, accessToken:this.accessToken||undefined, webhookVerifyToken:this.webhookVerifyToken||undefined, appSecret:this.appSecret||undefined }).subscribe({next:y=>{this.model.set(y);this.clearSecrets();this.message.set(x.providerMode==='MOCK'?'Mock provider configured. No Meta registration or credentials are used.':'Configuration saved. Validate the Meta connection next.');this.saving.set(false);this.reloadDiagnostics();},error:()=>{this.message.set('Configuration could not be saved. Check the values and try again.');this.saving.set(false);}}); }
+  validate() { if(this.applicationOwner&&!this.tenantId)return;this.saving.set(true);this.message.set('');this.api.validate(this.tenantId||undefined,this.accessToken).subscribe({next:r=>{this.message.set(r.message??'Validation completed.');this.clearSecrets();this.reload();this.saving.set(false);},error:()=>{this.message.set('Connection validation failed safely. Review the configuration and server logs.');this.saving.set(false);}}); }
+  sendTestMessage(){if(this.applicationOwner&&!this.tenantId)return;this.saving.set(true);this.message.set('');this.api.sendTestMessage(this.tenantId||undefined,this.recipientNumber,this.testMessage).subscribe({next:r=>{this.message.set(r.succeeded?`${r.message} Meta message ID: ${r.metaMessageId}; sent ${new Date(r.attemptedAt).toLocaleString()}.`:r.message??'Meta rejected the test message.');this.saving.set(false);this.reloadDiagnostics();},error:()=>{this.message.set('The test message could not be sent. Check the recipient and META_TEST configuration.');this.saving.set(false);}});}
   setupReady(){const x=this.model();const d=this.diagnostics();return x.isEnabled&&x.providerMode==='META_TEST'&&!!x.metaAppId&&!!x.whatsAppBusinessAccountId&&!!x.phoneNumberId&&!!x.apiVersion&&x.hasAccessToken&&x.hasWebhookVerifyToken&&x.hasAppSecret&&!!x.testRecipientNumber&&x.connectionStatus==='CONNECTED'&&!!d?.lastWebhookVerifiedOn;}
   tone(): 'success'|'warning'|'danger'|'info' { return this.model().connectionStatus==='CONNECTED'?'success':this.model().connectionStatus==='ERROR'?'danger':this.model().connectionStatus==='DISABLED'?'warning':'info'; }
   private clearSecrets(){this.accessToken='';this.webhookVerifyToken='';this.appSecret='';}

@@ -21,6 +21,16 @@ public sealed class AuthenticationHandlerTests
     }
 
     [Fact]
+    public async Task LoginHandlerPassesApplicationOwnerPortalToAuthenticationService()
+    {
+        var service = new RecordingAuthenticationService();
+
+        await new LoginCommandHandler(service).Handle(new LoginCommand("owner", "password", "ApplicationOwner"), default);
+
+        service.LoginRequest.Should().Be(new LoginRequest("owner", "password", "ApplicationOwner"));
+    }
+
+    [Fact]
     public async Task RefreshHandlerPassesTokenToAuthenticationService()
     {
         var service = new RecordingAuthenticationService();

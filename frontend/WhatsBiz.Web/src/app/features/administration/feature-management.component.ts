@@ -24,7 +24,7 @@ export class FeatureManagementComponent implements OnInit {
   readonly versions = computed(() => (this.configuration()?.features ?? []).filter(x => x.featureType === 'VERSION'));
   ngOnInit(): void {
     this.loading.set(true);
-    this.api.tenants().subscribe({ next: rows => { this.tenants.set(rows); if (rows[0]) this.select(rows[0].tenantId); else this.loading.set(false); }, error: () => { this.error.set('Tenant feature administration is available only to a SystemAdministrator.'); this.loading.set(false); } });
+    this.api.tenants().subscribe({ next: rows => { this.tenants.set(rows); if (rows[0]) this.select(rows[0].tenantId); else this.loading.set(false); }, error: () => { this.error.set('Tenant feature administration is available only to an ApplicationOwner.'); this.loading.set(false); } });
   }
   select(tenantId: string): void {
     this.selectedTenantId.set(tenantId); this.loading.set(true); this.error.set(''); this.message.set('');

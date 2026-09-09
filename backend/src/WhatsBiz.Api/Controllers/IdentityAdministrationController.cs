@@ -125,7 +125,9 @@ public sealed class IdentityAdministrationController(
     [HttpGet("roles"), HasPermission(Permissions.Roles.Manage)]
     public async Task<IReadOnlyCollection<AdminRoleDto>> Roles(CancellationToken token)
     {
-        var values = await roles.Roles.OrderBy(x => x.Name).ToArrayAsync(token);
+        var values = await roles.Roles
+            .Where(x => x.Name != "ApplicationOwner" && x.Name != "SystemAdministrator")
+            .OrderBy(x => x.Name).ToArrayAsync(token);
         var result = new List<AdminRoleDto>(values.Length);
         foreach (var role in values)
         {

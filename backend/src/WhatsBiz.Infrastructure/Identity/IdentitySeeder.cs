@@ -14,18 +14,18 @@ public sealed class IdentitySeeder(
     ILogger<IdentitySeeder> logger) : IHostedService
 {
     private static readonly Action<ILogger, Exception?> SeedCompleted = LoggerMessage.Define(LogLevel.Information, new EventId(2001, nameof(SeedCompleted)), "Identity seed completed.");
-    private static readonly Action<ILogger, string, string, Exception?> AdministratorCreated = LoggerMessage.Define<string, string>(LogLevel.Information, new EventId(2002, nameof(AdministratorCreated)), "Bootstrap administrator {Username} created for tenant {TenantKey}.");
+    private static readonly Action<ILogger, string, string, Exception?> AdministratorCreated = LoggerMessage.Define<string, string>(LogLevel.Information, new EventId(2002, nameof(AdministratorCreated)), "Bootstrap account {Username} created for tenant {TenantKey}.");
     private static readonly Action<ILogger, string, string, Exception?> AdministratorPasswordReset = LoggerMessage.Define<string, string>(LogLevel.Warning, new EventId(2003, nameof(AdministratorPasswordReset)), "Bootstrap administrator {Username} password reset for tenant {TenantKey}. Disable ResetPasswordOnStart and remove the password from configuration now.");
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope(); var roles = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>(); var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(); const string roleName = "Administrator";
-        const string systemRoleName = "SystemAdministrator";
-        var systemRole = await roles.FindByNameAsync(systemRoleName);
-        if (systemRole is null) { systemRole = new ApplicationRole(systemRoleName); EnsureSucceeded(await roles.CreateAsync(systemRole)); }
-        var systemClaims = await roles.GetClaimsAsync(systemRole);
-        if (!systemClaims.Any(x => x.Type == CustomClaimTypes.Permission && x.Value == Permissions.Features.Manage))
-            EnsureSucceeded(await roles.AddClaimAsync(systemRole, new Claim(CustomClaimTypes.Permission, Permissions.Features.Manage)));
+        const string applicationOwnerRoleName = "ApplicationOwner";
+        var applicationOwnerRole = await roles.FindByNameAsync(applicationOwnerRoleName);
+        if (applicationOwnerRole is null) { applicationOwnerRole = new ApplicationRole(applicationOwnerRoleName); EnsureSucceeded(await roles.CreateAsync(applicationOwnerRole)); }
+        var ownerClaims = await roles.GetClaimsAsync(applicationOwnerRole);
+        if (!ownerClaims.Any(x => x.Type == CustomClaimTypes.Permission && x.Value == Permissions.Features.Manage))
+            EnsureSucceeded(await roles.AddClaimAsync(applicationOwnerRole, new Claim(CustomClaimTypes.Permission, Permissions.Features.Manage)));
         var role = await roles.FindByNameAsync(roleName);
         if (role is null) { role = new ApplicationRole(roleName); var result = await roles.CreateAsync(role); if (!result.Succeeded) throw new InvalidOperationException(string.Join("; ", result.Errors.Select(x => x.Description))); }
         var roleClaims = await roles.GetClaimsAsync(role); foreach (var permission in Permissions.All) if (!roleClaims.Any(x => x.Type == CustomClaimTypes.Permission && x.Value == permission)) EnsureSucceeded(await roles.AddClaimAsync(role, new Claim(CustomClaimTypes.Permission, permission)));
@@ -33,7 +33,11 @@ public sealed class IdentitySeeder(
         var deliveryClaims=await roles.GetClaimsAsync(deliveryRole);foreach(var permission in new[]{Permissions.Delivery.View,Permissions.Delivery.UpdateStatus,Permissions.Delivery.Confirm,Permissions.Delivery.RecordCod})if(!deliveryClaims.Any(x=>x.Type==CustomClaimTypes.Permission&&x.Value==permission))EnsureSucceeded(await roles.AddClaimAsync(deliveryRole,new Claim(CustomClaimTypes.Permission,permission)));
         var bootstrap = bootstrapOptions.Value.Administrator;
         if (bootstrap.Enabled)
-            await BootstrapAdministratorAsync(scope.ServiceProvider, users, bootstrap, roleName, systemRoleName, cancellationToken);
+            await BootstrapAdministratorAsync(scope.ServiceProvider, users, bootstrap, roleName, cancellationToken);
+
+        var applicationOwner = bootstrapOptions.Value.ApplicationOwner;
+        if (applicationOwner.Enabled)
+            await BootstrapApplicationOwnerAsync(users, applicationOwner, applicationOwnerRoleName, cancellationToken);
 
         SeedCompleted(logger, null);
     }
@@ -43,7 +47,6 @@ public sealed class IdentitySeeder(
         UserManager<ApplicationUser> users,
         BootstrapAdministratorOptions options,
         string administratorRole,
-        string systemAdministratorRole,
         CancellationToken cancellationToken)
     {
         var tenantKey = Required(options.TenantKey, nameof(options.TenantKey)).ToUpperInvariant();
@@ -83,9 +86,6 @@ public sealed class IdentitySeeder(
 
         if (!await users.IsInRoleAsync(user, administratorRole))
             EnsureSucceeded(await users.AddToRoleAsync(user, administratorRole));
-        if (options.IncludeSystemAdministratorRole && !await users.IsInRoleAsync(user, systemAdministratorRole))
-            EnsureSucceeded(await users.AddToRoleAsync(user, systemAdministratorRole));
-
         if (options.ResetPasswordOnStart)
         {
             if (string.IsNullOrWhiteSpace(options.Password))
@@ -95,6 +95,57 @@ public sealed class IdentitySeeder(
             AdministratorPasswordReset(logger, username, tenantKey, null);
         }
     }
+
+    private async Task BootstrapApplicationOwnerAsync(
+        UserManager<ApplicationUser> users,
+        BootstrapApplicationOwnerOptions options,
+        string applicationOwnerRole,
+        CancellationToken cancellationToken)
+    {
+        var username = Required(options.Username, nameof(options.Username));
+        var email = Required(options.Email, nameof(options.Email));
+
+        var user = await users.FindByNameAsync(username);
+        if (user is null)
+        {
+            if (string.IsNullOrWhiteSpace(options.Password))
+                throw new InvalidOperationException("Application owner password is required for initial creation. Configure IdentityBootstrap__ApplicationOwner__Password through a secret environment file.");
+            if (await users.FindByEmailAsync(email) is not null)
+                throw new InvalidOperationException($"Identity bootstrap email '{email}' is already assigned to a different user.");
+            user = CreateApplicationOwner(username, email);
+            EnsureSucceeded(await users.CreateAsync(user, options.Password));
+            AdministratorCreated(logger, username, "PLATFORM", null);
+        }
+        else if (user.TenantId is not null || !string.Equals(user.AccountType, AccountTypes.ApplicationOwner, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Application owner '{username}' is tenant-scoped. Configure a separate platform account.");
+        }
+
+        var existingRoles = await users.GetRolesAsync(user);
+        if (existingRoles.Any(role => !string.Equals(role, applicationOwnerRole, StringComparison.Ordinal)))
+            throw new InvalidOperationException($"Application owner '{username}' already has a retailer role. Configure a separate owner account.");
+
+        if (!await users.IsInRoleAsync(user, applicationOwnerRole))
+            EnsureSucceeded(await users.AddToRoleAsync(user, applicationOwnerRole));
+        if (options.ResetPasswordOnStart)
+        {
+            if (string.IsNullOrWhiteSpace(options.Password)) throw new InvalidOperationException("Application owner password is required when ResetPasswordOnStart is enabled.");
+            var token = await users.GeneratePasswordResetTokenAsync(user);
+            EnsureSucceeded(await users.ResetPasswordAsync(user, token, options.Password));
+            AdministratorPasswordReset(logger, username, "PLATFORM", null);
+        }
+    }
+
+    internal static ApplicationUser CreateApplicationOwner(string username, string email) => new()
+    {
+        TenantId = null,
+        AccountType = AccountTypes.ApplicationOwner,
+        UserName = username,
+        Email = email,
+        EmailConfirmed = true,
+        IsActive = true,
+        CreatedBy = "application-owner-bootstrap"
+    };
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     private static string Required(string value, string name) => string.IsNullOrWhiteSpace(value) ? throw new InvalidOperationException($"Identity bootstrap administrator {name} is required.") : value.Trim();

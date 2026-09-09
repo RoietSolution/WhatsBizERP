@@ -55,6 +55,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         {
             entity.ToTable("Users", "core");
             entity.Property(x => x.TenantId);
+            entity.Property(x => x.AccountType).HasMaxLength(30);
             entity.Property(x => x.CreatedBy).HasMaxLength(256);
             entity.Property(x => x.ModifiedBy).HasMaxLength(256);
             entity.Property(x => x.RowVersion).IsRowVersion();

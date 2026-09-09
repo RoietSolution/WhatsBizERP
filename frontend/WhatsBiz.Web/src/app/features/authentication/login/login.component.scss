@@ -113,6 +113,19 @@ mat-form-field {
   color: var(--wb-success);
   font-size: 17px;
 }
+.portal-link {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 0.75rem;
+}
+.portal-link a {
+  color: var(--wb-text-secondary);
+  text-decoration: none;
+}
+.portal-link a:hover {
+  color: var(--wb-primary);
+  text-decoration: underline;
+}
 @media (max-width: 599px) {
   .auth-card__brand {
     min-height: 60px;

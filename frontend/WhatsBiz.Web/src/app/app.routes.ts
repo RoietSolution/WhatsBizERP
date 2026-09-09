@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { permissionGuard } from './core/guards/permission.guard';
 import { featureGuard } from './core/guards/feature.guard';
+import { roleGuard } from './core/guards/role.guard';
 const productView = { permission: 'product.view' },
   productCreate = { permission: 'product.create' },
   productEdit = { permission: 'product.edit' };
@@ -69,6 +70,13 @@ export const routes: Routes = [
       {
         path: 'login',
         title: 'Sign In | KhataDhari ERP',
+        loadComponent: () =>
+          import('./features/authentication/login/login.component').then((m) => m.LoginComponent),
+      },
+      {
+        path: 'application-owner/login',
+        title: 'Application Owner Sign In | KhataDhari ERP',
+        data: { portal: 'application-owner' },
         loadComponent: () =>
           import('./features/authentication/login/login.component').then((m) => m.LoginComponent),
       },
@@ -185,9 +193,15 @@ export const routes: Routes = [
     children: [
       {
         path: 'admin/features',
-        canActivate: [permissionGuard],
-        data: { permission: 'feature.manage', title: 'Tenant Feature Management' },
+        canActivate: [roleGuard, permissionGuard],
+        data: { role: 'ApplicationOwner', permission: 'feature.manage', title: 'Tenant Feature Management' },
         loadComponent: () => import('./features/administration/feature-management.component').then(m => m.FeatureManagementComponent),
+      },
+      {
+        path: 'application-owner',
+        canActivate: [roleGuard],
+        data: { role: 'ApplicationOwner', title: 'Application Owner Center' },
+        loadComponent: () => import('./features/administration/application-owner-hub.component').then(m => m.ApplicationOwnerHubComponent),
       },
       {
         path: 'profile',
@@ -369,8 +383,8 @@ export const routes: Routes = [
       },
       {
         path: 'admin/demo-requests',
-        canActivate: [permissionGuard],
-        data: adminView,
+        canActivate: [roleGuard],
+        data: { role: 'ApplicationOwner', title: 'Demo Requests' },
         loadComponent: () =>
           import('./features/administration/demo-requests.component').then(
             (m) => m.DemoRequestsComponent,
@@ -426,7 +440,7 @@ export const routes: Routes = [
       {
         path: 'admin/settings',
         canActivate: [permissionGuard],
-        data: { ...adminSettings, title: 'Application Settings' },
+        data: { ...adminSettings, title: 'Retailer Settings' },
         loadComponent: () =>
           import('./features/administration/application-settings.component').then(
             (m) => m.ApplicationSettingsComponent,
@@ -434,8 +448,8 @@ export const routes: Routes = [
       },
       {
         path: 'admin/whatsapp-platform',
-        canActivate: [permissionGuard],
-        data: { permission: 'feature.manage', title: 'KhataDhari Meta App & Retailer Connections' },
+        canActivate: [roleGuard, permissionGuard],
+        data: { role: 'ApplicationOwner', permission: 'feature.manage', title: 'KhataDhari Meta App & Retailer Connections' },
         loadComponent: () => import('./features/whatsapp/whatsapp-platform-administration.component').then(m => m.WhatsAppPlatformAdministrationComponent),
       },
       {
@@ -508,8 +522,8 @@ export const routes: Routes = [
       },
       {
         path: 'admin/backup',
-        canActivate: [permissionGuard],
-        data: adminBackup,
+        canActivate: [roleGuard],
+        data: { role: 'ApplicationOwner', title: 'Backup Center' },
         loadComponent: () =>
           import('./features/administration/backup-restore.component').then(
             (m) => m.BackupRestoreComponent,
@@ -517,8 +531,8 @@ export const routes: Routes = [
       },
       {
         path: 'admin/restore',
-        canActivate: [permissionGuard],
-        data: { ...adminRestore, restore: true },
+        canActivate: [roleGuard],
+        data: { role: 'ApplicationOwner', title: 'Restore Center', restore: true },
         loadComponent: () =>
           import('./features/administration/backup-restore.component').then(
             (m) => m.BackupRestoreComponent,
@@ -526,8 +540,8 @@ export const routes: Routes = [
       },
       {
         path: 'admin/audit',
-        canActivate: [permissionGuard],
-        data: adminAudit,
+        canActivate: [roleGuard],
+        data: { role: 'ApplicationOwner', title: 'Audit Log' },
         loadComponent: () =>
           import('./features/administration/audit-history.component').then(
             (m) => m.AuditHistoryComponent,
@@ -535,8 +549,8 @@ export const routes: Routes = [
       },
       {
         path: 'admin/login-history',
-        canActivate: [permissionGuard],
-        data: { ...adminAudit, login: true },
+        canActivate: [roleGuard],
+        data: { role: 'ApplicationOwner', title: 'Login History', login: true },
         loadComponent: () =>
           import('./features/administration/audit-history.component').then(
             (m) => m.AuditHistoryComponent,

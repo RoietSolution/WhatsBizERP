@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthenticationService } from '../../../core/services/authentication.service';
 import { LoadingOverlayComponent } from '../../../shared/components/loading-overlay/loading-overlay.component';
 
@@ -36,11 +36,15 @@ export class LoginComponent {
   readonly showPassword = signal(false);
   readonly error = signal('');
   readonly loading = signal(false);
+  readonly applicationOwner: boolean;
 
   constructor(
     private readonly authentication: AuthenticationService,
     private readonly router: Router,
-  ) {}
+    route: ActivatedRoute,
+  ) {
+    this.applicationOwner = route.snapshot.data['portal'] === 'application-owner';
+  }
 
   togglePasswordVisibility(): void {
     this.showPassword.update((value) => !value);
@@ -51,8 +55,8 @@ export class LoginComponent {
     if (this.form.invalid || this.loading()) return;
     this.error.set('');
     this.loading.set(true);
-    this.authentication.login(this.username.value.trim(), this.password.value).subscribe({
-      next: () => void this.router.navigateByUrl('/dashboard'),
+    this.authentication.login(this.username.value.trim(), this.password.value, this.applicationOwner).subscribe({
+      next: () => void this.router.navigateByUrl(this.applicationOwner ? '/application-owner' : '/dashboard'),
       error: (response: HttpErrorResponse) => {
         this.loading.set(false);
         this.error.set(

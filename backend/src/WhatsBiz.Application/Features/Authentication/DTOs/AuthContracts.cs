@@ -1,5 +1,5 @@
 namespace WhatsBiz.Application.Features.Authentication.DTOs;
-public sealed record LoginRequest(string Username, string Password);
+public sealed record LoginRequest(string Username, string Password, string Portal = "Retailer");
 public sealed record RefreshTokenRequest(string RefreshToken);
 public sealed record LogoutRequest(string RefreshToken);
 public sealed record ForgotPasswordRequest(string Identifier);
@@ -8,8 +8,8 @@ public sealed record ResetPasswordRequest(string UserId, string Token, string Ne
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public sealed record UpdateProfileRequest(string Email);
 public sealed record AuthResponse(string AccessToken, string RefreshToken, DateTimeOffset ExpiresOnUtc, CurrentUserDto User);
-public sealed record CurrentUserDto(Guid UserId, Guid TenantId, string Username, string Email, IReadOnlyCollection<string> Roles, IReadOnlyCollection<string> Permissions, IReadOnlyDictionary<string, bool> Features)
+public sealed record CurrentUserDto(Guid UserId, Guid? TenantId, string Username, string Email, IReadOnlyCollection<string> Roles, IReadOnlyCollection<string> Permissions, IReadOnlyDictionary<string, bool> Features)
 {
     public CurrentUserDto(Guid userId, string username, string email, IReadOnlyCollection<string> roles, IReadOnlyCollection<string> permissions)
-        : this(userId, Guid.Empty, username, email, roles, permissions, new Dictionary<string, bool>()) { }
+        : this(userId, null, username, email, roles, permissions, new Dictionary<string, bool>()) { }
 }

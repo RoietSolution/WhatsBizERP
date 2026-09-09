@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using WhatsBiz.Api.Controllers;
 using WhatsBiz.Api.Middleware;
 using WhatsBiz.Application.Common.Features;
 using WhatsBiz.Application.Common.Interfaces;
@@ -46,6 +47,19 @@ public sealed class FeatureAccessTests
         called.Should().BeTrue(); service.Seen.Should().ContainInOrder(tenantA,tenantB);
     }
 
+    [Fact]
+    public async Task ApplicationOwnerSelectsRetailerExplicitlyForFeatureManagement()
+    {
+        var selectedTenant = Guid.NewGuid();
+        var service = new TenantFeatureStub(new());
+        var controller = new FeatureAccessController(service, new EnrollmentStub(), new OwnerStub());
+
+        var result = await controller.Tenant(selectedTenant, default);
+
+        result.TenantId.Should().Be(selectedTenant);
+        service.SelectedTenant.Should().Be(selectedTenant);
+    }
+
     private static DefaultHttpContext Context(string path) { var c=new DefaultHttpContext(); c.Request.Path=path; c.Response.Body=new MemoryStream(); return c; }
     private static FeatureAccessState State(IReadOnlyCollection<FeatureAccessState> states,string key) => states.Single(x=>x.FeatureKey==key);
     private static IReadOnlyCollection<FeatureAccessState> Evaluate(bool v1,bool pos,bool v2,bool commerce)
@@ -65,11 +79,22 @@ public sealed class FeatureAccessTests
     private sealed class TenantFeatureStub(Dictionary<Guid,bool> enabled):IFeatureService
     {
         public List<Guid> Seen { get; }=[];
+        public Guid? SelectedTenant { get; private set; }
         public Task<bool> IsEnabledAsync(Guid tenantId,string featureKey,CancellationToken cancellationToken=default){Seen.Add(tenantId);return Task.FromResult(enabled[tenantId]);}
         public Task<IReadOnlyDictionary<string,bool>> GetEffectiveFeaturesAsync(Guid tenantId,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
-        public Task<TenantFeatureConfiguration> GetTenantConfigurationAsync(Guid tenantId,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
+        public Task<TenantFeatureConfiguration> GetTenantConfigurationAsync(Guid tenantId,CancellationToken cancellationToken=default){SelectedTenant=tenantId;return Task.FromResult(new TenantFeatureConfiguration(tenantId,"Selected Retailer",null,null,[]));}
         public Task<IReadOnlyCollection<FeatureTenantSummary>> GetTenantsAsync(CancellationToken cancellationToken=default)=>throw new NotSupportedException();
         public Task<TenantFeatureConfiguration> UpdateTenantConfigurationAsync(Guid tenantId,IReadOnlyCollection<TenantFeatureUpdate> updates,string? changedBy,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
         public void InvalidateTenant(Guid tenantId){} public void InvalidateAll(){}
+    }
+    private sealed class EnrollmentStub : ITenantEnrollmentService
+    {
+        public Task<byte[]> CreateTemplateAsync(CancellationToken cancellationToken=default)=>throw new NotSupportedException();
+        public Task<TenantEnrollmentResult> ImportAsync(byte[] workbook,string? actor,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
+    }
+    private sealed class OwnerStub : ICurrentUserService
+    {
+        public Guid? UserId=>Guid.NewGuid(); public Guid? TenantId=>null; public string? Username=>"owner"; public string? Email=>"owner@example.test";
+        public IReadOnlyCollection<string> Roles=>["ApplicationOwner"]; public IReadOnlyCollection<string> Permissions=>["feature.manage"];
     }
 }

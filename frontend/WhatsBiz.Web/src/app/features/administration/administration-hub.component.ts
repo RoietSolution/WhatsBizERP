@@ -150,7 +150,7 @@ export class AdministrationHubComponent {
   readonly category = signal('Organization');
   readonly selected = signal<SettingLink | null>(null);
   readonly loading = signal(true);
-  readonly adminMetrics = signal({ company: '', branches: 0, backup: '', audits: 0 });
+  readonly adminMetrics = signal({ company: '', branches: 0 });
   readonly summaries = computed(() => [
     {
       label: 'Organization',
@@ -165,20 +165,6 @@ export class AdministrationHubComponent {
       subtitle: 'Database records',
       icon: 'monitor_heart',
       tone: 'success' as const,
-    },
-    {
-      label: 'Backup',
-      value: this.adminMetrics().backup || 'No backup',
-      subtitle: 'Latest database backup',
-      icon: 'backup',
-      tone: 'info' as const,
-    },
-    {
-      label: 'Audit Logs',
-      value: this.adminMetrics().audits,
-      subtitle: 'Recorded activities',
-      icon: 'policy',
-      tone: 'warning' as const,
     },
   ]);
   readonly groups: SettingGroup[] = [
@@ -265,8 +251,8 @@ export class AdministrationHubComponent {
       icon: 'settings',
       items: [
         {
-          title: 'Application Settings',
-          description: 'General system and operational configuration.',
+          title: 'Retailer Settings',
+          description: 'Business and operational configuration for this retailer.',
           icon: 'tune',
           route: '/admin/settings',
         },
@@ -430,23 +416,21 @@ export class AdministrationHubComponent {
         },
       ],
     },
-  ];
+  ].filter((group) => !['Backup', 'Monitoring'].includes(group.title)).map((group) => ({
+    ...group,
+    items: group.items.filter((item) => ![
+      '/admin/demo-requests', '/admin/backup', '/admin/restore', '/admin/audit', '/admin/login-history',
+    ].includes(item.route ?? '')),
+  })).filter((group) => group.items.length > 0);
   constructor() {
     forkJoin({
       company: this.api.company(),
       branches: this.api.branches(),
-      backups: this.api.backups(),
-      audits: this.api.audit(),
     }).subscribe({
-      next: ({ company, branches, backups, audits }) => {
-        const latest = backups.slice().sort((a, b) =>
-          b.startedOn.localeCompare(a.startedOn),
-        )[0];
+      next: ({ company, branches }) => {
         this.adminMetrics.set({
           company: company.companyName,
           branches: branches.filter((branch) => branch.isActive).length,
-          backup: latest?.status ?? '',
-          audits: audits.length,
         });
         this.loading.set(false);
       },

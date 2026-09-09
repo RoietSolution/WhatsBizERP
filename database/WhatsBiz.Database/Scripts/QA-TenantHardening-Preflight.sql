@@ -10,6 +10,16 @@ SELECT @@SERVERNAME AS ServerName, DB_NAME() AS DatabaseName;
 IF DB_NAME() <> N'WhatsBizERP_QA'
     THROW 51600, N'QA preflight stopped: database must be exactly WhatsBizERP_QA.', 1;
 
+IF OBJECT_ID(N'core.Users',N'U') IS NOT NULL AND OBJECT_ID(N'core.UserRoles',N'U') IS NOT NULL AND OBJECT_ID(N'core.Roles',N'U') IS NOT NULL
+AND EXISTS
+(
+    SELECT 1 FROM core.Users u
+    JOIN core.UserRoles ownerUr ON ownerUr.UserId=u.Id
+    JOIN core.Roles ownerRole ON ownerRole.Id=ownerUr.RoleId AND ownerRole.NormalizedName=N'APPLICATIONOWNER'
+    JOIN core.UserRoles otherUr ON otherUr.UserId=u.Id AND otherUr.RoleId<>ownerUr.RoleId
+)
+    THROW 51602, N'QA preflight stopped: an ApplicationOwner account also has a retailer role.', 1;
+
 DECLARE @Checks TABLE
 (
     CheckGroup nvarchar(40) NOT NULL,

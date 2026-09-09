@@ -19,7 +19,7 @@ Meta changes its dashboard periodically. Use the current official documentation 
 
 | Scope | Owner | Stored configuration |
 | --- | --- | --- |
-| Platform | KhataDhari SystemAdministrator | Meta App ID, encrypted App Secret, encrypted webhook verify token, enabled state |
+| Platform | KhataDhari ApplicationOwner | Meta App ID, encrypted App Secret, encrypted webhook verify token, enabled state |
 | Retailer tenant | One retailer only | Provider mode, WABA ID, Phone Number ID, encrypted access token, API version, test recipient, connection status and validated business identity |
 | Webhook event | Resolved retailer | Tenant ID derived from Phone Number ID, WABA ID, event key, message/status metadata and processing state |
 
@@ -77,7 +77,7 @@ Perform these steps once for the platform:
    ```
 
 8. Configure the same verify token in Meta and subscribe to the webhook fields required by WhatsBiz, including message and message-status notifications.
-9. Open WhatsBiz as a `SystemAdministrator` and navigate to:
+9. Open WhatsBiz as an `ApplicationOwner` and navigate to:
 
    ```text
    /admin/whatsapp-platform
@@ -184,7 +184,7 @@ Outbound operations follow this path:
 
 There is no API input that allows an authenticated retailer to substitute another tenant's WhatsApp configuration.
 
-## 11. SystemAdministrator monitoring
+## 11. ApplicationOwner monitoring
 
 Open `/admin/whatsapp-platform` to view:
 
@@ -192,7 +192,7 @@ Open `/admin/whatsapp-platform` to view:
 - Whether platform secrets exist, without their values.
 - Every retailer's tenant state, provider mode, WABA ID, Phone Number ID, display identity, connection status, and last validation time.
 
-This page is protected by the existing `features.manage` permission assigned to the `SystemAdministrator` role. It must not display access tokens, App Secrets, verify tokens, or encrypted ciphertext.
+This page requires both the `ApplicationOwner` role and its `feature.manage` permission. It must not display access tokens, App Secrets, verify tokens, or encrypted ciphertext.
 
 ## 12. API endpoints
 

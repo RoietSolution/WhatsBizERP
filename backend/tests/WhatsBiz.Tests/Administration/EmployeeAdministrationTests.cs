@@ -73,6 +73,22 @@ public sealed class EmployeeAdministrationTests
         await action.Should().ThrowAsync<EntityNotFoundException>();
     }
 
+    [Fact]
+    public async Task RetailerAdministratorCannotViewOrManageApplicationOwner()
+    {
+        await using var fixture = CreateFixture();
+        var ownerRole = new ApplicationRole("ApplicationOwner");
+        (await fixture.CreateRole(ownerRole)).Succeeded.Should().BeTrue();
+        var owner = new ApplicationUser { Id = Guid.NewGuid(), TenantId = null, AccountType = AccountTypes.ApplicationOwner, UserName = "platform-owner", Email = "owner@example.test" };
+        (await fixture.Users.CreateAsync(owner, "OwnerPass@123456")).Succeeded.Should().BeTrue();
+        (await fixture.Users.AddToRoleAsync(owner, "ApplicationOwner")).Succeeded.Should().BeTrue();
+
+        (await fixture.Controller.Users(default)).Should().NotContain(x => x.UserId == owner.Id);
+        (await fixture.Controller.Roles(default)).Should().NotContain(x => x.RoleName == "ApplicationOwner");
+        var update = () => fixture.Controller.UpdateUser(owner.Id, new(owner.Email!, null, true, []), default);
+        await update.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
     private static Fixture CreateFixture(IReadOnlyCollection<string>? permissions = null)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -102,6 +118,7 @@ public sealed class EmployeeAdministrationTests
     {
         public Guid TenantId { get; } = tenantId;
         public UserManager<ApplicationUser> Users { get; } = users;
+        public Task<IdentityResult> CreateRole(ApplicationRole role) => roles.CreateAsync(role);
         public IdentityAdministrationController Controller { get; } = new(users, roles, db, current);
 
         public async Task<ApplicationUser> AddUser(Guid tenant, string name)

@@ -31,9 +31,10 @@ export class AuthenticationService {
     }
   }
 
-  login(username: string, password: string): Observable<AuthSession> {
+  login(username: string, password: string, applicationOwner = false): Observable<AuthSession> {
+    const endpoint = applicationOwner ? '/api/auth/application-owner/login' : '/api/auth/login';
     return this.http
-      .post<AuthSession>('/api/auth/login', { username, password })
+      .post<AuthSession>(endpoint, { username, password })
       .pipe(tap((session) => this.apply(session)));
   }
   forgotPassword(identifier: string): Observable<ForgotPasswordResponse> {
@@ -74,11 +75,12 @@ export class AuthenticationService {
     this.clearSession();
   }
   clearSession(): void {
+    const wasApplicationOwner = this.currentUser.user()?.roles.includes('ApplicationOwner') ?? false;
     this.storage.clear();
     this.features.reset();
     this.currentUser.clear();
     this.isAuthenticated.set(false);
-    void this.router.navigateByUrl('/login');
+    void this.router.navigateByUrl(wasApplicationOwner ? '/application-owner/login' : '/login');
   }
   private apply(session: AuthSession): void {
     if (this.currentUser.user()?.tenantId !== session.user.tenantId) this.features.reset();

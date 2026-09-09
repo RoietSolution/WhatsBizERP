@@ -4,8 +4,8 @@
   description="Review backup history, create verified backups, and validate restore readiness."
   [summaries]="summaries()"
   [statusText]="items().length + ' backup records'"
-  ><a workspace-header-actions mat-button routerLink="/admin"
-    ><span class="material-symbols-rounded">arrow_back</span>Admin Center</a
+  ><a workspace-header-actions mat-button routerLink="/application-owner"
+    ><span class="material-symbols-rounded">arrow_back</span>Owner Center</a
   >
   <div workspace-toolbar-actions class="actions">
     @if (!restoreMode) {

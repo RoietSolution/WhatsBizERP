@@ -64,3 +64,5 @@ GO
 :r .\V22-ProductManufacturerCodes.sql
 GO
 :r .\V23-WhatsAppProductVisibility.sql
+GO
+:r .\V27-PlatformOwnerIdentity.sql

@@ -244,7 +244,20 @@ const navigation: NavigationItem[] = [
   { label: 'Warehouses', icon: 'factory', route: '/warehouses', permission: 'warehouse.view', feature: 'WAREHOUSES' },
   { label: 'My Deliveries', icon: 'two_wheeler', route: '/delivery', permission: 'delivery.view', feature: 'DELIVERY_MANAGEMENT' },
   { label: 'Delivery Management', icon: 'local_shipping', route: '/orders/deliveries', permission: 'delivery.manage', feature: 'DELIVERY_MANAGEMENT' },
-  { label: 'Tenant Features', icon: 'account_tree', route: '/admin/features', permission: 'feature.manage' },
+  {
+    label: 'Application Owner',
+    icon: 'shield_person',
+    role: 'ApplicationOwner',
+    children: [
+      { label: 'Owner Center', icon: 'dashboard', route: '/application-owner', role: 'ApplicationOwner' },
+      { label: 'Tenant Features', icon: 'account_tree', route: '/admin/features', permission: 'feature.manage', role: 'ApplicationOwner' },
+      { label: 'Demo Requests', icon: 'campaign', route: '/admin/demo-requests', role: 'ApplicationOwner' },
+      { label: 'WhatsApp Platform', icon: 'hub', route: '/admin/whatsapp-platform', permission: 'feature.manage', role: 'ApplicationOwner' },
+      { label: 'Backup & Restore', icon: 'backup', route: '/admin/backup', role: 'ApplicationOwner' },
+      { label: 'Audit Log', icon: 'history', route: '/admin/audit', role: 'ApplicationOwner' },
+      { label: 'Login History', icon: 'login', route: '/admin/login-history', role: 'ApplicationOwner' },
+    ],
+  },
   {
     label: 'Administration',
     icon: 'admin_panel_settings',
@@ -252,7 +265,6 @@ const navigation: NavigationItem[] = [
     feature: 'ADMINISTRATION',
     children: [
       { label: 'Admin Center', icon: 'dashboard', route: '/admin', permission: 'admin.view' },
-      { label: 'Demo Requests', icon: 'campaign', route: '/admin/demo-requests', permission: 'admin.view' },
       {
         label: 'Company Profile',
         icon: 'business',
@@ -261,7 +273,7 @@ const navigation: NavigationItem[] = [
       },
       { label: 'Branches', icon: 'lan', route: '/admin/branches', permission: 'admin.settings' },
       {
-        label: 'Settings',
+        label: 'Retailer Settings',
         icon: 'settings',
         route: '/admin/settings',
         permission: 'admin.settings',
@@ -274,8 +286,6 @@ const navigation: NavigationItem[] = [
         route: '/admin/printers',
         permission: 'print.settings',
       },
-      { label: 'Audit Log', icon: 'history', route: '/admin/audit', permission: 'admin.audit' },
-      { label: 'Backup', icon: 'backup', route: '/admin/backup', permission: 'admin.backup' },
     ],
   },
 ];
@@ -302,16 +312,20 @@ export class SidebarComponent {
       .map((item) => ({
         ...item,
         children: item.children?.filter(
-          (child) => (!child.permission || this.permissions.has(child.permission)) && (!child.feature || this.features.hasFeature(child.feature)),
+          (child) => (!child.permission || this.permissions.has(child.permission)) && (!child.feature || this.features.hasFeature(child.feature)) && (!child.role || this.hasRole(child.role)),
         ),
       }))
       .filter(
         (item) =>
           (!item.permission || this.permissions.has(item.permission)) &&
           (!item.feature || this.features.hasFeature(item.feature)) &&
+          (!item.role || this.hasRole(item.role)) &&
           (!item.children || item.children.length > 0),
       ),
   );
+  private hasRole(role: string): boolean {
+    return this.user()?.roles.includes(role) ?? false;
+  }
   readonly initials = computed(() => (this.user()?.username ?? 'U').slice(0, 2).toUpperCase());
   readonly photo = this.profilePhoto.photo;
   toggle(label: string): void {

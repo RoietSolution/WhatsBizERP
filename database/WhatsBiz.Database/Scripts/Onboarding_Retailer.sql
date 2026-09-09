@@ -8,7 +8,7 @@
     3. Set @ApplyChanges = 1 and run once in the authorized target environment.
     4. Create the retailer Administrator through ASP.NET Core Identity/UserManager. Never insert
        a password or PasswordHash with this script.
-    5. Sign in as SystemAdministrator and verify/configure the tenant at /admin/features.
+    5. Sign in as ApplicationOwner and verify/configure the tenant at /admin/features.
 
   Current plans: V1_DEFAULT = V1 only; V2_COMMERCE = V1 + V2.
   This script is create-only. Later feature changes belong in /admin/features so child settings are

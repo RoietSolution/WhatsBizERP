@@ -40,7 +40,7 @@ export interface AuthSession {
 }
 export interface CurrentUser {
   userId: string;
-  tenantId: string;
+  tenantId: string | null;
   username: string;
   email: string;
   roles: string[];

@@ -1,7 +1,7 @@
 <app-operations-workspace
-  eyebrow="Enterprise administration"
-  title="Administration Center"
-  description="Manage organization, security, system configuration, printing, backup, and monitoring."
+  eyebrow="Retailer administration"
+  title="Retailer Administration Center"
+  description="Manage this retailer's organization, employees, operations, communication, and printing."
   [summaries]="summaries()"
   [statusText]="loading() ? 'Loading administration data' : 'Database data loaded'"
   ><a workspace-header-actions mat-flat-button color="primary" routerLink="/admin/company"
@@ -11,13 +11,8 @@
     <mat-form-field appearance="outline" subscriptSizing="dynamic"
       ><mat-label>Search all settings</mat-label
       ><span matPrefix class="material-symbols-rounded">search</span
-      ><input matInput [(ngModel)]="query" placeholder="Try backup, printer, GST, audit..."
+      ><input matInput [(ngModel)]="query" placeholder="Try company, printer, GST, notifications..."
     /></mat-form-field>
-  </div>
-  <div workspace-toolbar-actions>
-    <button mat-button routerLink="/admin/audit">
-      <span class="material-symbols-rounded">history</span>Audit Logs
-    </button>
   </div>
   <nav class="category-nav" aria-label="Administration categories">
     @for (group of groups; track group.title) {

@@ -104,7 +104,7 @@ export class ApplicationSettingsComponent {
     { key: 'POS_UPI_ID', value: '', dataType: 'STRING', category: 'POS Payments' },
     { key: 'POS_UPI_PAYEE_NAME', value: '', dataType: 'STRING', category: 'POS Payments' },
   ];
-  title = 'Application Settings';
+  title = 'Retailer Settings';
   constructor(
     private api: AdminApiService,
     route: ActivatedRoute,

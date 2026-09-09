@@ -217,8 +217,8 @@ public sealed class DemoRequestTests
         var submit = typeof(DemoRequestsController).GetMethod(nameof(DemoRequestsController.Submit))!;
         submit.GetCustomAttributes(typeof(AllowAnonymousAttribute), true).Should().ContainSingle();
         var update = typeof(DemoRequestsController).GetMethod(nameof(DemoRequestsController.UpdateStatus))!;
-        var permission = update.GetCustomAttributes(typeof(HasPermissionAttribute), true).Cast<HasPermissionAttribute>().Single();
-        permission.Policy.Should().EndWith(Permissions.Admin.Settings);
+        var authorization = update.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>().Single();
+        authorization.Roles.Should().Be("ApplicationOwner");
         typeof(DemoRequestsController).GetCustomAttributes(typeof(ApiControllerAttribute), true).Should().ContainSingle();
     }
 

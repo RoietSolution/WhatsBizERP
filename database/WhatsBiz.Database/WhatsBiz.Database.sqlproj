@@ -45,6 +45,7 @@
     <None Include="Scripts\V21-POSMobileBarcodeScanner.sql"/>
     <None Include="Scripts\V22-ProductManufacturerCodes.sql"/>
     <None Include="Scripts\V23-WhatsAppProductVisibility.sql"/>
+    <None Include="Scripts\V27-PlatformOwnerIdentity.sql"/>
     <None Include="Scripts\V5-DashboardInventoryAvailability.sql"/>
     <None Include="Scripts\V6-DashboardTenantOwnershipAudit.sql"/>
     <None Include="Scripts\V7-SafeInventoryTenantColumns.sql"/>

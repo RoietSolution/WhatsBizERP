@@ -4,5 +4,6 @@ export interface NavigationItem {
   route?: string;
   permission?: string;
   feature?: string;
+  role?: string;
   children?: NavigationItem[];
 }

@@ -127,6 +127,7 @@ try
     app.UseHttpsRedirection();
     app.UseResponseCompression();
     app.UseAuthentication();
+    app.UseMiddleware<TenantContextAuthorizationMiddleware>();
     app.UseMiddleware<FeatureGateMiddleware>();
     app.UseRateLimiter();
     app.UseCors(ApiServiceCollectionExtensions.CorsPolicyName);

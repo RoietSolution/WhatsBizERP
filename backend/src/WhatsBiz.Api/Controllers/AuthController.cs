@@ -17,7 +17,8 @@ namespace WhatsBiz.Api.Controllers;
 [Route("api/auth")]
 public sealed class AuthController(ISender sender, UserManager<ApplicationUser> users, IWebHostEnvironment environment) : ControllerBase
 {
-    [AllowAnonymous][HttpPost("login")][ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)][ProducesResponseType(StatusCodes.Status400BadRequest)] public Task<AuthResponse> Login(LoginRequest request, CancellationToken cancellationToken) => sender.Send(new LoginCommand(request.Username, request.Password), cancellationToken);
+    [AllowAnonymous][HttpPost("login")][ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)][ProducesResponseType(StatusCodes.Status400BadRequest)] public Task<AuthResponse> Login(LoginRequest request, CancellationToken cancellationToken) => sender.Send(new LoginCommand(request.Username, request.Password, "Retailer"), cancellationToken);
+    [AllowAnonymous][HttpPost("application-owner/login")][ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)][ProducesResponseType(StatusCodes.Status400BadRequest)] public Task<AuthResponse> ApplicationOwnerLogin(LoginRequest request, CancellationToken cancellationToken) => sender.Send(new LoginCommand(request.Username, request.Password, "ApplicationOwner"), cancellationToken);
     [AllowAnonymous][HttpPost("refresh")][ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)] public Task<AuthResponse> Refresh(RefreshTokenRequest request, CancellationToken cancellationToken) => sender.Send(new RefreshTokenCommand(request.RefreshToken), cancellationToken);
     [Authorize][HttpPost("logout")][ProducesResponseType(StatusCodes.Status204NoContent)] public async Task<IActionResult> Logout(LogoutRequest request, CancellationToken cancellationToken) { await sender.Send(new LogoutCommand(request.RefreshToken), cancellationToken); return NoContent(); }
     [Authorize][HttpGet("me")][ProducesResponseType<CurrentUserDto>(StatusCodes.Status200OK)] public Task<CurrentUserDto> Me(CancellationToken cancellationToken) => sender.Send(new GetCurrentUserQuery(), cancellationToken);
@@ -76,9 +77,10 @@ public sealed class AuthController(ISender sender, UserManager<ApplicationUser> 
         if (!result.Succeeded) return BadRequest(new ProblemDetails { Title = "Profile update failed", Detail = string.Join("; ", result.Errors.Select(error => error.Description)) });
         var roles = await users.GetRolesAsync(user);
         var permissions = User.FindAll(CustomClaimTypes.Permission).Select(claim => claim.Value).ToArray();
-        var tenantId = user.TenantId ?? throw new UnauthorizedAccessException("User is not assigned to a tenant.");
-        var features = await HttpContext.RequestServices.GetRequiredService<IFeatureService>().GetEffectiveFeaturesAsync(tenantId, HttpContext.RequestAborted);
-        return new CurrentUserDto(user.Id, tenantId, user.UserName ?? string.Empty, user.Email ?? string.Empty, roles.ToArray(), permissions, features);
+        var features = user.TenantId is Guid tenantId
+            ? await HttpContext.RequestServices.GetRequiredService<IFeatureService>().GetEffectiveFeaturesAsync(tenantId, HttpContext.RequestAborted)
+            : new Dictionary<string, bool>();
+        return new CurrentUserDto(user.Id, user.TenantId, user.UserName ?? string.Empty, user.Email ?? string.Empty, roles.ToArray(), permissions, features);
     }
 
     private async Task<ApplicationUser> GetAuthenticatedUser()

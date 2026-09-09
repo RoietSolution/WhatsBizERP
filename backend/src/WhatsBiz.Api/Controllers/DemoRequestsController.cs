@@ -37,16 +37,16 @@ public sealed class DemoRequestsController(ISender sender, IOptions<DemoRequestO
     }
 
     [HttpGet]
-    [HasPermission(Permissions.Admin.View)]
+    [PlatformAuthorize]
     public Task<PagedDemoRequests> Search([FromQuery] string? search, [FromQuery] string? status, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 25, CancellationToken token = default) =>
         sender.Send(new SearchDemoRequests(search, status, from, to, pageNumber, pageSize), token);
 
     [HttpGet("{id:long}")]
-    [HasPermission(Permissions.Admin.View)]
+    [PlatformAuthorize]
     public Task<DemoRequestDetail> Get(long id, CancellationToken token) => sender.Send(new GetDemoRequest(id), token);
 
     [HttpPatch("{id:long}/status")]
-    [HasPermission(Permissions.Admin.Settings)]
+    [PlatformAuthorize]
     public Task<DemoRequestDetail> UpdateStatus(long id, UpdateDemoRequestStatusInput input, CancellationToken token) =>
         sender.Send(new UpdateDemoRequestStatus(id, input.Status, User.Identity?.Name), token);
 

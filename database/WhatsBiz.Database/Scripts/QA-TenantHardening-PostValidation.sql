@@ -69,6 +69,20 @@ SELECT N'Orphan bank book rows',COUNT_BIG(*),N'Bank book row has no journal head
 FROM finance.BankBook d LEFT JOIN finance.JournalEntries j ON j.JournalEntryId=d.JournalEntryId
 WHERE j.JournalEntryId IS NULL HAVING COUNT_BIG(*)>0;
 
+INSERT @Failures
+SELECT N'Invalid identity account scope',COUNT_BIG(*),N'Application owners require NULL TenantId; retailer users require a tenant.'
+FROM core.Users
+WHERE (AccountType=N'APPLICATION_OWNER' AND TenantId IS NOT NULL)
+   OR (AccountType=N'RETAILER' AND TenantId IS NULL)
+   OR AccountType NOT IN(N'APPLICATION_OWNER',N'RETAILER')
+HAVING COUNT_BIG(*)>0;
+INSERT @Failures
+SELECT N'Invalid ApplicationOwner role assignment',COUNT_BIG(*),N'ApplicationOwner role must only be assigned to platform-owner identities and cannot be combined with retailer roles.'
+FROM core.UserRoles ur JOIN core.Users u ON u.Id=ur.UserId JOIN core.Roles r ON r.Id=ur.RoleId
+WHERE (r.NormalizedName=N'APPLICATIONOWNER' AND u.AccountType<>N'APPLICATION_OWNER')
+   OR (r.NormalizedName<>N'APPLICATIONOWNER' AND u.AccountType=N'APPLICATION_OWNER')
+HAVING COUNT_BIG(*)>0;
+
 SELECT CheckName,FailureCount,Detail FROM @Failures ORDER BY CheckName;
 IF EXISTS(SELECT 1 FROM @Failures) THROW 51621,N'QA post-migration validation failed.',1;
 SELECT N'PASS' AS Result,N'QA tenant ownership, trigger metadata, signatures, and finance integrity passed.' AS Detail;

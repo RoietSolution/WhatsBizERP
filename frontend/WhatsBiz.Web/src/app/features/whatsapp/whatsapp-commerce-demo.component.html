@@ -1,9 +1,9 @@
 <app-page-container>
-  <app-page-header eyebrow="Platform administration" title="KhataDhari WhatsApp Ecommerce Demo" description="Select a retailer explicitly to preview its ERP catalogue, pricing and stock.">
+  <app-page-header [eyebrow]="contextEyebrow" title="KhataDhari WhatsApp Ecommerce Demo" [description]="contextDescription">
     <a mat-button [routerLink]="applicationOwner ? '/application-owner/whatsapp-business' : '/admin/whatsapp'"><span class="material-symbols-rounded">settings</span> WhatsApp settings</a>
     <app-status-chip [label]="providerMode() + ' · DEMO'" [tone]="isMetaTest() ? 'info' : 'warning'" />
   </app-page-header>
-  @if(applicationOwner){<mat-form-field appearance="outline"><mat-label>Retailer</mat-label><mat-select [(ngModel)]="tenantId" (selectionChange)="selectTenant()"><mat-option value="">Select a retailer</mat-option>@for(tenant of tenants();track tenant.tenantId){<mat-option [value]="tenant.tenantId">{{tenant.tenantName}} — {{tenant.tenantKey}}</mat-option>}</mat-select></mat-form-field>}
+  @if(showRetailerSelector){<mat-form-field appearance="outline"><mat-label>Retailer</mat-label><mat-select [(ngModel)]="tenantId" (selectionChange)="selectTenant()"><mat-option value="">Select a retailer</mat-option>@for(tenant of tenants();track tenant.tenantId){<mat-option [value]="tenant.tenantId">{{tenant.tenantName}} — {{tenant.tenantKey}}</mat-option>}</mat-select></mat-form-field>}
   @if(applicationOwner&&!tenantId){<section class="readiness"><p>Choose a retailer before starting the WhatsApp Ecommerce Demo.</p></section>}
 
   @if (busy() && !setup() && !readiness()) {

@@ -2,7 +2,7 @@ import { of, throwError } from 'rxjs';
 import { DemoProduct, DemoSetup, WhatsAppCommerceDemoApiService } from './whatsapp-commerce-demo-api.service';
 import { WhatsAppCommerceDemoComponent } from './whatsapp-commerce-demo.component';
 import { FeatureService } from '../../core/services/feature.service';
-import { ActivatedRoute } from '@angular/router';
+import { CurrentUserService } from '../../core/services/current-user.service';
 
 describe('WhatsAppCommerceDemoComponent', () => {
   function product(overrides: Partial<DemoProduct> = {}): DemoProduct {
@@ -24,7 +24,7 @@ describe('WhatsAppCommerceDemoComponent', () => {
     };
   }
 
-  function create(mode = 'META_TEST', products = [product()], imageFails = false) {
+  function create(mode = 'META_TEST', products = [product()], imageFails = false, scope:'owner'|'retailer'='owner', selectOwner=true) {
     const api = jasmine.createSpyObj<WhatsAppCommerceDemoApiService>('WhatsAppCommerceDemoApiService', [
       'readiness', 'setup', 'productImageUrl', 'cart', 'wallet', 'orders', 'order',
       'notifications', 'orderDetails', 'printReceipt', 'analytics', 'updateDelivery',
@@ -37,12 +37,42 @@ describe('WhatsAppCommerceDemoComponent', () => {
     api.analytics.and.returnValue(of(void 0));
     const features = jasmine.createSpyObj<FeatureService>('FeatureService', ['tenants']);
     features.tenants.and.returnValue(of([{ tenantId: 'tenant-1', tenantKey: 'TEST', tenantName: 'Test Retailer' }]));
-    const route = { snapshot: { data: { platform: true } } } as unknown as ActivatedRoute;
-    const component = new WhatsAppCommerceDemoComponent(api, features, route);
-    component.tenantId = 'tenant-1';
-    component.selectTenant();
-    return { api, component };
+    const currentUser = new CurrentUserService();
+    currentUser.set({userId:'user-1',tenantId:scope==='retailer'?'tenant-1':null,username:'user',email:'user@example.com',roles:[scope==='owner'?'ApplicationOwner':'SystemAdministrator'],permissions:[],features:{}});
+    const component = new WhatsAppCommerceDemoComponent(api, features, currentUser);
+    if(scope==='owner'&&selectOwner){component.tenantId = 'tenant-1';component.selectTenant();}
+    return { api, component, features };
   }
+
+  it('loads the authenticated retailer catalogue automatically without tenant selection', () => {
+    const { api, component, features } = create('MOCK',[product()],false,'retailer');
+
+    expect(component.applicationOwner).toBeFalse();
+    expect(component.contextEyebrow).toBe('WhatsApp Ecommerce');
+    expect(component.contextDescription).not.toContain('Select a retailer explicitly');
+    expect(component.showRetailerSelector).toBeFalse();
+    expect(features.tenants).not.toHaveBeenCalled();
+    expect(api.readiness).toHaveBeenCalledOnceWith(undefined);
+    expect(api.setup).toHaveBeenCalledOnceWith(undefined,undefined);
+  });
+
+  it('does not load an owner catalogue until an explicit retailer is selected', () => {
+    const { api, component, features } = create('MOCK',[product()],false,'owner',false);
+
+    expect(component.applicationOwner).toBeTrue();
+    expect(component.contextEyebrow).toBe('Platform administration');
+    expect(component.contextDescription).toContain('Select a retailer explicitly');
+    expect(component.showRetailerSelector).toBeTrue();
+    expect(features.tenants).toHaveBeenCalledTimes(1);
+    expect(api.readiness).not.toHaveBeenCalled();
+    expect(api.setup).not.toHaveBeenCalled();
+
+    component.tenantId='tenant-1';
+    component.selectTenant();
+
+    expect(api.readiness).toHaveBeenCalledOnceWith('tenant-1');
+    expect(api.setup).toHaveBeenCalledOnceWith(undefined,'tenant-1');
+  });
 
   it('loads the product grid exclusively from the tenant API response', () => {
     const serverProducts = [product(), product({ productId: 'product-2', productName: 'Tea' })];

@@ -85,6 +85,30 @@ public sealed class PlatformIdentityTests
     }
 
     [Fact]
+    public async Task AuthenticatedRetailerRequestContinuesWithItsTenantClaim()
+    {
+        var called = false;
+        var retailer = Context(owner: false, tenantId: Guid.NewGuid(), platform: false);
+
+        await new TenantContextAuthorizationMiddleware(_ => { called = true; return Task.CompletedTask; }).InvokeAsync(retailer);
+
+        called.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task OptionsRequestIsNeverRejectedByTenantContextAuthorization()
+    {
+        var called = false;
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/api/whatsapp/configuration";
+        context.Request.Method = HttpMethods.Options;
+
+        await new TenantContextAuthorizationMiddleware(_ => { called = true; return Task.CompletedTask; }).InvokeAsync(context);
+
+        called.Should().BeTrue();
+    }
+
+    [Fact]
     public void GlobalOperationsUseExplicitPlatformAuthorization()
     {
         var operations = new[]

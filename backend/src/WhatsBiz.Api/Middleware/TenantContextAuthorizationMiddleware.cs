@@ -9,7 +9,8 @@ public sealed class TenantContextAuthorizationMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!context.Request.Path.StartsWithSegments("/api") ||
+        if (HttpMethods.IsOptions(context.Request.Method) ||
+            !context.Request.Path.StartsWithSegments("/api") ||
             context.Request.Path.StartsWithSegments("/api/auth") ||
             context.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() is not null)
         {

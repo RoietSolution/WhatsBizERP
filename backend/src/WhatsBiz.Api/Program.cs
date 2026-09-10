@@ -126,13 +126,14 @@ try
     app.UseSerilogRequestLogging();
     app.UseHttpsRedirection();
     app.UseResponseCompression();
+    app.UseRouting();
+    app.UseCors(ApiServiceCollectionExtensions.CorsPolicyName);
     app.UseAuthentication();
+    app.UseAuthorization();
     app.UseMiddleware<TenantContextAuthorizationMiddleware>();
     app.UseMiddleware<FeatureGateMiddleware>();
     app.UseRateLimiter();
-    app.UseCors(ApiServiceCollectionExtensions.CorsPolicyName);
     if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
-    app.UseAuthorization();
     app.MapControllers();
     app.MapHealthChecks("/health").AllowAnonymous();
     await app.RunAsync();

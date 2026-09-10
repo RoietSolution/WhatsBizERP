@@ -47,6 +47,7 @@
     <None Include="Scripts\V23-WhatsAppProductVisibility.sql"/>
     <None Include="Scripts\V27-PlatformOwnerIdentity.sql"/>
     <None Include="Scripts\V28-DeferredPOSFinancePosting.sql"/>
+    <None Include="Scripts\V29-NewTenantIsolationAndOnboarding.sql"/>
     <None Include="Scripts\V5-DashboardInventoryAvailability.sql"/>
     <None Include="Scripts\V6-DashboardTenantOwnershipAudit.sql"/>
     <None Include="Scripts\V7-SafeInventoryTenantColumns.sql"/>

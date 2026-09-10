@@ -9,6 +9,6 @@ public interface IPOSRepository { Task<IReadOnlyCollection<POSProductLookup>> Pr
 public sealed record POSTodaySummary(decimal GrossSales, decimal Collections, int InvoiceCount, decimal Cash, decimal UPI, decimal Card);
 public sealed record POSProductLookup(Product Product, string? MatchedBarcode, decimal? AvailableQuantity, bool NegativeStockAllowed);
 public sealed record POSCoinSummary(int Earned, int Redeemed, decimal Discount);
-public sealed record POSInvoicePrintContext(CompanyDto Company, POSCoinSummary Loyalty);
+public sealed record POSInvoicePrintContext(CompanyDto Company, POSCoinSummary Loyalty, string? PaymentQrDataUrl = null);
 public interface IPOSDocumentService { string InvoiceHtml(SalesInvoice invoice, string paper, POSInvoicePrintContext context); byte[] Export(IReadOnlyCollection<SalesInvoice> invoices); }
 public interface IPOSLifecycleService { Task TransitionHeldAsync(Guid invoiceId, string action, string? user, CancellationToken token); }

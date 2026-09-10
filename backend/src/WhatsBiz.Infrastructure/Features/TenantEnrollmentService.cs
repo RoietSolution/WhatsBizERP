@@ -129,6 +129,10 @@ public sealed partial class TenantEnrollmentService(
                 VALUES({tenantId},{input.TenantKey},{input.TenantName},1,{changedBy})
                 """, cancellationToken);
             await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT admin.Companies(CompanyId,CompanyCode,CompanyName,LegalName,Country,IsActive,CreatedOn,TenantId)
+                VALUES({Guid.NewGuid()},{"RT-" + tenantId.ToString("N")[..12]},{input.TenantName},{input.TenantName},{"India"},1,SYSUTCDATETIME(),{tenantId})
+                """, cancellationToken);
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT core.Subscriptions(SubscriptionId,TenantId,PlanId,StartDate,EndDate,IsActive,CreatedBy)
                 VALUES({Guid.NewGuid()},{tenantId},{planId},{input.StartDate},{input.EndDate},1,{changedBy})
                 """, cancellationToken);

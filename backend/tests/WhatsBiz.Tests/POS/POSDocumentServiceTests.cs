@@ -74,6 +74,30 @@ public sealed class POSDocumentServiceTests
         html.Should().NotContain(".paper-58mm .items{font-size:7px}");
     }
 
+    [Fact]
+    public void GstInvoiceUsesConfiguredPaymentQrAndOmitsFeedbackQr()
+    {
+        var service = new POSDocumentService(new PassthroughPrintingService(), new ConfigurationBuilder().Build());
+        var invoice = Invoice();
+        var company = Company();
+
+        var configured = service.InvoiceHtml(invoice, "80MM", new(company, new(0, 0, 20), "data:image/svg+xml;base64,VEVOQU5UX0E="));
+        var unconfigured = service.InvoiceHtml(invoice, "80MM", new(company, new(0, 0, 20)));
+
+        configured.Should().Contain("Scan to Pay").And.Contain("VEVOQU5UX0E=");
+        configured.Should().NotContain("Scan to Share Feedback");
+        unconfigured.Should().NotContain("payment-qr").And.NotContain("Payment QR code");
+    }
+
+    private static SalesInvoice Invoice() => new()
+    {
+        InvoiceId = Guid.NewGuid(), InvoiceNumber = "INV-QR", InvoiceDate = DateTimeOffset.UtcNow, Status = "COMPLETED"
+    };
+
+    private static CompanyDto Company() => new(
+        Guid.NewGuid(), "KD", "Retail Store", "Retail Store", null, null, null, null, null,
+        null, null, null, "India", null, null, null, null, null, null, null, null);
+
     private sealed class PassthroughPrintingService : IPrintingService
     {
         public DocumentInput? LastDocument { get; private set; }

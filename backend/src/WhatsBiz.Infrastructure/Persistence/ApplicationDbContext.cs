@@ -90,6 +90,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         ConfigurePOS(builder);
         ConfigurePurchases(builder);
         ConfigureTenantOwnership(builder);
+        ConfigureProductMasterVisibility(builder);
     }
 
     // Phase 1 ownership columns are nullable while historical ownership is audited.
@@ -100,6 +101,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         ConfigureTenantProperty(b.Entity<Warehouse>(), "WarehouseId");
         ConfigureTenantProperty(b.Entity<SalesInvoice>(), "InvoiceId");
         ConfigureTenantProperty(b.Entity<PurchaseInvoice>(), "PurchaseInvoiceId");
+        ConfigureTenantProperty(b.Entity<InventoryBalance>(), "InventoryBalanceId");
+        ConfigureTenantProperty(b.Entity<InventoryTransaction>(), "TransactionId");
+    }
+
+    private static void ConfigureProductMasterVisibility(ModelBuilder b)
+    {
+        b.Entity<TenantProductCategory>().ToTable("TenantProductCategories", "master").HasKey(x => new { x.TenantId, x.ProductCategoryId });
+        b.Entity<TenantBrand>().ToTable("TenantBrands", "master").HasKey(x => new { x.TenantId, x.BrandId });
+        b.Entity<TenantUnitOfMeasure>().ToTable("TenantUnitsOfMeasure", "master").HasKey(x => new { x.TenantId, x.UnitId });
     }
 
     private static void ConfigureTenantProperty<TEntity>(EntityTypeBuilder<TEntity> entity, string key)
@@ -172,3 +182,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         entity.Property(x => x.RowVersion).IsRowVersion();
     }
 }
+
+internal sealed class TenantProductCategory { public Guid TenantId { get; set; } public Guid ProductCategoryId { get; set; } }
+internal sealed class TenantBrand { public Guid TenantId { get; set; } public Guid BrandId { get; set; } }
+internal sealed class TenantUnitOfMeasure { public Guid TenantId { get; set; } public Guid UnitId { get; set; } }

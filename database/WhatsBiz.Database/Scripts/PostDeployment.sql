@@ -68,3 +68,5 @@ GO
 :r .\V27-PlatformOwnerIdentity.sql
 GO
 :r .\V28-DeferredPOSFinancePosting.sql
+GO
+:r .\V29-NewTenantIsolationAndOnboarding.sql

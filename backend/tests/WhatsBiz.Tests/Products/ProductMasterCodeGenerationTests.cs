@@ -73,8 +73,9 @@ public sealed class ProductMasterCodeGenerationTests
 
     private sealed class CurrentUser : ICurrentUserService
     {
+        private readonly Guid tenantId = Guid.NewGuid();
         public Guid? UserId => Guid.NewGuid();
-        public Guid? TenantId => Guid.NewGuid();
+        public Guid? TenantId => tenantId;
         public string? Username => "master-code-test";
         public string? Email => null;
         public IReadOnlyCollection<string> Roles => [];

@@ -1,11 +1,19 @@
 <h1>Template Manager</h1>
-<div class="grid">
-  @for (x of templates(); track x.id) {
-    <article>
-      <h2>{{ x.name }}</h2>
-      <p>{{ x.documentType }} · {{ x.paperType }}</p>
-      <code>{{ x.code }}</code
-      ><span>{{ x.isDefault ? 'Default' : 'Available' }}</span>
-    </article>
-  }
-</div>
+@if (loading()) {
+  <p>Loading receipt and invoice templates...</p>
+} @else if (error()) {
+  <p role="alert">{{ error() }}</p>
+} @else if (!templates().length) {
+  <p>No receipt or invoice templates are currently available.</p>
+} @else {
+  <div class="grid">
+    @for (x of templates(); track x.id) {
+      <article>
+        <h2>{{ x.name }}</h2>
+        <p>{{ x.documentType }} · {{ x.paperType }}</p>
+        <code>{{ x.code }}</code>
+        <span>{{ x.isDefault ? 'Selected/default' : 'Available' }}</span>
+      </article>
+    }
+  </div>
+}

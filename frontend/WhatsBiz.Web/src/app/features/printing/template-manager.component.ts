@@ -28,7 +28,18 @@ import { PrintApiService, PrintTemplate } from './print-api.service';
 })
 export class TemplateManagerComponent {
   templates = signal<PrintTemplate[]>([]);
+  loading = signal(true);
+  error = signal('');
   constructor(api: PrintApiService) {
-    api.templates().subscribe((x) => this.templates.set(x));
+    api.templates().subscribe({
+      next: (x) => {
+        this.templates.set(x);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.error.set('Receipt and invoice templates could not be loaded.');
+        this.loading.set(false);
+      },
+    });
   }
 }

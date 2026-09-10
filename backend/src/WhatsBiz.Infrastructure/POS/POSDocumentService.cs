@@ -36,7 +36,6 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
         var counter = invoice.CounterId?.ToString("N")[..6] ?? "";
         var paymentMode = string.Join(", ", invoice.Payments.Select(x => x.PaymentMethod.MethodName));
         var loyalty = context.Loyalty;
-        var qr = Convert.ToBase64String(printing.QrCode(new QRCodeInput($"{invoice.InvoiceNumber}|{invoice.GrandTotal:0.00}", 4)).Data);
         var body = new StringBuilder($"""
                     <style>{ReceiptCss}</style>
             <main class="receipt">
@@ -91,7 +90,7 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
               </section>
               <p class="amount-words">{AmountInWords(invoice.GrandTotal)}</p>
               <hr class="separator" />
-              <section class="receipt-center"><p><strong>Scan to Share Feedback</strong></p><img class="feedback-qr" src="data:image/svg+xml;base64,{qr}" alt="Feedback QR code" /><small>Your feedback helps us improve.</small></section>
+              {(string.IsNullOrWhiteSpace(context.PaymentQrDataUrl) ? "" : $"<section class=\"receipt-center payment-qr\"><p><strong>Scan to Pay</strong></p><img class=\"feedback-qr\" src=\"{EncodeAttribute(context.PaymentQrDataUrl)}\" alt=\"Payment QR code\" /><small>Pay this retailer using the configured payment account.</small></section>")}
               <footer class="receipt-footer"><hr class="separator" />{OptionalParagraph(company.TermsAndConditions)}<p><strong>{Encode(string.IsNullOrWhiteSpace(company.InvoiceFooter) ? "Thank you for shopping with us!" : company.InvoiceFooter)}</strong></p></footer>
             </main><script>window.print()</script>
         """);

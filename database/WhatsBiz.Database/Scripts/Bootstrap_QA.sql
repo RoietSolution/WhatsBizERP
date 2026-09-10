@@ -97,10 +97,12 @@ BEGIN TRY
 
     /* Required company/reference configuration (these V1 tables are currently database-scoped). */
     DECLARE @CompanyId uniqueidentifier=COALESCE((SELECT CompanyId FROM admin.Companies WHERE CompanyCode=N'QA'),CONVERT(uniqueidentifier,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2'));
+    IF EXISTS(SELECT 1 FROM admin.Companies WHERE CompanyId=@CompanyId AND TenantId IS NOT NULL AND TenantId<>@TenantId)
+        THROW 51260, 'The QA company is already owned by another tenant.', 1;
     IF NOT EXISTS(SELECT 1 FROM admin.Companies WHERE CompanyId=@CompanyId)
-        INSERT admin.Companies(CompanyId,CompanyCode,CompanyName,LegalName,City,State,StateCode,Country,IsActive,CreatedOn)
-        VALUES(@CompanyId,N'QA',@TenantName,@TenantName,N'Pune',N'Maharashtra','27',N'India',1,SYSUTCDATETIME());
-    ELSE UPDATE admin.Companies SET CompanyName=@TenantName,LegalName=@TenantName,IsActive=1,ModifiedOn=SYSUTCDATETIME() WHERE CompanyId=@CompanyId;
+        INSERT admin.Companies(CompanyId,CompanyCode,CompanyName,LegalName,City,State,StateCode,Country,IsActive,CreatedOn,TenantId)
+        VALUES(@CompanyId,N'QA',@TenantName,@TenantName,N'Pune',N'Maharashtra','27',N'India',1,SYSUTCDATETIME(),@TenantId);
+    ELSE UPDATE admin.Companies SET CompanyName=@TenantName,LegalName=@TenantName,IsActive=1,TenantId=@TenantId,ModifiedOn=SYSUTCDATETIME() WHERE CompanyId=@CompanyId;
 
     MERGE admin.Currencies AS t USING(VALUES(CONVERT(uniqueidentifier,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3'),'INR',N'Indian Rupee',N'₹',CONVERT(tinyint,2),CONVERT(bit,1),CONVERT(bit,1)))
       s(CurrencyId,CurrencyCode,CurrencyName,Symbol,DecimalPlaces,IsDefault,IsActive) ON t.CurrencyCode=s.CurrencyCode
@@ -122,9 +124,9 @@ BEGIN TRY
       ON t.TaxCode=s.TaxCode
     WHEN MATCHED THEN UPDATE SET TaxName=s.TaxName,TaxType=N'GST',Rate=s.Rate,IsReverseCharge=0,IsCess=0,EffectiveTo=NULL,IsActive=1
     WHEN NOT MATCHED THEN INSERT(TaxConfigurationId,TaxCode,TaxName,TaxType,Rate,IsReverseCharge,IsCess,EffectiveFrom,IsActive,CreatedOn) VALUES(NEWID(),s.TaxCode,s.TaxName,N'GST',s.Rate,0,0,'2017-07-01',1,SYSUTCDATETIME());
-    IF NOT EXISTS(SELECT 1 FROM gst.GSTSettings WHERE IsActive=1)
-        INSERT gst.GSTSettings(GSTSettingsId,CompanyGSTIN,StateCode,RegistrationType,IsCompositionScheme,EffectiveDate,LegalName,TradeName,IsActive,CreatedOn,CreatedBy)
-        VALUES(NEWID(),NULL,'27',N'UNREGISTERED',0,CONVERT(date,SYSUTCDATETIME()),@TenantName,@TenantName,1,SYSUTCDATETIME(),@Actor);
+    IF NOT EXISTS(SELECT 1 FROM gst.GSTSettings WHERE TenantId=@TenantId AND IsActive=1)
+        INSERT gst.GSTSettings(GSTSettingsId,CompanyGSTIN,StateCode,RegistrationType,IsCompositionScheme,EffectiveDate,LegalName,TradeName,IsActive,CreatedOn,CreatedBy,TenantId)
+        VALUES(NEWID(),NULL,'27',N'UNREGISTERED',0,CONVERT(date,SYSUTCDATETIME()),@TenantName,@TenantName,1,SYSUTCDATETIME(),@Actor,@TenantId);
 
     DECLARE @Groups TABLE(GroupCode nvarchar(30),GroupName nvarchar(100),Nature nvarchar(20));
     INSERT @Groups VALUES(N'ASSET',N'Assets',N'ASSET'),(N'LIABILITY',N'Liabilities',N'LIABILITY'),(N'INCOME',N'Income',N'INCOME'),(N'EXPENSE',N'Expenses',N'EXPENSE');

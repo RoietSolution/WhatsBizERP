@@ -371,7 +371,17 @@ public sealed class POSHandlers(
             ?? throw new EntityNotFoundException("Invoice not found.");
         var company = await admin.Company(t);
         var loyalty = await repository.CoinSummary(invoice.InvoiceId, t);
-        return documents.InvoiceHtml(invoice, q.Paper, new(company, loyalty));
+        var settings = await admin.Settings(t);
+        var upiId = settings.FirstOrDefault(x => x.Key == POSUpiPayment.UpiIdSettingKey)?.Value?.Trim();
+        string? paymentQr = null;
+        if (!string.IsNullOrWhiteSpace(upiId) && POSUpiPayment.IsValidUpiId(upiId))
+        {
+            var configuredName = settings.FirstOrDefault(x => x.Key == POSUpiPayment.PayeeNameSettingKey)?.Value?.Trim();
+            var payeeName = string.IsNullOrWhiteSpace(configuredName) ? company.CompanyName : configuredName;
+            var artifact = printing.QrCode(new QRCodeInput(POSUpiPayment.BuildUri(upiId, payeeName, invoice.BalanceAmount > 0 ? invoice.BalanceAmount : invoice.GrandTotal), 8, "M"));
+            paymentQr = $"data:{artifact.ContentType};base64,{Convert.ToBase64String(artifact.Data)}";
+        }
+        return documents.InvoiceHtml(invoice, q.Paper, new(company, loyalty, paymentQr));
     }
 
     public async Task<byte[]> Handle(ExportSales q, CancellationToken t)

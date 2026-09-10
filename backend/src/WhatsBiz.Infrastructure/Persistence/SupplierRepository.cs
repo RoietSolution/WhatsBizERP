@@ -32,7 +32,7 @@ public sealed class SupplierRepository(ApplicationDbContext db, ICurrentUserServ
     public async Task<IReadOnlyCollection<SupplierPaymentTerm>> PaymentTermsAsync(CancellationToken token) => await db.SupplierPaymentTerms.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.DueDays).ToArrayAsync(token);
     public void Add(Supplier supplier) => db.Suppliers.Add(supplier);
     public void RemoveChildren(Supplier supplier) { db.SupplierContacts.RemoveRange(supplier.Contacts); db.SupplierAddresses.RemoveRange(supplier.Addresses); db.SupplierBankAccounts.RemoveRange(supplier.BankAccounts); supplier.Contacts = []; supplier.Addresses = []; supplier.BankAccounts = []; }
-    public Task<SupplierDocument?> DocumentAsync(Guid supplierId, Guid documentId, bool tracking, CancellationToken token) { var q = db.SupplierDocuments.Where(x => x.SupplierId == supplierId && x.DocumentId == documentId && !x.IsDeleted); if (!tracking) q = q.AsNoTracking(); return q.SingleOrDefaultAsync(token); }
+    public Task<SupplierDocument?> DocumentAsync(Guid supplierId, Guid documentId, bool tracking, CancellationToken token) { var q = db.SupplierDocuments.Where(x => Scoped(false).Any(s => s.SupplierId == x.SupplierId) && x.SupplierId == supplierId && x.DocumentId == documentId && !x.IsDeleted); if (!tracking) q = q.AsNoTracking(); return q.SingleOrDefaultAsync(token); }
     public void Add(SupplierDocument document) => db.SupplierDocuments.Add(document);
     public Task SaveAsync(CancellationToken token) => db.SaveChangesAsync(token);
 }

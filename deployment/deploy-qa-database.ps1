@@ -128,6 +128,15 @@ try {
     & $sqlPackage '/Action:Script' "/SourceFile:$dacpac" "/TargetConnectionString:$($targetBuilder.ConnectionString)" "/OutputPath:$deployScript" '/p:BlockOnPossibleDataLoss=True' '/p:DropObjectsNotInSource=False' '/p:IgnoreColumnOrder=True'
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $deployScript)) { throw 'DACPAC deployment script generation failed.' }
     $reportText = Get-Content -LiteralPath $report -Raw
+    $deployText = Get-Content -LiteralPath $deployScript -Raw
+    $obsoleteIdentityStatements = @(
+        "N'UPDATE core.Users SET TenantId=@id WHERE TenantId IS NULL'",
+        "IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'core.Users') AND name='TenantId' AND is_nullable=1) EXEC(N'ALTER TABLE core.Users ALTER COLUMN TenantId uniqueidentifier NOT NULL')"
+    )
+    $unsafeIdentityStatements = @($obsoleteIdentityStatements | Where-Object { $deployText.Contains($_) })
+    if ($unsafeIdentityStatements.Count -gt 0) {
+        throw "DACPAC script contains an obsolete unconditional core.Users tenant migration; publish was blocked. Review $deployScript"
+    }
     $unsupportedDrops = [regex]::Matches($reportText,'(?i)<Operation Name="Drop">(?<body>.*?)</Operation>') | ForEach-Object {
         [regex]::Matches($_.Groups['body'].Value,'<Item Value="(?<name>[^"]+)" Type="(?<type>[^"]+)"')
     } | ForEach-Object { $_ } | Where-Object {

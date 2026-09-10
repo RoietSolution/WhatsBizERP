@@ -30,7 +30,8 @@ public sealed partial class TenantEnrollmentService(
         instructions.Cell("A1").Style.Font.SetBold().Font.SetFontSize(16);
         var notes = new[]
         {
-            "Complete row 2 in Tenant, Administrator, and Subscription.",
+            "Complete the highlighted row 2 in Tenant, Administrator, and Subscription.",
+            "Administrator > Temporary Password is required. Enter it in cell C2; this column is stored as text so special characters are preserved.",
             "Features are optional overrides. Leave Enabled Override blank to use the selected plan default.",
             "Products are intentionally excluded; import them later from Products > Import.",
             "The temporary administrator password is sensitive. Delete the completed workbook after a successful import.",
@@ -40,14 +41,14 @@ public sealed partial class TenantEnrollmentService(
         instructions.Column(1).Width = 110;
 
         var tenant = Sheet(book, "Tenant", ["Tenant Key", "Tenant Name"]);
-        tenant.Cell(2, 1).Value = "NEW_RETAILER";
-        tenant.Cell(2, 2).Value = "New Retailer Name";
+        PrepareInputRow(tenant);
 
         var administrator = Sheet(book, "Administrator", ["Username", "Email", "Temporary Password"]);
-        administrator.Cell(2, 1).Value = "retailer.admin";
-        administrator.Cell(2, 2).Value = "admin@example.com";
+        PrepareInputRow(administrator);
+        administrator.Column(3).Style.NumberFormat.Format = "@";
 
         var subscription = Sheet(book, "Subscription", ["Plan Key", "Start Date", "End Date (Optional)"]);
+        PrepareInputRow(subscription);
         subscription.Cell(2, 1).Value = plans.FirstOrDefault()?.PlanKey ?? "V1_DEFAULT";
         subscription.Cell(2, 2).Value = DateTime.UtcNow.Date;
         subscription.Column(2).Style.DateFormat.Format = "yyyy-mm-dd";
@@ -214,6 +215,13 @@ public sealed partial class TenantEnrollmentService(
         sheet.Row(1).Style.Fill.BackgroundColor = XLColor.LightBlue;
         return sheet;
     }
+    private static void PrepareInputRow(IXLWorksheet sheet)
+    {
+        var lastColumn = sheet.Row(1).LastCellUsed()!.Address.ColumnNumber;
+        var input = sheet.Range(2, 1, 2, lastColumn);
+        input.Style.Fill.BackgroundColor = XLColor.LightYellow;
+        input.Style.NumberFormat.Format = "@";
+    }
     private static IXLWorksheet RequiredSheet(XLWorkbook book, string name) =>
         book.TryGetWorksheet(name, out var sheet) ? sheet : throw new BusinessRuleException($"Required worksheet '{name}' is missing.");
     internal static IReadOnlyDictionary<string, IXLCell> DataCells(IXLWorksheet sheet, IReadOnlyCollection<string> expectedHeaders)
@@ -227,8 +235,12 @@ public sealed partial class TenantEnrollmentService(
                 .ToDictionary(x => x.Key, x => x.First().Cell.Address.ColumnNumber, StringComparer.OrdinalIgnoreCase);
             if (!expectedHeaders.All(columns.ContainsKey)) continue;
 
-            var dataRow = sheet.RowsUsed()
-                .FirstOrDefault(row => row.RowNumber() > headerRow.RowNumber() && expectedHeaders.Any(header => !row.Cell(columns[header]).IsEmpty()));
+            var candidateRows = sheet.RowsUsed()
+                .Where(row => row.RowNumber() > headerRow.RowNumber())
+                .ToList();
+            var dataRow = candidateRows
+                .FirstOrDefault(row => expectedHeaders.All(header => !row.Cell(columns[header]).IsEmpty()))
+                ?? candidateRows.FirstOrDefault(row => expectedHeaders.Any(header => !row.Cell(columns[header]).IsEmpty()));
             if (dataRow is null) return expectedHeaders.ToDictionary(header => header, header => sheet.Cell(headerRow.RowNumber() + 1, columns[header]), StringComparer.OrdinalIgnoreCase);
             return expectedHeaders.ToDictionary(header => header, header => dataRow.Cell(columns[header]), StringComparer.OrdinalIgnoreCase);
         }

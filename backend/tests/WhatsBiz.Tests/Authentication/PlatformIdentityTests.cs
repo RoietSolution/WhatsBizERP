@@ -29,13 +29,51 @@ public sealed class PlatformIdentityTests
     public void DatabaseMigrationEnforcesOwnerAndRetailerAccountScopes()
     {
         var migration = File.ReadAllText(Path.Combine(RepositoryRoot(), "database", "WhatsBiz.Database", "Scripts", "V27-PlatformOwnerIdentity.sql"));
+        var identitySchema = File.ReadAllText(Path.Combine(RepositoryRoot(), "database", "WhatsBiz.Database", "Tables", "Identity.sql"));
+        var trigger = File.ReadAllText(Path.Combine(RepositoryRoot(), "database", "WhatsBiz.Database", "Triggers", "TR_UserRoles_AccountScope.sql"));
         var qaEnvironment = File.ReadAllText(Path.Combine(RepositoryRoot(), "deployment", "qa.env.example"));
 
-        migration.Should().Contain("ALTER TABLE core.Users ALTER COLUMN TenantId uniqueidentifier NULL")
-            .And.Contain("CK_Users_AccountScope")
-            .And.Contain("TR_UserRoles_AccountScope");
+        identitySchema.Should().Contain("[TenantId] UNIQUEIDENTIFIER NULL")
+            .And.Contain("[AccountType] NVARCHAR(30) NOT NULL")
+            .And.Contain("[CK_Users_AccountScope]");
+        migration.Should().Contain("CK_Users_AccountScope")
+            .And.NotContain("CREATE OR ALTER TRIGGER core.TR_UserRoles_AccountScope");
+        trigger.Should().Contain("CREATE TRIGGER [core].[TR_UserRoles_AccountScope]")
+            .And.Contain("r.NormalizedName=N'APPLICATIONOWNER' AND u.AccountType<>N'APPLICATION_OWNER'")
+            .And.Contain("r.NormalizedName<>N'APPLICATIONOWNER' AND u.AccountType=N'APPLICATION_OWNER'")
+            .And.Contain("THROW 52704");
         qaEnvironment.Should().Contain("IdentityBootstrap__ApplicationOwner__Username=qa.owner")
             .And.NotContain("IdentityBootstrap__ApplicationOwner__TenantKey");
+    }
+
+    [Fact]
+    public void V27UsesAtomicRepeatableAccountScopeMigrationAfterDacpacPublication()
+    {
+        var migration = File.ReadAllText(Path.Combine(RepositoryRoot(), "database", "WhatsBiz.Database", "Scripts", "V27-PlatformOwnerIdentity.sql"));
+
+        migration.Should().Contain("SET AccountType=N'APPLICATION_OWNER', TenantId=NULL")
+            .And.Contain("WHERE u.AccountType<>N'APPLICATION_OWNER' OR u.TenantId IS NOT NULL")
+            .And.NotContain("UPDATE core.Users SET AccountType=N'RETAILER' WHERE AccountType IS NULL")
+            .And.NotContain("ALTER TABLE core.Users ALTER COLUMN TenantId")
+            .And.NotContain("ALTER TABLE core.Users ALTER COLUMN AccountType")
+            .And.Contain("AccountType IS NULL OR (AccountType=N'APPLICATION_OWNER' AND TenantId IS NOT NULL)")
+            .And.Contain("is_disabled=0")
+            .And.Contain("is_not_trusted=0")
+            .And.Contain("THROW 52705");
+    }
+
+    [Fact]
+    public void RepeatablePostDeploymentDoesNotTenantAssignPlatformOwnersOrRetightenTenantId()
+    {
+        var featureMigration = File.ReadAllText(Path.Combine(RepositoryRoot(), "database", "WhatsBiz.Database", "Scripts", "V2-FeatureEntitlements.sql"));
+        var deployment = File.ReadAllText(Path.Combine(RepositoryRoot(), "deployment", "deploy-qa-database.ps1"));
+
+        featureMigration.Should().Contain("IF COL_LENGTH(N'core.Users', N'AccountType') IS NULL")
+            .And.Contain("u.TenantId IS NULL AND u.AccountType=N''RETAILER''")
+            .And.NotContain("N'UPDATE core.Users SET TenantId=@id WHERE TenantId IS NULL'")
+            .And.NotContain("ALTER TABLE core.Users ALTER COLUMN TenantId uniqueidentifier NOT NULL");
+        deployment.Should().Contain("obsolete unconditional core.Users tenant migration")
+            .And.Contain("$obsoleteIdentityStatements");
     }
 
     [Theory]

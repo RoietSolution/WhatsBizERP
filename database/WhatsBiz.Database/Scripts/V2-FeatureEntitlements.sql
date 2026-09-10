@@ -81,8 +81,22 @@ WHEN NOT MATCHED THEN INSERT(FeatureId,FeatureKey,Name,Description,ModuleKey,Rel
 INSERT core.PlanFeatures(PlanFeatureId,PlanId,FeatureId,IsEnabled,CreatedBy)
 SELECT NEWID(),@PlanId,f.FeatureId,0,'V2 deployment' FROM core.Features f JOIN @Seed s ON s.FeatureKey=f.FeatureKey
 WHERE NOT EXISTS(SELECT 1 FROM core.PlanFeatures pf WHERE pf.PlanId=@PlanId AND pf.FeatureId=f.FeatureId);
-EXEC sys.sp_executesql N'UPDATE core.Users SET TenantId=@id WHERE TenantId IS NULL',N'@id uniqueidentifier',@TenantId;
+/* Before AccountType existed every identity was a retailer. Preserve that
+   one-time upgrade path, but never tenant-assign a platform owner once the
+   account-scope model is present. Dynamic SQL keeps the legacy branch valid
+   on databases where AccountType has not been introduced yet. */
+IF COL_LENGTH(N'core.Users', N'AccountType') IS NULL
+BEGIN
+    EXEC sys.sp_executesql
+        N'UPDATE u SET TenantId=@id FROM core.Users u WHERE u.TenantId IS NULL',
+        N'@id uniqueidentifier',@TenantId;
+END
+ELSE
+BEGIN
+    EXEC sys.sp_executesql
+        N'UPDATE u SET TenantId=@id FROM core.Users u WHERE u.TenantId IS NULL AND u.AccountType=N''RETAILER''',
+        N'@id uniqueidentifier',@TenantId;
+END;
 IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name='FK_Users_Tenants') EXEC(N'ALTER TABLE core.Users WITH CHECK ADD CONSTRAINT FK_Users_Tenants FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId)');
-IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'core.Users') AND name='TenantId' AND is_nullable=1) EXEC(N'ALTER TABLE core.Users ALTER COLUMN TenantId uniqueidentifier NOT NULL');
 
 COMMIT TRANSACTION;

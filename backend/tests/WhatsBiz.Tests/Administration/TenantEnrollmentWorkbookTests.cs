@@ -41,4 +41,24 @@ public sealed class TenantEnrollmentWorkbookTests
 
         cells["Temporary Password"].GetString().Should().Be("Temporary@123");
     }
+
+    [Fact]
+    public void EnrollmentPrefersCompletedAdministratorRowOverTemplateExampleRow()
+    {
+        using var book = new XLWorkbook();
+        var sheet = book.AddWorksheet("Administrator");
+        sheet.Cell("A1").Value = "Username";
+        sheet.Cell("B1").Value = "Email";
+        sheet.Cell("C1").Value = "Temporary Password";
+        sheet.Cell("A2").Value = "retailer.admin";
+        sheet.Cell("B2").Value = "admin@example.com";
+        sheet.Cell("A3").Value = "new.admin";
+        sheet.Cell("B3").Value = "new.admin@example.com";
+        sheet.Cell("C3").Value = "Strong@Password123";
+
+        var cells = TenantEnrollmentService.DataCells(sheet, ["Username", "Email", "Temporary Password"]);
+
+        cells["Username"].GetString().Should().Be("new.admin");
+        cells["Temporary Password"].GetString().Should().Be("Strong@Password123");
+    }
 }

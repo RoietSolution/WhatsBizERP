@@ -43,6 +43,7 @@ BEGIN
  IF @BillDiscount>0 INSERT sales.SalesDiscounts(InvoiceId,DiscountType,DiscountMode,DiscountValue,DiscountAmount,AuthorizedBy) VALUES(@InvoiceId,'BILL','FLAT',@BillDiscount,@BillDiscount,@DiscountAuthorizedBy);
  IF ISJSON(@PaymentsJson)=1 INSERT sales.SalesPayments(InvoiceId,PaymentMethodId,Amount,ReferenceNumber,CreatedBy) SELECT @InvoiceId,m.PaymentMethodId,j.Amount,j.ReferenceNumber,@CreatedBy FROM OPENJSON(@PaymentsJson) WITH(MethodCode NVARCHAR(30),Amount DECIMAL(18,2),ReferenceNumber NVARCHAR(100)) j INNER JOIN sales.PaymentMethods m ON m.MethodCode=j.MethodCode AND m.IsActive=1;
  IF @ShiftId IS NOT NULL AND EXISTS(SELECT 1 FROM OPENJSON(@PaymentsJson) j INNER JOIN sales.PaymentMethods m ON m.MethodCode=JSON_VALUE(j.value,'$.MethodCode') WHERE m.MethodCode='CASH') INSERT sales.CashDrawer(ShiftId,EntryType,Amount,ReferenceType,ReferenceId,CreatedBy) SELECT @ShiftId,'SALE',SUM(CONVERT(DECIMAL(18,2),JSON_VALUE(j.value,'$.Amount'))),'SALES_INVOICE',@InvoiceId,@CreatedBy FROM OPENJSON(@PaymentsJson) j WHERE JSON_VALUE(j.value,'$.MethodCode')='CASH';
- EXEC finance.PostSource @SourceType='SALE',@SourceId=@InvoiceId,@CreatedBy=@CreatedBy; COMMIT; SELECT @InvoiceId InvoiceId,@InvoiceNumber InvoiceNumber,@Grand GrandTotal,@Paid PaidAmount,@Status Status;
+ IF @Status='COMPLETED' EXEC finance.PostSource @TenantId=@TenantId,@SourceType='SALE',@SourceId=@InvoiceId,@CreatedBy=@CreatedBy;
+ COMMIT; SELECT @InvoiceId InvoiceId,@InvoiceNumber InvoiceNumber,@Grand GrandTotal,@Paid PaidAmount,@Status Status;
 END;
 GO

@@ -258,6 +258,7 @@ const navigation: NavigationItem[] = [
       { label: 'Backup & Restore', icon: 'backup', route: '/admin/backup', role: 'ApplicationOwner' },
       { label: 'Audit Log', icon: 'history', route: '/admin/audit', role: 'ApplicationOwner' },
       { label: 'Login History', icon: 'login', route: '/admin/login-history', role: 'ApplicationOwner' },
+      { label: 'System Logs & Errors', icon: 'troubleshoot', route: '/admin/system-logs', role: 'ApplicationOwner' },
     ],
   },
   {

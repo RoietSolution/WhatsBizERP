@@ -95,6 +95,12 @@ export interface DemoRequestDetail extends DemoRequestSummary {
   utmContent?: string; landingPage?: string; referrer?: string; notificationStatus: string; modifiedOn?: string;
 }
 export interface PagedDemoRequests { items: DemoRequestSummary[]; totalCount: number; pageNumber: number; pageSize: number; }
+export interface SystemLogEntry {
+  timestamp: string; level: string; source: string; traceId?: string; message: string;
+  requestPath?: string; httpMethod?: string; statusCode?: number; tenantId?: string;
+  userId?: string; exceptionType?: string;
+}
+export interface PagedSystemLogs { items: SystemLogEntry[]; totalCount: number; pageNumber: number; pageSize: number; }
 @Injectable({ providedIn: 'root' })
 export class AdminApiService {
   private root = '/api/admin';
@@ -140,6 +146,22 @@ export class AdminApiService {
     return this.http.get<any[]>(`${this.root}/${login ? 'login-history' : 'audit'}`, {
       params: new HttpParams().set('take', 500),
     });
+  }
+  systemLogs(filters: {
+    from: string; to: string; level?: string; requestPath?: string; statusCode?: number;
+    traceId?: string; search?: string; pageNumber: number; pageSize: number;
+  }) {
+    let params = new HttpParams()
+      .set('from', filters.from)
+      .set('to', filters.to)
+      .set('pageNumber', filters.pageNumber)
+      .set('pageSize', filters.pageSize);
+    if (filters.level) params = params.set('level', filters.level);
+    if (filters.requestPath?.trim()) params = params.set('requestPath', filters.requestPath.trim());
+    if (filters.statusCode) params = params.set('statusCode', filters.statusCode);
+    if (filters.traceId?.trim()) params = params.set('traceId', filters.traceId.trim());
+    if (filters.search?.trim()) params = params.set('search', filters.search.trim());
+    return this.http.get<PagedSystemLogs>(`${this.root}/system-logs`, { params });
   }
   users() { return this.http.get<AdminUser[]>(`${this.root}/users`); }
   employeePermissions() { return this.http.get<string[]>(`${this.root}/users/permissions`); }

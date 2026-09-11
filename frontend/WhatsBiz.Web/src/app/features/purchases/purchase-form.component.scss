@@ -36,6 +36,7 @@
   color: var(--wb-primary);
   font-size: 20px;
 }
+.add-supplier-link { align-self: flex-start; margin-top: -10px; }
 .attachment {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) 36px;

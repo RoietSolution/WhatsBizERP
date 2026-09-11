@@ -25,6 +25,7 @@ using WhatsBiz.Infrastructure.Delivery;
 using WhatsBiz.Api.Configuration;
 using Serilog.Events;
 using Microsoft.Data.SqlClient;
+using WhatsBiz.Api.Logging;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console(formatProvider: CultureInfo.InvariantCulture).CreateBootstrapLogger();
 
@@ -107,6 +108,7 @@ try
     builder.Services.AddScoped<IDeliveryService, DeliveryService>();
     builder.Services.AddHostedService<RewardCoinExpirationWorker>();
     builder.Services.AddScoped<IDatabaseMaintenanceService, DatabaseMaintenanceService>();
+    builder.Services.AddSingleton<SystemLogReader>();
     builder.Services.AddApiServices(builder.Configuration);
     var app = builder.Build();
     var forwardedHeaders = new ForwardedHeadersOptions
@@ -129,6 +131,7 @@ try
     app.UseRouting();
     app.UseCors(ApiServiceCollectionExtensions.CorsPolicyName);
     app.UseAuthentication();
+    app.UseMiddleware<PasswordChangeRequiredMiddleware>();
     app.UseAuthorization();
     app.UseMiddleware<TenantContextAuthorizationMiddleware>();
     app.UseMiddleware<FeatureGateMiddleware>();

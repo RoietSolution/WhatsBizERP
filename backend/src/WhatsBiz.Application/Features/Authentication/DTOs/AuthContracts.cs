@@ -10,6 +10,7 @@ public sealed record UpdateProfileRequest(string Email);
 public sealed record AuthResponse(string AccessToken, string RefreshToken, DateTimeOffset ExpiresOnUtc, CurrentUserDto User);
 public sealed record CurrentUserDto(Guid UserId, Guid? TenantId, string Username, string Email, IReadOnlyCollection<string> Roles, IReadOnlyCollection<string> Permissions, IReadOnlyDictionary<string, bool> Features)
 {
+    public bool MustChangePassword { get; init; }
     public CurrentUserDto(Guid userId, string username, string email, IReadOnlyCollection<string> roles, IReadOnlyCollection<string> permissions)
         : this(userId, null, username, email, roles, permissions, new Dictionary<string, bool>()) { }
 }

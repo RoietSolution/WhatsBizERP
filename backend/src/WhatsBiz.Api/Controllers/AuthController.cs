@@ -48,7 +48,14 @@ public sealed class AuthController(ISender sender, UserManager<ApplicationUser> 
         try { token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(request.Token)); }
         catch (FormatException) { return BadRequest(new ProblemDetails { Title = "Password reset failed", Detail = "The reset link is invalid or has expired." }); }
         var result = await users.ResetPasswordAsync(user, token, request.NewPassword);
-        return result.Succeeded ? NoContent() : BadRequest(new ProblemDetails { Title = "Password reset failed", Detail = string.Join("; ", result.Errors.Select(error => error.Description)) });
+        if (!result.Succeeded) return BadRequest(new ProblemDetails { Title = "Password reset failed", Detail = string.Join("; ", result.Errors.Select(error => error.Description)) });
+        if (user.MustChangePassword)
+        {
+            user.MustChangePassword = false;
+            var update = await users.UpdateAsync(user);
+            if (!update.Succeeded) return BadRequest(new ProblemDetails { Title = "Password reset failed", Detail = string.Join("; ", update.Errors.Select(error => error.Description)) });
+        }
+        return NoContent();
     }
 
     [Authorize]
@@ -57,7 +64,16 @@ public sealed class AuthController(ISender sender, UserManager<ApplicationUser> 
     {
         var user = await GetAuthenticatedUser();
         var result = await users.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
-        return result.Succeeded ? NoContent() : BadRequest(new ProblemDetails { Title = "Password change failed", Detail = string.Join("; ", result.Errors.Select(error => error.Description)) });
+        if (!result.Succeeded) return BadRequest(new ProblemDetails { Title = "Password change failed", Detail = string.Join("; ", result.Errors.Select(error => error.Description)) });
+        if (user.MustChangePassword)
+        {
+            user.MustChangePassword = false;
+            user.ModifiedOn = DateTimeOffset.UtcNow;
+            user.ModifiedBy = user.UserName;
+            var update = await users.UpdateAsync(user);
+            if (!update.Succeeded) return BadRequest(new ProblemDetails { Title = "Password change failed", Detail = string.Join("; ", update.Errors.Select(error => error.Description)) });
+        }
+        return NoContent();
     }
 
     [Authorize]
@@ -80,7 +96,7 @@ public sealed class AuthController(ISender sender, UserManager<ApplicationUser> 
         var features = user.TenantId is Guid tenantId
             ? await HttpContext.RequestServices.GetRequiredService<IFeatureService>().GetEffectiveFeaturesAsync(tenantId, HttpContext.RequestAborted)
             : new Dictionary<string, bool>();
-        return new CurrentUserDto(user.Id, user.TenantId, user.UserName ?? string.Empty, user.Email ?? string.Empty, roles.ToArray(), permissions, features);
+        return new CurrentUserDto(user.Id, user.TenantId, user.UserName ?? string.Empty, user.Email ?? string.Empty, roles.ToArray(), permissions, features) { MustChangePassword = user.MustChangePassword };
     }
 
     private async Task<ApplicationUser> GetAuthenticatedUser()

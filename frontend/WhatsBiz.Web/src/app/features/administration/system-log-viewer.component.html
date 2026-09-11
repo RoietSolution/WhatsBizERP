@@ -1,0 +1,55 @@
+<app-page-container wide>
+  <app-page-header
+    eyebrow="Platform monitoring"
+    title="System Logs & Errors"
+    description="Find API requests and failures by date, page, status, severity, or reference ID."
+  >
+    <a mat-button routerLink="/application-owner">
+      <span class="material-symbols-rounded">arrow_back</span>Owner Center
+    </a>
+  </app-page-header>
+
+  <section class="filters" aria-label="System log filters">
+    <mat-form-field appearance="outline"><mat-label>From date</mat-label><input matInput type="date" [(ngModel)]="fromDate" /></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>To date</mat-label><input matInput type="date" [(ngModel)]="toDate" /></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Severity</mat-label><mat-select [(ngModel)]="level"><mat-option value="">All levels</mat-option><mat-option value="Error">Error</mat-option><mat-option value="Fatal">Fatal</mat-option><mat-option value="Warning">Warning</mat-option><mat-option value="Information">Information</mat-option></mat-select></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Page / API path</mat-label><input matInput placeholder="/api/suppliers" [(ngModel)]="requestPath" /></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Status code</mat-label><input matInput type="number" placeholder="500" [(ngModel)]="statusCode" /></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Reference / Trace ID</mat-label><input matInput [(ngModel)]="traceId" /></mat-form-field>
+    <mat-form-field appearance="outline" class="search"><mat-label>Message, source, tenant, user or exception</mat-label><input matInput [(ngModel)]="search" (keyup.enter)="apply()" /></mat-form-field>
+    <div class="filter-actions"><button mat-flat-button color="primary" (click)="apply()">Apply filters</button><button mat-button (click)="clear()">Clear</button></div>
+  </section>
+
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+  <section class="results">
+    <header><strong>{{ totalCount() }} matching events</strong><span>Page {{ pageNumber }} of {{ pageCount() }}</span></header>
+    @if (loading()) {
+      <div class="loading"><mat-spinner diameter="36" /><span>Reading application logs…</span></div>
+    } @else {
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date / time</th><th>Level</th><th>Page / API path</th><th>Method</th><th>Status</th><th>Message</th><th>Reference ID</th></tr></thead>
+          <tbody>
+            @for (row of rows(); track row.timestamp + (row.traceId ?? '') + $index) {
+              <tr (click)="selected.set(row)" [class.selected]="selected() === row">
+                <td>{{ row.timestamp | date:'medium' }}</td>
+                <td><span class="level" [class]="'level ' + row.level.toLowerCase()">{{ row.level }}</span></td>
+                <td class="path">{{ row.requestPath || '—' }}</td><td>{{ row.httpMethod || '—' }}</td><td>{{ row.statusCode || '—' }}</td>
+                <td class="message">{{ row.message }}</td><td class="trace">{{ row.traceId || '—' }}</td>
+              </tr>
+            } @empty { <tr><td colspan="7" class="empty">No log entries match these filters.</td></tr> }
+          </tbody>
+        </table>
+      </div>
+      <footer><button mat-button (click)="previous()" [disabled]="pageNumber <= 1">Previous</button><span>{{ pageNumber }} / {{ pageCount() }}</span><button mat-button (click)="next()" [disabled]="pageNumber >= pageCount()">Next</button></footer>
+    }
+  </section>
+
+  @if (selected(); as row) {
+    <section class="details">
+      <header><h2>Log details</h2><button mat-button (click)="selected.set(null)">Close</button></header>
+      <dl><dt>Source</dt><dd>{{ row.source }}</dd><dt>Exception</dt><dd>{{ row.exceptionType || '—' }}</dd><dt>Tenant ID</dt><dd>{{ row.tenantId || '—' }}</dd><dt>User ID</dt><dd>{{ row.userId || '—' }}</dd><dt>Reference ID</dt><dd>{{ row.traceId || '—' }}</dd></dl>
+      <pre>{{ row.message }}</pre>
+    </section>
+  }
+</app-page-container>

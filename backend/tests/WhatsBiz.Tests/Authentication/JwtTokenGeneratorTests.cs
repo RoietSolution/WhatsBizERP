@@ -50,4 +50,25 @@ public sealed class JwtTokenGeneratorTests
         token.Claims.Should().Contain(claim => claim.Type == CustomClaimTypes.Permission && claim.Value == Permissions.Features.Manage);
         token.Claims.Should().NotContain(claim => claim.Type == CustomClaimTypes.TenantId);
     }
+
+    [Fact]
+    public void TemporaryPasswordTokenRequiresPasswordChange()
+    {
+        var options = Options.Create(new JwtOptions
+        {
+            Issuer = "WhatsBiz.Tests", Audience = "WhatsBiz.Web.Tests",
+            SigningKey = "a-test-signing-key-that-is-at-least-32-characters-long", ExpiryMinutes = 15
+        });
+        var user = new ApplicationUser
+        {
+            Id = Guid.NewGuid(), TenantId = Guid.NewGuid(), UserName = "new-retailer",
+            MustChangePassword = true
+        };
+
+        var result = new JwtTokenGenerator(options).Generate(user, ["Administrator"], []);
+        var token = new JwtSecurityTokenHandler().ReadJwtToken(result.Token);
+
+        token.Claims.Should().Contain(claim =>
+            claim.Type == CustomClaimTypes.MustChangePassword && claim.Value == bool.TrueString);
+    }
 }

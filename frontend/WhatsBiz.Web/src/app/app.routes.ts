@@ -569,6 +569,15 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'admin/system-logs',
+        canActivate: [roleGuard],
+        data: { platform: true, role: 'ApplicationOwner', title: 'System Logs & Errors' },
+        loadComponent: () =>
+          import('./features/administration/system-log-viewer.component').then(
+            (m) => m.SystemLogViewerComponent,
+          ),
+      },
+      {
         path: 'admin/preferences',
         canActivate: [permissionGuard],
         data: { ...adminView, title: 'User Preferences' },

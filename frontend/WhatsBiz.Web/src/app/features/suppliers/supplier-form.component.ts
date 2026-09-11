@@ -9,6 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { forkJoin, of } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
 import { SupplierApiService } from './supplier-api.service';
 import { PaymentTerm, SupplierInput } from './supplier.models';
 @Component({
@@ -128,7 +129,11 @@ export class SupplierFormComponent {
     );
   }
   save() {
-    if (this.form.invalid) return;
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      this.snack.open('Complete the required supplier fields.', 'Dismiss', { duration: 5000 });
+      return;
+    }
     const v = this.form.getRawValue();
     const clean = (x: string | null | undefined) => x?.trim() || undefined;
     const input = {
@@ -150,7 +155,11 @@ export class SupplierFormComponent {
         this.snack.open('Supplier saved.', undefined, { duration: 2500 });
         void this.router.navigate(['/suppliers', x.supplierId]);
       },
-      error: () => this.snack.open('Supplier could not be saved.', 'Dismiss', { duration: 5000 }),
+      error: (response: HttpErrorResponse) => this.snack.open(
+        response.error?.detail ?? 'Supplier could not be saved. Check the API log using the request reference ID.',
+        'Dismiss',
+        { duration: 8000 },
+      ),
     });
   }
 }

@@ -11,6 +11,7 @@ public sealed class ApplicationUser : IdentityUser<Guid>
     public string? ModifiedBy { get; set; }
     public bool IsActive { get; set; } = true;
     public bool IsDeleted { get; set; }
+    public bool MustChangePassword { get; set; }
     public byte[] RowVersion { get; set; } = [];
 }
 

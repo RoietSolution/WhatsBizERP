@@ -56,7 +56,11 @@ export class LoginComponent {
     this.error.set('');
     this.loading.set(true);
     this.authentication.login(this.username.value.trim(), this.password.value, this.applicationOwner).subscribe({
-      next: () => void this.router.navigateByUrl(this.applicationOwner ? '/application-owner' : '/dashboard'),
+      next: (session) => void this.router.navigateByUrl(
+        session.user.mustChangePassword
+          ? '/change-password'
+          : this.applicationOwner ? '/application-owner' : '/dashboard',
+      ),
       error: (response: HttpErrorResponse) => {
         this.loading.set(false);
         this.error.set(

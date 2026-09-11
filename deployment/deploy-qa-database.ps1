@@ -137,6 +137,17 @@ try {
     if ($unsafeIdentityStatements.Count -gt 0) {
         throw "DACPAC script contains an obsolete unconditional core.Users tenant migration; publish was blocked. Review $deployScript"
     }
+    # Plan generation does not compile or execute post-deployment batches. Detect the
+    # SQL Server invalid-column pattern where a static ADD is followed by a reference
+    # to that new column before the next GO. Dynamic DDL strings are masked first.
+    $unsafeTenantAddBatches = @([regex]::Split($deployText,'(?im)^\s*GO\s*$') | Where-Object {
+        $withoutStrings = [regex]::Replace($_,"N?'(?:''|[^'])*'","''")
+        $add = [regex]::Match($withoutStrings,'(?is)\bALTER\s+TABLE\s+(?:admin\.Companies|gst\.GSTSettings|printing\.PrinterConfigurations)\s+ADD\s+TenantId\b(?<after>.*)$')
+        $add.Success -and $add.Groups['after'].Value -match '(?i)\bTenantId\b'
+    })
+    if ($unsafeTenantAddBatches.Count -gt 0) {
+        throw "DACPAC script contains ADD TenantId followed by a same-batch static TenantId reference; publish was blocked. Review $deployScript"
+    }
     $unsupportedDrops = [regex]::Matches($reportText,'(?i)<Operation Name="Drop">(?<body>.*?)</Operation>') | ForEach-Object {
         [regex]::Matches($_.Groups['body'].Value,'<Item Value="(?<name>[^"]+)" Type="(?<type>[^"]+)"')
     } | ForEach-Object { $_ } | Where-Object {

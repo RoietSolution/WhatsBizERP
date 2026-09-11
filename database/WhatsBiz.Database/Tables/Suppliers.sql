@@ -2,8 +2,8 @@ CREATE TABLE [purchase].[Suppliers] ([SupplierId] UNIQUEIDENTIFIER NOT NULL CONS
 GO
 CREATE INDEX [IX_Suppliers_TenantId] ON [purchase].[Suppliers]([TenantId],[SupplierId]);
 GO
-CREATE UNIQUE INDEX [UX_Suppliers_Code] ON [purchase].[Suppliers]([SupplierCode]) WHERE [IsDeleted] = 0;
+CREATE UNIQUE INDEX [UX_Suppliers_Code] ON [purchase].[Suppliers]([TenantId],[SupplierCode]) WHERE [TenantId] IS NOT NULL AND [IsDeleted] = 0;
 GO
-CREATE UNIQUE INDEX [UX_Suppliers_GSTIN] ON [purchase].[Suppliers]([GSTIN]) WHERE [GSTIN] IS NOT NULL AND [IsDeleted] = 0;
+CREATE UNIQUE INDEX [UX_Suppliers_GSTIN] ON [purchase].[Suppliers]([TenantId],[GSTIN]) WHERE [TenantId] IS NOT NULL AND [GSTIN] IS NOT NULL AND [IsDeleted] = 0;
 GO
 CREATE INDEX [IX_Suppliers_Search] ON [purchase].[Suppliers]([SupplierName],[Mobile],[IsActive]);

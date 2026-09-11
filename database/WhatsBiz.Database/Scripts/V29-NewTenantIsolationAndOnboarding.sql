@@ -5,11 +5,12 @@ SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNI
 SET CONCAT_NULL_YIELDS_NULL ON; SET ARITHABORT ON; SET NUMERIC_ROUNDABORT OFF;
 
 IF COL_LENGTH(N'admin.Companies',N'TenantId') IS NULL
-BEGIN
- ALTER TABLE admin.Companies ADD TenantId uniqueidentifier NULL;
- ALTER TABLE admin.Companies ADD CONSTRAINT FK_Companies_Tenants FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId);
- CREATE UNIQUE INDEX UX_Companies_Tenant ON admin.Companies(TenantId) WHERE TenantId IS NOT NULL;
-END;
+ EXEC(N'ALTER TABLE admin.Companies ADD TenantId uniqueidentifier NULL;');
+GO
+IF OBJECT_ID(N'admin.FK_Companies_Tenants',N'F') IS NULL
+ EXEC(N'ALTER TABLE admin.Companies ADD CONSTRAINT FK_Companies_Tenants FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId);');
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'admin.Companies') AND name=N'UX_Companies_Tenant')
+ EXEC(N'CREATE UNIQUE INDEX UX_Companies_Tenant ON admin.Companies(TenantId) WHERE TenantId IS NOT NULL;');
 GO
 
 /* Resolve only companies whose branch warehouse provides one unambiguous owner. */
@@ -28,20 +29,22 @@ FROM core.Tenants t
 WHERE t.IsActive=1 AND NOT EXISTS(SELECT 1 FROM admin.Companies c WHERE c.TenantId=t.TenantId);
 
 IF COL_LENGTH(N'gst.GSTSettings',N'TenantId') IS NULL
-BEGIN
- ALTER TABLE gst.GSTSettings ADD TenantId uniqueidentifier NULL;
- ALTER TABLE gst.GSTSettings ADD CONSTRAINT FK_GSTSettings_Tenants FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId);
- CREATE INDEX IX_GSTSettings_Tenant ON gst.GSTSettings(TenantId,IsActive,EffectiveDate DESC);
-END;
+ EXEC(N'ALTER TABLE gst.GSTSettings ADD TenantId uniqueidentifier NULL;');
+GO
+IF OBJECT_ID(N'gst.FK_GSTSettings_Tenants',N'F') IS NULL
+ EXEC(N'ALTER TABLE gst.GSTSettings ADD CONSTRAINT FK_GSTSettings_Tenants FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId);');
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'gst.GSTSettings') AND name=N'IX_GSTSettings_Tenant')
+ EXEC(N'CREATE INDEX IX_GSTSettings_Tenant ON gst.GSTSettings(TenantId,IsActive,EffectiveDate DESC);');
 GO
 UPDATE g SET TenantId=c.TenantId FROM gst.GSTSettings g JOIN admin.Companies c ON c.GSTIN=g.CompanyGSTIN WHERE g.TenantId IS NULL AND c.TenantId IS NOT NULL;
 
 IF COL_LENGTH(N'printing.PrinterConfigurations',N'TenantId') IS NULL
-BEGIN
- ALTER TABLE printing.PrinterConfigurations ADD TenantId uniqueidentifier NULL;
- ALTER TABLE printing.PrinterConfigurations ADD CONSTRAINT FK_PrinterConfigurations_Tenants FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId);
- CREATE INDEX IX_PrinterConfigurations_Tenant ON printing.PrinterConfigurations(TenantId,IsDefault,IsActive);
-END;
+ EXEC(N'ALTER TABLE printing.PrinterConfigurations ADD TenantId uniqueidentifier NULL;');
+GO
+IF OBJECT_ID(N'printing.FK_PrinterConfigurations_Tenants',N'F') IS NULL
+ EXEC(N'ALTER TABLE printing.PrinterConfigurations ADD CONSTRAINT FK_PrinterConfigurations_Tenants FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId);');
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'printing.PrinterConfigurations') AND name=N'IX_PrinterConfigurations_Tenant')
+ EXEC(N'CREATE INDEX IX_PrinterConfigurations_Tenant ON printing.PrinterConfigurations(TenantId,IsDefault,IsActive);');
 GO
 
 /* Resolve legacy printers only through an existing company printer selection. */
@@ -63,23 +66,6 @@ IF EXISTS(SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_ID(N'p
  ALTER TABLE printing.PrinterConfigurations DROP CONSTRAINT UQ_PrinterConfigurations_Name;
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'printing.PrinterConfigurations') AND name=N'UX_PrinterConfigurations_TenantName')
  CREATE UNIQUE INDEX UX_PrinterConfigurations_TenantName ON printing.PrinterConfigurations(TenantId,PrinterName) WHERE TenantId IS NOT NULL;
-
-IF OBJECT_ID(N'master.TenantProductCategories',N'U') IS NULL
- CREATE TABLE master.TenantProductCategories(TenantId uniqueidentifier NOT NULL,ProductCategoryId uniqueidentifier NOT NULL,
-  CONSTRAINT PK_TenantProductCategories PRIMARY KEY(TenantId,ProductCategoryId),
-  CONSTRAINT FK_TenantProductCategories_Tenant FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId),
-  CONSTRAINT FK_TenantProductCategories_Category FOREIGN KEY(ProductCategoryId) REFERENCES master.ProductCategories(ProductCategoryId));
-IF OBJECT_ID(N'master.TenantBrands',N'U') IS NULL
- CREATE TABLE master.TenantBrands(TenantId uniqueidentifier NOT NULL,BrandId uniqueidentifier NOT NULL,
-  CONSTRAINT PK_TenantBrands PRIMARY KEY(TenantId,BrandId),
-  CONSTRAINT FK_TenantBrands_Tenant FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId),
-  CONSTRAINT FK_TenantBrands_Brand FOREIGN KEY(BrandId) REFERENCES master.Brands(BrandId));
-IF OBJECT_ID(N'master.TenantUnitsOfMeasure',N'U') IS NULL
- CREATE TABLE master.TenantUnitsOfMeasure(TenantId uniqueidentifier NOT NULL,UnitId uniqueidentifier NOT NULL,
-  CONSTRAINT PK_TenantUnitsOfMeasure PRIMARY KEY(TenantId,UnitId),
-  CONSTRAINT FK_TenantUnitsOfMeasure_Tenant FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId),
-  CONSTRAINT FK_TenantUnitsOfMeasure_Unit FOREIGN KEY(UnitId) REFERENCES master.UnitsOfMeasure(UnitId));
-GO
 
 MERGE master.TenantProductCategories t USING(SELECT DISTINCT TenantId,CategoryId ProductCategoryId FROM master.Products WHERE TenantId IS NOT NULL)s ON s.TenantId=t.TenantId AND s.ProductCategoryId=t.ProductCategoryId WHEN NOT MATCHED THEN INSERT VALUES(s.TenantId,s.ProductCategoryId);
 MERGE master.TenantBrands t USING(SELECT DISTINCT TenantId,BrandId FROM master.Products WHERE TenantId IS NOT NULL)s ON s.TenantId=t.TenantId AND s.BrandId=t.BrandId WHEN NOT MATCHED THEN INSERT VALUES(s.TenantId,s.BrandId);

@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { Observable } from 'rxjs';
+import { Observable, switchMap } from 'rxjs';
 import { AuthenticationService } from '../../../core/services/authentication.service';
 import { LoadingOverlayComponent } from '../../../shared/components/loading-overlay/loading-overlay.component';
 
@@ -112,7 +112,7 @@ export class PasswordWorkflowComponent {
           : this.authentication.changePassword(
               controls.currentPassword.value,
               controls.newPassword.value,
-            );
+            ).pipe(switchMap(() => this.authentication.refresh()));
     request.subscribe({
       next: (response) => {
         this.loading.set(false);

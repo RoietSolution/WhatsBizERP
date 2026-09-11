@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MatNativeDateModule } from '@angular/material/core';
@@ -48,6 +48,7 @@ type ProductLookup = {
     PageHeaderComponent,
     StatusChipComponent,
     CurrencyPipe,
+    RouterLink,
   ],
   templateUrl: './purchase-form.component.html',
   styleUrl: './purchase-form.component.scss',

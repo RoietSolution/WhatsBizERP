@@ -36,6 +36,7 @@ describe('application routes', () => {
       'admin/restore',
       'admin/audit',
       'admin/login-history',
+      'admin/system-logs',
     ];
 
     for (const path of ownerPaths) {

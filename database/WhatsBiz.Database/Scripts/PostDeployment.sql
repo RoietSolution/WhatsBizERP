@@ -70,3 +70,5 @@ GO
 :r .\V28-DeferredPOSFinancePosting.sql
 GO
 :r .\V29-NewTenantIsolationAndOnboarding.sql
+GO
+:r .\V30-TemporaryPasswordsAndSupplierUniqueness.sql

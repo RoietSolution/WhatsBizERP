@@ -28,5 +28,6 @@ export class ApplicationOwnerHubComponent {
     { title: 'Backup & Restore', description: 'Protect and recover the application database.', icon: 'backup', route: '/admin/backup' },
     { title: 'Audit Log', description: 'Review application-wide configuration and security events.', icon: 'history', route: '/admin/audit' },
     { title: 'Login History', description: 'Monitor successful and failed account access.', icon: 'login', route: '/admin/login-history' },
+    { title: 'System Logs & Errors', description: 'Search API logs by date, page, severity, status, and reference ID.', icon: 'troubleshoot', route: '/admin/system-logs' },
   ];
 }

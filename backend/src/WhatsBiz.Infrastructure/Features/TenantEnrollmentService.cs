@@ -152,6 +152,7 @@ public sealed partial class TenantEnrollmentService(
                 Email = input.Email,
                 EmailConfirmed = true,
                 IsActive = true,
+                MustChangePassword = true,
                 CreatedBy = changedBy
             };
             Ensure(await users.CreateAsync(user, input.Password), "Administrator could not be created");

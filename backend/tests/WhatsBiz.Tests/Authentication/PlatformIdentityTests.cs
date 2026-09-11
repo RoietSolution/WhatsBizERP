@@ -158,7 +158,8 @@ public sealed class PlatformIdentityTests
             typeof(AdminController).GetMethod(nameof(AdminController.Backup)),
             typeof(AdminController).GetMethod(nameof(AdminController.Restore)),
             typeof(AdminController).GetMethod(nameof(AdminController.Audit)),
-            typeof(AdminController).GetMethod(nameof(AdminController.Logins))
+            typeof(AdminController).GetMethod(nameof(AdminController.Logins)),
+            typeof(SystemLogsController).GetMethod(nameof(SystemLogsController.Search))
         };
 
         operations.Should().NotContainNulls();

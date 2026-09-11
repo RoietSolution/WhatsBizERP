@@ -46,4 +46,5 @@ export interface CurrentUser {
   roles: string[];
   permissions: string[];
   features: Record<string, boolean>;
+  mustChangePassword: boolean;
 }

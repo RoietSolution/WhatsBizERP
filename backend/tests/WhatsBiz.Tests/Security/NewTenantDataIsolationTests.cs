@@ -80,7 +80,9 @@ public sealed class NewTenantDataIsolationTests
     public void MigrationScopesConfigurationAndAggregatesWithoutDefaultTenantFallback()
     {
         var sql=File.ReadAllText(Path.Combine(Root(),"database","WhatsBiz.Database","Scripts","V29-NewTenantIsolationAndOnboarding.sql"));
-        sql.Should().Contain("PrinterConfigurations ADD TenantId")
+        sql.Should().Contain("EXEC(N'ALTER TABLE admin.Companies ADD TenantId")
+            .And.Contain("EXEC(N'ALTER TABLE gst.GSTSettings ADD TenantId")
+            .And.Contain("EXEC(N'ALTER TABLE printing.PrinterConfigurations ADD TenantId")
             .And.Contain("master.TenantProductCategories")
             .And.Contain("dashboard.Summary_Get @TenantId")
             .And.Contain("dashboard.Inventory_Get @TenantId")
@@ -90,6 +92,14 @@ public sealed class NewTenantDataIsolationTests
             .And.Contain("inventory.StockTransfer_List @TenantId")
             .And.Contain("inventory.PhysicalVerification_List @TenantId")
             .And.NotContain("QA_DEFAULT");
+    }
+
+    [Fact]
+    public void QaPlanGuardRejectsStaticTenantColumnReferencesInTheAddColumnBatch()
+    {
+        var script=File.ReadAllText(Path.Combine(Root(),"deployment","deploy-qa-database.ps1"));
+        script.Should().Contain("$unsafeTenantAddBatches")
+            .And.Contain("ADD TenantId followed by a same-batch static TenantId reference");
     }
 
     private static void Own(ApplicationDbContext db,object entity,Guid tenant)=>db.Entry(entity).Property("TenantId").CurrentValue=tenant;

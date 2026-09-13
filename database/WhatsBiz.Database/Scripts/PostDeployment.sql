@@ -74,3 +74,4 @@ GO
 :r .\V30-TemporaryPasswordsAndSupplierUniqueness.sql
 GO
 :r .\V31-TenantEntityCodesAndV1Printing.sql
+:r .\V32-SupplierNameUniqueness.sql

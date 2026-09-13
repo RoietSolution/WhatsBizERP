@@ -30,6 +30,10 @@ public sealed class SupplierRepository(ApplicationDbContext db, ICurrentUserServ
 
     public Task<bool> DuplicateAsync(string code, string? gstin, string name, Guid? exclude, CancellationToken token) => Scoped(false).AnyAsync(x => (!exclude.HasValue || x.SupplierId != exclude) && (x.SupplierCode == code.Trim() || (!string.IsNullOrWhiteSpace(gstin) && x.GSTIN == gstin.Trim())), token);
     public Task<bool> CodeExistsAsync(string code, Guid? exclude, CancellationToken token) => Scoped(false).AnyAsync(x => (!exclude.HasValue || x.SupplierId != exclude) && x.SupplierCode == code.Trim(), token);
+    // SQL Server's configured case-insensitive collation makes this comparison
+    // treat "Kundan Supplier" and "kundan supplier" as the same name.
+    public Task<bool> NameExistsAsync(string name, Guid? exclude, CancellationToken token)
+        => Scoped(false).AnyAsync(x => (!exclude.HasValue || x.SupplierId != exclude) && x.SupplierName == name.Trim(), token);
     public Task<bool> GstinExistsAsync(string gstin, Guid? exclude, CancellationToken token) => Scoped(false).AnyAsync(x => (!exclude.HasValue || x.SupplierId != exclude) && x.GSTIN == gstin.Trim(), token);
     public async Task<IReadOnlyCollection<SupplierPaymentTerm>> PaymentTermsAsync(CancellationToken token) => await db.SupplierPaymentTerms.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.DueDays).ToArrayAsync(token);
     public void Add(Supplier supplier) => db.Suppliers.Add(supplier);

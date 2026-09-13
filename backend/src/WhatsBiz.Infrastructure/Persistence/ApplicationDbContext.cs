@@ -108,6 +108,23 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         ConfigureTenantOwnership(builder);
         ConfigureProductMasterVisibility(builder);
         ConfigureTenantCodeIndexes(builder);
+        ConfigureTriggeredTables(builder);
+    }
+
+    private static void ConfigureTriggeredTables(ModelBuilder b)
+    {
+        b.Entity<Supplier>().ToTable("Suppliers", "purchase", tb => tb.UseSqlOutputClause(false));
+        b.Entity<Warehouse>().ToTable("Warehouses", "inventory", tb => tb.UseSqlOutputClause(false));
+        b.Entity<SalesInvoice>().ToTable("SalesInvoices", "sales", tb => tb.UseSqlOutputClause(false));
+        b.Entity<PurchaseInvoice>().ToTable("PurchaseInvoices", "purchase", tb => tb.UseSqlOutputClause(false));
+        b.Entity<InventoryBalance>().ToTable("InventoryBalances", "inventory", tb => tb.UseSqlOutputClause(false));
+        b.Entity<InventoryTransaction>().ToTable("InventoryTransactions", "inventory", tb => tb.UseSqlOutputClause(false));
+        b.Entity<SalesPayment>().ToTable("SalesPayments", "sales", tb => tb.UseSqlOutputClause(false));
+        b.Entity<SalesInvoiceItem>().ToTable("SalesInvoiceItems", "sales", tb => tb.UseSqlOutputClause(false));
+        b.Entity<PurchaseInvoiceItem>().ToTable("PurchaseInvoiceItems", "purchase", tb => tb.UseSqlOutputClause(false));
+        b.Entity<PurchasePayment>().ToTable("PurchasePayments", "purchase", tb => tb.UseSqlOutputClause(false));
+        b.Entity<PurchaseReturn>().ToTable("PurchaseReturns", "purchase", tb => tb.UseSqlOutputClause(false));
+        b.Entity<SalesInvoiceReturn>().ToTable("SalesInvoiceReturns", "sales", tb => tb.UseSqlOutputClause(false));
     }
 
     // Phase 1 ownership columns are nullable while historical ownership is audited.
@@ -136,6 +153,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         if (globalProductCode is not null) products.Metadata.RemoveIndex(globalProductCode);
         products.HasIndex(x => new { x.TenantId, x.ProductCode }).IsUnique().HasDatabaseName("UX_Products_ProductCode").HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
         b.Entity<Customer>().HasIndex(x => new { x.TenantId, x.CustomerCode }).IsUnique().HasDatabaseName("UX_Customers_Code").HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
+        b.Entity<Supplier>().HasIndex("TenantId", nameof(Supplier.SupplierName)).IsUnique().HasDatabaseName("UX_Suppliers_Name").HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
     }
 
     private static void ConfigureTenantProperty<TEntity>(EntityTypeBuilder<TEntity> entity, string key)

@@ -6,4 +6,6 @@ CREATE UNIQUE INDEX [UX_Suppliers_Code] ON [purchase].[Suppliers]([TenantId],[Su
 GO
 CREATE UNIQUE INDEX [UX_Suppliers_GSTIN] ON [purchase].[Suppliers]([TenantId],[GSTIN]) WHERE [TenantId] IS NOT NULL AND [GSTIN] IS NOT NULL AND [IsDeleted] = 0;
 GO
+CREATE UNIQUE INDEX [UX_Suppliers_Name] ON [purchase].[Suppliers]([TenantId],[SupplierName]) WHERE [TenantId] IS NOT NULL AND [IsDeleted] = 0;
+GO
 CREATE INDEX [IX_Suppliers_Search] ON [purchase].[Suppliers]([SupplierName],[Mobile],[IsActive]);

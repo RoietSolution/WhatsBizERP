@@ -69,6 +69,8 @@ BEGIN TRY
     ELSE
         UPDATE core.Tenants SET Name=@TenantName,IsActive=1,ModifiedOn=SYSUTCDATETIME(),ModifiedBy=@Actor WHERE TenantId=@TenantId;
 
+    EXEC sys.sp_set_session_context @key=N'TenantId', @value=@TenantId;
+
     DECLARE @SubscriptionId uniqueidentifier=(SELECT TOP(1) SubscriptionId FROM core.Subscriptions WHERE TenantId=@TenantId AND PlanId=@PlanId ORDER BY IsActive DESC,CreatedOn,SubscriptionId);
     IF @SubscriptionId IS NULL
     BEGIN
@@ -170,10 +172,19 @@ BEGIN TRY
         VALUES(N'QA-CUST-001',N'QA Walk-in Customer',N'RETAIL',N'INR',@CustomerTerm,0,0,0,1,0,N'QA bootstrap customer',@Actor,@TenantId);
     ELSE UPDATE sales.Customers SET TenantId=@TenantId,IsActive=1,IsDeleted=0 WHERE CustomerCode=N'QA-CUST-001';
     DECLARE @SupplierTerm uniqueidentifier=(SELECT PaymentTermId FROM purchase.SupplierPaymentTerms WHERE PaymentTermCode=N'NET30');
-    IF NOT EXISTS(SELECT 1 FROM purchase.Suppliers WHERE SupplierCode=N'SUP-000001' AND IsDeleted=0)
+    DECLARE @SupplierId uniqueidentifier=(SELECT TOP(1) SupplierId FROM purchase.Suppliers WITH(UPDLOCK,HOLDLOCK)
+        WHERE TenantId=@TenantId AND IsDeleted=0 AND (SupplierCode=N'SUP-000001' OR SupplierCode=N'QA-SUP-001' OR SupplierName=N'QA Test Supplier')
+        ORDER BY CASE WHEN SupplierCode=N'SUP-000001' THEN 0 WHEN SupplierName=N'QA Test Supplier' THEN 1 ELSE 2 END, CreatedOn, SupplierId);
+    IF @SupplierId IS NULL
         INSERT purchase.Suppliers(SupplierCode,SupplierName,SupplierType,Currency,PaymentTermId,CreditLimit,OpeningBalance,IsGSTRegistered,IsTDSApplicable,IsActive,IsDeleted,Remarks,CreatedBy,TenantId)
         VALUES(N'SUP-000001',N'QA Test Supplier',N'LOCAL',N'INR',@SupplierTerm,0,0,0,0,1,0,N'QA bootstrap supplier',@Actor,@TenantId);
-    ELSE UPDATE purchase.Suppliers SET TenantId=@TenantId,IsActive=1,IsDeleted=0 WHERE SupplierCode=N'SUP-000001';
+    ELSE
+    BEGIN
+        UPDATE purchase.Suppliers SET IsActive=0,IsDeleted=1,ModifiedOn=SYSUTCDATETIME(),ModifiedBy=@Actor
+        WHERE TenantId=@TenantId AND IsDeleted=0 AND SupplierId<>@SupplierId
+          AND (SupplierCode=N'SUP-000001' OR SupplierCode=N'QA-SUP-001' OR SupplierName=N'QA Test Supplier');
+        UPDATE purchase.Suppliers SET TenantId=@TenantId,SupplierCode=N'SUP-000001',SupplierName=N'QA Test Supplier',IsActive=1,IsDeleted=0,ModifiedOn=SYSUTCDATETIME(),ModifiedBy=@Actor WHERE SupplierId=@SupplierId;
+    END;
 
     DECLARE @CategoryId uniqueidentifier=COALESCE((SELECT ProductCategoryId FROM master.ProductCategories WHERE CategoryCode=N'QA-CATALOG' AND IsDeleted=0),CONVERT(uniqueidentifier,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa6'));
     IF NOT EXISTS(SELECT 1 FROM master.ProductCategories WHERE ProductCategoryId=@CategoryId)

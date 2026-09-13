@@ -3,6 +3,7 @@ import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angu
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog } from '@angular/material/dialog';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -14,6 +15,7 @@ import { catchError, finalize, forkJoin, map, of } from 'rxjs';
 import { BarcodeScanResult } from '../pos/barcode-camera.service';
 import { BarcodeScannerComponent } from '../pos/barcode-scanner.component';
 import { ProductApiService } from './product-api.service';
+import { ProductMasterDialogComponent, ProductMasterDialogData } from './product-master-dialog.component';
 import {
   Brand,
   Category,
@@ -63,6 +65,10 @@ import {
       }
       mat-form-field {
         width: 100%;
+      }
+      .required-note {
+        color: #b42318;
+        font-weight: 700;
       }
       .grid {
         padding-top: 1rem;
@@ -340,8 +346,9 @@ export class ProductFormComponent implements OnDestroy {
   constructor(
     private readonly api: ProductApiService,
     route: ActivatedRoute,
-    private readonly router: Router,
-    private readonly snackBar: MatSnackBar,
+  private readonly router: Router,
+  private readonly snackBar: MatSnackBar,
+    private readonly dialog: MatDialog,
   ) {
     this.productId = route.snapshot.paramMap.get('id');
     this.copySourceId = this.productId ? null : route.snapshot.queryParamMap.get('copyFrom');
@@ -502,22 +509,30 @@ export class ProductFormComponent implements OnDestroy {
   removeBarcode(barcode: ProductBarcodeInput): void {
     this.additionalBarcodes.update((items) => items.filter((item) => item !== barcode));
   }
+  openMasterDialog(kind: ProductMasterDialogData): void {
+    this.dialog.open(ProductMasterDialogComponent, { width: 'min(480px, 94vw)', data: kind }).afterClosed().subscribe(result => {
+      if (!result) return;
+      if (kind === 'brand') {
+        this.brands.update(items => [...items, result].sort((a, b) => a.brandName.localeCompare(b.brandName)));
+        this.form.controls.brandId.setValue(result.brandId);
+        this.snackBar.open('Brand added and selected.', undefined, { duration: 2500 });
+      } else {
+        this.units.update(items => [...items, result].sort((a, b) => a.unitName.localeCompare(b.unitName)));
+        this.form.controls.unitId.setValue(result.unitId);
+        this.snackBar.open('Unit added and selected.', undefined, { duration: 2500 });
+      }
+    });
+  }
+  /** Legacy entry points retained for focused tests and programmatic callers. */
   createBrand(): void {
     const brandName = this.quickBrandName.trim();
     if (!brandName || this.savingBrand()) return;
     this.savingBrand.set(true);
-    this.api
-      .createBrand({ brandCode: '', brandName, description: '', logo: '', isActive: true })
+    this.api.createBrand({ brandCode: '', brandName, description: '', logo: '', isActive: true })
       .pipe(finalize(() => this.savingBrand.set(false)))
       .subscribe({
-        next: (brand) => {
-          this.brands.update((items) => [...items, brand].sort((a, b) => a.brandName.localeCompare(b.brandName)));
-          this.form.controls.brandId.setValue(brand.brandId);
-          this.quickBrandName = '';
-          this.addingBrand.set(false);
-          this.snackBar.open('Brand added and selected.', undefined, { duration: 2500 });
-        },
-        error: () => this.snackBar.open('Brand could not be added.', 'Dismiss', { duration: 4000 }),
+        next: brand => { this.brands.update(items => [...items, brand].sort((a, b) => a.brandName.localeCompare(b.brandName))); this.form.controls.brandId.setValue(brand.brandId); this.quickBrandName = ''; this.addingBrand.set(false); this.snackBar.open('Brand added and selected.', undefined, { duration: 2500 }); },
+        error: error => this.snackBar.open(error?.error?.message || 'Brand could not be added.', 'Dismiss', { duration: 4000 }),
       });
   }
   createUnit(): void {
@@ -525,19 +540,11 @@ export class ProductFormComponent implements OnDestroy {
     const shortName = this.quickUnitShortName.trim() || unitName.slice(0, 20).toUpperCase();
     if (!unitName || this.savingUnit()) return;
     this.savingUnit.set(true);
-    this.api
-      .createUnit({ unitCode: '', unitName, shortName, decimalPlaces: 0, isActive: true })
+    this.api.createUnit({ unitCode: '', unitName, shortName, decimalPlaces: 0, isActive: true })
       .pipe(finalize(() => this.savingUnit.set(false)))
       .subscribe({
-        next: (unit) => {
-          this.units.update((items) => [...items, unit].sort((a, b) => a.unitName.localeCompare(b.unitName)));
-          this.form.controls.unitId.setValue(unit.unitId);
-          this.quickUnitName = '';
-          this.quickUnitShortName = '';
-          this.addingUnit.set(false);
-          this.snackBar.open('Unit added and selected.', undefined, { duration: 2500 });
-        },
-        error: () => this.snackBar.open('Unit could not be added.', 'Dismiss', { duration: 4000 }),
+        next: unit => { this.units.update(items => [...items, unit].sort((a, b) => a.unitName.localeCompare(b.unitName))); this.form.controls.unitId.setValue(unit.unitId); this.quickUnitName = ''; this.quickUnitShortName = ''; this.addingUnit.set(false); this.snackBar.open('Unit added and selected.', undefined, { duration: 2500 }); },
+        error: error => this.snackBar.open(error?.error?.message || 'Unit could not be added.', 'Dismiss', { duration: 4000 }),
       });
   }
   private addAdditional(value: string, barcodeType: string): boolean {

@@ -28,7 +28,9 @@ public sealed class SupplierRepository(ApplicationDbContext db, ICurrentUserServ
         return q.SingleOrDefaultAsync(x => x.SupplierId == id, token);
     }
 
-    public Task<bool> DuplicateAsync(string code, string? gstin, string name, Guid? exclude, CancellationToken token) => Scoped(false).AnyAsync(x => (!exclude.HasValue || x.SupplierId != exclude) && (x.SupplierCode == code.Trim() || x.SupplierName == name.Trim() || (!string.IsNullOrWhiteSpace(gstin) && x.GSTIN == gstin.Trim())), token);
+    public Task<bool> DuplicateAsync(string code, string? gstin, string name, Guid? exclude, CancellationToken token) => Scoped(false).AnyAsync(x => (!exclude.HasValue || x.SupplierId != exclude) && (x.SupplierCode == code.Trim() || (!string.IsNullOrWhiteSpace(gstin) && x.GSTIN == gstin.Trim())), token);
+    public Task<bool> CodeExistsAsync(string code, Guid? exclude, CancellationToken token) => Scoped(false).AnyAsync(x => (!exclude.HasValue || x.SupplierId != exclude) && x.SupplierCode == code.Trim(), token);
+    public Task<bool> GstinExistsAsync(string gstin, Guid? exclude, CancellationToken token) => Scoped(false).AnyAsync(x => (!exclude.HasValue || x.SupplierId != exclude) && x.GSTIN == gstin.Trim(), token);
     public async Task<IReadOnlyCollection<SupplierPaymentTerm>> PaymentTermsAsync(CancellationToken token) => await db.SupplierPaymentTerms.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.DueDays).ToArrayAsync(token);
     public void Add(Supplier supplier) => db.Suppliers.Add(supplier);
     public void RemoveChildren(Supplier supplier) { db.SupplierContacts.RemoveRange(supplier.Contacts); db.SupplierAddresses.RemoveRange(supplier.Addresses); db.SupplierBankAccounts.RemoveRange(supplier.BankAccounts); supplier.Contacts = []; supplier.Addresses = []; supplier.BankAccounts = []; }

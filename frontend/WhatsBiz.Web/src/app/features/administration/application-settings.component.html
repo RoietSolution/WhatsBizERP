@@ -21,14 +21,16 @@
             </header>
             <div class="settings-grid">
               @for (x of byCategory(group); track x.key) {
-                <mat-form-field appearance="outline"
+                @if (x.dataType === 'BOOLEAN') {
+                  <mat-checkbox [checked]="x.value !== 'false'" (change)="x.value = $event.checked ? 'true' : 'false'">{{ label(x.key) }}</mat-checkbox>
+                } @else { <mat-form-field appearance="outline"
                   ><mat-label>{{ label(x.key) }}</mat-label
                   ><input
                     matInput
                     [(ngModel)]="x.value"
                     [attr.aria-label]="label(x.key)"
                   /><mat-hint>{{ x.key }}</mat-hint></mat-form-field
-                >
+                > }
               }
             </div>
             @if (preview(group); as example) {

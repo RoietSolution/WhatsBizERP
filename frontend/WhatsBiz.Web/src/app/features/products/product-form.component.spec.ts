@@ -36,8 +36,9 @@ describe('ProductFormComponent manufacturer codes', () => {
     } as unknown as ActivatedRoute;
     const router = jasmine.createSpyObj<Router>('Router', ['navigate']);
     const snack = jasmine.createSpyObj('MatSnackBar', ['open']);
+    const dialog = jasmine.createSpyObj('MatDialog', ['open']);
     const component = TestBed.runInInjectionContext(
-      () => new ProductFormComponent(api, route, router, snack),
+      () => new ProductFormComponent(api, route, router, snack, dialog),
     );
     return { component, api, snack };
   }

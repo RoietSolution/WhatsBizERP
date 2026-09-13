@@ -4,6 +4,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatTabsModule } from '@angular/material/tabs';
 import { PageContainerComponent } from '../../shared/components/page-container/page-container.component';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
@@ -16,6 +17,7 @@ import { AdminApiService, Setting } from './admin-api.service';
     MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
+    MatCheckboxModule,
     MatTabsModule,
     PageContainerComponent,
     PageHeaderComponent,
@@ -110,6 +112,13 @@ export class ApplicationSettingsComponent {
     ...this.codeSettings('SUPPLIER', 'SUP', 'Supplier Code'),
     ...this.codeSettings('PRODUCT', 'PRD', 'Product Code'),
   ];
+  private readonly invoicePrintDefaults: Setting[] = [
+    { key: 'POS_PRINT_SHOW_COUNTER', value: 'true', dataType: 'BOOLEAN', category: 'Invoice Printing' },
+    { key: 'POS_PRINT_SHOW_TERMINAL', value: 'true', dataType: 'BOOLEAN', category: 'Invoice Printing' },
+    { key: 'POS_PRINT_SHOW_CASHIER', value: 'true', dataType: 'BOOLEAN', category: 'Invoice Printing' },
+    { key: 'POS_PRINT_SHOW_GST_PERCENTAGE', value: 'true', dataType: 'BOOLEAN', category: 'Invoice Printing' },
+    { key: 'POS_PRINT_SHOW_GST_AMOUNT', value: 'true', dataType: 'BOOLEAN', category: 'Invoice Printing' },
+  ];
   title = 'Retailer Settings';
   constructor(
     private api: AdminApiService,
@@ -118,7 +127,7 @@ export class ApplicationSettingsComponent {
     this.title = route.snapshot.data['title'] ?? this.title;
     api.settings().subscribe((x) => {
       const settings = [...x];
-      for (const item of [...this.posPaymentDefaults, ...this.codeFormatDefaults])
+      for (const item of [...this.posPaymentDefaults, ...this.codeFormatDefaults, ...this.invoicePrintDefaults])
         if (!settings.some((existing) => existing.key === item.key)) settings.push({ ...item });
       this.items.set(settings);
     });

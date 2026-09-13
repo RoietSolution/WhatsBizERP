@@ -7,6 +7,7 @@ using MediatR;
 using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Printing;
+using WhatsBiz.Application.Features.Administration;
 using WhatsBiz.Domain.Customers;
 using WhatsBiz.Domain.POS;
 
@@ -381,7 +382,9 @@ public sealed class POSHandlers(
             var artifact = printing.QrCode(new QRCodeInput(POSUpiPayment.BuildUri(upiId, payeeName, invoice.BalanceAmount > 0 ? invoice.BalanceAmount : invoice.GrandTotal), 8, "M"));
             paymentQr = $"data:{artifact.ContentType};base64,{Convert.ToBase64String(artifact.Data)}";
         }
-        return documents.InvoiceHtml(invoice, q.Paper, new(company, loyalty, paymentQr));
+        static bool Enabled(IReadOnlyCollection<SettingDto> values, string key) => !values.Any(x => x.Key == key) || !string.Equals(values.First(x => x.Key == key).Value, "false", StringComparison.OrdinalIgnoreCase);
+        var options = new POSInvoicePrintOptions(Enabled(settings, "POS_PRINT_SHOW_COUNTER"), Enabled(settings, "POS_PRINT_SHOW_TERMINAL"), Enabled(settings, "POS_PRINT_SHOW_CASHIER"), Enabled(settings, "POS_PRINT_SHOW_GST_PERCENTAGE"), Enabled(settings, "POS_PRINT_SHOW_GST_AMOUNT"));
+        return documents.InvoiceHtml(invoice, q.Paper, new(company, loyalty, paymentQr, options));
     }
 
     public async Task<byte[]> Handle(ExportSales q, CancellationToken t)

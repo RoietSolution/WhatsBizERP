@@ -36,7 +36,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             var wasClosed = connection.State == System.Data.ConnectionState.Closed;
             if (wasClosed) await connection.OpenAsync(cancellationToken);
             await using var command = connection.CreateCommand();
-            command.CommandText = "EXEC sys.sp_set_session_context @key=N'TenantId', @value=@tenant";
+            command.CommandText = "SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET CONCAT_NULL_YIELDS_NULL ON; SET ARITHABORT ON; SET NUMERIC_ROUNDABORT OFF; EXEC sys.sp_set_session_context @key=N'TenantId', @value=@tenant";
             var parameter = command.CreateParameter();
             parameter.ParameterName = "@tenant";
             parameter.Value = tenantId;

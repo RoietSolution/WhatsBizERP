@@ -33,6 +33,12 @@ public static class DependencyInjection
             options.Password.RequireNonAlphanumeric = true;
             options.User.RequireUniqueEmail = true;
         }).AddEntityFrameworkStores<ApplicationDbContext>().AddDefaultTokenProviders();
+        services.AddOptions<PasswordResetOptions>().Bind(configuration.GetSection(PasswordResetOptions.SectionName))
+            .Validate(x => Uri.TryCreate(x.FrontendBaseUrl, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https", "PasswordReset:FrontendBaseUrl must be an absolute HTTP(S) URL.")
+            .Validate(x => x.TokenLifespanMinutes is >= 5 and <= 1440, "PasswordReset:TokenLifespanMinutes must be between 5 and 1440.")
+            .ValidateOnStart();
+        services.Configure<DataProtectionTokenProviderOptions>(options =>
+            options.TokenLifespan = TimeSpan.FromMinutes(Math.Clamp(configuration.GetValue<int?>("PasswordReset:TokenLifespanMinutes") ?? 60, 5, 1440)));
         services.AddOptions<IdentityBootstrapOptions>()
             .Bind(configuration.GetSection(IdentityBootstrapOptions.SectionName))
             .Validate(x => !x.ApplicationOwner.Enabled ||
@@ -53,6 +59,7 @@ public static class DependencyInjection
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
+        services.AddScoped<IEntityCodeService, EntityCodeService>();
         services.AddScoped<SqlIdempotencyExecutor>();
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddSingleton<IProductSpreadsheetService, ProductSpreadsheetService>();

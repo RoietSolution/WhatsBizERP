@@ -3,7 +3,7 @@ public sealed record LoginRequest(string Username, string Password, string Porta
 public sealed record RefreshTokenRequest(string RefreshToken);
 public sealed record LogoutRequest(string RefreshToken);
 public sealed record ForgotPasswordRequest(string Identifier);
-public sealed record ForgotPasswordResponse(string Message, string? ResetToken = null, string? UserId = null);
+public sealed record ForgotPasswordResponse(string Message);
 public sealed record ResetPasswordRequest(string UserId, string Token, string NewPassword);
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public sealed record UpdateProfileRequest(string Email);

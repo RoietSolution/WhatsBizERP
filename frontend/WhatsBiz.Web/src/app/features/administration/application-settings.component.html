@@ -31,6 +31,9 @@
                 >
               }
             </div>
+            @if (preview(group); as example) {
+              <p class="code-preview"><strong>Example:</strong> {{ example }}</p>
+            }
           </section></mat-tab
         >
       }

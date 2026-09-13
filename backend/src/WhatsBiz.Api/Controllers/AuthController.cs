@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Options;
 using WhatsBiz.Application.Features.Authentication.CurrentUser;
 using WhatsBiz.Application.Features.Authentication.DTOs;
 using WhatsBiz.Application.Features.Authentication.Login;
@@ -12,11 +13,15 @@ using WhatsBiz.Application.Features.Authentication.Logout;
 using WhatsBiz.Application.Features.Authentication.RefreshToken;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Infrastructure.Identity;
+using WhatsBiz.Infrastructure.DemoRequests;
 namespace WhatsBiz.Api.Controllers;
 [ApiController]
 [Route("api/auth")]
-public sealed class AuthController(ISender sender, UserManager<ApplicationUser> users, IWebHostEnvironment environment) : ControllerBase
+public sealed class AuthController(ISender sender, UserManager<ApplicationUser> users, IDemoRequestEmailSender emailSender, IOptions<DemoRequestOptions> smtpOptions, IOptions<PasswordResetOptions> resetOptions, ILogger<AuthController> logger) : ControllerBase
 {
+    private const string GenericResetMessage = "If the account exists, reset instructions have been sent.";
+    private static readonly Action<ILogger, Guid, string, Exception?> ResetEmailFailed =
+        LoggerMessage.Define<Guid, string>(LogLevel.Error, new EventId(3201, nameof(ResetEmailFailed)), "Password reset email delivery failed for user {UserId}; failure type: {FailureType}");
     [AllowAnonymous][HttpPost("login")][ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)][ProducesResponseType(StatusCodes.Status400BadRequest)] public Task<AuthResponse> Login(LoginRequest request, CancellationToken cancellationToken) => sender.Send(new LoginCommand(request.Username, request.Password, "Retailer"), cancellationToken);
     [AllowAnonymous][HttpPost("application-owner/login")][ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)][ProducesResponseType(StatusCodes.Status400BadRequest)] public Task<AuthResponse> ApplicationOwnerLogin(LoginRequest request, CancellationToken cancellationToken) => sender.Send(new LoginCommand(request.Username, request.Password, "ApplicationOwner"), cancellationToken);
     [AllowAnonymous][HttpPost("refresh")][ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)] public Task<AuthResponse> Refresh(RefreshTokenRequest request, CancellationToken cancellationToken) => sender.Send(new RefreshTokenCommand(request.RefreshToken), cancellationToken);
@@ -28,14 +33,24 @@ public sealed class AuthController(ISender sender, UserManager<ApplicationUser> 
     public async Task<ForgotPasswordResponse> ForgotPassword(ForgotPasswordRequest request)
     {
         var identifier = request.Identifier.Trim();
-        if (string.IsNullOrWhiteSpace(identifier)) return new("If the account exists, reset instructions have been prepared.");
+        if (string.IsNullOrWhiteSpace(identifier)) return new(GenericResetMessage);
         var user = await users.FindByNameAsync(identifier) ?? await users.FindByEmailAsync(identifier);
-        if (user is null || !user.IsActive || user.IsDeleted) return new("If the account exists, reset instructions have been prepared.");
-        var token = await users.GeneratePasswordResetTokenAsync(user);
-        var encoded = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
-        return environment.IsDevelopment()
-            ? new("Reset instructions are ready for this development environment.", encoded, user.Id.ToString())
-            : new("If the account exists, reset instructions have been sent.");
+        if (user is null || !user.IsActive || user.IsDeleted) return new(GenericResetMessage);
+        try
+        {
+            if (!smtpOptions.Value.Email.Enabled) throw new InvalidOperationException("Password reset email is disabled.");
+            var token = await users.GeneratePasswordResetTokenAsync(user);
+            var encoded = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+            var baseUrl = resetOptions.Value.FrontendBaseUrl.TrimEnd('/');
+            var link = $"{baseUrl}/reset-password?userId={Uri.EscapeDataString(user.Id.ToString())}&token={Uri.EscapeDataString(encoded)}";
+            var body = $"<p>A password reset was requested for your KhataDhari account.</p><p><a href=\"{System.Net.WebUtility.HtmlEncode(link)}\">Reset password</a></p><p>This link expires in {Math.Clamp(resetOptions.Value.TokenLifespanMinutes, 5, 1440)} minutes. If you did not request this, ignore this email.</p>";
+            await emailSender.SendAsync(new DemoRequestEmail(user.Email!, "Reset your KhataDhari password", body, true), HttpContext.RequestAborted);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            ResetEmailFailed(logger, user.Id, exception.GetType().Name, null);
+        }
+        return new(GenericResetMessage);
     }
 
     [AllowAnonymous]

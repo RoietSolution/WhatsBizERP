@@ -17,6 +17,8 @@ Swagger is available only in Development. Production requests use forwarded head
 
 Systemd loads `/etc/whatsbiz/qa.env` through the unit's `EnvironmentFile` directive. ASP.NET Core's standard environment-variable provider then reads those process variables; nested keys use double underscores, such as `DemoRequests__Email__Host`. The application does not parse `.env` files itself.
 
+Forgot-password mail uses the existing `DemoRequests__Email__*` SMTP transport. Set `PasswordReset__FrontendBaseUrl` to the environment's public Angular origin and `PasswordReset__TokenLifespanMinutes` to the desired reset-link lifetime (60 by default). Do not place SMTP credentials in committed appsettings files.
+
 Start with `deployment/qa.env.example`, keep the real file outside the deployment directory, restrict it to root and the API service group, and never commit it. See `deployment/README-QA.md` for the complete QA setup.
 
 ## Product image storage

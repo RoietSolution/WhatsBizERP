@@ -14,7 +14,7 @@ import { FeatureService } from '../../../core/services/feature.service';
 import { NavigationItem } from '../../models/navigation.model';
 import { ProfilePhotoService } from '../../services/profile-photo.service';
 
-const navigation: NavigationItem[] = [
+export const navigation: NavigationItem[] = [
   { label: 'Overview', icon: 'space_dashboard', route: '/dashboard', permission: 'dashboard.view', feature: 'DASHBOARD' },
   {
     label: 'Point of Sale',

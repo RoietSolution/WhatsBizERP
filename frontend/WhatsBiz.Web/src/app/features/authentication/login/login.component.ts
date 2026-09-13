@@ -8,6 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthenticationService } from '../../../core/services/authentication.service';
 import { LoadingOverlayComponent } from '../../../shared/components/loading-overlay/loading-overlay.component';
+import { LandingRouteService } from '../../../core/services/landing-route.service';
 
 @Component({
   selector: 'app-login',
@@ -41,6 +42,7 @@ export class LoginComponent {
   constructor(
     private readonly authentication: AuthenticationService,
     private readonly router: Router,
+    private readonly landing: LandingRouteService,
     route: ActivatedRoute,
   ) {
     this.applicationOwner = route.snapshot.data['portal'] === 'application-owner';
@@ -59,7 +61,7 @@ export class LoginComponent {
       next: (session) => void this.router.navigateByUrl(
         session.user.mustChangePassword
           ? '/change-password'
-          : this.applicationOwner ? '/application-owner' : '/dashboard',
+          : this.landing.resolve(session.user),
       ),
       error: (response: HttpErrorResponse) => {
         this.loading.set(false);

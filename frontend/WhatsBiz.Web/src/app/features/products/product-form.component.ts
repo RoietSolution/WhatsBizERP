@@ -350,6 +350,7 @@ export class ProductFormComponent implements OnDestroy {
       brands: api.brands(),
       units: api.units(),
       product: this.productId || this.copySourceId ? api.get(this.productId ?? this.copySourceId!) : of(null),
+      nextCode: this.productId ? of(null) : api.nextCode(),
     })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
@@ -358,10 +359,11 @@ export class ProductFormComponent implements OnDestroy {
           this.flatCategories.set(this.flatten(data.categories));
           this.brands.set(data.brands.filter((x) => x.isActive));
           this.units.set(data.units.filter((x) => x.isActive));
+          if (data.nextCode) this.form.patchValue({ productCode: data.nextCode });
           if (data.product) {
             this.form.patchValue(
               this.copySourceId
-                ? { ...data.product, productCode: '', barcode: null, productName: `${data.product.productName} Copy` }
+                ? { ...data.product, productCode: data.nextCode ?? '', barcode: null, productName: `${data.product.productName} Copy` }
                 : data.product,
             );
             this.additionalBarcodes.set(this.copySourceId ? [] : (data.product.additionalBarcodes ?? []));

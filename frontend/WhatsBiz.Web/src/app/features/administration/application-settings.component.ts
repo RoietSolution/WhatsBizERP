@@ -67,6 +67,7 @@ import { AdminApiService, Setting } from './admin-api.service';
         place-content: center;
         text-align: center;
       }
+      .code-preview { margin-top: 8px; padding: 10px 12px; border-radius: 8px; background: var(--wb-primary-soft); font-size: 14px; }
       .empty .material-symbols-rounded {
         margin: auto;
         color: var(--wb-primary);
@@ -104,6 +105,11 @@ export class ApplicationSettingsComponent {
     { key: 'POS_UPI_ID', value: '', dataType: 'STRING', category: 'POS Payments' },
     { key: 'POS_UPI_PAYEE_NAME', value: '', dataType: 'STRING', category: 'POS Payments' },
   ];
+  private readonly codeFormatDefaults: Setting[] = [
+    ...this.codeSettings('CUSTOMER', 'CUS', 'Customer Code'),
+    ...this.codeSettings('SUPPLIER', 'SUP', 'Supplier Code'),
+    ...this.codeSettings('PRODUCT', 'PRD', 'Product Code'),
+  ];
   title = 'Retailer Settings';
   constructor(
     private api: AdminApiService,
@@ -112,16 +118,31 @@ export class ApplicationSettingsComponent {
     this.title = route.snapshot.data['title'] ?? this.title;
     api.settings().subscribe((x) => {
       const settings = [...x];
-      for (const item of this.posPaymentDefaults)
+      for (const item of [...this.posPaymentDefaults, ...this.codeFormatDefaults])
         if (!settings.some((existing) => existing.key === item.key)) settings.push({ ...item });
       this.items.set(settings);
     });
+  }
+  private codeSettings(stem: string, prefix: string, category: string): Setting[] {
+    return [
+      { key: `${stem}_CODE_PREFIX`, value: prefix, dataType: 'STRING', category },
+      { key: `${stem}_CODE_SEPARATOR`, value: '-', dataType: 'STRING', category },
+      { key: `${stem}_CODE_PADDING`, value: '6', dataType: 'NUMBER', category },
+    ];
   }
   categories() {
     return [...new Set(this.items().map((x) => x.category))];
   }
   byCategory(x: string) {
     return this.items().filter((y) => y.category === x);
+  }
+  preview(category: string): string | null {
+    if (!category.endsWith(' Code')) return null;
+    const stem = category.replace(' Code', '').toUpperCase();
+    const value = (suffix: string, fallback: string) =>
+      this.items().find((x) => x.key === `${stem}_CODE_${suffix}`)?.value ?? fallback;
+    const padding = Math.min(12, Math.max(1, Number(value('PADDING', '6')) || 6));
+    return `${value('PREFIX', stem.slice(0, 3))}${value('SEPARATOR', '-')}${'1'.padStart(padding, '0')}`;
   }
   label(key: string) {
     return key

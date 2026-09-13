@@ -25,6 +25,7 @@ export class CustomerApiService {
   get(id: string) {
     return this.http.get<Customer>(`/api/customers/${id}`);
   }
+  codePreview() { return this.http.get('/api/customers/code-preview', { responseType: 'text' }); }
   dropdown(search?:string){return this.http.get<CustomerDropdown[]>('/api/customers/dropdown',{params:search?{search}:{}});}
   create(x: CustomerInput) {
     return this.http.post<Customer>('/api/customers', x);

@@ -43,6 +43,7 @@ public sealed record DemoRequestSummary(
     string ReferenceNo,
     string Name,
     string Mobile,
+    string? Email,
     string? BusinessName,
     string? BusinessType,
     string? City,

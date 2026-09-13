@@ -8,8 +8,6 @@ import { FeatureService } from './feature.service';
 
 export interface ForgotPasswordResponse {
   message: string;
-  resetToken?: string;
-  userId?: string;
 }
 
 @Injectable({ providedIn: 'root' })

@@ -25,6 +25,7 @@ export class SupplierApiService {
   get(id: string) {
     return this.http.get<Supplier>(`/api/suppliers/${id}`);
   }
+  codePreview() { return this.http.get('/api/suppliers/code-preview', { responseType: 'text' }); }
   create(x: SupplierInput) {
     return this.http.post<Supplier>('/api/suppliers', x);
   }

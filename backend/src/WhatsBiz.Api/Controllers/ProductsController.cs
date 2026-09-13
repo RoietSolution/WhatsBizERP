@@ -4,13 +4,16 @@ using WhatsBiz.Api.Authorization;
 using WhatsBiz.Application.Features.Products.DTOs;
 using WhatsBiz.Application.Features.Products.Products;
 using WhatsBiz.SharedKernel;
+using WhatsBiz.Application.Common.Interfaces;
 
 namespace WhatsBiz.Api.Controllers;
 
 [ApiController]
 [Route("api/products")]
-public sealed class ProductsController(ISender sender) : ControllerBase
+public sealed class ProductsController(ISender sender, IEntityCodeService codes) : ControllerBase
 {
+    [HttpGet("next-code"), HasPermission(Permissions.Product.Create)]
+    public Task<string> NextCode(CancellationToken cancellationToken) => codes.NextAsync(EntityCodeKind.Product, cancellationToken);
     [HttpGet, HasPermission(Permissions.Product.View)]
     public Task<PagedResult<ProductListItemDto>> Get([FromQuery] string? search, [FromQuery] bool? isActive, [FromQuery] string sortBy = "productName", [FromQuery] bool descending = false, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) => sender.Send(new GetProductsQuery(search, isActive, sortBy, descending, pageNumber, pageSize), cancellationToken);
 

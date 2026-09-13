@@ -25,7 +25,7 @@ CREATE TABLE [master].[Products] (
     [TenantId] UNIQUEIDENTIFIER NOT NULL, [CreatedOn] DATETIMEOFFSET NOT NULL, [CreatedBy] NVARCHAR(256) NULL, [ModifiedOn] DATETIMEOFFSET NULL, [ModifiedBy] NVARCHAR(256) NULL, [IsActive] BIT NOT NULL, [IsDeleted] BIT NOT NULL, [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [FK_Products_Categories] FOREIGN KEY ([CategoryId]) REFERENCES [master].[ProductCategories]([ProductCategoryId]), CONSTRAINT [FK_Products_Brands] FOREIGN KEY ([BrandId]) REFERENCES [master].[Brands]([BrandId]), CONSTRAINT [FK_Products_Units] FOREIGN KEY ([UnitId]) REFERENCES [master].[UnitsOfMeasure]([UnitId]), CONSTRAINT [FK_Products_Tenants] FOREIGN KEY ([TenantId]) REFERENCES [core].[Tenants]([TenantId]), CONSTRAINT [CK_Products_BarcodeType] CHECK ([BarcodeType] IN ('CODE128','EAN13','EAN8','UPC','UPCA','UPCE','CODE39','QR','CUSTOM')));
 GO
-CREATE UNIQUE INDEX [UX_Products_ProductCode] ON [master].[Products]([ProductCode]) WHERE [IsDeleted] = 0;
+CREATE UNIQUE INDEX [UX_Products_ProductCode] ON [master].[Products]([TenantId],[ProductCode]) WHERE [TenantId] IS NOT NULL AND [IsDeleted] = 0;
 GO
 CREATE UNIQUE INDEX [UX_Products_Tenant_Barcode] ON [master].[Products]([TenantId], [Barcode]) WHERE [Barcode] IS NOT NULL AND [IsDeleted] = 0;
 GO

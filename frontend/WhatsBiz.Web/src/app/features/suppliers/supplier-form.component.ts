@@ -114,9 +114,10 @@ export class SupplierFormComponent {
     private readonly snack: MatSnackBar,
   ) {
     this.id = route.snapshot.paramMap.get('id');
-    forkJoin({ terms: api.terms(), supplier: this.id ? api.get(this.id) : of(null) }).subscribe(
+    forkJoin({ terms: api.terms(), supplier: this.id ? api.get(this.id) : of(null), code: this.id ? of(null) : api.codePreview() }).subscribe(
       (x) => {
         this.terms.set(x.terms);
+        if (x.code) this.form.patchValue({ supplierCode: x.code });
         if (x.supplier) {
           this.form.patchValue({
             ...x.supplier,
@@ -156,7 +157,7 @@ export class SupplierFormComponent {
         void this.router.navigate(['/suppliers', x.supplierId]);
       },
       error: (response: HttpErrorResponse) => this.snack.open(
-        response.error?.detail ?? 'Supplier could not be saved. Check the API log using the request reference ID.',
+        response.error?.detail ?? 'The supplier could not be saved. Verify the details and try again.',
         'Dismiss',
         { duration: 8000 },
       ),

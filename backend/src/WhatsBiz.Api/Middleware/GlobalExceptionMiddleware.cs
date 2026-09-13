@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using WhatsBiz.Application.Common.Exceptions;
 using UnauthorizedAccessException = System.UnauthorizedAccessException;
 using System.Diagnostics;
+using Microsoft.Data.SqlClient;
 
 namespace WhatsBiz.Api.Middleware;
 
@@ -47,18 +48,35 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
         {
             LogRequest(context, started, 409, exception); await WriteProblemAsync(context, StatusCodes.Status409Conflict, "The record was changed by another user", [exception.Message]);
         }
+        catch (DbUpdateException exception)
+        {
+            LogRequest(context, started, 409, exception);
+            var detail = IsUniqueConstraint(exception)
+                ? "A record with the same unique value already exists. Check the supplier code or GSTIN and try again."
+                : context.Request.Path.StartsWithSegments("/api/suppliers")
+                    ? "The supplier could not be saved because its data conflicts with the current database. Verify the supplier details and try again."
+                    : "The record could not be saved because its data conflicts with the current database.";
+            await WriteProblemAsync(context, StatusCodes.Status409Conflict, "Unable to save record", [detail]);
+        }
         catch (Exception exception)
         {
             UnhandledException(logger, context.Request.Path, exception);
             LogRequest(context, started, 500, exception);
-            await WriteProblemAsync(context, StatusCodes.Status500InternalServerError, "An unexpected error occurred", null);
+            await WriteProblemAsync(context, StatusCodes.Status500InternalServerError, "Unable to complete request", ["The server could not complete this request. Please try again. If the problem continues, contact your administrator."]);
         }
     }
 
     private static Task WriteProblemAsync(HttpContext context, int status, string title, IEnumerable<string>? errors)
     {
         context.Response.StatusCode = status;
-        return context.Response.WriteAsJsonAsync(new ProblemDetails { Status = status, Title = title, Detail = errors is null ? $"Reference ID: {context.TraceIdentifier}" : $"{string.Join("; ", errors)} Reference ID: {context.TraceIdentifier}" });
+        return context.Response.WriteAsJsonAsync(new ProblemDetails { Status = status, Title = title, Detail = errors is null ? title : string.Join("; ", errors) });
+    }
+
+    private static bool IsUniqueConstraint(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException!)
+            if (current is SqlException { Number: 2601 or 2627 }) return true;
+        return false;
     }
 
     private void LogRequest(HttpContext context, long started, int status, Exception exception)

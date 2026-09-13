@@ -123,10 +123,11 @@ export class CustomerFormComponent {
     this.id = route.snapshot.paramMap.get('id');
     this.whatsappContactId = route.snapshot.queryParamMap.get('whatsappContactId');
     if(!this.id&&this.whatsappContactId)this.form.patchValue({customerCode:route.snapshot.queryParamMap.get('code')??'',customerName:route.snapshot.queryParamMap.get('name')??'',mobile:route.snapshot.queryParamMap.get('mobile')??'',remarks:'Created from an inbound WhatsApp contact.'});
-    forkJoin({ terms: api.terms(), groups: groupApi.list(), customer: this.id ? api.get(this.id) : of(null) }).subscribe(
+    forkJoin({ terms: api.terms(), groups: groupApi.list(), customer: this.id ? api.get(this.id) : of(null), code: this.id ? of(null) : api.codePreview() }).subscribe(
       (x) => {
         this.terms.set(x.terms);
         this.groups.set(x.groups);
+        if (x.code) this.form.patchValue({ customerCode: x.code });
         if (x.customer)
           this.form.patchValue({
             ...x.customer,

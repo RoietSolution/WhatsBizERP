@@ -92,6 +92,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         ConfigurePurchases(builder);
         ConfigureTenantOwnership(builder);
         ConfigureProductMasterVisibility(builder);
+        ConfigureTenantCodeIndexes(builder);
     }
 
     // Phase 1 ownership columns are nullable while historical ownership is audited.
@@ -111,6 +112,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         b.Entity<TenantProductCategory>().ToTable("TenantProductCategories", "master").HasKey(x => new { x.TenantId, x.ProductCategoryId });
         b.Entity<TenantBrand>().ToTable("TenantBrands", "master").HasKey(x => new { x.TenantId, x.BrandId });
         b.Entity<TenantUnitOfMeasure>().ToTable("TenantUnitsOfMeasure", "master").HasKey(x => new { x.TenantId, x.UnitId });
+    }
+
+    private static void ConfigureTenantCodeIndexes(ModelBuilder b)
+    {
+        var products = b.Entity<Product>();
+        var globalProductCode = products.Metadata.FindIndex([products.Property(x => x.ProductCode).Metadata]);
+        if (globalProductCode is not null) products.Metadata.RemoveIndex(globalProductCode);
+        products.HasIndex(x => new { x.TenantId, x.ProductCode }).IsUnique().HasDatabaseName("UX_Products_ProductCode").HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
+        b.Entity<Customer>().HasIndex(x => new { x.TenantId, x.CustomerCode }).IsUnique().HasDatabaseName("UX_Customers_Code").HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
     }
 
     private static void ConfigureTenantProperty<TEntity>(EntityTypeBuilder<TEntity> entity, string key)

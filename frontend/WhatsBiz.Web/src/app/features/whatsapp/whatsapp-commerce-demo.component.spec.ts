@@ -38,7 +38,7 @@ describe('WhatsAppCommerceDemoComponent', () => {
     const features = jasmine.createSpyObj<FeatureService>('FeatureService', ['tenants']);
     features.tenants.and.returnValue(of([{ tenantId: 'tenant-1', tenantKey: 'TEST', tenantName: 'Test Retailer' }]));
     const currentUser = new CurrentUserService();
-    currentUser.set({userId:'user-1',tenantId:scope==='retailer'?'tenant-1':null,username:'user',email:'user@example.com',roles:[scope==='owner'?'ApplicationOwner':'SystemAdministrator'],permissions:[],features:{}});
+    currentUser.set({userId:'user-1',tenantId:scope==='retailer'?'tenant-1':null,username:'user',email:'user@example.com',roles:[scope==='owner'?'ApplicationOwner':'SystemAdministrator'],permissions:[],features:{},mustChangePassword:false});
     const component = new WhatsAppCommerceDemoComponent(api, features, currentUser);
     if(scope==='owner'&&selectOwner){component.tenantId = 'tenant-1';component.selectTenant();}
     return { api, component, features };

@@ -3,6 +3,7 @@ import { authGuard } from './core/guards/auth.guard';
 import { permissionGuard } from './core/guards/permission.guard';
 import { featureGuard } from './core/guards/feature.guard';
 import { roleGuard } from './core/guards/role.guard';
+import { landingGuard } from './core/guards/landing.guard';
 const productView = { permission: 'product.view' },
   productCreate = { permission: 'product.create' },
   productEdit = { permission: 'product.edit' };
@@ -1106,7 +1107,7 @@ export const routes: Routes = [
             (m) => m.CollectionFollowUpComponent,
           ),
       },
-      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+      { path: '', pathMatch: 'full', canActivate: [landingGuard], loadComponent: () => import('./features/account/user-profile.component').then((m) => m.UserProfileComponent) },
     ],
   },
   {

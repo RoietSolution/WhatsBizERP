@@ -72,3 +72,5 @@ GO
 :r .\V29-NewTenantIsolationAndOnboarding.sql
 GO
 :r .\V30-TemporaryPasswordsAndSupplierUniqueness.sql
+GO
+:r .\V31-TenantEntityCodesAndV1Printing.sql

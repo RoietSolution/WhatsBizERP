@@ -37,6 +37,7 @@ export class ProductApiService {
   get(id: string): Observable<Product> {
     return this.http.get<Product>(`/api/products/${id}`);
   }
+  nextCode(): Observable<string> { return this.http.get('/api/products/next-code', { responseType: 'text' }); }
   history(id: string): Observable<ProductHistory[]> {
     return this.http.get<ProductHistory[]>(`/api/products/${id}/history`);
   }

@@ -43,7 +43,8 @@ export class DemoRequestsComponent {
   selectedStatus = '';
   readonly columns = [
     { field: 'referenceNo', headerName: 'Reference' }, { field: 'name', headerName: 'Customer Name' },
-    { field: 'mobile', headerName: 'Mobile' }, { field: 'businessName', headerName: 'Business' },
+    { field: 'mobile', headerName: 'Mobile' }, { field: 'email', headerName: 'Email' },
+    { field: 'businessName', headerName: 'Business' },
     { field: 'businessType', headerName: 'Business Type' }, { field: 'city', headerName: 'City' },
     { field: 'source', headerName: 'Source' },
     { field: 'createdOn', headerName: 'Created On', valueFormatter: (p: any) => p.value ? new Date(p.value).toLocaleString() : '' },

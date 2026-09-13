@@ -33,8 +33,6 @@ export class PasswordWorkflowComponent {
   readonly loading = signal(false);
   readonly error = signal('');
   readonly successMessage = signal('');
-  readonly resetLink = signal<string | null>(null);
-  readonly resetParams = signal<Record<string, string>>({});
   readonly form = new FormGroup({
     identifier: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     currentPassword: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -117,12 +115,8 @@ export class PasswordWorkflowComponent {
       next: (response) => {
         this.loading.set(false);
         if (this.mode === 'forgot') {
-          const result = response as { message: string; resetToken?: string; userId?: string };
+          const result = response as { message: string };
           this.successMessage.set(result.message);
-          if (result.resetToken && result.userId) {
-            this.resetLink.set('/reset-password');
-            this.resetParams.set({ token: result.resetToken, userId: result.userId });
-          }
         }
         this.success.set(true);
       },

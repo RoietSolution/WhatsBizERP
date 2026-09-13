@@ -4,6 +4,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using WhatsBiz.Infrastructure.DemoRequests;
 using WhatsBiz.Infrastructure.Products;
+using WhatsBiz.Infrastructure.Identity;
 
 namespace WhatsBiz.Tests.Configuration;
 
@@ -24,7 +25,9 @@ public sealed class DeploymentConfigurationTests
             [$"{prefix}DemoRequests__Email__Enabled"] = "true",
             [$"{prefix}DemoRequests__Email__Host"] = "smtp.test",
             [$"{prefix}DemoRequests__Email__LogoUrl"] = "https://assets.example.test/logo.png",
-            [$"{prefix}DemoRequests__Email__FeatureImageUrl"] = "https://assets.example.test/features.png"
+            [$"{prefix}DemoRequests__Email__FeatureImageUrl"] = "https://assets.example.test/features.png",
+            [$"{prefix}PasswordReset__FrontendBaseUrl"] = "https://qa.example.test",
+            [$"{prefix}PasswordReset__TokenLifespanMinutes"] = "45"
         };
 
         try
@@ -33,6 +36,7 @@ public sealed class DeploymentConfigurationTests
             var configuration = new ConfigurationBuilder().AddEnvironmentVariables(prefix).Build();
             var storage = configuration.GetSection(ProductImageStorageOptions.SectionName).Get<ProductImageStorageOptions>()!;
             var demoRequests = configuration.GetSection(DemoRequestOptions.SectionName).Get<DemoRequestOptions>()!;
+            var passwordReset = configuration.GetSection(PasswordResetOptions.SectionName).Get<PasswordResetOptions>()!;
 
             configuration.GetConnectionString("DefaultConnection").Should().Contain("Server=qa.test");
             storage.Provider.Should().Be("S3");
@@ -47,6 +51,8 @@ public sealed class DeploymentConfigurationTests
             demoRequests.Email.Host.Should().Be("smtp.test");
             demoRequests.Email.LogoUrl.Should().Be("https://assets.example.test/logo.png");
             demoRequests.Email.FeatureImageUrl.Should().Be("https://assets.example.test/features.png");
+            passwordReset.FrontendBaseUrl.Should().Be("https://qa.example.test");
+            passwordReset.TokenLifespanMinutes.Should().Be(45);
         }
         finally
         {
@@ -70,9 +76,10 @@ public sealed class DeploymentConfigurationTests
         root.GetProperty("AllowedHosts").GetString().Should().Be(apiHost);
         root.GetProperty("Cors").GetProperty("AllowedOriginsCsv").GetString().Should().Be($"https://{webHost}");
         root.GetProperty("ProductImageStorage").GetProperty("S3").GetProperty("BucketName").GetString().Should().Be(bucketName);
+        root.GetProperty("PasswordReset").GetProperty("FrontendBaseUrl").GetString().Should().Be($"https://{webHost}");
         root.TryGetProperty("ConnectionStrings", out _).Should().BeFalse();
         File.ReadAllText(path).Should().NotContainAny(
-            "AccessKey", "SecretKey", "SigningKey", "Password", "AccessToken", "AppSecret", "VerifyToken");
+            "AccessKey", "SecretKey", "SigningKey", "\"Password\":", "AccessToken", "AppSecret", "VerifyToken");
     }
 
     private static string RepositoryRoot([CallerFilePath] string sourceFile = "") =>

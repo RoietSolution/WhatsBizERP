@@ -87,7 +87,7 @@ export interface CustomerNotificationHistory {
 }
 export interface NotificationConfigurationStatus { whatsAppConfigured: boolean; smsConfigured: boolean; message: string; }
 export interface DemoRequestSummary {
-  id: number; referenceNo: string; name: string; mobile: string; businessName?: string;
+  id: number; referenceNo: string; name: string; mobile: string; email?: string; businessName?: string;
   businessType?: string; city?: string; source: string; createdOn: string; status: string;
 }
 export interface DemoRequestDetail extends DemoRequestSummary {

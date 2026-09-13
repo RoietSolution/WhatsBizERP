@@ -85,13 +85,13 @@ VALUES
         var rows = new List<DemoRequestSummary>();
         await using var connection = Connection();
         await connection.OpenAsync(token);
-        const string where = @" WHERE (@search IS NULL OR ReferenceNo=@search OR Name LIKE '%' + @search + '%' OR Mobile LIKE '%' + @search + '%') AND (@status IS NULL OR Status=@status) AND (@from IS NULL OR CreatedOn>=@from) AND (@to IS NULL OR CreatedOn<DATEADD(day,1,@to))";
-        await using var command = new SqlCommand("SELECT Id,ReferenceNo,Name,Mobile,BusinessName,BusinessType,City,Source,CreatedOn,Status FROM marketing.DemoRequests" + where + " ORDER BY CreatedOn DESC OFFSET @offset ROWS FETCH NEXT @take ROWS ONLY; SELECT COUNT(*) FROM marketing.DemoRequests" + where + ";", connection);
+        const string where = @" WHERE (@search IS NULL OR ReferenceNo=@search OR Name LIKE '%' + @search + '%' OR Mobile LIKE '%' + @search + '%' OR Email LIKE '%' + @search + '%') AND (@status IS NULL OR Status=@status) AND (@from IS NULL OR CreatedOn>=@from) AND (@to IS NULL OR CreatedOn<DATEADD(day,1,@to))";
+        await using var command = new SqlCommand("SELECT Id,ReferenceNo,Name,Mobile,Email,BusinessName,BusinessType,City,Source,CreatedOn,Status FROM marketing.DemoRequests" + where + " ORDER BY CreatedOn DESC OFFSET @offset ROWS FETCH NEXT @take ROWS ONLY; SELECT COUNT(*) FROM marketing.DemoRequests" + where + ";", connection);
         AddFilters(command, search, status, fromDate, toDate);
         Parameter(command, "@offset", SqlDbType.Int, null, (pageNumber - 1) * pageSize);
         Parameter(command, "@take", SqlDbType.Int, null, pageSize);
         await using var reader = await command.ExecuteReaderAsync(token);
-        while (await reader.ReadAsync(token)) rows.Add(new(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), Text(reader, 4), Text(reader, 5), Text(reader, 6), reader.GetString(7), reader.GetDateTimeOffset(8), reader.GetString(9)));
+        while (await reader.ReadAsync(token)) rows.Add(new(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), Text(reader, 4), Text(reader, 5), Text(reader, 6), Text(reader, 7), reader.GetString(8), reader.GetDateTimeOffset(9), reader.GetString(10)));
         await reader.NextResultAsync(token);
         await reader.ReadAsync(token);
         return new(rows, reader.GetInt32(0), pageNumber, pageSize);

@@ -10,7 +10,7 @@
     <button mat-button (click)="load()"><span class="material-symbols-rounded">refresh</span>Refresh</button>
   </div>
   <div workspace-filters class="filters">
-    <mat-form-field appearance="outline" class="search"><mat-label>Name, mobile, or reference</mat-label><input matInput [(ngModel)]="search" (keyup.enter)="load()" /></mat-form-field>
+    <mat-form-field appearance="outline" class="search"><mat-label>Name, mobile, email, or reference</mat-label><input matInput [(ngModel)]="search" (keyup.enter)="load()" /></mat-form-field>
     <mat-form-field appearance="outline"><mat-label>Status</mat-label><mat-select [(ngModel)]="status"><mat-option value="">All statuses</mat-option>@for (item of statuses; track item) { <mat-option [value]="item">{{ item.replaceAll('_', ' ') }}</mat-option> }</mat-select></mat-form-field>
     <mat-form-field appearance="outline"><mat-label>From</mat-label><input matInput type="date" [(ngModel)]="from" /></mat-form-field>
     <mat-form-field appearance="outline"><mat-label>To</mat-label><input matInput type="date" [(ngModel)]="to" /></mat-form-field>

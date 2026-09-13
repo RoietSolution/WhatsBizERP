@@ -28,6 +28,21 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 throw new UnauthorizedAccessException("Tenant context is required to create tenant-owned records.");
             entry.Property("TenantId").CurrentValue = tenant.Value;
         }
+        // Supplier tenant-guard triggers validate SESSION_CONTEXT on the same
+        // connection used by EF. Set it before EF opens its save transaction.
+        if (tenant is Guid tenantId && tenantId != Guid.Empty)
+        {
+            var connection = Database.GetDbConnection();
+            var wasClosed = connection.State == System.Data.ConnectionState.Closed;
+            if (wasClosed) await connection.OpenAsync(cancellationToken);
+            await using var command = connection.CreateCommand();
+            command.CommandText = "EXEC sys.sp_set_session_context @key=N'TenantId', @value=@tenant";
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = "@tenant";
+            parameter.Value = tenantId;
+            command.Parameters.Add(parameter);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
         return await base.SaveChangesAsync(cancellationToken);
     }
 

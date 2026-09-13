@@ -379,11 +379,12 @@ public sealed class POSHandlers(
         {
             var configuredName = settings.FirstOrDefault(x => x.Key == POSUpiPayment.PayeeNameSettingKey)?.Value?.Trim();
             var payeeName = string.IsNullOrWhiteSpace(configuredName) ? company.CompanyName : configuredName;
-            var artifact = printing.QrCode(new QRCodeInput(POSUpiPayment.BuildUri(upiId, payeeName, invoice.BalanceAmount > 0 ? invoice.BalanceAmount : invoice.GrandTotal), 8, "M"));
+            // Generate at native thermal-print resolution; the SVG remains vector/sharp when embedded.
+            var artifact = printing.QrCode(new QRCodeInput(POSUpiPayment.BuildUri(upiId, payeeName, invoice.BalanceAmount > 0 ? invoice.BalanceAmount : invoice.GrandTotal), 16, "Q"));
             paymentQr = $"data:{artifact.ContentType};base64,{Convert.ToBase64String(artifact.Data)}";
         }
         static bool Enabled(IReadOnlyCollection<SettingDto> values, string key) => !values.Any(x => x.Key == key) || !string.Equals(values.First(x => x.Key == key).Value, "false", StringComparison.OrdinalIgnoreCase);
-        var options = new POSInvoicePrintOptions(Enabled(settings, "POS_PRINT_SHOW_COUNTER"), Enabled(settings, "POS_PRINT_SHOW_TERMINAL"), Enabled(settings, "POS_PRINT_SHOW_CASHIER"), Enabled(settings, "POS_PRINT_SHOW_GST_PERCENTAGE"), Enabled(settings, "POS_PRINT_SHOW_GST_AMOUNT"));
+        var options = new POSInvoicePrintOptions(Enabled(settings, "POS_PRINT_SHOW_COUNTER"), Enabled(settings, "POS_PRINT_SHOW_TERMINAL"), Enabled(settings, "POS_PRINT_SHOW_CASHIER"), Enabled(settings, "POS_PRINT_SHOW_GST_PERCENTAGE"), Enabled(settings, "POS_PRINT_SHOW_GST_AMOUNT"), Enabled(settings, "POS_PRINT_SHOW_GST_NUMBER"));
         return documents.InvoiceHtml(invoice, q.Paper, new(company, loyalty, paymentQr, options));
     }
 

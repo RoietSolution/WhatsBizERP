@@ -70,8 +70,22 @@ public sealed class POSDocumentServiceTests
         var html = service.InvoiceHtml(invoice, "58MM", new(company, new(0, 0, 20)));
 
         html.Should().Contain(".paper-58mm .items tr{display:grid");
-        html.Should().Contain(".paper-58mm .items{display:block;font-size:10px}");
+        html.Should().Contain(".paper-58mm .items{display:block;font-size:10.5px}");
         html.Should().NotContain(".paper-58mm .items{font-size:7px}");
+    }
+
+    [Theory]
+    [InlineData(true, true, "GST%", "GST")]
+    [InlineData(false, true, "", "GST")]
+    [InlineData(true, false, "GST%", "")]
+    [InlineData(false, false, "", "")]
+    public void GstColumnsOnlyRenderWhenEnabled(bool showPercentage, bool showAmount, string percentageHeader, string amountHeader)
+    {
+        var service = new POSDocumentService(new PassthroughPrintingService(), new ConfigurationBuilder().Build());
+        var html = service.InvoiceHtml(Invoice(), "80MM", new(Company(), new(0, 0, 20), null, new(true, true, true, showPercentage, showAmount)));
+        if (string.IsNullOrEmpty(percentageHeader)) html.Should().NotContain(">GST%</th>"); else html.Should().Contain(">GST%</th>");
+        if (string.IsNullOrEmpty(amountHeader)) html.Should().NotContain(">GST</th>"); else html.Should().Contain(">GST</th>");
+        html.Should().Contain("--items-template:");
     }
 
     [Fact]

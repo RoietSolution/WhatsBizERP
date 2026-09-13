@@ -1,15 +1,16 @@
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { finalize } from 'rxjs';
+import { finalize, map, Observable } from 'rxjs';
 import { ProductApiService } from './product-api.service';
 import { Brand, UnitOfMeasure } from './product.models';
 
 export type ProductMasterDialogData = 'brand' | 'unit';
+export interface ProductMasterDialogResult { id: string; name: string; }
 
 @Component({
   selector: 'app-product-master-dialog',
@@ -40,13 +41,13 @@ export type ProductMasterDialogData = 'brand' | 'unit';
   `],
 })
 export class ProductMasterDialogComponent {
+  private readonly formBuilder = inject(FormBuilder);
   readonly form = this.formBuilder.group({ name: ['', [Validators.required, Validators.maxLength(200)]], code: ['', Validators.maxLength(50)], shortName: ['', Validators.maxLength(20)] });
   saving = false;
   error = '';
 
   constructor(
     @Inject(MAT_DIALOG_DATA) readonly data: ProductMasterDialogData,
-    private readonly formBuilder: FormBuilder,
     private readonly api: ProductApiService,
     readonly dialogRef: MatDialogRef<ProductMasterDialogComponent>,
   ) {}
@@ -55,10 +56,10 @@ export class ProductMasterDialogComponent {
     if (this.form.invalid || this.saving) { this.form.markAllAsTouched(); return; }
     const value = this.form.getRawValue();
     this.saving = true;
-    const request = this.data === 'brand'
-      ? this.api.createBrand({ brandCode: value.code?.trim() ?? '', brandName: value.name!.trim(), description: '', logo: '', isActive: true })
-      : this.api.createUnit({ unitCode: value.code?.trim() ?? '', unitName: value.name!.trim(), shortName: (value.shortName?.trim() || value.name!.trim().slice(0, 20).toUpperCase()), decimalPlaces: 0, isActive: true });
-    request.pipe(finalize(() => this.saving = false)).subscribe({
+    const request$: Observable<ProductMasterDialogResult> = this.data === 'brand'
+      ? this.api.createBrand({ brandCode: value.code?.trim() ?? '', brandName: value.name!.trim(), description: '', logo: '', isActive: true }).pipe(map(brand => ({ id: brand.brandId, name: brand.brandName })))
+      : this.api.createUnit({ unitCode: value.code?.trim() ?? '', unitName: value.name!.trim(), shortName: (value.shortName?.trim() || value.name!.trim().slice(0, 20).toUpperCase()), decimalPlaces: 0, isActive: true }).pipe(map(unit => ({ id: unit.unitId, name: unit.unitName })));
+    request$.pipe(finalize(() => this.saving = false)).subscribe({
       next: result => this.dialogRef.close(result),
       error: error => this.error = error?.error?.message || `Unable to add ${this.data}. Check the entered values and try again.`,
     });

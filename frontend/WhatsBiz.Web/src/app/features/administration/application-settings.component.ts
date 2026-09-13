@@ -118,6 +118,7 @@ export class ApplicationSettingsComponent {
     { key: 'POS_PRINT_SHOW_CASHIER', value: 'true', dataType: 'BOOLEAN', category: 'Invoice Printing' },
     { key: 'POS_PRINT_SHOW_GST_PERCENTAGE', value: 'true', dataType: 'BOOLEAN', category: 'Invoice Printing' },
     { key: 'POS_PRINT_SHOW_GST_AMOUNT', value: 'true', dataType: 'BOOLEAN', category: 'Invoice Printing' },
+    { key: 'POS_PRINT_SHOW_GST_NUMBER', value: 'true', dataType: 'BOOLEAN', category: 'Invoice Printing' },
   ];
   title = 'Retailer Settings';
   constructor(

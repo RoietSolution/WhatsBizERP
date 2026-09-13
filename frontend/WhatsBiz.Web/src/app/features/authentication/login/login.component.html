@@ -3,7 +3,7 @@
   <img src="/assets/images/khatadhari-logo.png" alt="KhataDhari ERP" />
 </div>
 <header>
-  <h2>{{ applicationOwner ? 'Application Owner' : 'Welcome Back' }}</h2>
+  <h2>{{ applicationOwner ? 'Application Owner' : 'Sign in' }}</h2>
   <p>{{ applicationOwner ? 'Sign in to manage platform configuration' : 'Sign in to continue' }}</p>
 </header>
 <form [formGroup]="form" (ngSubmit)="login()" novalidate>

@@ -15,7 +15,7 @@ import { catchError, finalize, forkJoin, map, of } from 'rxjs';
 import { BarcodeScanResult } from '../pos/barcode-camera.service';
 import { BarcodeScannerComponent } from '../pos/barcode-scanner.component';
 import { ProductApiService } from './product-api.service';
-import { ProductMasterDialogComponent, ProductMasterDialogData } from './product-master-dialog.component';
+import { ProductMasterDialogComponent, ProductMasterDialogData, ProductMasterDialogResult } from './product-master-dialog.component';
 import {
   Brand,
   Category,
@@ -510,16 +510,14 @@ export class ProductFormComponent implements OnDestroy {
     this.additionalBarcodes.update((items) => items.filter((item) => item !== barcode));
   }
   openMasterDialog(kind: ProductMasterDialogData): void {
-    this.dialog.open(ProductMasterDialogComponent, { width: 'min(480px, 94vw)', data: kind }).afterClosed().subscribe(result => {
+    this.dialog.open<ProductMasterDialogComponent, ProductMasterDialogData, ProductMasterDialogResult>(ProductMasterDialogComponent, { width: 'min(480px, 94vw)', data: kind }).afterClosed().subscribe(result => {
       if (!result) return;
       if (kind === 'brand') {
-        this.brands.update(items => [...items, result].sort((a, b) => a.brandName.localeCompare(b.brandName)));
-        this.form.controls.brandId.setValue(result.brandId);
-        this.snackBar.open('Brand added and selected.', undefined, { duration: 2500 });
+        this.api.brands().subscribe(items => { this.brands.set(items.filter(item => item.isActive)); this.form.controls.brandId.setValue(result.id); });
+        this.snackBar.open(`${result.name} added and selected.`, undefined, { duration: 2500 });
       } else {
-        this.units.update(items => [...items, result].sort((a, b) => a.unitName.localeCompare(b.unitName)));
-        this.form.controls.unitId.setValue(result.unitId);
-        this.snackBar.open('Unit added and selected.', undefined, { duration: 2500 });
+        this.api.units().subscribe(items => { this.units.set(items.filter(item => item.isActive)); this.form.controls.unitId.setValue(result.id); });
+        this.snackBar.open(`${result.name} added and selected.`, undefined, { duration: 2500 });
       }
     });
   }

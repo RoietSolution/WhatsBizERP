@@ -41,6 +41,7 @@ export interface WhatsAppConnectionResult {
   validatedAt: string;
   message?: string;
 }
+export interface WhatsAppOnboardingConfiguration { appId?:string; configurationId?:string; graphApiVersion?:string; enabled:boolean; }
 export interface WhatsAppTestMessageResult { succeeded:boolean; metaMessageId?:string; attemptedAt:string; message?:string; }
 export interface WhatsAppMetaTestDiagnostics {
   webhookPath:string; webhookCallbackUrl?:string; lastWebhookVerifiedOn?:string; lastWebhookReceivedOn?:string;
@@ -57,6 +58,8 @@ export class WhatsAppApiService {
   get(tenantId?:string) { return this.http.get<WhatsAppConfiguration>(this.tenantConfiguration(tenantId)); }
   save(tenantId:string|undefined,input: SaveWhatsAppConfiguration) { return this.http.put<WhatsAppConfiguration>(this.tenantConfiguration(tenantId), input); }
   validate(tenantId?:string,accessToken?: string) { return this.http.post<WhatsAppConnectionResult>(`${this.tenantConfiguration(tenantId)}/validate`, { accessToken: accessToken || null }); }
+  completeOnboarding(input:{authorizationCode:string;whatsAppBusinessAccountId?:string;phoneNumberId?:string;apiVersion:string}) { return this.http.post<WhatsAppConnectionResult>(`${this.root}/onboarding/complete`,input); }
+  onboardingConfig() { return this.http.get<WhatsAppOnboardingConfiguration>(`${this.root}/onboarding/config`); }
   sendTestMessage(tenantId:string|undefined,recipientNumber:string,message?:string) { return this.http.post<WhatsAppTestMessageResult>(`${this.tenantConfiguration(tenantId)}/test-message`, { recipientNumber, message:message||null }); }
   diagnostics(tenantId?:string) { return this.http.get<WhatsAppMetaTestDiagnostics>(`${this.tenantConfiguration(tenantId)}/diagnostics`); }
   platform(){return this.http.get<WhatsAppPlatformConfiguration>(`${this.root}/administration/platform`);}

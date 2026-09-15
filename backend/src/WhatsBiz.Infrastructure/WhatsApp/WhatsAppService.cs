@@ -16,10 +16,13 @@ namespace WhatsBiz.Infrastructure.WhatsApp;
 
 public sealed partial class WhatsAppService(IConfiguration configuration,
     IDataProtectionProvider dataProtectionProvider, IFeatureService features, IWhatsAppCommerceProviderResolver providers,
-    ILogger<WhatsAppService> logger, ICustomerReferralService? referrals = null) : IWhatsAppService
+    ILogger<WhatsAppService> logger, IHttpClientFactory clients, ICustomerReferralService? referrals = null) : IWhatsAppService
 {
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("WhatsBiz.WhatsApp.Secrets.v1");
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
+
+    public async Task<WhatsAppOnboardingConfigurationDto> GetOnboardingConfigurationAsync(CancellationToken token)
+    { var platform=await ReadPlatform(token); var id=configuration["WhatsApp:Meta:EmbeddedSignupConfigurationId"]; return new(platform?.MetaAppId,id,configuration["WhatsApp:Meta:GraphApiVersion"] ?? configuration["WhatsApp:Meta:GraphApiVersion"] ?? "v23.0", platform?.IsEnabled==true && !string.IsNullOrWhiteSpace(id)); }
 
     public async Task<WhatsAppConfigurationDto> GetConfigurationAsync(Guid tenantId, CancellationToken token)
     { var row = await ReadByTenant(tenantId, token); if (row is null) return Empty(); var platform=await ReadPlatform(token); return ToDto(row, platform); }
@@ -81,6 +84,23 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
         try { await command.ExecuteNonQueryAsync(token); }
         catch(SqlException ex) when(ex.Number is 2601 or 2627){throw new BusinessRuleException("This WABA or Phone Number ID is already assigned to another retailer.");}
         return await GetConfigurationAsync(tenantId, token);
+    }
+
+    public async Task<WhatsAppConnectionResult> CompleteOnboardingAsync(Guid tenantId, WhatsAppOnboardingCompletionInput input, string? actor, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(input.AuthorizationCode)) throw new BusinessRuleException("Meta onboarding did not return an authorization code.");
+        var platform=await ReadPlatform(token); if (platform is null || !platform.IsEnabled) throw new BusinessRuleException("The shared KhataDhari Meta App is not configured.");
+        var secret=UnprotectOrNull(platform.AppSecretProtected); if (secret is null) throw new BusinessRuleException("The shared Meta App secret is not available.");
+        var version=string.IsNullOrWhiteSpace(input.ApiVersion)?configuration["WhatsApp:Meta:GraphApiVersion"] ?? "v23.0":input.ApiVersion.Trim();
+        var endpoint=$"{configuration["WhatsApp:Meta:GraphBaseUrl"]?.TrimEnd('/')}/{Uri.EscapeDataString(version)}/oauth/access_token?client_id={Uri.EscapeDataString(platform.MetaAppId)}&client_secret={Uri.EscapeDataString(secret)}&code={Uri.EscapeDataString(input.AuthorizationCode)}";
+        using var response=await clients.CreateClient("MetaWhatsApp").GetAsync(endpoint,token); if(!response.IsSuccessStatusCode) throw new BusinessRuleException("Meta authorization could not be completed. Please retry onboarding.");
+        using var json=JsonDocument.Parse(await response.Content.ReadAsStringAsync(token)); if(!json.RootElement.TryGetProperty("access_token",out var access)||string.IsNullOrWhiteSpace(access.GetString())) throw new BusinessRuleException("Meta authorization did not return a usable business credential.");
+        var accessToken=access.GetString()!; var waba=input.WhatsAppBusinessAccountId; if(string.IsNullOrWhiteSpace(waba)) throw new BusinessRuleException("Meta onboarding did not identify a WhatsApp Business Account.");
+        var phone=input.PhoneNumberId; if(string.IsNullOrWhiteSpace(phone)) throw new BusinessRuleException("Meta onboarding did not identify a phone number.");
+        using (var subscribe = new HttpRequestMessage(HttpMethod.Post, $"{configuration["WhatsApp:Meta:GraphBaseUrl"]?.TrimEnd('/')}/{Uri.EscapeDataString(version)}/{Uri.EscapeDataString(waba)}/subscribed_apps"))
+        { subscribe.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken); using var subscribed = await clients.CreateClient("MetaWhatsApp").SendAsync(subscribe, token); if(!subscribed.IsSuccessStatusCode) throw new BusinessRuleException("Meta webhook subscription could not be completed. Please retry onboarding."); }
+        await SaveConfigurationAsync(tenantId,new(WhatsAppProviderModes.Live,null,waba,phone,version,null,true,accessToken,null,null),actor,token);
+        return await ValidateConnectionAsync(tenantId, null, token);
     }
 
     public async Task<WhatsAppConnectionResult> ValidateConnectionAsync(Guid tenantId, string? replacementAccessToken, CancellationToken token)

@@ -24,6 +24,9 @@ public sealed record WhatsAppConfigurationDto(string ProviderMode, string? MetaA
 
 public sealed record SaveWhatsAppConfigurationInput(string ProviderMode, string? MetaAppId, string? WhatsAppBusinessAccountId, string? PhoneNumberId,
     string ApiVersion, string? TestRecipientNumber, bool IsEnabled, string? AccessToken, string? WebhookVerifyToken, string? AppSecret);
+public sealed record WhatsAppOnboardingCompletionInput(string AuthorizationCode, string? WhatsAppBusinessAccountId,
+    string? PhoneNumberId, string ApiVersion);
+public sealed record WhatsAppOnboardingConfigurationDto(string? AppId, string? ConfigurationId, string? GraphApiVersion, bool Enabled);
 
 public sealed record WhatsAppConnectionResult(bool Succeeded, string ConnectionStatus,
     string? DisplayPhoneNumber, string? BusinessDisplayName, DateTimeOffset ValidatedAt, string? Message);
@@ -60,6 +63,8 @@ public interface IWhatsAppService
 {
     Task<WhatsAppConfigurationDto> GetConfigurationAsync(Guid tenantId, CancellationToken token);
     Task<WhatsAppConfigurationDto> SaveConfigurationAsync(Guid tenantId, SaveWhatsAppConfigurationInput input, string? actor, CancellationToken token);
+    Task<WhatsAppConnectionResult> CompleteOnboardingAsync(Guid tenantId, WhatsAppOnboardingCompletionInput input, string? actor, CancellationToken token);
+    Task<WhatsAppOnboardingConfigurationDto> GetOnboardingConfigurationAsync(CancellationToken token);
     Task<WhatsAppConnectionResult> ValidateConnectionAsync(Guid tenantId, string? replacementAccessToken, CancellationToken token);
     Task<WhatsAppTestMessageResult> SendTestMessageAsync(Guid tenantId, SendWhatsAppTestMessageInput input, CancellationToken token);
     Task<WhatsAppMetaTestDiagnosticsDto> GetDiagnosticsAsync(Guid tenantId, CancellationToken token);

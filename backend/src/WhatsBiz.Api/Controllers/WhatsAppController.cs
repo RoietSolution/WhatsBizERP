@@ -15,8 +15,15 @@ public sealed class WhatsAppController(IWhatsAppService service, ICurrentUserSer
     [HttpGet("configuration"), HasPermission(Permissions.Admin.View), RequireFeature(FeatureKeys.WhatsAppConfiguration)]
     public Task<WhatsAppConfigurationDto> GetForRetailer(CancellationToken token) => service.GetConfigurationAsync(TenantId(), token);
 
+    [HttpGet("onboarding/config"), HasPermission(Permissions.Admin.View), RequireFeature(FeatureKeys.MetaWhatsAppIntegration)]
+    public Task<WhatsAppOnboardingConfigurationDto> OnboardingConfig(CancellationToken token) => service.GetOnboardingConfigurationAsync(token);
+
     [HttpPut("configuration"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.WhatsAppConfiguration)]
     public Task<WhatsAppConfigurationDto> SaveForRetailer(SaveWhatsAppConfigurationInput input, CancellationToken token) => service.SaveConfigurationAsync(TenantId(), input, currentUser.Username, token);
+
+    [HttpPost("onboarding/complete"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.MetaWhatsAppIntegration)]
+    public Task<WhatsAppConnectionResult> CompleteOnboarding(WhatsAppOnboardingCompletionInput input, CancellationToken token) =>
+        service.CompleteOnboardingAsync(TenantId(), input, currentUser.Username, token);
 
     [HttpPost("configuration/validate"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.MetaWhatsAppIntegration)]
     public Task<WhatsAppConnectionResult> ValidateForRetailer(ValidateWhatsAppConnectionInput? input, CancellationToken token) => service.ValidateConnectionAsync(TenantId(), input?.AccessToken, token);

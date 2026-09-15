@@ -14,7 +14,7 @@
       <span>Last validated: <strong>{{ (model().lastValidatedDate | date:'medium') || 'Never' }}</strong></span>
     </div>
     <div class="grid">
-      <mat-form-field appearance="outline"><mat-label>Provider mode</mat-label><mat-select [(ngModel)]="model().providerMode"><mat-option value="MOCK">MOCK — WhatsBiz simulator</mat-option><mat-option value="META_TEST">META_TEST — Meta Cloud API test</mat-option><mat-option value="LIVE">LIVE — reserved</mat-option></mat-select></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Provider mode</mat-label><mat-select [(ngModel)]="model().providerMode"><mat-option value="MOCK">MOCK — WhatsBiz simulator</mat-option><mat-option value="META_TEST">META_TEST — Meta Cloud API test</mat-option><mat-option value="LIVE">LIVE — Real retailer connection</mat-option></mat-select></mat-form-field>
       <mat-slide-toggle [(ngModel)]="model().isEnabled">Enable this connection</mat-slide-toggle>
       @if (model().providerMode !== 'MOCK') {
       <mat-form-field appearance="outline"><mat-label>Meta App ID</mat-label><input matInput [(ngModel)]="model().metaAppId" inputmode="numeric" [disabled]="model().usesSharedPlatformCredentials" /><mat-hint>{{model().usesSharedPlatformCredentials?'Shared KhataDhari Meta App':'Manual META_TEST setup'}}</mat-hint></mat-form-field>
@@ -58,7 +58,7 @@
     }
     @if (model().lastError) { <p class="error">{{ model().lastError }}</p> }
     @if (message()) { <p>{{ message() }}</p> }
-    <footer>@if (model().providerMode === 'META_TEST') { <button mat-stroked-button (click)="sendTestMessage()" [disabled]="saving() || !recipientNumber || model().connectionStatus!=='CONNECTED'">Send Test Message</button><button mat-stroked-button (click)="validate()" [disabled]="saving() || (!model().hasAccessToken && !accessToken)">Validate Meta Connection</button> }<button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">Save Configuration</button></footer>
+    <footer>@if (model().providerMode === 'LIVE' && model().connectionStatus !== 'CONNECTED') { <button mat-flat-button color="primary" (click)="connectLive()" [disabled]="saving()">Connect WhatsApp Business</button> } @if (model().providerMode === 'META_TEST') { <button mat-stroked-button (click)="sendTestMessage()" [disabled]="saving() || !recipientNumber || model().connectionStatus!=='CONNECTED'">Send Test Message</button><button mat-stroked-button (click)="validate()" [disabled]="saving() || (!model().hasAccessToken && !accessToken)">Validate Meta Connection</button> }<button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">Save Configuration</button></footer>
   </section>
   }
 </app-page-container>

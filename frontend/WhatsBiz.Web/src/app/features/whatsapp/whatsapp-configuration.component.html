@@ -2,7 +2,7 @@
   <app-page-header
     [eyebrow]="applicationOwner ? 'Platform administration' : 'Account settings'"
     title="WhatsApp Business Connection"
-    [description]="applicationOwner ? 'Select a retailer to manage its WhatsApp Business connection.' : 'Connect your WhatsApp Business account securely through Meta.'">
+    [description]="applicationOwner ? 'Select a retailer to manage its WhatsApp Business connection.' : model().providerMode === 'MOCK' ? 'Demo and test mode is managed by your platform administrator.' : model().providerMode === 'META_TEST' ? 'Manage the existing Meta test-number connection.' : 'Connect your WhatsApp Business account securely through Meta.'">
     <a mat-button [routerLink]="applicationOwner ? '/application-owner' : '/admin'"><span class="material-symbols-rounded">arrow_back</span>{{applicationOwner ? 'Owner Center' : 'Admin Center'}}</a>
     @if (applicationOwner) { <app-status-chip [label]="model().connectionStatus" [tone]="tone()" /> }
   </app-page-header>
@@ -27,7 +27,7 @@
           </span>
         </div>
 
-        @if (model().connectionStatus === 'CONNECTED') {
+        @if (model().isEnabled && model().connectionStatus === 'CONNECTED') {
           <p class="intro">Your WhatsApp Business account is connected to this retailer.</p>
           <dl class="details">
             <div><dt>Business</dt><dd>{{ model().businessDisplayName || 'Business name unavailable' }}</dd></div>
@@ -41,6 +41,8 @@
             <button mat-stroked-button type="button" (click)="validate()" [disabled]="saving()">{{ saving() ? 'Validating…' : 'Test / Validate Connection' }}</button>
             <button mat-flat-button color="primary" type="button" (click)="connectLive()" [disabled]="saving()">Reconnect</button>
           </footer>
+        } @else if (!model().isEnabled) {
+          <p class="intro">LIVE WhatsApp onboarding has not been enabled for this retailer yet. Please contact your platform administrator.</p>
         } @else {
           <p class="intro">Securely connect your retailer’s WhatsApp Business account through Meta. You’ll choose and authorize your business in Meta; no Meta credentials need to be entered here.</p>
           @if (model().lastError) { <p class="error">{{ model().lastError }}</p> }
@@ -53,22 +55,42 @@
     } @else {
       <section class="card">
         @if (applicationOwner) {
-          <div class="notice">MOCK runs inside WhatsBiz. Meta credentials are sensitive and are never displayed after saving.</div>
+          @if (model().providerMode === 'LIVE') {
+            <div class="notice">LIVE mode prepares this retailer for secure self-service onboarding. The retailer will connect its own WhatsApp Business account from its retailer settings; Meta credentials are supplied by platform configuration.</div>
+            @if (model().businessDisplayName || model().displayPhoneNumber || model().lastValidatedDate) {
+              <dl class="details owner-details">
+                @if (model().businessDisplayName) { <div><dt>Business</dt><dd>{{ model().businessDisplayName }}</dd></div> }
+                @if (model().displayPhoneNumber) { <div><dt>WhatsApp phone</dt><dd>{{ maskedPhoneNumber() }}</dd></div> }
+                <div><dt>Status</dt><dd>{{ model().connectionStatus }}</dd></div>
+                <div><dt>Last validated</dt><dd>{{ (model().lastValidatedDate | date:'medium') || 'Not available' }}</dd></div>
+              </dl>
+            }
+          } @else {
+            <div class="notice">MOCK runs inside WhatsBiz. Meta credentials are sensitive and are never displayed after saving.</div>
+          }
         } @else {
-          <div class="notice">This retailer is using {{ model().providerMode }} mode. Provider modes are managed by your platform administrator.</div>
+          @if (model().providerMode === 'MOCK' && !applicationOwner) {
+            <div class="notice">MOCK mode is for demos and testing and is managed by your platform administrator.</div>
+            <p class="mode"><span>Connection status</span><strong>{{ model().connectionStatus }}</strong></p>
+          } @else {
+            <div class="notice">This retailer is using {{ model().providerMode }} mode. Provider modes are managed by your platform administrator.</div>
+          }
         }
         <div class="grid">
           @if (applicationOwner) {
-            <mat-form-field appearance="outline"><mat-label>Provider mode</mat-label><mat-select [(ngModel)]="model().providerMode"><mat-option value="MOCK">MOCK — WhatsBiz simulator</mat-option><mat-option value="META_TEST">META_TEST — Meta Cloud API test</mat-option><mat-option value="LIVE">LIVE — Real retailer connection</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Provider mode</mat-label><mat-select [ngModel]="model().providerMode" (ngModelChange)="setProviderMode($event)"><mat-option value="MOCK">MOCK — WhatsBiz simulator</mat-option><mat-option value="META_TEST">META_TEST — Meta Cloud API test</mat-option><mat-option value="LIVE">LIVE — Real retailer connection</mat-option></mat-select></mat-form-field>
           } @else {
             <div class="mode"><span>Provider mode</span><strong>{{ model().providerMode }}</strong></div>
           }
 
-          @if (applicationOwner || model().providerMode !== 'LIVE') {
+          @if (applicationOwner || model().providerMode === 'META_TEST') {
             <mat-slide-toggle [(ngModel)]="model().isEnabled">Enable this connection</mat-slide-toggle>
           }
+          @if (applicationOwner && model().providerMode === 'LIVE') {
+            <div class="mode"><span>Connection status</span><strong>{{ model().connectionStatus }}</strong></div>
+          }
 
-          @if (model().providerMode === 'META_TEST' || (applicationOwner && model().providerMode !== 'MOCK')) {
+          @if (model().providerMode === 'META_TEST') {
             <mat-form-field appearance="outline"><mat-label>Meta App ID</mat-label><input matInput [(ngModel)]="model().metaAppId" inputmode="numeric" [disabled]="model().usesSharedPlatformCredentials" /><mat-hint>{{model().usesSharedPlatformCredentials?'Shared KhataDhari Meta App':'Manual META_TEST setup'}}</mat-hint></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>WhatsApp Business Account ID</mat-label><input matInput [(ngModel)]="model().whatsAppBusinessAccountId" inputmode="numeric" /></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Phone Number ID</mat-label><input matInput [(ngModel)]="model().phoneNumberId" inputmode="numeric" /></mat-form-field>
@@ -118,7 +140,9 @@
             <button mat-stroked-button type="button" (click)="sendTestMessage()" [disabled]="saving() || !recipientNumber || model().connectionStatus!=='CONNECTED'">Send Test Message</button>
             <button mat-stroked-button type="button" (click)="validate()" [disabled]="saving() || (!model().hasAccessToken && !accessToken)">Validate Meta Connection</button>
           }
-          <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="saving()">Save Configuration</button>
+          @if (applicationOwner || model().providerMode === 'META_TEST') {
+            <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="saving()">Save Configuration</button>
+          }
         </footer>
       </section>
     }

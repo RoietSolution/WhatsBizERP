@@ -53,20 +53,31 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
     {
         var existing = await ReadByTenant(tenantId, token);
         var isMock = input.ProviderMode.Equals(WhatsAppProviderModes.Mock, StringComparison.OrdinalIgnoreCase);
+        var isLive = input.ProviderMode.Equals(WhatsAppProviderModes.Live, StringComparison.OrdinalIgnoreCase);
         var platform = await ReadPlatform(token);
         var useShared = !isMock && platform?.IsEnabled == true;
         ValidateInput(input, useShared);
-        if (input.ProviderMode.Equals(WhatsAppProviderModes.Live,StringComparison.OrdinalIgnoreCase) && !useShared) throw new BusinessRuleException("The shared KhataDhari Meta App configuration must be enabled before LIVE retailer connections can be saved.");
-        var access = ProtectReplacement(input.AccessToken, existing?.AccessTokenProtected, "access token", isMock);
+        if (isLive && !useShared) throw new BusinessRuleException("The shared KhataDhari Meta App configuration must be enabled before LIVE retailer connections can be saved.");
+        var keepLiveConfiguration = isLive && existing?.ProviderMode == WhatsAppProviderModes.Live;
+        var access = ProtectReplacement(input.AccessToken, ExistingAccessTokenForMode(input.ProviderMode, existing?.ProviderMode, existing?.AccessTokenProtected), "access token", isMock || isLive);
         var verify = useShared ? null : ProtectReplacement(input.WebhookVerifyToken, existing?.WebhookVerifyTokenProtected, "webhook verify token", isMock);
         var appSecret = useShared ? null : ProtectReplacement(input.AppSecret, existing?.AppSecretProtected, "app secret", isMock);
-        var status = input.IsEnabled ? WhatsAppConnectionStatuses.Configured : WhatsAppConnectionStatuses.Disabled;
+        var waba = PreferProvided(input.WhatsAppBusinessAccountId, keepLiveConfiguration ? existing?.WabaId : null);
+        var phone = PreferProvided(input.PhoneNumberId, keepLiveConfiguration ? existing?.PhoneNumberId : null);
+        var version = PreferProvided(input.ApiVersion, keepLiveConfiguration ? existing?.ApiVersion : null) ?? (isLive ? configuration["WhatsApp:Meta:GraphApiVersion"] : null);
+        var remainsConnected = IsExistingLiveConnectionUnchanged(input.ProviderMode, input.IsEnabled,
+            existing?.ProviderMode, existing?.IsEnabled == true, existing?.ConnectionStatus,
+            waba, existing?.WabaId, phone, existing?.PhoneNumberId, access, existing?.AccessTokenProtected);
+        var hasLiveConnection = isLive && !string.IsNullOrWhiteSpace(waba) && !string.IsNullOrWhiteSpace(phone) && !string.IsNullOrWhiteSpace(access);
+        var status = ResolveSaveStatus(isLive, input.IsEnabled, hasLiveConnection, remainsConnected);
+        var lastValidatedOn = remainsConnected ? existing!.LastValidatedOn : null;
+        var lastError = remainsConnected ? existing!.LastError : null;
         await using var connection = new SqlConnection(ConnectionString); await connection.OpenAsync(token);
         await using var active = new SqlCommand("SELECT COUNT(1) FROM core.Tenants WHERE TenantId=@tenant AND IsActive=1;",connection);active.Parameters.AddWithValue("@tenant",tenantId);if(Convert.ToInt32(await active.ExecuteScalarAsync(token),System.Globalization.CultureInfo.InvariantCulture)!=1)throw new BusinessRuleException("The retailer tenant is inactive or unavailable.");
         await using var command = new SqlCommand("""
             UPDATE integration.WhatsAppConfigurations SET ProviderMode=@mode,MetaAppId=@appId,WhatsAppBusinessAccountId=@waba,PhoneNumberId=@phone,
               AccessTokenProtected=@access,WebhookVerifyTokenProtected=@verify,AppSecretProtected=@appSecret,
-              ApiVersion=@version,TestRecipientNumber=@recipient,IsEnabled=@enabled,ConnectionStatus=@status,LastValidatedOn=NULL,LastError=NULL,
+              ApiVersion=@version,TestRecipientNumber=@recipient,IsEnabled=@enabled,ConnectionStatus=@status,LastValidatedOn=@lastValidatedOn,LastError=@lastError,
               ModifiedOn=SYSUTCDATETIME(),ModifiedBy=@actor WHERE TenantId=@tenant;
             IF @@ROWCOUNT=0 INSERT integration.WhatsAppConfigurations
               (WhatsAppConfigurationId,TenantId,ProviderMode,MetaAppId,WhatsAppBusinessAccountId,PhoneNumberId,AccessTokenProtected,
@@ -75,12 +86,12 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
             """, connection);
         command.Parameters.AddWithValue("@tenant", tenantId); command.Parameters.AddWithValue("@mode", input.ProviderMode.Trim().ToUpperInvariant());
         command.Parameters.AddWithValue("@appId", useShared ? DBNull.Value : (object?)input.MetaAppId?.Trim() ?? DBNull.Value);
-        command.Parameters.AddWithValue("@waba", (object?)input.WhatsAppBusinessAccountId?.Trim() ?? DBNull.Value);
-        command.Parameters.AddWithValue("@phone", (object?)input.PhoneNumberId?.Trim() ?? DBNull.Value); command.Parameters.AddWithValue("@access", (object?)access ?? DBNull.Value);
+        command.Parameters.AddWithValue("@waba", (object?)waba ?? DBNull.Value);
+        command.Parameters.AddWithValue("@phone", (object?)phone ?? DBNull.Value); command.Parameters.AddWithValue("@access", (object?)access ?? DBNull.Value);
         command.Parameters.AddWithValue("@verify", (object?)verify ?? DBNull.Value); command.Parameters.AddWithValue("@appSecret", (object?)appSecret ?? DBNull.Value);
-        command.Parameters.AddWithValue("@version", string.IsNullOrWhiteSpace(input.ApiVersion) ? DBNull.Value : input.ApiVersion.Trim()); command.Parameters.AddWithValue("@enabled", input.IsEnabled);
+        command.Parameters.AddWithValue("@version", (object?)version ?? DBNull.Value); command.Parameters.AddWithValue("@enabled", input.IsEnabled);
         command.Parameters.AddWithValue("@recipient", string.IsNullOrWhiteSpace(input.TestRecipientNumber) ? DBNull.Value : NonDigits().Replace(input.TestRecipientNumber, string.Empty));
-        command.Parameters.AddWithValue("@status", status); command.Parameters.AddWithValue("@actor", actor ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@status", status); command.Parameters.AddWithValue("@lastValidatedOn", (object?)lastValidatedOn ?? DBNull.Value); command.Parameters.AddWithValue("@lastError", (object?)lastError ?? DBNull.Value); command.Parameters.AddWithValue("@actor", actor ?? (object)DBNull.Value);
         try { await command.ExecuteNonQueryAsync(token); }
         catch(SqlException ex) when(ex.Number is 2601 or 2627){throw new BusinessRuleException("This WABA or Phone Number ID is already assigned to another retailer.");}
         return await GetConfigurationAsync(tenantId, token);
@@ -436,7 +447,46 @@ END
     private static WhatsAppConfigurationDto Empty() => new(WhatsAppProviderModes.Mock, null, null, null, null, null, null, null, false, WhatsAppConnectionStatuses.NotConfigured, null, null, false, false, false);
     private string? ProtectReplacement(string? value, string? current, string label, bool optional) { if (!string.IsNullOrWhiteSpace(value)) return protector.Protect(value.Trim()); if (!string.IsNullOrWhiteSpace(current)) return current; if (optional) return null; throw new BusinessRuleException($"The {label} is required."); }
     private string? UnprotectOrNull(string? value) { if (value is null) return null; try { return protector.Unprotect(value); } catch (CryptographicException) { return null; } }
-    private static void ValidateInput(SaveWhatsAppConfigurationInput x, bool usesSharedPlatformCredentials) { if (!WhatsAppProviderModes.All.Contains(x.ProviderMode)) throw new BusinessRuleException("Provider mode must be MOCK, META_TEST, or LIVE."); if (x.ProviderMode.Equals(WhatsAppProviderModes.Mock, StringComparison.OrdinalIgnoreCase)) return; if ((!usesSharedPlatformCredentials && (string.IsNullOrWhiteSpace(x.MetaAppId) || !Digits().IsMatch(x.MetaAppId.Trim()))) || string.IsNullOrWhiteSpace(x.WhatsAppBusinessAccountId) || !Digits().IsMatch(x.WhatsAppBusinessAccountId.Trim()) || string.IsNullOrWhiteSpace(x.PhoneNumberId) || !Digits().IsMatch(x.PhoneNumberId.Trim())) throw new BusinessRuleException(usesSharedPlatformCredentials ? "WABA ID and phone number ID must contain only digits." : "Meta App ID, WABA ID, and phone number ID must contain only digits."); if (string.IsNullOrWhiteSpace(x.ApiVersion) || !Version().IsMatch(x.ApiVersion.Trim())) throw new BusinessRuleException("API version must use Meta's vNN.N format."); if (!string.IsNullOrWhiteSpace(x.TestRecipientNumber) && !Recipient().IsMatch(NonDigits().Replace(x.TestRecipientNumber, string.Empty))) throw new BusinessRuleException("Test recipient must be a valid international WhatsApp number including country code."); }
+    internal static void ValidateInput(SaveWhatsAppConfigurationInput x, bool usesSharedPlatformCredentials)
+    {
+        if (!WhatsAppProviderModes.All.Contains(x.ProviderMode)) throw new BusinessRuleException("Provider mode must be MOCK, META_TEST, or LIVE.");
+        if (x.ProviderMode.Equals(WhatsAppProviderModes.Mock, StringComparison.OrdinalIgnoreCase)) return;
+
+        var isLive = x.ProviderMode.Equals(WhatsAppProviderModes.Live, StringComparison.OrdinalIgnoreCase);
+        if (isLive)
+        {
+            if (!usesSharedPlatformCredentials) throw new BusinessRuleException("The shared KhataDhari Meta App configuration must be enabled before LIVE retailer connections can be saved.");
+            if (!IsOptionalDigits(x.WhatsAppBusinessAccountId) || !IsOptionalDigits(x.PhoneNumberId)) throw new BusinessRuleException("WABA ID and phone number ID must contain only digits.");
+            if (!string.IsNullOrWhiteSpace(x.ApiVersion) && !Version().IsMatch(x.ApiVersion.Trim())) throw new BusinessRuleException("API version must use Meta's vNN.N format.");
+        }
+        else
+        {
+            if ((!usesSharedPlatformCredentials && (string.IsNullOrWhiteSpace(x.MetaAppId) || !Digits().IsMatch(x.MetaAppId.Trim()))) || string.IsNullOrWhiteSpace(x.WhatsAppBusinessAccountId) || !Digits().IsMatch(x.WhatsAppBusinessAccountId.Trim()) || string.IsNullOrWhiteSpace(x.PhoneNumberId) || !Digits().IsMatch(x.PhoneNumberId.Trim())) throw new BusinessRuleException(usesSharedPlatformCredentials ? "WABA ID and phone number ID must contain only digits." : "Meta App ID, WABA ID, and phone number ID must contain only digits.");
+            if (string.IsNullOrWhiteSpace(x.ApiVersion) || !Version().IsMatch(x.ApiVersion.Trim())) throw new BusinessRuleException("API version must use Meta's vNN.N format.");
+        }
+        if (!string.IsNullOrWhiteSpace(x.TestRecipientNumber) && !Recipient().IsMatch(NonDigits().Replace(x.TestRecipientNumber, string.Empty))) throw new BusinessRuleException("Test recipient must be a valid international WhatsApp number including country code.");
+    }
+    internal static string? PreferProvided(string? value, string? existing) => string.IsNullOrWhiteSpace(value) ? existing : value.Trim();
+    internal static string? ExistingAccessTokenForMode(string providerMode, string? existingProviderMode, string? existingProtectedToken) =>
+        providerMode.Equals(WhatsAppProviderModes.Live, StringComparison.OrdinalIgnoreCase)
+            ? string.Equals(existingProviderMode, WhatsAppProviderModes.Live, StringComparison.OrdinalIgnoreCase) ? existingProtectedToken : null
+            : existingProtectedToken;
+    internal static bool IsExistingLiveConnectionUnchanged(string providerMode, bool enabled, string? existingProviderMode,
+        bool existingEnabled, string? existingStatus, string? waba, string? existingWaba, string? phone, string? existingPhone,
+        string? accessToken, string? existingProtectedToken) =>
+        providerMode.Equals(WhatsAppProviderModes.Live, StringComparison.OrdinalIgnoreCase) && enabled && existingEnabled
+        && string.Equals(existingProviderMode, WhatsAppProviderModes.Live, StringComparison.OrdinalIgnoreCase)
+        && existingStatus == WhatsAppConnectionStatuses.Connected
+        && string.Equals(waba, existingWaba, StringComparison.Ordinal)
+        && string.Equals(phone, existingPhone, StringComparison.Ordinal)
+        && string.Equals(accessToken, existingProtectedToken, StringComparison.Ordinal);
+    internal static string ResolveSaveStatus(bool isLive, bool enabled, bool hasLiveConnection, bool remainsConnected) =>
+        !enabled ? WhatsAppConnectionStatuses.Disabled
+        : !isLive ? WhatsAppConnectionStatuses.Configured
+        : remainsConnected ? WhatsAppConnectionStatuses.Connected
+        : hasLiveConnection ? WhatsAppConnectionStatuses.Configured
+        : WhatsAppConnectionStatuses.NotConfigured;
+    private static bool IsOptionalDigits(string? value) => string.IsNullOrWhiteSpace(value) || Digits().IsMatch(value.Trim());
     private static bool FixedTimeEquals(string? a, string b) { if (a is null) return false; var x = Encoding.UTF8.GetBytes(a); var y = Encoding.UTF8.GetBytes(b); return x.Length == y.Length && CryptographicOperations.FixedTimeEquals(x, y); }
     internal static Guid? ResolveUniqueTenantToken(IEnumerable<(Guid TenantId, string? VerifyToken)> candidates, string verifyToken)
     {

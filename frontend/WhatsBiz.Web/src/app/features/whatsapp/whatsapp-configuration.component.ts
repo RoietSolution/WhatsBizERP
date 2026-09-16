@@ -19,6 +19,19 @@ import { FeatureService, FeatureTenantSummary } from '../../core/services/featur
   templateUrl: './whatsapp-configuration.component.html',
   styles: [`
     .card { margin-top: 14px; padding: 20px; background: var(--wb-surface); border: 1px solid var(--wb-border); border-radius: var(--wb-radius-md); }
+    .connection-card { max-width: 760px; margin: 18px auto; padding: 24px; background: var(--wb-surface); border: 1px solid var(--wb-border); border-radius: var(--wb-radius-md); box-shadow: 0 4px 18px rgba(20,45,60,.06); }
+    .connection-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+    .connection-heading h2 { margin: 2px 0 0; font-size: 1.35rem; }
+    .eyebrow { margin:0; color:var(--wb-text-secondary); font-size:.78rem; text-transform:uppercase; letter-spacing:.06em; }
+    .status { display:inline-flex; align-items:center; min-height:30px; padding:0 12px; border-radius:999px; background:var(--wb-primary-soft); color:var(--wb-text-secondary); font-weight:700; font-size:.8rem; white-space:nowrap; }
+    .status.connected { background:var(--wb-success-soft, #e5f5ec); color:var(--wb-success); }
+    .intro { max-width:620px; margin:18px 0; color:var(--wb-text-secondary); line-height:1.55; }
+    .details { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin:22px 0; }
+    .details div { min-width:0; padding:12px; border:1px solid var(--wb-border); border-radius:10px; }
+    .details dt { color:var(--wb-text-secondary); font-size:.82rem; }
+    .details dd { margin:5px 0 0; font-weight:600; overflow-wrap:anywhere; }
+    .mode { display:flex; flex-direction:column; justify-content:center; gap:5px; color:var(--wb-text-secondary); }
+    .mode strong { color:var(--wb-text); }
     .grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
     .wide { grid-column: 1/-1; } .meta { display:flex; flex-wrap:wrap; gap:18px; margin: 0 0 18px; color:var(--wb-text-secondary); }
     .notice { padding:12px; border-radius:8px; background:var(--wb-primary-soft); margin-bottom:16px; }
@@ -26,8 +39,8 @@ import { FeatureService, FeatureTenantSummary } from '../../core/services/featur
     .checks { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 18px; margin:12px 0; }
     .ok { color:var(--wb-success); } .missing { color:var(--wb-danger); }
     code { overflow-wrap:anywhere; }
-    .error { color:var(--wb-danger); } footer { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
-    @media(max-width:700px){.grid{grid-template-columns:1fr}.wide{grid-column:auto}}
+    .error { color:var(--wb-danger); } footer { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:10px; margin-top:18px; }
+    @media(max-width:700px){.grid,.details{grid-template-columns:1fr}.wide{grid-column:auto}.connection-card{padding:18px}.connection-heading{align-items:flex-start}}
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -57,6 +70,8 @@ export class WhatsAppConfigurationComponent {
   validate() { if(this.applicationOwner&&!this.tenantId)return;this.saving.set(true);this.message.set('');this.api.validate(this.tenantId||undefined,this.accessToken).subscribe({next:r=>{this.message.set(r.message??'Validation completed.');this.clearSecrets();this.reload();this.saving.set(false);},error:()=>{this.message.set('Connection validation failed safely. Review the configuration and server logs.');this.saving.set(false);}}); }
   sendTestMessage(){if(this.applicationOwner&&!this.tenantId)return;this.saving.set(true);this.message.set('');this.api.sendTestMessage(this.tenantId||undefined,this.recipientNumber,this.testMessage).subscribe({next:r=>{this.message.set(r.succeeded?`${r.message} Meta message ID: ${r.metaMessageId}; sent ${new Date(r.attemptedAt).toLocaleString()}.`:r.message??'Meta rejected the test message.');this.saving.set(false);this.reloadDiagnostics();},error:()=>{this.message.set('The test message could not be sent. Check the recipient and META_TEST configuration.');this.saving.set(false);}});}
   setupReady(){const x=this.model();const d=this.diagnostics();return x.isEnabled&&x.providerMode==='META_TEST'&&!!x.metaAppId&&!!x.whatsAppBusinessAccountId&&!!x.phoneNumberId&&!!x.apiVersion&&x.hasAccessToken&&x.hasWebhookVerifyToken&&x.hasAppSecret&&!!x.testRecipientNumber&&x.connectionStatus==='CONNECTED'&&!!d?.lastWebhookVerifiedOn;}
+  maskedPhoneNumber(){const value=this.model().displayPhoneNumber?.trim();if(!value)return 'Not available';const digits=value.replace(/\D/g,'');if(digits.length<3)return '••••';return `${value.slice(0, Math.max(0,value.length-2)).replace(/\d/g,'•')}${value.slice(-2)}`;}
+  liveStatusLabel(){const status=this.model().connectionStatus;if(status==='ACTION_REQUIRED')return 'ACTION REQUIRED';if(status==='ERROR')return 'NOT CONNECTED';return 'NOT CONNECTED';}
   tone(): 'success'|'warning'|'danger'|'info' { return this.model().connectionStatus==='CONNECTED'?'success':this.model().connectionStatus==='ERROR'?'danger':this.model().connectionStatus==='DISABLED'?'warning':'info'; }
   private clearSecrets(){this.accessToken='';this.webhookVerifyToken='';this.appSecret='';}
 }

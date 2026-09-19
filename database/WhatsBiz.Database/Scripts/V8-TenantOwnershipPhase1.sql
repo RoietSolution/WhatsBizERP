@@ -11,18 +11,101 @@ BEGIN TRY
  BEGIN TRAN;
  IF N'$(FreshProductionInitialization)' <> N'True'
  BEGIN
- ;WITH u AS (SELECT UserName,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId FROM core.Users WHERE TenantId IS NOT NULL GROUP BY UserName HAVING COUNT(DISTINCT TenantId)=1)
- UPDATE i SET TenantId=u.TenantId FROM sales.SalesInvoices i JOIN u ON u.UserName=i.CreatedBy WHERE i.TenantId IS NULL;
- ;WITH u AS (SELECT UserName,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId FROM core.Users WHERE TenantId IS NOT NULL GROUP BY UserName HAVING COUNT(DISTINCT TenantId)=1)
- UPDATE i SET TenantId=u.TenantId FROM purchase.PurchaseInvoices i JOIN u ON u.UserName=i.CreatedBy WHERE i.TenantId IS NULL;
- ;WITH u AS (SELECT UserName,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId FROM core.Users WHERE TenantId IS NOT NULL GROUP BY UserName HAVING COUNT(DISTINCT TenantId)=1)
- UPDATE s SET TenantId=u.TenantId FROM purchase.Suppliers s JOIN u ON u.UserName=s.CreatedBy WHERE s.TenantId IS NULL;
- ;WITH p AS (SELECT SupplierId,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId FROM purchase.PurchaseInvoices WHERE TenantId IS NOT NULL GROUP BY SupplierId HAVING COUNT(DISTINCT TenantId)=1)
- UPDATE s SET TenantId=p.TenantId FROM purchase.Suppliers s JOIN p ON p.SupplierId=s.SupplierId WHERE s.TenantId IS NULL;
- ;WITH u AS (SELECT UserName,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId FROM core.Users WHERE TenantId IS NOT NULL GROUP BY UserName HAVING COUNT(DISTINCT TenantId)=1)
- UPDATE w SET TenantId=u.TenantId FROM inventory.Warehouses w JOIN u ON u.UserName=w.CreatedBy WHERE w.TenantId IS NULL;
- ;WITH b AS (SELECT b.WarehouseId,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),p.TenantId))) TenantId FROM inventory.InventoryBalances b JOIN master.Products p ON p.ProductId=b.ProductId WHERE p.TenantId IS NOT NULL GROUP BY b.WarehouseId HAVING COUNT(DISTINCT p.TenantId)=1)
- UPDATE w SET TenantId=b.TenantId FROM inventory.Warehouses w JOIN b ON b.WarehouseId=w.WarehouseId WHERE w.TenantId IS NULL;
+ /* Existing operational guards require a matching session tenant. Apply
+    each deterministic backfill tenant-by-tenant; do not bypass the guards. */
+ DECLARE @TenantId uniqueidentifier;
+ DECLARE sales_invoice_tenants CURSOR LOCAL FAST_FORWARD FOR
+     SELECT DISTINCT u.TenantId FROM sales.SalesInvoices i JOIN
+       (SELECT UserName,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId
+        FROM core.Users WHERE TenantId IS NOT NULL GROUP BY UserName HAVING COUNT(DISTINCT TenantId)=1) u
+       ON u.UserName=i.CreatedBy WHERE i.TenantId IS NULL;
+ OPEN sales_invoice_tenants; FETCH NEXT FROM sales_invoice_tenants INTO @TenantId;
+ WHILE @@FETCH_STATUS=0 BEGIN
+   EXEC sys.sp_set_session_context @key=N'TenantId', @value=@TenantId;
+   UPDATE i SET TenantId=@TenantId FROM sales.SalesInvoices i JOIN
+     (SELECT UserName,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId
+      FROM core.Users WHERE TenantId IS NOT NULL GROUP BY UserName HAVING COUNT(DISTINCT TenantId)=1) u
+     ON u.UserName=i.CreatedBy AND u.TenantId=@TenantId WHERE i.TenantId IS NULL;
+   FETCH NEXT FROM sales_invoice_tenants INTO @TenantId;
+ END; CLOSE sales_invoice_tenants; DEALLOCATE sales_invoice_tenants;
+
+ DECLARE purchase_invoice_tenants CURSOR LOCAL FAST_FORWARD FOR
+     SELECT DISTINCT u.TenantId FROM purchase.PurchaseInvoices i JOIN
+       (SELECT UserName,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId
+        FROM core.Users WHERE TenantId IS NOT NULL GROUP BY UserName HAVING COUNT(DISTINCT TenantId)=1) u
+       ON u.UserName=i.CreatedBy WHERE i.TenantId IS NULL;
+ OPEN purchase_invoice_tenants; FETCH NEXT FROM purchase_invoice_tenants INTO @TenantId;
+ WHILE @@FETCH_STATUS=0 BEGIN
+   EXEC sys.sp_set_session_context @key=N'TenantId', @value=@TenantId;
+   UPDATE i SET TenantId=@TenantId FROM purchase.PurchaseInvoices i JOIN
+     (SELECT UserName,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId
+      FROM core.Users WHERE TenantId IS NOT NULL GROUP BY UserName HAVING COUNT(DISTINCT TenantId)=1) u
+     ON u.UserName=i.CreatedBy AND u.TenantId=@TenantId WHERE i.TenantId IS NULL;
+   FETCH NEXT FROM purchase_invoice_tenants INTO @TenantId;
+ END; CLOSE purchase_invoice_tenants; DEALLOCATE purchase_invoice_tenants;
+
+ DECLARE supplier_user_tenants CURSOR LOCAL FAST_FORWARD FOR
+     SELECT DISTINCT u.TenantId FROM purchase.Suppliers s JOIN
+       (SELECT UserName,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId
+        FROM core.Users WHERE TenantId IS NOT NULL GROUP BY UserName HAVING COUNT(DISTINCT TenantId)=1) u
+       ON u.UserName=s.CreatedBy WHERE s.TenantId IS NULL;
+ OPEN supplier_user_tenants; FETCH NEXT FROM supplier_user_tenants INTO @TenantId;
+ WHILE @@FETCH_STATUS=0 BEGIN
+   EXEC sys.sp_set_session_context @key=N'TenantId', @value=@TenantId;
+   UPDATE s SET TenantId=@TenantId FROM purchase.Suppliers s JOIN
+     (SELECT UserName,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId
+      FROM core.Users WHERE TenantId IS NOT NULL GROUP BY UserName HAVING COUNT(DISTINCT TenantId)=1) u
+     ON u.UserName=s.CreatedBy AND u.TenantId=@TenantId WHERE s.TenantId IS NULL;
+   FETCH NEXT FROM supplier_user_tenants INTO @TenantId;
+ END; CLOSE supplier_user_tenants; DEALLOCATE supplier_user_tenants;
+
+ DECLARE supplier_invoice_tenants CURSOR LOCAL FAST_FORWARD FOR
+     SELECT DISTINCT p.TenantId FROM purchase.Suppliers s JOIN
+       (SELECT SupplierId,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId
+        FROM purchase.PurchaseInvoices WHERE TenantId IS NOT NULL GROUP BY SupplierId HAVING COUNT(DISTINCT TenantId)=1) p
+       ON p.SupplierId=s.SupplierId WHERE s.TenantId IS NULL;
+ OPEN supplier_invoice_tenants; FETCH NEXT FROM supplier_invoice_tenants INTO @TenantId;
+ WHILE @@FETCH_STATUS=0 BEGIN
+   EXEC sys.sp_set_session_context @key=N'TenantId', @value=@TenantId;
+   UPDATE s SET TenantId=@TenantId FROM purchase.Suppliers s JOIN
+     (SELECT SupplierId,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId
+      FROM purchase.PurchaseInvoices WHERE TenantId IS NOT NULL GROUP BY SupplierId HAVING COUNT(DISTINCT TenantId)=1) p
+     ON p.SupplierId=s.SupplierId AND p.TenantId=@TenantId WHERE s.TenantId IS NULL;
+   FETCH NEXT FROM supplier_invoice_tenants INTO @TenantId;
+ END; CLOSE supplier_invoice_tenants; DEALLOCATE supplier_invoice_tenants;
+
+ DECLARE warehouse_user_tenants CURSOR LOCAL FAST_FORWARD FOR
+     SELECT DISTINCT u.TenantId FROM inventory.Warehouses w JOIN
+       (SELECT UserName,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId
+        FROM core.Users WHERE TenantId IS NOT NULL GROUP BY UserName HAVING COUNT(DISTINCT TenantId)=1) u
+       ON u.UserName=w.CreatedBy WHERE w.TenantId IS NULL;
+ OPEN warehouse_user_tenants; FETCH NEXT FROM warehouse_user_tenants INTO @TenantId;
+ WHILE @@FETCH_STATUS=0 BEGIN
+   EXEC sys.sp_set_session_context @key=N'TenantId', @value=@TenantId;
+   UPDATE w SET TenantId=@TenantId FROM inventory.Warehouses w JOIN
+     (SELECT UserName,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId
+      FROM core.Users WHERE TenantId IS NOT NULL GROUP BY UserName HAVING COUNT(DISTINCT TenantId)=1) u
+     ON u.UserName=w.CreatedBy AND u.TenantId=@TenantId WHERE w.TenantId IS NULL;
+   FETCH NEXT FROM warehouse_user_tenants INTO @TenantId;
+ END; CLOSE warehouse_user_tenants; DEALLOCATE warehouse_user_tenants;
+
+ DECLARE warehouse_product_tenants CURSOR LOCAL FAST_FORWARD FOR
+     SELECT DISTINCT b.TenantId FROM inventory.Warehouses w JOIN
+       (SELECT b.WarehouseId,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),p.TenantId))) TenantId
+        FROM inventory.InventoryBalances b JOIN master.Products p ON p.ProductId=b.ProductId
+        WHERE p.TenantId IS NOT NULL GROUP BY b.WarehouseId HAVING COUNT(DISTINCT p.TenantId)=1) b
+       ON b.WarehouseId=w.WarehouseId WHERE w.TenantId IS NULL;
+ OPEN warehouse_product_tenants; FETCH NEXT FROM warehouse_product_tenants INTO @TenantId;
+ WHILE @@FETCH_STATUS=0 BEGIN
+   EXEC sys.sp_set_session_context @key=N'TenantId', @value=@TenantId;
+   UPDATE w SET TenantId=@TenantId FROM inventory.Warehouses w JOIN
+     (SELECT b.WarehouseId,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),p.TenantId))) TenantId
+      FROM inventory.InventoryBalances b JOIN master.Products p ON p.ProductId=b.ProductId
+      WHERE p.TenantId IS NOT NULL GROUP BY b.WarehouseId HAVING COUNT(DISTINCT p.TenantId)=1) b
+     ON b.WarehouseId=w.WarehouseId AND b.TenantId=@TenantId WHERE w.TenantId IS NULL;
+   FETCH NEXT FROM warehouse_product_tenants INTO @TenantId;
+ END; CLOSE warehouse_product_tenants; DEALLOCATE warehouse_product_tenants;
+ EXEC sys.sp_set_session_context @key=N'TenantId', @value=NULL;
  END;
  IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_Suppliers_Tenants') ALTER TABLE purchase.Suppliers ADD CONSTRAINT FK_Suppliers_Tenants FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId);
  IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_Warehouses_Tenants') ALTER TABLE inventory.Warehouses ADD CONSTRAINT FK_Warehouses_Tenants FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId);

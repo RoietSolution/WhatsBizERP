@@ -6,6 +6,7 @@
 :r ..\SeedData\InvoiceSeries.sql
 :r ..\SeedData\PurchaseSeries.sql
 :r .\RCDEV008-RuntimeObjects.sql
+:r ..\SeedData\FinanceBaseline.sql
 :r .\RCDEV009-PrintingPaperSize.sql
 :r .\RCDEV010-CustomerNotifications.sql
 GO

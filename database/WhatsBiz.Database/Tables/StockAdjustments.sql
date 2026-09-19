@@ -4,6 +4,6 @@ CREATE TABLE [inventory].[StockAdjustments] (
     [ApprovedBy] NVARCHAR(256) NULL,[ApprovedOn] DATETIMEOFFSET NULL,[CreatedOn] DATETIMEOFFSET NOT NULL CONSTRAINT [DF_StockAdjustments_Created] DEFAULT SYSUTCDATETIME(),
     CONSTRAINT [PK_StockAdjustments] PRIMARY KEY ([StockAdjustmentId]),CONSTRAINT [UQ_StockAdjustments_No] UNIQUE ([AdjustmentNo]),
     CONSTRAINT [FK_StockAdjustments_Transaction] FOREIGN KEY ([TransactionId]) REFERENCES [inventory].[InventoryTransactions]([TransactionId]),
-    CONSTRAINT [CK_StockAdjustments_Type] CHECK ([AdjustmentType] IN ('INCREASE','DECREASE')),
-    CONSTRAINT [CK_StockAdjustments_Status] CHECK ([ApprovalStatus] IN ('PENDING','APPROVED','REJECTED'))
+    CONSTRAINT [CK_StockAdjustments_Type] CHECK ([AdjustmentType]='DECREASE' OR [AdjustmentType]='INCREASE'),
+    CONSTRAINT [CK_StockAdjustments_Status] CHECK ([ApprovalStatus]='REJECTED' OR [ApprovalStatus]='APPROVED' OR [ApprovalStatus]='PENDING')
 );

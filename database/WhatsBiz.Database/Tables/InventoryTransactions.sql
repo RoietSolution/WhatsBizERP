@@ -9,7 +9,7 @@ CREATE TABLE [inventory].[InventoryTransactions] (
     CONSTRAINT [UQ_InventoryTransactions_No] UNIQUE ([TransactionNo]),
     CONSTRAINT [FK_InventoryTransactions_Warehouse] FOREIGN KEY ([WarehouseId]) REFERENCES [inventory].[Warehouses]([WarehouseId]),
     CONSTRAINT [FK_InventoryTransactions_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [core].[Tenants]([TenantId]),
-    CONSTRAINT [CK_InventoryTransactions_Type] CHECK ([TransactionType] IN ('ADJUSTMENT_IN','ADJUSTMENT_OUT','TRANSFER_OUT','TRANSFER_IN','RESERVATION','RELEASE','PURCHASE','SALE','RETURN','MANUFACTURING'))
+    CONSTRAINT [CK_InventoryTransactions_Type] CHECK ([TransactionType]='MANUFACTURING' OR [TransactionType]='RETURN' OR [TransactionType]='SALE' OR [TransactionType]='PURCHASE' OR [TransactionType]='RELEASE' OR [TransactionType]='RESERVATION' OR [TransactionType]='TRANSFER_IN' OR [TransactionType]='TRANSFER_OUT' OR [TransactionType]='ADJUSTMENT_OUT' OR [TransactionType]='ADJUSTMENT_IN')
 );
 GO
 CREATE INDEX [IX_InventoryTransactions_Date] ON [inventory].[InventoryTransactions]([TransactionDate] DESC,[WarehouseId],[TransactionType]);

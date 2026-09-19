@@ -11,7 +11,7 @@ CREATE TABLE [core].[IdempotencyRequests]
     [CompletedOn] DATETIMEOFFSET NULL,
     CONSTRAINT [PK_IdempotencyRequests] PRIMARY KEY ([IdempotencyRequestId]),
     CONSTRAINT [UQ_IdempotencyRequests_Key] UNIQUE ([IdempotencyKey]),
-    CONSTRAINT [CK_IdempotencyRequests_Status] CHECK ([Status] IN (N'PROCESSING', N'COMPLETED')),
+    CONSTRAINT [CK_IdempotencyRequests_Status] CHECK ([Status]=N'COMPLETED' OR [Status]=N'PROCESSING'),
     CONSTRAINT [CK_IdempotencyRequests_Response] CHECK
     (
         ([Status] = N'PROCESSING' AND [ResponseJson] IS NULL AND [CompletedOn] IS NULL)

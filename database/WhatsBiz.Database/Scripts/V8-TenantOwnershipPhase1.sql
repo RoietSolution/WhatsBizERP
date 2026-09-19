@@ -9,6 +9,8 @@ IF COL_LENGTH('finance.JournalEntries','TenantId') IS NULL EXEC(N'ALTER TABLE fi
 GO
 BEGIN TRY
  BEGIN TRAN;
+ IF N'$(FreshProductionInitialization)' <> N'True'
+ BEGIN
  ;WITH u AS (SELECT UserName,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId FROM core.Users WHERE TenantId IS NOT NULL GROUP BY UserName HAVING COUNT(DISTINCT TenantId)=1)
  UPDATE i SET TenantId=u.TenantId FROM sales.SalesInvoices i JOIN u ON u.UserName=i.CreatedBy WHERE i.TenantId IS NULL;
  ;WITH u AS (SELECT UserName,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),TenantId))) TenantId FROM core.Users WHERE TenantId IS NOT NULL GROUP BY UserName HAVING COUNT(DISTINCT TenantId)=1)
@@ -21,6 +23,7 @@ BEGIN TRY
  UPDATE w SET TenantId=u.TenantId FROM inventory.Warehouses w JOIN u ON u.UserName=w.CreatedBy WHERE w.TenantId IS NULL;
  ;WITH b AS (SELECT b.WarehouseId,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),p.TenantId))) TenantId FROM inventory.InventoryBalances b JOIN master.Products p ON p.ProductId=b.ProductId WHERE p.TenantId IS NOT NULL GROUP BY b.WarehouseId HAVING COUNT(DISTINCT p.TenantId)=1)
  UPDATE w SET TenantId=b.TenantId FROM inventory.Warehouses w JOIN b ON b.WarehouseId=w.WarehouseId WHERE w.TenantId IS NULL;
+ END;
  IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_Suppliers_Tenants') ALTER TABLE purchase.Suppliers ADD CONSTRAINT FK_Suppliers_Tenants FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId);
  IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_Warehouses_Tenants') ALTER TABLE inventory.Warehouses ADD CONSTRAINT FK_Warehouses_Tenants FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId);
  IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_SalesInvoices_Tenants') ALTER TABLE sales.SalesInvoices ADD CONSTRAINT FK_SalesInvoices_Tenants FOREIGN KEY(TenantId) REFERENCES core.Tenants(TenantId);

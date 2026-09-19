@@ -14,6 +14,8 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'admin.Compan
 GO
 
 /* Resolve only companies whose branch warehouse provides one unambiguous owner. */
+IF N'$(FreshProductionInitialization)'<>N'True'
+BEGIN
 ;WITH Ownership AS
 (
  SELECT b.CompanyId,CONVERT(uniqueidentifier,MIN(CONVERT(char(36),w.TenantId))) TenantId
@@ -21,6 +23,7 @@ GO
  WHERE w.TenantId IS NOT NULL GROUP BY b.CompanyId HAVING COUNT(DISTINCT w.TenantId)=1
 )
 UPDATE c SET TenantId=o.TenantId FROM admin.Companies c JOIN Ownership o ON o.CompanyId=c.CompanyId WHERE c.TenantId IS NULL;
+END;
 
 /* Give existing enrolled retailers that have no company a clean configuration root. */
 INSERT admin.Companies(CompanyId,CompanyCode,CompanyName,LegalName,Country,IsActive,CreatedOn,TenantId)
@@ -36,7 +39,8 @@ IF OBJECT_ID(N'gst.FK_GSTSettings_Tenants',N'F') IS NULL
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'gst.GSTSettings') AND name=N'IX_GSTSettings_Tenant')
  EXEC(N'CREATE INDEX IX_GSTSettings_Tenant ON gst.GSTSettings(TenantId,IsActive,EffectiveDate DESC);');
 GO
-UPDATE g SET TenantId=c.TenantId FROM gst.GSTSettings g JOIN admin.Companies c ON c.GSTIN=g.CompanyGSTIN WHERE g.TenantId IS NULL AND c.TenantId IS NOT NULL;
+IF N'$(FreshProductionInitialization)'<>N'True'
+    UPDATE g SET TenantId=c.TenantId FROM gst.GSTSettings g JOIN admin.Companies c ON c.GSTIN=g.CompanyGSTIN WHERE g.TenantId IS NULL AND c.TenantId IS NOT NULL;
 
 IF COL_LENGTH(N'printing.PrinterConfigurations',N'TenantId') IS NULL
  EXEC(N'ALTER TABLE printing.PrinterConfigurations ADD TenantId uniqueidentifier NULL;');
@@ -48,6 +52,8 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'printing.Pri
 GO
 
 /* Resolve legacy printers only through an existing company printer selection. */
+IF N'$(FreshProductionInitialization)'<>N'True'
+BEGIN
 ;WITH Ownership AS
 (
  SELECT p.PrinterConfigurationId,CONVERT(uniqueidentifier,MIN(CONVERT(char(36),c.TenantId))) TenantId
@@ -57,6 +63,7 @@ GO
  WHERE c.TenantId IS NOT NULL GROUP BY p.PrinterConfigurationId HAVING COUNT(DISTINCT c.TenantId)=1
 )
 UPDATE p SET TenantId=o.TenantId FROM printing.PrinterConfigurations p JOIN Ownership o ON o.PrinterConfigurationId=p.PrinterConfigurationId WHERE p.TenantId IS NULL;
+END;
 
 IF EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'printing.PrinterConfigurations') AND name=N'UX_PrinterConfigurations_Default')
  DROP INDEX UX_PrinterConfigurations_Default ON printing.PrinterConfigurations;

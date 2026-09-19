@@ -85,13 +85,13 @@ WHERE NOT EXISTS(SELECT 1 FROM core.PlanFeatures pf WHERE pf.PlanId=@PlanId AND 
    one-time upgrade path, but never tenant-assign a platform owner once the
    account-scope model is present. Dynamic SQL keeps the legacy branch valid
    on databases where AccountType has not been introduced yet. */
-IF COL_LENGTH(N'core.Users', N'AccountType') IS NULL
+IF N'$(FreshProductionInitialization)'<>N'True' AND COL_LENGTH(N'core.Users', N'AccountType') IS NULL
 BEGIN
     EXEC sys.sp_executesql
         N'UPDATE u SET TenantId=@id FROM core.Users u WHERE u.TenantId IS NULL',
         N'@id uniqueidentifier',@TenantId;
 END
-ELSE
+ELSE IF N'$(FreshProductionInitialization)'<>N'True'
 BEGIN
     EXEC sys.sp_executesql
         N'UPDATE u SET TenantId=@id FROM core.Users u WHERE u.TenantId IS NULL AND u.AccountType=N''RETAILER''',

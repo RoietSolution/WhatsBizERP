@@ -32,6 +32,19 @@ WHERE u.AccountType<>N'APPLICATION_OWNER' OR u.TenantId IS NOT NULL;
 IF EXISTS (SELECT 1 FROM core.Users WHERE AccountType IS NULL OR (AccountType=N'APPLICATION_OWNER' AND TenantId IS NOT NULL) OR (AccountType=N'RETAILER' AND TenantId IS NULL) OR AccountType NOT IN(N'APPLICATION_OWNER',N'RETAILER'))
     THROW 52702, 'Existing user account scope is invalid; V27 cannot safely continue.', 1;
 
+/* DacFx can introduce the modeled check as enabled but untrusted while it
+   reconciles a fresh database. Revalidate the invariant before requiring the
+   trusted state below; WITH CHECK fails if any existing row violates it. */
+IF EXISTS
+(
+    SELECT 1
+    FROM sys.check_constraints
+    WHERE parent_object_id=OBJECT_ID(N'core.Users')
+      AND name=N'CK_Users_AccountScope'
+      AND (is_disabled=1 OR is_not_trusted=1)
+)
+    ALTER TABLE [core].[Users] WITH CHECK CHECK CONSTRAINT [CK_Users_AccountScope];
+
 IF NOT EXISTS
 (
     SELECT 1

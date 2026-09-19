@@ -94,11 +94,14 @@ BEGIN TRY
     )
         THROW 51000, 'Duplicate ProductBarcodes rows exist within a tenant. Resolve them before rerunning V22.', 1;
 
-    UPDATE b
-    SET TenantId = p.TenantId
-    FROM master.ProductBarcodes b
-    JOIN master.Products p ON p.ProductId = b.ProductId
-    WHERE b.TenantId IS NULL;
+    IF N'$(FreshProductionInitialization)'<>N'True'
+    BEGIN
+        UPDATE b
+        SET TenantId = p.TenantId
+        FROM master.ProductBarcodes b
+        JOIN master.Products p ON p.ProductId = b.ProductId
+        WHERE b.TenantId IS NULL;
+    END;
 
     IF EXISTS (
         SELECT 1

@@ -28,7 +28,11 @@ public static class WhatsAppDependencyInjection
         {
             client.Timeout = TimeSpan.FromSeconds(20);
             client.DefaultRequestHeaders.UserAgent.ParseAdd("WhatsBizERP/2.0");
-        });
+        })
+        // The OAuth code exchange necessarily puts app credentials and the
+        // one-time authorization code in the Graph request URI. Suppress the
+        // factory's default request-URI logging for this named client.
+        .RemoveAllLoggers();
         return services;
     }
 }

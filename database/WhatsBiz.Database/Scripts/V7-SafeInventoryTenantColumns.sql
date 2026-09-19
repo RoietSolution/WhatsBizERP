@@ -14,7 +14,15 @@ BEGIN
     EXEC(N'CREATE INDEX IX_InventoryTransactions_Tenant_Date ON inventory.InventoryTransactions(TenantId,CreatedOn);');
 END;
 GO
+/* Fresh production already receives the tenant columns and guards from the
+   DACPAC, and has no legacy ownership to backfill. Skip these UPDATEs because
+   SQL Server fires AFTER triggers even when an UPDATE affects zero rows; the
+   tenant guards correctly require SESSION_CONTEXT for any such statement. */
+IF N'$(FreshProductionInitialization)' <> N'True'
+BEGIN
 UPDATE b SET TenantId=p.TenantId FROM inventory.InventoryBalances b JOIN master.Products p ON p.ProductId=b.ProductId WHERE b.TenantId IS NULL;
 IF EXISTS (SELECT 1 FROM inventory.InventoryBalances WHERE TenantId IS NULL) THROW 51010,'Inventory balance ownership could not be deterministically inferred.',1;
 UPDATE t SET TenantId=x.TenantId FROM inventory.InventoryTransactions t JOIN (SELECT d.TransactionId,CONVERT(uniqueidentifier,MAX(CONVERT(varchar(36),p.TenantId))) TenantId FROM inventory.InventoryTransactionDetails d JOIN master.Products p ON p.ProductId=d.ProductId GROUP BY d.TransactionId HAVING COUNT(DISTINCT p.TenantId)=1) x ON x.TransactionId=t.TransactionId WHERE t.TenantId IS NULL;
 IF EXISTS (SELECT 1 FROM inventory.InventoryTransactions WHERE TenantId IS NULL) THROW 51011,'Inventory transaction ownership is ambiguous or orphaned.',1;
+END;
+GO

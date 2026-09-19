@@ -144,6 +144,14 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         b.Entity<TenantProductCategory>().ToTable("TenantProductCategories", "master").HasKey(x => new { x.TenantId, x.ProductCategoryId });
         b.Entity<TenantBrand>().ToTable("TenantBrands", "master").HasKey(x => new { x.TenantId, x.BrandId });
         b.Entity<TenantUnitOfMeasure>().ToTable("TenantUnitsOfMeasure", "master").HasKey(x => new { x.TenantId, x.UnitId });
+        // Keep the master-unit dependency visible to EF.  Without this relationship
+        // EF may insert the tenant mapping before a newly-added UnitsOfMeasure row,
+        // causing FK_TenantUnitsOfMeasure_Unit during UOM imports.
+        b.Entity<TenantUnitOfMeasure>()
+            .HasOne<UnitOfMeasure>()
+            .WithMany()
+            .HasForeignKey(x => x.UnitId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureTenantCodeIndexes(ModelBuilder b)

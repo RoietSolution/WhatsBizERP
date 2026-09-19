@@ -11,7 +11,7 @@ BEGIN
     CREATE TABLE marketing.DemoRequests
     (
         Id BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_DemoRequests PRIMARY KEY CLUSTERED,
-        ReferenceNo AS (CONVERT(varchar(3),'KD-') + CASE WHEN Id < 1000000 THEN RIGHT(CONVERT(varchar(6),'000000') + CONVERT(varchar(20),Id),6) ELSE CONVERT(varchar(20),Id) END) PERSISTED,
+        ReferenceNo AS (CONVERT(varchar(3),'KD-') + CASE WHEN Id < (1000000) THEN RIGHT(CONVERT(varchar(6),'000000') + CONVERT(varchar(20),Id),(6)) ELSE CONVERT(varchar(20),Id) END) PERSISTED,
         Name NVARCHAR(100) NOT NULL,
         Mobile NVARCHAR(24) NOT NULL,
         Email NVARCHAR(254) NULL,
@@ -35,8 +35,8 @@ BEGIN
         ModifiedOn DATETIMEOFFSET NULL,
         ModifiedBy NVARCHAR(256) NULL,
         CONSTRAINT UQ_DemoRequests_ReferenceNo UNIQUE(ReferenceNo),
-        CONSTRAINT CK_DemoRequests_Status CHECK(Status IN(N'NEW',N'CONTACTED',N'FOLLOW_UP',N'DEMO_SCHEDULED',N'DEMO_COMPLETED',N'TRIAL_STARTED',N'CONVERTED',N'NOT_INTERESTED',N'LOST')),
-        CONSTRAINT CK_DemoRequests_NotificationStatus CHECK(NotificationStatus IN(N'PENDING',N'SENT',N'FAILED',N'SKIPPED'))
+        CONSTRAINT CK_DemoRequests_Status CHECK(Status=N'LOST' OR Status=N'NOT_INTERESTED' OR Status=N'CONVERTED' OR Status=N'TRIAL_STARTED' OR Status=N'DEMO_COMPLETED' OR Status=N'DEMO_SCHEDULED' OR Status=N'FOLLOW_UP' OR Status=N'CONTACTED' OR Status=N'NEW'),
+        CONSTRAINT CK_DemoRequests_NotificationStatus CHECK(NotificationStatus=N'SKIPPED' OR NotificationStatus=N'FAILED' OR NotificationStatus=N'SENT' OR NotificationStatus=N'PENDING')
     );
 END;
 

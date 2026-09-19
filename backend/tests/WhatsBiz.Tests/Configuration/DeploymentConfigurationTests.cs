@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
+using WhatsBiz.Api.Configuration;
 using WhatsBiz.Infrastructure.DemoRequests;
 using WhatsBiz.Infrastructure.Products;
 using WhatsBiz.Infrastructure.Identity;
@@ -10,6 +11,36 @@ namespace WhatsBiz.Tests.Configuration;
 
 public sealed class DeploymentConfigurationTests
 {
+    [Theory]
+    [InlineData("WhatsBizERP_PROD", true)]
+    [InlineData("WhatsBizERP", false)]
+    [InlineData("WhatsBizERP_QA", false)]
+    [InlineData("OtherDatabase", false)]
+    public void ProductionDatabaseTargetMustBeExplicitAndExact(string database, bool accepted)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:DefaultConnection"] = $"Server=prod-sql;Database={database};User Id=test;Password=test-only"
+        }).Build();
+
+        if (accepted)
+            DatabaseTargetGuard.Validate("Production", configuration).InitialCatalog.Should().Be("WhatsBizERP_PROD");
+        else
+            FluentActions.Invoking(() => DatabaseTargetGuard.Validate("Production", configuration))
+                .Should().Throw<InvalidOperationException>()
+                .WithMessage("Production must use the WhatsBizERP_PROD database. Startup was stopped before accepting requests.");
+    }
+
+    [Fact]
+    public void ProductionDatabaseTargetFailsWhenConnectionStringIsNotExplicit()
+    {
+        var configuration = new ConfigurationBuilder().Build();
+
+        FluentActions.Invoking(() => DatabaseTargetGuard.Validate("Production", configuration))
+            .Should().Throw<InvalidOperationException>()
+            .WithMessage("Connection string 'DefaultConnection' is missing.");
+    }
+
     [Fact]
     public void StandardEnvironmentProviderBindsNestedDeploymentOptions()
     {

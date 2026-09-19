@@ -12,5 +12,6 @@ BEGIN
  INSERT inventory.StockAdjustments(StockAdjustmentId,TransactionId,AdjustmentNo,AdjustmentType,ReasonCode,ApprovalStatus)VALUES(@AdjustmentId,@TransactionId,@No,@AdjustmentType,@ReasonCode,'PENDING');
  UPDATE inventory.InventoryBalances SET QuantityOnHand=QuantityOnHand+CASE WHEN @AdjustmentType='INCREASE'THEN @Quantity ELSE -@Quantity END,AverageCost=CASE WHEN @AdjustmentType='INCREASE' AND @OnHand+@Quantity>0 THEN ((@OnHand*@Average)+(@Quantity*@UnitCost))/(@OnHand+@Quantity) ELSE AverageCost END,LastPurchaseCost=CASE WHEN @AdjustmentType='INCREASE'THEN @UnitCost ELSE LastPurchaseCost END,LastUpdated=SYSUTCDATETIME(),ModifiedOn=SYSUTCDATETIME(),ModifiedBy=@CreatedBy WHERE InventoryBalanceId=@BalanceId;
  INSERT inventory.InventoryValuation(ProductId,WarehouseId,ValuationMethod,Quantity,UnitCost)SELECT @ProductId,@WarehouseId,ISNULL((SELECT TOP(1)ValuationMethod FROM inventory.InventorySettings),'AVERAGE'),SUM(QuantityOnHand),CASE WHEN SUM(QuantityOnHand)=0 THEN 0 ELSE SUM(QuantityOnHand*AverageCost)/SUM(QuantityOnHand) END FROM inventory.InventoryBalances WHERE ProductId=@ProductId AND WarehouseId=@WarehouseId;
- COMMIT;SELECT @TransactionId TransactionId,@AdjustmentId StockAdjustmentId,@No TransactionNo;
+ EXEC finance.PostStockAdjustment @TransactionId=@TransactionId,@CreatedBy=@CreatedBy;COMMIT;SELECT @TransactionId TransactionId,@AdjustmentId StockAdjustmentId,@No TransactionNo;
 END;
+GO

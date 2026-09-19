@@ -1,0 +1,23 @@
+[Unit]
+Description=WhatsBiz ERP Production API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=whatsbiz-prod
+Group=whatsbiz-prod
+WorkingDirectory=/var/www/whatsbiz-prod
+ExecStart=/usr/bin/dotnet /var/www/whatsbiz-prod/WhatsBiz.Api.dll
+Environment=ASPNETCORE_ENVIRONMENT=Production
+EnvironmentFile=/etc/whatsbiz/prod.env
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGINT
+SyslogIdentifier=whatsbiz-prod
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

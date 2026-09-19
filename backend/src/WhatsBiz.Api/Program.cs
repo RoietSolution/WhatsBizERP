@@ -32,12 +32,7 @@ Log.Logger = new LoggerConfiguration().WriteTo.Console(formatProvider: CultureIn
 try
 {
     var builder = WebApplication.CreateBuilder(args);
-    var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection")
-        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is missing.");
-    var databaseTarget = new SqlConnectionStringBuilder(defaultConnection);
-    if (builder.Environment.IsEnvironment("QA") &&
-        !string.Equals(databaseTarget.InitialCatalog, "WhatsBizERP_QA", StringComparison.OrdinalIgnoreCase))
-        throw new InvalidOperationException("QA must use the WhatsBizERP_QA database. Startup was stopped before accepting requests.");
+    var databaseTarget = DatabaseTargetGuard.Validate(builder.Environment.EnvironmentName, builder.Configuration);
     Log.Information("Runtime environment {Environment}; database server {DatabaseServer}; database name {DatabaseName}",
         builder.Environment.EnvironmentName, databaseTarget.DataSource, databaseTarget.InitialCatalog);
     builder.Host.UseSerilog((context, services, configuration) =>

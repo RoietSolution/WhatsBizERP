@@ -8,5 +8,5 @@ CREATE TABLE [inventory].[InventorySettings] (
     [ModifiedOn] DATETIMEOFFSET NULL,
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_InventorySettings] PRIMARY KEY ([InventorySettingsId]),
-    CONSTRAINT [CK_InventorySettings_Valuation] CHECK ([ValuationMethod] IN ('AVERAGE','FIFO','LIFO'))
+    CONSTRAINT [CK_InventorySettings_Valuation] CHECK ([ValuationMethod]='LIFO' OR [ValuationMethod]='FIFO' OR [ValuationMethod]='AVERAGE')
 );

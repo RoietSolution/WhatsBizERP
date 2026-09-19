@@ -170,7 +170,7 @@ public sealed class SqlCommerceFixture
     private async Task ConfigureMetaTestAsync()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:DefaultConnection"] = ConnectionString }).Build();
-        var service = new WhatsAppService(configuration, DataProtectionProvider.Create("WhatsBiz.SqlCommerceTests"), new AlwaysOnFeatures(), new WhatsAppCommerceProviderResolver([new MockWhatsAppProvider()]), NullLogger<WhatsAppService>.Instance);
+        var service = new WhatsAppService(configuration, DataProtectionProvider.Create("WhatsBiz.SqlCommerceTests"), new AlwaysOnFeatures(), new WhatsAppCommerceProviderResolver([new MockWhatsAppProvider()]), NullLogger<WhatsAppService>.Instance, new TestHttpClientFactory());
         await service.SaveConfigurationAsync(TenantB, new SaveWhatsAppConfigurationInput(WhatsAppProviderModes.MetaTest, "991234567889", WabaId, PhoneId, "v20.0", "919900000002", true, "sqlit-access-token", VerifyToken, WebhookSecret), Tag, default);
     }
 
@@ -191,9 +191,9 @@ public sealed class SqlCommerceFixture
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:DefaultConnection"] = ConnectionString }).Build();
         var resolver = new WhatsAppCommerceProviderResolver([new MockWhatsAppProvider()]);
-        var verifier = new WhatsAppService(configuration, DataProtectionProvider.Create("WhatsBiz.SqlCommerceTests"), new DisabledFeatures(), resolver, NullLogger<WhatsAppService>.Instance);
+        var verifier = new WhatsAppService(configuration, DataProtectionProvider.Create("WhatsBiz.SqlCommerceTests"), new DisabledFeatures(), resolver, NullLogger<WhatsAppService>.Instance, new TestHttpClientFactory());
         (await verifier.VerifyWebhookAsync("subscribe", VerifyToken, "challenge", default)).Should().Be("challenge", "public verification must not depend on a tenant feature/JWT context");
-        var service = new WhatsAppService(configuration, DataProtectionProvider.Create("WhatsBiz.SqlCommerceTests"), new AlwaysOnFeatures(), resolver, NullLogger<WhatsAppService>.Instance);
+        var service = new WhatsAppService(configuration, DataProtectionProvider.Create("WhatsBiz.SqlCommerceTests"), new AlwaysOnFeatures(), resolver, NullLogger<WhatsAppService>.Instance, new TestHttpClientFactory());
         (await service.GetConfigurationAsync(TenantA, default)).PhoneNumberId.Should().NotBe(PhoneId, "a tenant lookup must never fall through to another retailer's configuration");
         var message = new { id = $"{Tag}-message", from = "919900000001", type = "text", timestamp = "1700000000" };
         var value = new { tenantId = TenantA, metadata = new { phone_number_id = PhoneId }, messages = new[] { message } };
@@ -282,6 +282,11 @@ public sealed class AlwaysOnFeatures : IFeatureService
     public Task<TenantFeatureConfiguration> UpdateTenantConfigurationAsync(Guid tenantId, IReadOnlyCollection<TenantFeatureUpdate> updates, string? changedBy, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public void InvalidateTenant(Guid tenantId) { }
     public void InvalidateAll() { }
+}
+
+internal sealed class TestHttpClientFactory : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name) => new(new HttpClientHandler());
 }
 
 public sealed class DisabledFeatures : IFeatureService

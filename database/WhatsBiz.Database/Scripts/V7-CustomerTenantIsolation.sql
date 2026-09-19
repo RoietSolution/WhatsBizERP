@@ -9,7 +9,7 @@ GO
 
 DECLARE @TenantCount INT=(SELECT COUNT(1) FROM [core].[Tenants] WHERE [IsActive]=1);
 DECLARE @OnlyTenant UNIQUEIDENTIFIER=(SELECT TOP(1) [TenantId] FROM [core].[Tenants] WHERE [IsActive]=1);
-IF @TenantCount=1
+IF @TenantCount=1 AND N'$(FreshProductionInitialization)'<>N'True'
     UPDATE [sales].[Customers] SET [TenantId]=@OnlyTenant WHERE [TenantId] IS NULL;
 GO
 

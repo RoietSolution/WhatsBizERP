@@ -170,6 +170,8 @@ public sealed class WhatsAppWebhookVerificationTests
 
         public Task<WhatsAppConfigurationDto> GetConfigurationAsync(Guid tenantId, CancellationToken token) => throw new NotSupportedException();
         public Task<WhatsAppConfigurationDto> SaveConfigurationAsync(Guid tenantId, SaveWhatsAppConfigurationInput input, string? actor, CancellationToken token) => throw new NotSupportedException();
+        public Task<WhatsAppConnectionResult> CompleteOnboardingAsync(Guid tenantId, WhatsAppOnboardingCompletionInput input, string? actor, CancellationToken token) => throw new NotSupportedException();
+        public Task<WhatsAppOnboardingConfigurationDto> GetOnboardingConfigurationAsync(CancellationToken token) => throw new NotSupportedException();
         public Task<WhatsAppConnectionResult> ValidateConnectionAsync(Guid tenantId, string? replacementAccessToken, CancellationToken token) => throw new NotSupportedException();
         public Task<WhatsAppTestMessageResult> SendTestMessageAsync(Guid tenantId, SendWhatsAppTestMessageInput input, CancellationToken token) => throw new NotSupportedException();
         public Task<WhatsAppMetaTestDiagnosticsDto> GetDiagnosticsAsync(Guid tenantId, CancellationToken token) => throw new NotSupportedException();
@@ -190,6 +192,8 @@ public sealed class WhatsAppWebhookVerificationTests
         public Task<string?> VerifyWebhookAsync(string? mode, string? verifyToken, string? challenge, CancellationToken token) => throw new NotSupportedException();
         public Task<WhatsAppConfigurationDto> GetConfigurationAsync(Guid tenantId, CancellationToken token) => throw new NotSupportedException();
         public Task<WhatsAppConfigurationDto> SaveConfigurationAsync(Guid tenantId, SaveWhatsAppConfigurationInput input, string? actor, CancellationToken token) => throw new NotSupportedException();
+        public Task<WhatsAppConnectionResult> CompleteOnboardingAsync(Guid tenantId, WhatsAppOnboardingCompletionInput input, string? actor, CancellationToken token) => throw new NotSupportedException();
+        public Task<WhatsAppOnboardingConfigurationDto> GetOnboardingConfigurationAsync(CancellationToken token) => throw new NotSupportedException();
         public Task<WhatsAppConnectionResult> ValidateConnectionAsync(Guid tenantId, string? replacementAccessToken, CancellationToken token) => throw new NotSupportedException();
         public Task<WhatsAppTestMessageResult> SendTestMessageAsync(Guid tenantId, SendWhatsAppTestMessageInput input, CancellationToken token) => throw new NotSupportedException();
         public Task<WhatsAppMetaTestDiagnosticsDto> GetDiagnosticsAsync(Guid tenantId, CancellationToken token) => throw new NotSupportedException();

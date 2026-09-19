@@ -43,7 +43,7 @@ function Invoke-SqlQuery([string] $Database,[string] $Query,[switch] $Quiet) {
 function Invoke-SqlFile([string] $Path) {
     if (-not (Test-Path -LiteralPath $Path)) { throw "Required SQL deployment file is missing: $Path" }
     Write-Host "Applying $(Split-Path -Leaf $Path)"
-    & $sqlCmd -S $script:targetBuilder.DataSource -d $expectedDatabase -U $script:targetBuilder.UserID -C -b -i $Path
+    & $sqlCmd -S $script:targetBuilder.DataSource -d $expectedDatabase -U $script:targetBuilder.UserID -C -b -v FreshProductionInitialization=False -i $Path
     if ($LASTEXITCODE -ne 0) { throw "SQL deployment file failed: $(Split-Path -Leaf $Path)" }
 }
 
@@ -213,7 +213,7 @@ try {
         Invoke-SqlFile (Join-Path $scriptRoot $file)
     }
     Invoke-SqlFile (Join-Path $scriptRoot 'V9-TenantOwnershipResolutionReport.sql')
-    foreach ($file in @('V18-POS-PostInvoice-TenantHardening.sql','V24-RecreateOperationalTenantGuards-WithRequiredSetOptions.sql')) {
+    foreach ($file in @('V24-RecreateOperationalTenantGuards-WithRequiredSetOptions.sql')) {
         Invoke-IdentityGate
         Invoke-SqlFile (Join-Path $scriptRoot $file)
     }

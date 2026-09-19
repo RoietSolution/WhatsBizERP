@@ -2,6 +2,9 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET XACT_ABORT ON;
 
+IF N'$(ProductionDeployment)' = N'True'
+    RETURN;
+
 BEGIN TRANSACTION;
 
 DECLARE @TenantId uniqueidentifier,

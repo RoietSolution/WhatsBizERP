@@ -5,8 +5,9 @@ GO
 IF COL_LENGTH(N'master.Products', N'TenantId') IS NULL
     ALTER TABLE master.Products ADD TenantId uniqueidentifier NULL;
 GO
-UPDATE p SET TenantId = (SELECT TOP (1) TenantId FROM core.Tenants ORDER BY CreatedOn, TenantId)
-FROM master.Products p WHERE p.TenantId IS NULL;
+IF N'$(FreshProductionInitialization)'<>N'True'
+    UPDATE p SET TenantId = (SELECT TOP (1) TenantId FROM core.Tenants ORDER BY CreatedOn, TenantId)
+    FROM master.Products p WHERE p.TenantId IS NULL;
 IF EXISTS (SELECT 1 FROM master.Products WHERE TenantId IS NULL)
     THROW 51000, 'Cannot migrate Products: no tenant exists for legacy product ownership.', 1;
 IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'master.Products') AND name=N'TenantId' AND is_nullable=1)
@@ -23,8 +24,9 @@ GO
 /* Existing installations predate tenant ownership on product images. Assign legacy rows to
    the original/default tenant before making ownership mandatory. New rows are always stamped
    from the authenticated tenant context by the application. */
-UPDATE img SET TenantId = (SELECT TOP (1) TenantId FROM core.Tenants ORDER BY CreatedOn, TenantId)
-FROM master.ProductImages img WHERE img.TenantId IS NULL;
+IF N'$(FreshProductionInitialization)'<>N'True'
+    UPDATE img SET TenantId = (SELECT TOP (1) TenantId FROM core.Tenants ORDER BY CreatedOn, TenantId)
+    FROM master.ProductImages img WHERE img.TenantId IS NULL;
 IF EXISTS (SELECT 1 FROM master.ProductImages WHERE TenantId IS NULL)
     THROW 51001, 'Cannot migrate ProductImages: no tenant exists for legacy image ownership.', 1;
 IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'master.ProductImages') AND name=N'TenantId' AND is_nullable=1)

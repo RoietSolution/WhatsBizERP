@@ -6,6 +6,7 @@ using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Products.DTOs;
 using WhatsBiz.Application.Features.Products.Mappings;
 using WhatsBiz.Application.Features.Products.MasterData;
+using WhatsBiz.Domain.Products;
 using WhatsBiz.Infrastructure.Persistence;
 
 namespace WhatsBiz.Tests.Products;
@@ -58,6 +59,17 @@ public sealed class ProductMasterCodeGenerationTests
 
         updated.BrandCode.Should().Be(created.BrandCode);
         updated.BrandName.Should().Be("Renamed");
+    }
+
+    [Fact]
+    public void TenantUnitMappingDeclaresMasterUnitForeignKeyForInsertOrdering()
+    {
+        using var db = CreateDb();
+        var mapping = db.Model.GetEntityTypes().Single(x => x.GetTableName() == "TenantUnitsOfMeasure");
+        var unitId = mapping.FindProperty("UnitId");
+
+        mapping.FindForeignKeys([unitId!])
+            .Should().ContainSingle(fk => fk.PrincipalEntityType.ClrType == typeof(UnitOfMeasure));
     }
 
     private static ApplicationDbContext CreateDb() => new(

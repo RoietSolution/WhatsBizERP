@@ -21,9 +21,9 @@ CREATE TABLE [integration].[CustomerNotifications]
     CONSTRAINT [PK_CustomerNotifications] PRIMARY KEY ([CustomerNotificationId]),
     CONSTRAINT [FK_CustomerNotifications_Customer] FOREIGN KEY ([CustomerId]) REFERENCES [sales].[Customers]([CustomerId]),
     CONSTRAINT [FK_CustomerNotifications_Invoice] FOREIGN KEY ([DocumentId]) REFERENCES [sales].[SalesInvoices]([InvoiceId]),
-    CONSTRAINT [CK_CustomerNotifications_Channel] CHECK ([Channel] IN (N'WHATSAPP',N'SMS')),
-    CONSTRAINT [CK_CustomerNotifications_Status] CHECK ([Status] IN (N'PENDING',N'PROCESSING',N'SENT',N'FAILED')),
-    CONSTRAINT [CK_CustomerNotifications_Attempts] CHECK ([AttemptCount] BETWEEN 0 AND 3),
+    CONSTRAINT [CK_CustomerNotifications_Channel] CHECK ([Channel]=N'SMS' OR [Channel]=N'WHATSAPP'),
+    CONSTRAINT [CK_CustomerNotifications_Status] CHECK ([Status]=N'FAILED' OR [Status]=N'SENT' OR [Status]=N'PROCESSING' OR [Status]=N'PENDING'),
+    CONSTRAINT [CK_CustomerNotifications_Attempts] CHECK ([AttemptCount]>=(0) AND [AttemptCount]<=(3)),
     CONSTRAINT [UQ_CustomerNotifications_Event] UNIQUE ([DocumentId],[DocumentType],[CustomerId],[Channel],[EventType])
 );
 GO

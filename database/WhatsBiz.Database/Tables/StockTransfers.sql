@@ -4,5 +4,5 @@ CREATE TABLE [inventory].[StockTransfers] (
     CONSTRAINT [PK_StockTransfers] PRIMARY KEY ([StockTransferId]),CONSTRAINT [UQ_StockTransfers_No] UNIQUE ([TransferNo]),
     CONSTRAINT [FK_StockTransfers_SourceTransaction] FOREIGN KEY ([SourceTransactionId]) REFERENCES [inventory].[InventoryTransactions]([TransactionId]),CONSTRAINT [FK_StockTransfers_DestinationTransaction] FOREIGN KEY ([DestinationTransactionId]) REFERENCES [inventory].[InventoryTransactions]([TransactionId]),
     CONSTRAINT [FK_StockTransfers_SourceWarehouse] FOREIGN KEY ([SourceWarehouseId]) REFERENCES [inventory].[Warehouses]([WarehouseId]),CONSTRAINT [FK_StockTransfers_DestinationWarehouse] FOREIGN KEY ([DestinationWarehouseId]) REFERENCES [inventory].[Warehouses]([WarehouseId]),
-    CONSTRAINT [CK_StockTransfers_Warehouses] CHECK ([SourceWarehouseId]<>[DestinationWarehouseId]),CONSTRAINT [CK_StockTransfers_Status] CHECK ([ApprovalStatus] IN ('PENDING','APPROVED','REJECTED','COMPLETED'))
+    CONSTRAINT [CK_StockTransfers_Warehouses] CHECK ([SourceWarehouseId]<>[DestinationWarehouseId]),CONSTRAINT [CK_StockTransfers_Status] CHECK ([ApprovalStatus]='COMPLETED' OR [ApprovalStatus]='REJECTED' OR [ApprovalStatus]='APPROVED' OR [ApprovalStatus]='PENDING')
 );

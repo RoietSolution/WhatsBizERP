@@ -1,5 +1,7 @@
 using System.Reflection;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using WhatsBiz.Api.Authorization;
 using WhatsBiz.Api.Controllers;
 using WhatsBiz.Application.Common.Features;
@@ -28,6 +30,14 @@ public sealed class WhatsAppCommerceDemoTests
         resolver.Resolve("mock").Should().BeSameAs(mock);
         var action = () => resolver.Resolve("LIVE");
         action.Should().Throw<BusinessRuleException>().WithMessage("*not implemented*");
+    }
+
+    [Fact]
+    public void ResolverSelectsMetaProviderForExplicitLiveMode()
+    {
+        var meta = new MetaCloudApiWhatsAppProvider(new HttpClientFactoryStub(), new ConfigurationBuilder().Build(), NullLogger<MetaCloudApiWhatsAppProvider>.Instance);
+        var resolver = new WhatsAppCommerceProviderResolver([meta]);
+        resolver.Resolve("LIVE").Should().BeSameAs(meta);
     }
 
     [Fact]
@@ -87,10 +97,18 @@ public sealed class WhatsAppCommerceDemoTests
     [InlineData("mock", true)]
     [InlineData("META_TEST", true)]
     [InlineData("meta_test", true)]
-    [InlineData("LIVE", false)]
+    [InlineData("LIVE", true)]
     [InlineData("", false)]
     public void DemoSupportsOnlyMockAndMetaTest(string mode, bool expected) =>
         WhatsAppCommerceService.DemoModeSupported(mode).Should().Be(expected);
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("   ", null)]
+    [InlineData("12-34", null)]
+    [InlineData("+91 98765 43210", "919876543210")]
+    public void LiveRecipientUsesOnlyTheSelectedCustomersSavedNumber(string? mobile, string? expected) =>
+        WhatsAppCommerceService.NormalizeRecipient(mobile).Should().Be(expected);
 
     [Fact]
     public void MetaTestOrderConfirmationUsesActualOrderValues()
@@ -124,5 +142,10 @@ public sealed class WhatsAppCommerceDemoTests
         public string? Username => "test";
         public string? Email => "test@example.com";
         public IReadOnlyCollection<string> Permissions => [];
+    }
+
+    private sealed class HttpClientFactoryStub : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new();
     }
 }

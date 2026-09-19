@@ -13,6 +13,8 @@ public sealed partial class MetaCloudApiWhatsAppProvider(IHttpClientFactory clie
     ILogger<MetaCloudApiWhatsAppProvider> logger) : IWhatsAppCommerceProvider
 {
     public string Mode => WhatsAppProviderModes.MetaTest;
+    public bool Supports(string mode) => mode.Equals(WhatsAppProviderModes.MetaTest, StringComparison.OrdinalIgnoreCase)
+        || mode.Equals(WhatsAppProviderModes.Live, StringComparison.OrdinalIgnoreCase);
 
     public Task<IReadOnlyCollection<WhatsAppCommerceMessage>> SendWelcomeAsync(string storeName, CancellationToken token) =>
         throw new BusinessRuleException("META_TEST commerce conversations are not implemented in WC-003.");
@@ -130,6 +132,6 @@ public sealed partial class MetaCloudApiWhatsAppProvider(IHttpClientFactory clie
 
 internal static partial class MetaProviderLogs
 {
-    [LoggerMessage(2201, LogLevel.Warning, "META_TEST request {Operation} was rejected with HTTP {StatusCode}.")]
+    [LoggerMessage(2201, LogLevel.Warning, "WhatsApp {Operation} request was rejected with HTTP {StatusCode}.")]
     public static partial void RequestRejected(ILogger logger, string operation, int statusCode);
 }

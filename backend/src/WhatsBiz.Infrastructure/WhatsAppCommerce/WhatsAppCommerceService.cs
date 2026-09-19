@@ -34,7 +34,7 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
         tenantId = AuthenticatedTenant(tenantId);
         await using var connection = new SqlConnection(ConnectionString); await connection.OpenAsync(token);
         var mode = await ProviderMode(connection, tenantId, token);
-        if (!DemoModeSupported(mode)) throw new BusinessRuleException("The WhatsApp Ecommerce demo supports MOCK or META_TEST mode.");
+        if (!DemoModeSupported(mode)) throw new BusinessRuleException("The WhatsApp Ecommerce flow does not support the configured provider mode.");
         var storeName = await Scalar<string>(connection, "SELECT TOP(1) CompanyName FROM admin.Companies WHERE IsActive=1 ORDER BY CreatedOn;", token) ?? "WhatsBiz Store";
         var customers = new List<WhatsAppCommerceCustomer>();
         await using (var command = new SqlCommand("SELECT TOP(100) CustomerId,CustomerCode,CustomerName,Mobile FROM sales.Customers WHERE TenantId=@tenant AND IsActive=1 AND IsDeleted=0 ORDER BY CustomerName;", connection))
@@ -56,7 +56,9 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
         var collections = await Collections(connection, tenantId, products.Select(x => x.ProductId).ToHashSet(), token);
         var welcome = mode.Equals("MOCK", StringComparison.OrdinalIgnoreCase)
             ? await providers.Resolve(mode).SendWelcomeAsync(storeName, token)
-            : new[] { new WhatsAppCommerceMessage("WHATS_BIZ", "TEXT", $"Welcome to {storeName}. This browser conversation is a catalog preview. Confirming an order sends a META_TEST message to the configured test recipient.") };
+            : new[] { new WhatsAppCommerceMessage("WHATS_BIZ", "TEXT", mode.Equals("LIVE", StringComparison.OrdinalIgnoreCase)
+                ? $"Welcome to {storeName}. This browser conversation is a catalogue preview using live ERP data. WhatsApp confirmations use the selected customer's saved WhatsApp number."
+                : $"Welcome to {storeName}. This browser conversation is a catalog preview. Confirming an order sends a META_TEST message to the configured test recipient.") };
         return new(mode, storeName, customers, warehouses, categories, collections, products, welcome);
     }
 
@@ -107,13 +109,16 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
         var config = await SendConfiguration(connection, tenantId, token)
             ?? throw new BusinessRuleException("WhatsApp is not enabled or configured for this tenant.");
         var mode = config.Mode.ToUpperInvariant();
-        if (!DemoModeSupported(mode)) throw new BusinessRuleException("The WhatsApp Ecommerce demo supports MOCK or META_TEST mode.");
+        if (!DemoModeSupported(mode)) throw new BusinessRuleException("The WhatsApp Ecommerce flow does not support the configured provider mode.");
         if (mode == "META_TEST" && string.IsNullOrWhiteSpace(config.TestRecipient)) throw new BusinessRuleException("Configure a META_TEST recipient before placing a demo order.");
         if (string.IsNullOrWhiteSpace(input.DeliveryAddress) || input.DeliveryAddress.Trim().Length > 1000) throw new BusinessRuleException("A delivery or collection address is required.");
         if (input.FulfillmentMethod is not ("WALK_IN" or "RETAILER_DELIVERY" or "COURIER")) throw new BusinessRuleException("Select a valid order fulfilment method.");
         if (input.PaymentType is not ("ONLINE" or "COD")) throw new BusinessRuleException("Select a valid payment type.");
-        await using (var customer = new SqlCommand("SELECT COUNT(1) FROM sales.Customers WHERE CustomerId=@id AND TenantId=@tenant AND IsActive=1 AND IsDeleted=0;", connection))
-        { customer.Parameters.AddWithValue("@id", input.CustomerId); customer.Parameters.AddWithValue("@tenant", tenantId); if (Convert.ToInt32(await customer.ExecuteScalarAsync(token), System.Globalization.CultureInfo.InvariantCulture) != 1) throw new BusinessRuleException("An active customer is required."); }
+        var orderCustomer = await Customer(connection, tenantId, input.CustomerId, token);
+        if (orderCustomer is null) throw new BusinessRuleException("An active customer is required.");
+        var liveRecipient = mode.Equals("LIVE", StringComparison.OrdinalIgnoreCase) ? NormalizeRecipient(orderCustomer.Mobile) : null;
+        if (mode.Equals("LIVE", StringComparison.OrdinalIgnoreCase) && liveRecipient is null)
+            throw new BusinessRuleException("A LIVE WhatsApp order requires an active customer with a valid WhatsApp number.");
         var cart = await CalculateCartAsync(tenantId, input.WarehouseId, input.Items, token);
         if (cart.Items.Count == 0) throw new BusinessRuleException("The cart is empty.");
         var redemption = input.RedeemCoins > 0
@@ -133,20 +138,30 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
         { update.Parameters.AddWithValue("@address", input.DeliveryAddress.Trim()); update.Parameters.AddWithValue("@fulfillment", input.FulfillmentMethod); update.Parameters.AddWithValue("@payment", input.PaymentType); update.Parameters.AddWithValue("@mode", mode); update.Parameters.AddWithValue("@invoice", result.InvoiceId); update.Parameters.AddWithValue("@tenant", tenantId); await update.ExecuteNonQueryAsync(token); }
         if (onlinePayment && loyalty is not null) await loyalty.ProcessOrderAsync(tenantId, result.InvoiceId, "COMPLETED", actor, token);
         List<WhatsAppCommerceMessage> messages;
+        var text = OrderConfirmationText(result.InvoiceNumber, result.GrandTotal);
         if (mode == "MOCK")
         {
             messages = (await providers.Resolve(mode).SendOrderConfirmationAsync(result.InvoiceNumber, result.GrandTotal, token)).ToList();
         }
-        else
+        else if (mode == "META_TEST")
         {
             var accessToken = protection.CreateProtector("WhatsBiz.WhatsApp.Secrets.v1")
                 .Unprotect(config.ProtectedToken ?? throw new BusinessRuleException("Stored WhatsApp credential cannot be decrypted."));
-            var text = OrderConfirmationText(result.InvoiceNumber, result.GrandTotal);
             var sent = await providers.Resolve(mode).SendTestMessageAsync(new(config.ApiVersion ?? string.Empty,
                 config.PhoneNumberId ?? string.Empty, accessToken, config.TestRecipient!, text), token);
             messages = [new("WHATS_BIZ", "ORDER", sent.Succeeded
                 ? $"{text}\n\nMETA_TEST message accepted by Meta."
                 : $"{text}\n\nThe ERP order was saved, but Meta did not accept the test message: {sent.SafeMessage}")];
+        }
+        else
+        {
+            var accessToken = protection.CreateProtector("WhatsBiz.WhatsApp.Secrets.v1")
+                .Unprotect(config.ProtectedToken ?? throw new BusinessRuleException("Stored WhatsApp credential cannot be decrypted."));
+            var sent = await providers.Resolve(mode).SendTransactionalAsync(new(config.ApiVersion ?? string.Empty,
+                config.PhoneNumberId ?? string.Empty, accessToken, liveRecipient!, "ORDER_CONFIRMATION", null, "en_US", text, []), token);
+            messages = [new("WHATS_BIZ", "ORDER", sent.Succeeded
+                ? $"{text}\n\nWhatsApp confirmation accepted by Meta."
+                : $"{text}\n\nThe ERP order was saved, but WhatsApp did not accept the confirmation: {sent.SafeMessage}")];
         }
         if (onlinePayment) messages.Add(new("WHATS_BIZ", "PAYMENT", $"Demo UPI payment received\nReference: {paymentReference}\nAmount: ₹{result.GrandTotal:0.00}"));
         if (redemption.RequestedCoins > 0) messages.Add(new("WHATS_BIZ", "LOYALTY", $"You redeemed {redemption.RequestedCoins} coins for ₹{redemption.Discount:0.00} off."));
@@ -166,12 +181,13 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
         {
             "MOCK" => await Exists("SELECT COUNT(1) FROM integration.WhatsAppConfigurations WHERE TenantId=@tenant AND IsEnabled=1 AND ProviderMode='MOCK';"),
             "META_TEST" => await Exists("SELECT COUNT(1) FROM integration.WhatsAppConfigurations WHERE TenantId=@tenant AND IsEnabled=1 AND ProviderMode='META_TEST' AND ConnectionStatus='CONNECTED' AND PhoneNumberId IS NOT NULL AND AccessTokenProtected IS NOT NULL AND NULLIF(LTRIM(RTRIM(TestRecipientNumber)),N'') IS NOT NULL;"),
+            "LIVE" => await Exists("SELECT COUNT(1) FROM integration.WhatsAppConfigurations c JOIN integration.WhatsAppPlatformConfiguration p ON p.PlatformConfigurationId=1 WHERE c.TenantId=@tenant AND c.IsEnabled=1 AND c.ProviderMode='LIVE' AND c.ConnectionStatus='CONNECTED' AND NULLIF(LTRIM(RTRIM(c.WhatsAppBusinessAccountId)),N'') IS NOT NULL AND NULLIF(LTRIM(RTRIM(c.PhoneNumberId)),N'') IS NOT NULL AND NULLIF(LTRIM(RTRIM(c.ApiVersion)),N'') IS NOT NULL AND c.AccessTokenProtected IS NOT NULL AND p.IsEnabled=1;"),
             _ => false
         };
         var checks = new List<WhatsAppCommerceReadinessCheck>
         {
             new("featureEnabled", "WhatsApp Commerce enabled", await features.IsEnabledAsync(tenantId, FeatureKeys.WhatsAppCommerce, token), null, "Ask an administrator to enable WhatsApp Commerce."),
-            new("providerConfigured", $"{mode} provider ready", providerReady, "/admin/whatsapp", mode == "META_TEST" ? "Connect Meta and configure a test recipient." : "Open WhatsApp settings and enable MOCK or META_TEST mode."),
+            new("providerConfigured", $"{mode} provider ready", providerReady, "/admin/whatsapp", mode == "META_TEST" ? "Connect Meta and configure a test recipient." : mode == "LIVE" ? "Connect and validate this retailer's WhatsApp Business account." : "Open WhatsApp settings and configure a commerce provider."),
             new("customerAvailable", "Customer available", await Exists("SELECT COUNT(1) FROM sales.Customers WHERE TenantId=@tenant AND IsActive=1 AND IsDeleted=0;"), "/customers", "Create or activate a customer."),
             new("warehouseAvailable", "Warehouse available", await Exists("SELECT COUNT(1) FROM inventory.Warehouses WHERE TenantId=@tenant AND IsActive=1 AND IsDeleted=0;"), "/warehouses", "Create or activate a warehouse."),
             new("invoiceSeriesAvailable", "Invoice series configured", await Exists("SELECT COUNT(1) FROM sales.InvoiceSeries WHERE IsActive=1 AND IsDefault=1;"), "/admin/settings", "Configure an active default invoice series."),
@@ -224,17 +240,24 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
         var config = await SendConfiguration(connection, tenantId, token)
             ?? throw new BusinessRuleException("WhatsApp is not enabled or configured for this tenant.");
         var mode = config.Mode.ToUpperInvariant();
-        if (!DemoModeSupported(mode)) throw new BusinessRuleException("The WhatsApp Ecommerce demo supports MOCK or META_TEST mode.");
+        if (!DemoModeSupported(mode)) throw new BusinessRuleException("The WhatsApp Ecommerce flow does not support the configured provider mode.");
         string? accessToken = null;
-        if (mode == "META_TEST")
+        string? liveRecipient = null;
+        if (mode is "META_TEST" or "LIVE")
         {
-            if (string.IsNullOrWhiteSpace(config.TestRecipient)) throw new BusinessRuleException("Configure a META_TEST recipient before sending status updates.");
+            if (mode == "META_TEST" && string.IsNullOrWhiteSpace(config.TestRecipient)) throw new BusinessRuleException("Configure a META_TEST recipient before sending status updates.");
             accessToken = protection.CreateProtector("WhatsBiz.WhatsApp.Secrets.v1")
                 .Unprotect(config.ProtectedToken ?? throw new BusinessRuleException("Stored WhatsApp credential cannot be decrypted."));
         }
         var changes = new List<(Guid LinkId,string Number,string Status)>();
         await using (var command = new SqlCommand("SELECT w.WhatsAppCommerceOrderId,i.InvoiceNumber,i.Status FROM integration.WhatsAppCommerceOrders w JOIN sales.SalesInvoices i ON i.InvoiceId=w.InvoiceId AND i.TenantId=w.TenantId WHERE w.TenantId=@tenant AND i.CustomerId=@customer AND ISNULL(w.LastNotifiedErpStatus,'')<>i.Status ORDER BY i.InvoiceDate;", connection))
         { command.Parameters.AddWithValue("@tenant",tenantId);command.Parameters.AddWithValue("@customer",customerId);await using var reader=await command.ExecuteReaderAsync(token);while(await reader.ReadAsync(token))changes.Add((reader.GetGuid(0),reader.GetString(1),reader.GetString(2))); }
+        if (mode == "LIVE")
+        {
+            var customer = await Customer(connection, tenantId, customerId, token);
+            liveRecipient = NormalizeRecipient(customer?.Mobile);
+            if (changes.Count > 0 && liveRecipient is null) throw new BusinessRuleException("LIVE status notifications require an active customer with a valid WhatsApp number.");
+        }
         var messages = new List<WhatsAppCommerceMessage>();
         foreach (var change in changes)
         {
@@ -245,7 +268,7 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
             {
                 messages.AddRange(await providers.Resolve(mode).SendOrderStatusAsync(change.Number, NotificationStatus(change.Status), token));
             }
-            else
+            else if (mode == "META_TEST")
             {
                 var text = $"KhataDhari order #{change.Number} status: {NotificationStatus(change.Status)}.";
                 var sent = await providers.Resolve(mode).SendTestMessageAsync(new(config.ApiVersion ?? string.Empty,
@@ -253,6 +276,15 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
                 messages.Add(new("WHATS_BIZ", "STATUS", sent.Succeeded
                     ? $"{text} META_TEST message accepted by Meta."
                     : $"{text} Meta did not accept the test message: {sent.SafeMessage}"));
+            }
+            else
+            {
+                var text = $"KhataDhari order #{change.Number} status: {NotificationStatus(change.Status)}.";
+                var sent = await providers.Resolve(mode).SendTransactionalAsync(new(config.ApiVersion ?? string.Empty,
+                    config.PhoneNumberId ?? string.Empty, accessToken!, liveRecipient!, "ORDER_STATUS", null, "en_US", text, []), token);
+                messages.Add(new("WHATS_BIZ", "STATUS", sent.Succeeded
+                    ? $"{text} WhatsApp status accepted by Meta."
+                    : $"{text} WhatsApp did not accept the status message: {sent.SafeMessage}"));
             }
         }
         return messages;
@@ -274,9 +306,17 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
     private static WhatsAppCommerceOrderSummary Summary(SqlDataReader reader)
     { var status=reader.GetString(4);return new(reader.GetGuid(0),reader.GetString(1),reader.GetDateTimeOffset(2),reader.GetDecimal(3),status,DisplayStatus(status),reader.GetString(5),reader.GetString(6),reader.IsDBNull(7)?"PENDING":reader.GetString(7),reader.IsDBNull(8)?null:reader.GetString(8),reader.IsDBNull(9)?null:reader.GetString(9),reader.IsDBNull(10)?null:reader.GetDateTimeOffset(10),reader.IsDBNull(11)?null:reader.GetDateTimeOffset(11),reader.IsDBNull(12)?null:reader.GetString(12),reader.IsDBNull(13)?null:reader.GetString(13),reader.IsDBNull(14)?null:reader.GetString(14),reader.IsDBNull(15)?null:reader.GetString(15),reader.IsDBNull(16)?null:reader.GetString(16)); }
     public static string DisplayStatus(string status) => status.ToUpperInvariant() switch { "HELD" or "SUSPENDED" => "Order Confirmed", "COMPLETED" => "Completed", "CANCELLED" or "VOID" => "Cancelled", "RETURNED" => "Returned", "PARTIALLY_RETURNED" => "Partially Returned", _ => status };
-    public static bool DemoModeSupported(string mode) => mode.Equals("MOCK", StringComparison.OrdinalIgnoreCase) || mode.Equals("META_TEST", StringComparison.OrdinalIgnoreCase);
+    public static bool DemoModeSupported(string mode) => mode.Equals("MOCK", StringComparison.OrdinalIgnoreCase)
+        || mode.Equals("META_TEST", StringComparison.OrdinalIgnoreCase)
+        || mode.Equals("LIVE", StringComparison.OrdinalIgnoreCase);
     public static string OrderConfirmationText(string orderNumber, decimal amount) => $"Thank you. Your KhataDhari order #{orderNumber} has been confirmed. Total: ₹{amount:0.00}.";
     private static string NotificationStatus(string status) => status.ToUpperInvariant().Replace('_',' ');
+    internal static string? NormalizeRecipient(string? mobile)
+    {
+        if (string.IsNullOrWhiteSpace(mobile)) return null;
+        var recipient = Digits().Replace(mobile, string.Empty);
+        return recipient.Length >= 8 ? recipient : null;
+    }
 
     private static async Task<IReadOnlyCollection<WhatsAppCommerceProduct>> Products(SqlConnection connection, Guid warehouseId, Guid tenantId, CancellationToken token)
     {
@@ -317,7 +357,7 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
     private sealed record SendProduct(Guid ProductId, string ProductCode, string ProductName, decimal Price, string? ImageUrl, string? CatalogId, string? ExternalProductId);
     private sealed record SendProductSet(string Title, IReadOnlyCollection<SendProduct> Items);
     private static async Task<SendConfig?> SendConfiguration(SqlConnection connection, Guid tenantId, CancellationToken token)
-    { await using var command = new SqlCommand("SELECT TOP(1) c.ProviderMode,c.ApiVersion,c.PhoneNumberId,c.AccessTokenProtected,c.TestRecipientNumber FROM integration.WhatsAppConfigurations c JOIN core.Tenants t ON t.TenantId=c.TenantId AND t.IsActive=1 LEFT JOIN integration.WhatsAppPlatformConfiguration p ON p.PlatformConfigurationId=1 WHERE c.TenantId=@tenant AND c.IsEnabled=1 AND (c.ProviderMode='MOCK' OR (c.ConnectionStatus='CONNECTED' AND c.PhoneNumberId IS NOT NULL AND c.AccessTokenProtected IS NOT NULL AND (c.ProviderMode='META_TEST' OR (c.ProviderMode='LIVE' AND p.IsEnabled=1))));", connection); command.Parameters.AddWithValue("@tenant", tenantId); await using var reader = await command.ExecuteReaderAsync(token); return await reader.ReadAsync(token) ? new(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4)) : null; }
+    { await using var command = new SqlCommand("SELECT TOP(1) c.ProviderMode,c.ApiVersion,c.PhoneNumberId,c.AccessTokenProtected,c.TestRecipientNumber FROM integration.WhatsAppConfigurations c JOIN core.Tenants t ON t.TenantId=c.TenantId AND t.IsActive=1 LEFT JOIN integration.WhatsAppPlatformConfiguration p ON p.PlatformConfigurationId=1 WHERE c.TenantId=@tenant AND c.IsEnabled=1 AND (c.ProviderMode='MOCK' OR (c.ConnectionStatus='CONNECTED' AND c.PhoneNumberId IS NOT NULL AND c.AccessTokenProtected IS NOT NULL AND (c.ProviderMode='META_TEST' OR (c.ProviderMode='LIVE' AND NULLIF(LTRIM(RTRIM(c.WhatsAppBusinessAccountId)),N'') IS NOT NULL AND NULLIF(LTRIM(RTRIM(c.ApiVersion)),N'') IS NOT NULL AND p.IsEnabled=1))));", connection); command.Parameters.AddWithValue("@tenant", tenantId); await using var reader = await command.ExecuteReaderAsync(token); return await reader.ReadAsync(token) ? new(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4)) : null; }
     private static async Task<CustomerTarget?> Customer(SqlConnection connection, Guid tenantId, Guid customerId, CancellationToken token)
     { await using var command = new SqlCommand("SELECT TOP(1) CustomerName,Mobile FROM sales.Customers WHERE CustomerId=@id AND TenantId=@tenant AND IsActive=1 AND IsDeleted=0;", connection); command.Parameters.AddWithValue("@id", customerId); command.Parameters.AddWithValue("@tenant", tenantId); await using var reader = await command.ExecuteReaderAsync(token); return await reader.ReadAsync(token) ? new(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1)) : null; }
     private static async Task<SendProductSet> CollectionProducts(SqlConnection connection, Guid tenantId, Guid collectionId, CancellationToken token)

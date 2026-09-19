@@ -15,7 +15,7 @@
       <section class="readiness">
         <div class="readiness-title"><div><span class="eyebrow">Before the demo</span><h3>Demo readiness</h3></div><strong>Setup required</strong></div>
         @for (check of ready.checks; track check.key) { <div class="readiness-row"><span [class.check-ok]="check.ready">{{ check.ready ? '✓' : '•' }} {{ check.label }}</span>@if (!check.ready && check.setupRoute) { <a mat-button [routerLink]="check.setupRoute">Open setup</a> }</div> }
-        <p>{{ isMetaTest() ? 'Connect META_TEST, configure its test recipient, and make sure this tenant has an active customer, warehouse, WhatsApp-visible products and stock.' : 'Enable MOCK mode and make sure this tenant has an active customer, warehouse, WhatsApp-visible products and stock.' }}</p>
+        <p>{{ isMetaTest() ? 'Connect META_TEST, configure its test recipient, and make sure this tenant has an active customer, warehouse, WhatsApp-visible products and stock.' : isLive() ? 'Connect and validate LIVE WhatsApp, ensure selected customers have valid WhatsApp numbers, and make sure this tenant has an active warehouse, WhatsApp-visible products and stock.' : 'Enable MOCK mode and make sure this tenant has an active customer, warehouse, WhatsApp-visible products and stock.' }}</p>
         <button mat-stroked-button (click)="checkReadiness()">Check again</button>
       </section>
     }
@@ -26,7 +26,7 @@
       <section class="demo-welcome">
         <div class="welcome-icon"><span class="material-symbols-rounded">shopping_bag</span></div>
         <div><span class="eyebrow">ERP-integrated commerce</span><h2>Preview the customer storefront</h2><p>Browse this retailer's live catalogue and stock, then create an order through the existing ERP/POS flow.</p><button mat-flat-button class="welcome-button" (click)="start()" [disabled]="busy()">Open commerce preview</button></div>
-        <div class="mode-card"><span>Provider</span><strong>{{ providerMode() }}</strong><small>{{ isMetaTest() ? 'Order confirmations go to the configured Meta test recipient.' : 'No external WhatsApp messages are sent.' }}</small></div>
+        <div class="mode-card"><span>Provider</span><strong>{{ providerMode() }}</strong><small>{{ isMetaTest() ? 'Order confirmations go to the configured Meta test recipient.' : isLive() ? 'Order confirmations use the selected customer WhatsApp number.' : 'No external WhatsApp messages are sent.' }}</small></div>
       </section>
     } @else {
       <section class="storefront">

@@ -136,4 +136,10 @@ describe('WhatsAppCommerceDemoComponent', () => {
     expect(create('META_TEST').component.isMetaTest()).toBeTrue();
     expect(create('MOCK').component.isMetaTest()).toBeFalse();
   });
+
+  it('identifies LIVE for provider-specific readiness guidance', () => {
+    const component = create('LIVE').component;
+    expect(component.isLive()).toBeTrue();
+    expect(component.isMetaTest()).toBeFalse();
+  });
 });

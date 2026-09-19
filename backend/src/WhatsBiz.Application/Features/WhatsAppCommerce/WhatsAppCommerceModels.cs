@@ -62,6 +62,7 @@ public sealed record WhatsAppCommerceOrderDetails(WhatsAppCommerceOrderSummary O
 public interface IWhatsAppCommerceProvider
 {
     string Mode { get; }
+    bool Supports(string mode) => string.Equals(Mode, mode, StringComparison.OrdinalIgnoreCase);
     Task<IReadOnlyCollection<WhatsAppCommerceMessage>> SendWelcomeAsync(string storeName, CancellationToken token);
     Task<IReadOnlyCollection<WhatsAppCommerceMessage>> SendOrderConfirmationAsync(string orderNumber, decimal amount, CancellationToken token);
     Task<IReadOnlyCollection<WhatsAppCommerceMessage>> SendOrderStatusAsync(string orderNumber, string status, CancellationToken token);

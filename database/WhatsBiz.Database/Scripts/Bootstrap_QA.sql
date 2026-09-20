@@ -130,26 +130,9 @@ BEGIN TRY
         INSERT gst.GSTSettings(GSTSettingsId,CompanyGSTIN,StateCode,RegistrationType,IsCompositionScheme,EffectiveDate,LegalName,TradeName,IsActive,CreatedOn,CreatedBy,TenantId)
         VALUES(NEWID(),NULL,'27',N'UNREGISTERED',0,CONVERT(date,SYSUTCDATETIME()),@TenantName,@TenantName,1,SYSUTCDATETIME(),@Actor,@TenantId);
 
-    DECLARE @Groups TABLE(GroupCode nvarchar(30),GroupName nvarchar(100),Nature nvarchar(20));
-    INSERT @Groups VALUES(N'ASSET',N'Assets',N'ASSET'),(N'LIABILITY',N'Liabilities',N'LIABILITY'),(N'INCOME',N'Income',N'INCOME'),(N'EXPENSE',N'Expenses',N'EXPENSE');
-    MERGE finance.AccountGroups AS t USING @Groups s ON t.GroupCode=s.GroupCode
-    WHEN MATCHED THEN UPDATE SET GroupName=s.GroupName,Nature=s.Nature,IsActive=1
-    WHEN NOT MATCHED THEN INSERT(AccountGroupId,GroupCode,GroupName,ParentGroupId,Nature,IsActive) VALUES(NEWID(),s.GroupCode,s.GroupName,NULL,s.Nature,1);
-
-    DECLARE @Accounts TABLE(AccountCode nvarchar(30),AccountName nvarchar(150),GroupCode nvarchar(30));
-    INSERT @Accounts VALUES
-      (N'CASH',N'Cash',N'ASSET'),(N'BANK',N'Bank',N'ASSET'),(N'CUSTOMER',N'Customer Receivables',N'ASSET'),
-      (N'SUPPLIER',N'Supplier Payables',N'LIABILITY'),(N'INVENTORY',N'Inventory',N'ASSET'),
-      (N'INPUT_GST',N'Input GST',N'ASSET'),(N'OUTPUT_GST',N'Output GST',N'LIABILITY'),
-      (N'SALES',N'Sales',N'INCOME'),(N'PURCHASE_RETURN',N'Purchase Returns',N'INCOME'),
-      (N'SALES_RETURN',N'Sales Returns',N'EXPENSE'),(N'STOCK_ADJUST',N'Stock Adjustments',N'EXPENSE');
-    MERGE finance.Accounts AS t USING(SELECT a.AccountCode,a.AccountName,g.AccountGroupId FROM @Accounts a JOIN finance.AccountGroups g ON g.GroupCode=a.GroupCode) s ON t.AccountCode=s.AccountCode
-    WHEN MATCHED THEN UPDATE SET AccountName=s.AccountName,AccountGroupId=s.AccountGroupId,IsSystem=1,IsActive=1
-    WHEN NOT MATCHED THEN INSERT(AccountId,AccountCode,AccountName,AccountGroupId,OpeningBalance,IsSystem,IsActive,CreatedOn) VALUES(NEWID(),s.AccountCode,s.AccountName,s.AccountGroupId,0,1,1,SYSUTCDATETIME());
-
-    MERGE finance.PaymentModes AS t USING(VALUES(N'CASH',N'Cash',N'CASH'),(N'UPI',N'UPI',N'BANK'),(N'CARD',N'Card',N'BANK'),(N'BANK',N'Bank Transfer',N'BANK'),(N'WALLET',N'Wallet',N'BANK'),(N'CREDIT',N'Credit',N'CREDIT')) s(ModeCode,ModeName,BookType) ON t.ModeCode=s.ModeCode
-    WHEN MATCHED THEN UPDATE SET ModeName=s.ModeName,BookType=s.BookType,IsActive=1
-    WHEN NOT MATCHED THEN INSERT(PaymentModeId,ModeCode,ModeName,BookType,IsActive) VALUES(NEWID(),s.ModeCode,s.ModeName,s.BookType,1);
+    /* Shared finance account groups, accounts, and payment modes are owned by
+       PostDeployment/FinanceBaseline.sql. QA bootstrap must not be their
+       second source of truth. */
 
     DECLARE @WarehouseTypeId uniqueidentifier=(SELECT WarehouseTypeId FROM inventory.WarehouseTypes WHERE TypeCode=N'GENERAL' AND IsActive=1);
     IF @WarehouseTypeId IS NULL THROW 51257, 'GENERAL warehouse type seed is missing.', 1;

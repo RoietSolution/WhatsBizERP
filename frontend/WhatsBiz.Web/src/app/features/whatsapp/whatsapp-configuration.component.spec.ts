@@ -8,6 +8,7 @@ import { WhatsAppConfigurationComponent } from './whatsapp-configuration.compone
 describe('WhatsAppConfigurationComponent LIVE retailer setup', () => {
   let api: jasmine.SpyObj<WhatsAppApiService>;
   let features: jasmine.SpyObj<FeatureService>;
+  const originalFacebook = (window as unknown as { FB?: unknown }).FB;
 
   const liveConfig = (overrides: Partial<WhatsAppConfiguration> = {}): WhatsAppConfiguration => ({
     providerMode: 'LIVE', isEnabled: true, connectionStatus: 'NOT_CONFIGURED',
@@ -22,6 +23,7 @@ describe('WhatsAppConfigurationComponent LIVE retailer setup', () => {
     api.get.and.returnValue(of(initial));
     api.save.and.returnValue(of(initial));
     api.validate.and.returnValue(of({ succeeded: true, connectionStatus: 'CONNECTED', validatedAt: new Date().toISOString() }));
+    api.completeOnboarding.and.returnValue(of({ succeeded: true, connectionStatus: 'CONNECTED', validatedAt: new Date().toISOString() }));
     api.diagnostics.and.returnValue(of({ webhookPath: '/api/whatsapp/webhook', tenantResolutionSucceeded: false, duplicateWebhookCount: 0 }));
     features = jasmine.createSpyObj<FeatureService>('FeatureService', ['tenants']);
     features.tenants.and.returnValue(of([]));
@@ -40,7 +42,17 @@ describe('WhatsAppConfigurationComponent LIVE retailer setup', () => {
     return fixture;
   }
 
-  afterEach(() => TestBed.resetTestingModule());
+  afterEach(() => {
+    if (originalFacebook === undefined) delete (window as unknown as { FB?: unknown }).FB;
+    else (window as unknown as { FB?: unknown }).FB = originalFacebook;
+    TestBed.resetTestingModule();
+  });
+
+  function installFacebookLogin(response: { authResponse?: { code?: string } } = { authResponse: { code: 'auth-code' } }) {
+    const login = jasmine.createSpy('login').and.callFake((callback: (value: typeof response) => void) => callback(response));
+    (window as unknown as { FB: { login: typeof login } }).FB = { login };
+    return login;
+  }
 
   it('shows LIVE retailer Connect action without manual Meta credential fields', async () => {
     const fixture = await create(false);
@@ -118,5 +130,51 @@ describe('WhatsAppConfigurationComponent LIVE retailer setup', () => {
     expect(text).toContain('Send Test Message');
     expect(text).toContain('Validate Meta Connection');
     expect(text).toContain('Save Configuration');
+  });
+
+  it('launches the Meta Builder Coexistence flow with the required extras', async () => {
+    const fixture = await create(false);
+    api.onboardingConfig.and.returnValue(of({ enabled: true, appId: '123', configurationId: '456', graphApiVersion: 'v24.0' }));
+    const login = installFacebookLogin();
+
+    fixture.componentInstance.connectLive();
+
+    const options = login.calls.mostRecent().args[1] as { config_id: string; response_type: string; override_default_response_type: boolean; extras: Record<string, unknown> };
+    expect(options.config_id).toBe('456');
+    expect(options.response_type).toBe('code');
+    expect(options.override_default_response_type).toBeTrue();
+    expect(options.extras).toEqual({ setup: {}, featureType: 'whatsapp_business_app_onboarding', sessionInfoVersion: '3', version: 'v4' });
+  });
+
+  it('keeps standard FINISH completion supported', async () => {
+    const fixture = await create(false);
+    api.onboardingConfig.and.returnValue(of({ enabled: true, appId: '123', configurationId: '456', graphApiVersion: 'v24.0' }));
+    const login = installFacebookLogin({});
+    fixture.componentInstance.connectLive();
+    window.dispatchEvent(new MessageEvent('message', {
+      origin: 'https://www.facebook.com',
+      data: JSON.stringify({ event: 'FINISH', data: { waba_id: 'waba-1', phone_number_id: 'phone-1' } }),
+    }));
+    login.calls.mostRecent().args[0]({ authResponse: { code: 'auth-code' } });
+
+    expect(api.completeOnboarding).toHaveBeenCalledWith(jasmine.objectContaining({
+      authorizationCode: 'auth-code', whatsAppBusinessAccountId: 'waba-1', phoneNumberId: 'phone-1',
+    }));
+  });
+
+  it('accepts Coexistence completion without assuming phone_number_id exists', async () => {
+    const fixture = await create(false);
+    api.onboardingConfig.and.returnValue(of({ enabled: true, appId: '123', configurationId: '456', graphApiVersion: 'v24.0' }));
+    const login = installFacebookLogin({});
+    fixture.componentInstance.connectLive();
+    window.dispatchEvent(new MessageEvent('message', {
+      origin: 'https://www.facebook.com',
+      data: JSON.stringify({ event: 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING', data: { waba_id: 'waba-1' } }),
+    }));
+    login.calls.mostRecent().args[0]({ authResponse: { code: 'auth-code' } });
+
+    expect(api.completeOnboarding).toHaveBeenCalledWith(jasmine.objectContaining({
+      authorizationCode: 'auth-code', whatsAppBusinessAccountId: 'waba-1', phoneNumberId: undefined,
+    }));
   });
 });

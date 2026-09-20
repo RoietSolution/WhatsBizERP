@@ -17,6 +17,7 @@ public sealed class PurchaseEngine(
 {
     public async Task<PurchasePostResult> Post(PurchasePostRequest r, CancellationToken token)
     {
+        r = r with { SupplierInvoiceNo = PurchaseSupplierInvoiceRules.Normalize(r.SupplierInvoiceNo) };
         try
         {
             return await idempotency.Execute(
@@ -47,7 +48,9 @@ public sealed class PurchaseEngine(
         catch (SqlException ex) when (ex.Number >= 51200 || ex.Number is 547 or 2601 or 2627)
         {
             PurchaseIntegrityDiagnostics.Log(logger, "Purchase", "purchase.Purchase_Post", r.SupplierId, currentUser.TenantId, ex.Number, ex);
-            throw new BusinessRuleException(ex.Number >= 51200 ? ex.Message : PurchaseErrorMessages.PostIntegrity);
+            throw new BusinessRuleException(PurchaseSupplierInvoiceRules.IsDuplicateSupplierInvoiceError(ex.Number, ex.Message)
+                ? PurchaseErrorMessages.DuplicateSupplierInvoice
+                : ex.Number >= 51200 ? ex.Message : PurchaseErrorMessages.PostIntegrity);
         }
     }
 
@@ -103,8 +106,17 @@ public sealed class PurchaseEngine(
 internal static class PurchaseErrorMessages
 {
     internal const string PostIntegrity = "The purchase could not be posted because it violated an inventory, accounting, or data-integrity rule.";
+    internal const string DuplicateSupplierInvoice = "A purchase with this supplier invoice number already exists for the selected supplier.";
     internal const string PaymentIntegrity = "The purchase payment could not be posted because the purchase or payment account is invalid.";
     internal const string ReturnIntegrity = "The purchase return could not be posted because it violated an inventory or accounting rule.";
+}
+
+internal static class PurchaseSupplierInvoiceRules
+{
+    internal static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    internal static bool IsDuplicateSupplierInvoiceError(int number, string message) =>
+        number is 2601 or 2627 && message.Contains("UX_PurchaseInvoices_SupplierInvoice", StringComparison.OrdinalIgnoreCase);
 }
 
 internal static class PurchaseIntegrityDiagnostics

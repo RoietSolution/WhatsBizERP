@@ -20,6 +20,7 @@ $dacpac = Join-Path $repositoryRoot "database\WhatsBiz.Database\bin\$Configurati
 $scriptRoot = Join-Path $repositoryRoot 'database\WhatsBiz.Database\Scripts'
 $classificationModule = Join-Path $PSScriptRoot 'ProdDacFx\ProdDatabaseClassification.psm1'
 $productionDatabaseOptions = Join-Path $PSScriptRoot 'sql\Production_DatabaseOptions.sql'
+$productionOwnershipValidation = Join-Path $PSScriptRoot 'sql\Production_TenantOwnershipStateValidation.sql'
 Import-Module -Name $classificationModule -Force
 $dacFxProject = Join-Path $PSScriptRoot 'ProdDacFx\ProdDacFx.csproj'
 $dacFxHelper = Join-Path $PSScriptRoot 'ProdDacFx\bin\Release\net8.0\ProdDacFx.dll'
@@ -49,6 +50,19 @@ function Invoke-ProdSqlFile([string] $Path, [switch] $FreshProductionInitializat
     if ($FreshProductionInitialization) { $arguments += @('-v', 'FreshProductionInitialization=True') }
     & $script:sqlCmd @arguments
     if ($LASTEXITCODE -ne 0) { throw "Production migration failed: $(Split-Path -Leaf $Path)" }
+}
+
+function Get-ProdOwnershipState {
+    if (-not (Test-Path -LiteralPath $script:productionOwnershipValidation)) {
+        throw "Required production ownership validation script is missing: $script:productionOwnershipValidation"
+    }
+    $arguments = @('-S', $script:targetBuilder.DataSource, '-d', $script:expectedDatabase, '-b', '-h', '-1', '-W', '-s', '|', '-i', $script:productionOwnershipValidation)
+    if ($script:targetBuilder.UserID) { $arguments += @('-U', $script:targetBuilder.UserID) }
+    $output = & $script:sqlCmd @arguments 2>&1
+    if ($LASTEXITCODE -ne 0) { throw 'Production tenant ownership validation could not complete safely.' }
+    $line = @($output | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ -match '^(COMPLIANT|UNRESOLVED)\|' } | Select-Object -Last 1)
+    if ($line.Count -ne 1) { throw 'Production tenant ownership validation returned no recognizable state.' }
+    return $line[0]
 }
 
 function Invoke-ProdDacFx([string[]] $Arguments, [string] $FailureMessage) {
@@ -166,9 +180,19 @@ if (-not (Test-Path -LiteralPath $project)) { throw 'Canonical database project 
     Write-Host "DACPAC script: $deployScript"
     Write-Host "Table rebuilds: $(@($tableRebuilds) -join ', ')"
     Write-Host 'Production database options planned: PAGE_VERIFY=CHECKSUM; TARGET_RECOVERY_TIME=60 SECONDS.'
-    Write-Host 'Post-DACPAC path: fresh targets skip legacy ownership backfills; existing targets require explicit backfill approval. No QA bootstrap or QA fixtures are included.'
+    Write-Host 'Post-DACPAC path: current-state ownership is validated before any legacy backfill; compliant databases skip historical ownership updates. No QA bootstrap or QA fixtures are included.'
     if (@($tableRebuilds).Count -gt 0 -and -not $ApproveTableRebuild) {
         throw 'The plan contains table rebuilds. Review them and rerun with -ApproveTableRebuild only after explicit approval.'
+    }
+    $ownershipState = 'COMPLIANT|MissingColumns=0|UnownedRows=0|OrphanTenantRows=0|CrossTenantRows=0|JournalOwnershipIssues=0|Objects=NONE'
+    $ownershipCompliant = $true
+    if (-not $freshProductionDatabase) {
+        $ownershipState = Get-ProdOwnershipState
+        $ownershipCompliant = $ownershipState -match '^COMPLIANT\|'
+        Write-Host "Production tenant ownership state: $ownershipState"
+        if (-not $ownershipCompliant -and -not $ApproveTenantOwnershipBackfill) {
+            throw "Production tenant ownership is unresolved; historical backfill approval is required only for this unresolved state. State: $ownershipState. Review the affected rows and rerun with -ApproveTenantOwnershipBackfill if the specific transformation is approved."
+        }
     }
     if ($PlanOnly) {
         Write-Host 'PlanOnly is non-mutating; Production_DatabaseOptions.sql will not be executed.'
@@ -183,10 +207,6 @@ if (-not (Test-Path -LiteralPath $project)) { throw 'Canonical database project 
     if ($environmentFiles -notlike '*/etc/whatsbiz/prod.env*') {
         throw 'The whatsbiz-prod service must load /etc/whatsbiz/prod.env before a production database change.'
     }
-    if (-not $freshProductionDatabase -and -not $ApproveTenantOwnershipBackfill) {
-        throw 'Existing production data requires explicit review/approval of V7, V8 and V26 tenant ownership backfills. Rerun with -ApproveTenantOwnershipBackfill only after reviewing the production ownership reports.'
-    }
-
     if ($existsText -eq '1') {
         if ([string]::IsNullOrWhiteSpace($BackupPath)) { throw 'Existing production database requires an explicit SQL Server backup path before deployment.' }
         if ($BackupPath.Contains("'")) { throw 'Backup path may not contain a single quote.' }
@@ -203,13 +223,18 @@ if (-not (Test-Path -LiteralPath $project)) { throw 'Canonical database project 
 
     # These are the canonical post-DACPAC tenant hardening/finance scripts used by
     # the established QA sequence. QA bootstrap/fixtures are deliberately omitted.
-    Invoke-ProdSqlFile (Join-Path $scriptRoot 'V7-SafeInventoryTenantColumns.sql') -FreshProductionInitialization:$freshProductionDatabase
+    # A compliant existing database receives only current-state/idempotent portions
+    # of these scripts. Legacy ownership updates remain approval-gated.
+    $skipLegacyOwnership = $freshProductionDatabase -or $ownershipCompliant
+    Invoke-ProdSqlFile (Join-Path $scriptRoot 'V7-SafeInventoryTenantColumns.sql') -FreshProductionInitialization:$skipLegacyOwnership
     # V8 schema ownership objects are needed on fresh databases too; the
     # migration skips historical ownership UPDATEs when this flag is true.
-    Invoke-ProdSqlFile (Join-Path $scriptRoot 'V8-TenantOwnershipPhase1.sql') -FreshProductionInitialization:$freshProductionDatabase
+    Invoke-ProdSqlFile (Join-Path $scriptRoot 'V8-TenantOwnershipPhase1.sql') -FreshProductionInitialization:$skipLegacyOwnership
     Invoke-ProdSqlFile (Join-Path $scriptRoot 'V24-RecreateOperationalTenantGuards-WithRequiredSetOptions.sql')
+    Invoke-ProdSqlFile (Join-Path $scriptRoot 'V26-FinanceTenantIsolationAndPostingRepair.sql') -FreshProductionInitialization:$skipLegacyOwnership
+    # Audit after an explicitly approved legacy transformation, so the audit
+    # validates the resulting current state instead of blocking the repair.
     Invoke-ProdSqlFile (Join-Path $scriptRoot 'V25-FinanceTenantOwnershipAudit.sql')
-    Invoke-ProdSqlFile (Join-Path $scriptRoot 'V26-FinanceTenantIsolationAndPostingRepair.sql') -FreshProductionInitialization:$freshProductionDatabase
     Invoke-ProdSqlFile (Join-Path $scriptRoot 'Production_PostValidation.sql')
     Invoke-ProdSsh 'systemctl restart whatsbiz-prod && systemctl is-active --quiet whatsbiz-prod'
     $serviceStopped = $false

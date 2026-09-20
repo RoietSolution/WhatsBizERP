@@ -61,6 +61,93 @@ public sealed class WhatsAppOption3ArchitectureTests
     }
 
     [Fact]
+    public void ValidNonMessageChangeWithoutMetadataIsAcknowledgable()
+    {
+        var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+        {
+            @object = "whatsapp_business_account",
+            entry = new[]
+            {
+                new
+                {
+                    id = "waba-coexistence",
+                    changes = new[] { new { field = "account_update", value = new { } } }
+                }
+            }
+        }));
+
+        var envelopes = WhatsAppService.ParseWebhook(body);
+
+        envelopes.Should().ContainSingle();
+        envelopes.Single().PhoneNumberId.Should().BeNull();
+        envelopes.Single().Events.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void MessageChangeStillRequiresTrustedPhoneNumberMetadata()
+    {
+        var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+        {
+            @object = "whatsapp_business_account",
+            entry = new[]
+            {
+                new
+                {
+                    id = "waba-coexistence",
+                    changes = new[]
+                    {
+                        new
+                        {
+                            field = "messages",
+                            value = new
+                            {
+                                messages = new[] { new { id = "message-1", from = "masked", type = "text", timestamp = "1700000000" } }
+                            }
+                        }
+                    }
+                }
+            }
+        }));
+
+        var act = () => WhatsAppService.ParseWebhook(body);
+
+        act.Should().Throw<JsonException>().WithMessage("*Phone Number ID*");
+    }
+
+    [Fact]
+    public void StatusChangeWithMetadataRetainsExistingTransportHandling()
+    {
+        var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+        {
+            @object = "whatsapp_business_account",
+            entry = new[]
+            {
+                new
+                {
+                    id = "waba-status",
+                    changes = new[]
+                    {
+                        new
+                        {
+                            field = "messages",
+                            value = new
+                            {
+                                metadata = new { phone_number_id = "phone-status" },
+                                statuses = new[] { new { id = "message-status", status = "delivered", recipient_id = "masked", timestamp = "1700000000" } }
+                            }
+                        }
+                    }
+                }
+            }
+        }));
+
+        var envelope = WhatsAppService.ParseWebhook(body).Single();
+
+        envelope.PhoneNumberId.Should().Be("phone-status");
+        envelope.Events.Single().EventType.Should().Be("MESSAGE_STATUS");
+    }
+
+    [Fact]
     public void PublicWebhookAndTenantSaveContractsCannotSupplyTenantId()
     {
         typeof(SaveWhatsAppConfigurationInput).GetProperties().Select(x=>x.Name).Should().NotContain("TenantId");

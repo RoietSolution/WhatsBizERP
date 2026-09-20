@@ -289,6 +289,24 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
         }
         foreach(var envelope in envelopes)
         {
+            // Meta can deliver valid account/status/coexistence changes that do not
+            // contain a customer message (and therefore have no phone_number_id).
+            // They are acknowledged after the request signature has been checked,
+            // but must never be routed to a tenant or commerce handler.
+            if (envelope.Events.Count == 0 && string.IsNullOrWhiteSpace(envelope.PhoneNumberId))
+            {
+                if (!sharedSignatureValid)
+                {
+                    WhatsAppLogs.WebhookPostOutcome(logger, false, "CONFIGURATION_NOT_RESOLVED");
+                    return false;
+                }
+                continue;
+            }
+            if (string.IsNullOrWhiteSpace(envelope.PhoneNumberId))
+            {
+                WhatsAppLogs.WebhookPostOutcome(logger, false, "INVALID_PAYLOAD");
+                return false;
+            }
             var row=await ReadByPhone(envelope.PhoneNumberId,token);
             var configurationResolved=row is not null&&row.ProviderMode!=WhatsAppProviderModes.Mock&&row.IsEnabled
                 &&string.Equals(row.WabaId,envelope.WabaId,StringComparison.Ordinal);
@@ -434,9 +452,17 @@ END
             if(!entry.TryGetProperty("changes",out var changes)||changes.ValueKind!=JsonValueKind.Array)continue;
             foreach(var change in changes.EnumerateArray())
             {
+                // A change without a value is malformed; leave it out of the
+                // parsed envelope so the request is rejected unless another
+                // well-formed change in the payload can be processed.
                 if(!change.TryGetProperty("value",out var value))continue;
                 var phoneNumberId=value.TryGetProperty("metadata",out var metadata)?String(metadata,"phone_number_id"):null;
-                if(string.IsNullOrWhiteSpace(phoneNumberId))throw new JsonException("Webhook change has no Phone Number ID.");
+                var hasMessages=value.TryGetProperty("messages",out var messagesNode)
+                    && messagesNode.ValueKind==JsonValueKind.Array && messagesNode.GetArrayLength()>0;
+                var hasStatuses=value.TryGetProperty("statuses",out var statusesNode)
+                    && statusesNode.ValueKind==JsonValueKind.Array && statusesNode.GetArrayLength()>0;
+                if((hasMessages||hasStatuses)&&string.IsNullOrWhiteSpace(phoneNumberId))
+                    throw new JsonException("Webhook message/status change has no Phone Number ID.");
                 var events=new List<WebhookTransportEvent>();var profiles=new Dictionary<string,string>(StringComparer.Ordinal);
                 if(value.TryGetProperty("contacts",out var contacts)&&contacts.ValueKind==JsonValueKind.Array)foreach(var contact in contacts.EnumerateArray())
                 {var waId=String(contact,"wa_id");var name=contact.TryGetProperty("profile",out var profile)?String(profile,"name"):null;if(!string.IsNullOrWhiteSpace(waId)&&!string.IsNullOrWhiteSpace(name))profiles[waId]=name;}
@@ -564,7 +590,7 @@ END
     [GeneratedRegex("^\\s*REF\\s+([A-Z2-9]{6,20})\\s*$",RegexOptions.IgnoreCase|RegexOptions.CultureInvariant)] private static partial Regex ReferralCommand();
     private sealed record ConfigRow(Guid TenantId, string ProviderMode, string? MetaAppId, string? WabaId, string? PhoneNumberId, string? DisplayPhoneNumber, string? BusinessDisplayName, string? AccessTokenProtected, string? WebhookVerifyTokenProtected, string? AppSecretProtected, string? ApiVersion, string? TestRecipientNumber, bool IsEnabled, string ConnectionStatus, DateTimeOffset? LastValidatedOn, string? LastError, DateTimeOffset? LastWebhookVerifiedOn, DateTimeOffset? LastWebhookReceivedOn, string? LastWebhookEventType, string? LastWebhookMetaMessageId, long DuplicateWebhookCount);
     private sealed record PlatformRow(string MetaAppId,string AppSecretProtected,string WebhookVerifyTokenProtected,bool IsEnabled,DateTimeOffset? ModifiedOn);
-    internal sealed record WebhookEnvelope(string WabaId,string PhoneNumberId,IReadOnlyCollection<WebhookTransportEvent> Events);
+    internal sealed record WebhookEnvelope(string WabaId,string? PhoneNumberId,IReadOnlyCollection<WebhookTransportEvent> Events);
     internal sealed record WebhookTransportEvent(string EventKey, string MetaMessageId, string EventType,
         string Direction, string? ContactNumber, string? MessageType, string? Status, DateTimeOffset EventTimestamp, string? MessageText, string? ProfileName);
 }

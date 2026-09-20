@@ -3,6 +3,7 @@ $helper = Join-Path $PSScriptRoot 'bin\Release\net8.0\ProdDacFx.dll'
 $wrapper = Join-Path (Split-Path -Parent $PSScriptRoot) 'deploy-prod-database.ps1'
 $classificationModule = Join-Path $PSScriptRoot 'ProdDatabaseClassification.psm1'
 $optionsScript = Join-Path (Split-Path -Parent $PSScriptRoot) 'sql\Production_DatabaseOptions.sql'
+$ownershipValidation = Join-Path (Split-Path -Parent $PSScriptRoot) 'sql\Production_TenantOwnershipStateValidation.sql'
 $postValidation = Join-Path (Split-Path -Parent $PSScriptRoot) '..\database\WhatsBiz.Database\Scripts\Production_PostValidation.sql'
 if (-not (Test-Path -LiteralPath $helper)) { throw 'Build ProdDacFx before running its offline tests.' }
 Import-Module -Name $classificationModule -Force
@@ -73,11 +74,33 @@ try {
     foreach ($applicationSchema in @('audit', 'admin', 'commerce', 'core', 'dashboard', 'finance', 'gst', 'integration', 'inventory', 'loyalty', 'marketing', 'master', 'printing', 'purchase', 'reporting', 'sales')) {
         if ($classificationText -notmatch [regex]::Escape("'$applicationSchema'")) { throw "Canonical WhatsBiz application schema is missing from the fresh database detector: $applicationSchema" }
     }
-    if ($wrapperText -notmatch '-not\s+\$freshProductionDatabase\s+-and\s+-not\s+\$ApproveTenantOwnershipBackfill') { throw 'Populated production is not approval-gated for legacy backfills.' }
+    if ($wrapperText -notmatch 'Get-ProdOwnershipState' -or
+        $wrapperText -notmatch '\$ownershipCompliant\s*=\s*\$ownershipState\s+-match' -or
+        $wrapperText -notmatch '-not\s+\$ownershipCompliant\s+-and\s+-not\s+\$ApproveTenantOwnershipBackfill' -or
+        $wrapperText -notmatch '\$skipLegacyOwnership\s*=\s+\$freshProductionDatabase\s+-or\s+\$ownershipCompliant' -or
+        $wrapperText -match 'Existing production data requires explicit review/approval of V7, V8 and V26') { throw 'Production ownership validation must be state-aware and approval-gate only unresolved legacy data.' }
+    if (-not (Test-Path -LiteralPath $ownershipValidation)) { throw 'Current-state production ownership validation script is missing.' }
+    $ownershipText = Get-Content -LiteralPath $ownershipValidation -Raw
+    foreach ($requiredInvariant in @('MissingColumns', 'UnownedRows', 'OrphanTenantRows', 'CrossTenantRows', 'JournalOwnershipIssues', 'RepairScope', 'UNRESOLVED', 'COMPLIANT')) {
+        if ($ownershipText -notmatch [regex]::Escape($requiredInvariant)) { throw "Production ownership validation is missing invariant: $requiredInvariant" }
+    }
+    $ownershipDecisionCases = @(
+        @{ Name = 'fresh database'; Fresh = $true; Compliant = $true; ApprovalRequired = $false },
+        @{ Name = 'existing compliant database'; Fresh = $false; Compliant = $true; ApprovalRequired = $false },
+        @{ Name = 'existing unresolved database'; Fresh = $false; Compliant = $false; ApprovalRequired = $true },
+        @{ Name = 'fresh state does not require historical approval'; Fresh = $true; Compliant = $false; ApprovalRequired = $false }
+    )
+    foreach ($case in $ownershipDecisionCases) {
+        $approvalRequired = -not $case.Fresh -and -not $case.Compliant
+        if ($approvalRequired -ne $case.ApprovalRequired) { throw "Ownership approval decision failed: $($case.Name)" }
+        Write-Host "PASS: $($case.Name) ownership decision"
+    }
     if ($wrapperText -notmatch '(?s)if\s*\(-not\s+\$freshProductionDatabase\).*?V7-SafeInventoryTenantColumns\.sql.*?V8-TenantOwnershipPhase1\.sql' -or $wrapperText -match 'Invoke-ProdSqlFile[^\r\n]*V18-POS-PostInvoice-TenantHardening\.sql') { throw 'Fresh migration selection or redundant V18 suppression is incorrect.' }
     foreach ($requiredScript in @('V24-RecreateOperationalTenantGuards-WithRequiredSetOptions.sql', 'V25-FinanceTenantOwnershipAudit.sql', 'V26-FinanceTenantIsolationAndPostingRepair.sql', 'Production_PostValidation.sql')) {
         if ($wrapperText -notmatch [regex]::Escape($requiredScript)) { throw "Required production current-state script is missing: $requiredScript" }
     }
+    if ($wrapperText.IndexOf('V26-FinanceTenantIsolationAndPostingRepair.sql', [System.StringComparison]::Ordinal) -gt
+        $wrapperText.IndexOf('V25-FinanceTenantOwnershipAudit.sql', [System.StringComparison]::Ordinal)) { throw 'Ownership audit must validate after an explicitly approved legacy transformation.' }
     $optionText = Get-Content -LiteralPath $optionsScript -Raw
     if ($optionText -notmatch 'ALTER\s+DATABASE\s+\[WhatsBizERP_PROD\]\s+SET\s+PAGE_VERIFY\s+CHECKSUM' -or
         $optionText -notmatch 'ALTER\s+DATABASE\s+\[WhatsBizERP_PROD\]\s+SET\s+TARGET_RECOVERY_TIME\s*=\s*60\s+SECONDS' -or

@@ -75,3 +75,8 @@ GO
 GO
 :r .\V31-TenantEntityCodesAndV1Printing.sql
 :r .\V32-SupplierNameUniqueness.sql
+GO
+:r .\V33-PurchaseSupplierInvoiceNormalization.sql
+GO
+:r .\RequiredReferenceDataValidation.sql
+:r .\V34-WhatsAppInboundCommerce.sql

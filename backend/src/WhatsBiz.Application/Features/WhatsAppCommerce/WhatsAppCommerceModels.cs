@@ -85,3 +85,7 @@ public interface IWhatsAppCommerceService
     Task<WhatsAppCommerceOrderSummary> UpdateDeliveryAsync(Guid tenantId, Guid orderId, UpdateWhatsAppCommerceDeliveryInput input, CancellationToken token);
     Task<WhatsAppCommerceSendResult> SendCollectionAsync(Guid tenantId, Guid collectionId, Guid customerId, CancellationToken token);
 }
+public interface IWhatsAppInboundCommerceHandler
+{
+    Task HandleAsync(Guid tenantId, string providerMode, string phoneNumberId, string sender, string messageId, string text, CancellationToken token);
+}

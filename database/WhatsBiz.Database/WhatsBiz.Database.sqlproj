@@ -64,6 +64,7 @@
     <None Include="Scripts\V30-TemporaryPasswordsAndSupplierUniqueness.sql"/>
     <None Include="Scripts\V31-TenantEntityCodesAndV1Printing.sql"/>
     <None Include="Scripts\V32-SupplierNameUniqueness.sql"/>
+    <None Include="Scripts\V34-WhatsAppInboundCommerce.sql"/>
     <None Include="Scripts\V5-DashboardInventoryAvailability.sql"/>
     <None Include="Scripts\V6-DashboardTenantOwnershipAudit.sql"/>
     <None Include="Scripts\V7-SafeInventoryTenantColumns.sql"/>

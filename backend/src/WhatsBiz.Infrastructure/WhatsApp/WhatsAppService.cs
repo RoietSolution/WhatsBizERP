@@ -16,7 +16,8 @@ namespace WhatsBiz.Infrastructure.WhatsApp;
 
 public sealed partial class WhatsAppService(IConfiguration configuration,
     IDataProtectionProvider dataProtectionProvider, IFeatureService features, IWhatsAppCommerceProviderResolver providers,
-    ILogger<WhatsAppService> logger, IHttpClientFactory clients, ICustomerReferralService? referrals = null) : IWhatsAppService
+    ILogger<WhatsAppService> logger, IHttpClientFactory clients, ICustomerReferralService? referrals = null,
+    IWhatsAppInboundCommerceHandler? inboundCommerce = null) : IWhatsAppService
 {
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("WhatsBiz.WhatsApp.Secrets.v1");
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
@@ -286,6 +287,8 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
                 {
                     await UpsertContact(row.TenantId,item,token);
                     if(item.MessageText is not null)await TryCaptureReferralMessage(row.TenantId,item.ContactNumber,item.MessageText,token);
+                    if (inboundCommerce is not null && item.MessageText is not null && row.ProviderMode.Equals(WhatsAppProviderModes.Live, StringComparison.OrdinalIgnoreCase))
+                        await inboundCommerce.HandleAsync(row.TenantId, row.ProviderMode, envelope.PhoneNumberId, item.ContactNumber, item.MetaMessageId, item.MessageText, token);
                 }
             }
             WhatsAppLogs.WebhookReceived(logger,row.TenantId,envelope.PhoneNumberId,string.Join(',',envelope.Events.Select(x=>x.EventType).Distinct(StringComparer.Ordinal)));

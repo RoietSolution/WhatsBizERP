@@ -20,6 +20,7 @@ public static class WhatsAppDependencyInjection
             dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keyRingPath));
         services.AddScoped<IWhatsAppService, WhatsAppService>();
         services.AddScoped<IWhatsAppCommerceService, WhatsAppCommerceService>();
+        services.AddScoped<IWhatsAppInboundCommerceHandler, WhatsAppInboundCommerceHandler>();
         services.AddScoped<IPOSLifecycleService, POSLifecycleService>();
         services.AddSingleton<IWhatsAppCommerceProvider, MockWhatsAppProvider>();
         services.AddSingleton<IWhatsAppCommerceProvider, MetaCloudApiWhatsAppProvider>();

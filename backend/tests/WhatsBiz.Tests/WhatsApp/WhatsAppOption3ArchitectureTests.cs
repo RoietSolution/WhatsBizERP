@@ -76,6 +76,118 @@ public sealed class WhatsAppOption3ArchitectureTests
     }
 
     [Fact]
+    public async Task SubscriptionDiagnosticReadsOnlyAndNeverReturnsAccessToken()
+    {
+        var handler = new SubscriptionHandler();
+        var provider = Provider(handler);
+        const string secret = "do-not-return-this-token";
+        var result = await provider.GetSubscribedAppsAsync("v25.0", "waba-1234", secret, default);
+
+        result.Succeeded.Should().BeTrue();
+        result.ApplicationIds.Should().ContainSingle("1664327351823554");
+        result.SubscribedFields.Should().ContainSingle("messages");
+        result.MessagesSubscribed.Should().BeTrue();
+        handler.Request.Method.Should().Be(HttpMethod.Get);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/v25.0/waba-1234/subscribed_apps");
+        handler.Request.Headers.Authorization!.Parameter.Should().Be(secret);
+        JsonSerializer.Serialize(result).Should().NotContain(secret);
+    }
+
+    [Fact]
+    public async Task PhoneAssetDiagnosticUsesReadOnlyGraphAndReturnsSafeAssets()
+    {
+        var handler = new PhoneAssetsHandler();
+        var provider = Provider(handler);
+        const string secret = "phone-asset-secret";
+        var result = await provider.GetPhoneNumbersAsync("v25.0", "waba-1234", secret, default);
+
+        result.Succeeded.Should().BeTrue();
+        result.Assets.Should().ContainSingle();
+        result.Assets.Single().Id.Should().Be("12345678909885");
+        handler.Request.Method.Should().Be(HttpMethod.Get);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/v25.0/waba-1234/phone_numbers");
+        handler.Request.RequestUri.Query.Should().Contain("fields=");
+        handler.Request.Headers.Authorization!.Parameter.Should().Be(secret);
+        JsonSerializer.Serialize(result).Should().NotContain(secret);
+
+        var mapped = WhatsAppService.MapPhoneAsset(result.Assets.Single(), "12345678909885", "+91 9981");
+        mapped.PhoneNumberId.Should().Be("***9885");
+        mapped.DisplayPhoneNumber.Should().Be("***9981");
+        mapped.MatchesConfiguredPhoneNumberId.Should().BeTrue();
+        mapped.MatchesConfiguredDisplayNumber.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task PhoneAssetDiagnosticRetriesWithMinimalFieldsWhenOptionalFieldsAreRejected()
+    {
+        var handler = new PhoneAssetsFallbackHandler();
+        var result = await Provider(handler).GetPhoneNumbersAsync("v25.0", "waba-1234", "secret", default);
+
+        result.Succeeded.Should().BeTrue();
+        result.UsedMinimalFields.Should().BeTrue();
+        handler.Requests.Should().HaveCount(2);
+        handler.Requests[1].RequestUri!.Query.Should().Contain("id%2Cdisplay_phone_number");
+    }
+
+    [Fact]
+    public async Task PhoneAssetDiagnosticReturnsSafeGraphFailure()
+    {
+        var result = await Provider(new PhoneAssetsFailureHandler()).GetPhoneNumbersAsync("v25.0", "waba-1234", "secret", default);
+
+        result.Succeeded.Should().BeFalse();
+        result.SafeError.Should().Contain("Meta Graph error 100");
+        JsonSerializer.Serialize(result).Should().NotContain("secret");
+    }
+
+    [Fact]
+    public async Task ConfiguredPhoneDiagnosticReadsOnlySafeCoexistenceFields()
+    {
+        var handler = new PhoneDetailsHandler();
+        var result = await Provider(handler).GetPhoneNumberDetailsAsync("v25.0", "12345678909885", "secret", default);
+
+        result.Succeeded.Should().BeTrue();
+        result.IsOnBizApp.Should().BeTrue();
+        result.PlatformType.Should().Be("CLOUD_API");
+        handler.Requests.Should().ContainSingle();
+        handler.Requests[0].Method.Should().Be(HttpMethod.Get);
+        var requestUri = handler.Requests[0].RequestUri!;
+        requestUri.AbsolutePath.Should().Be("/v25.0/12345678909885");
+        requestUri.Query.Should().Contain("is_on_biz_app");
+        requestUri.Query.Should().Contain("platform_type");
+        requestUri.Query.Should().Contain("quality_rating");
+        typeof(WhatsAppConfiguredPhoneDiagnostic).GetProperties().Select(x => x.Name)
+            .Should().Equal("PhoneNumberId", "IsOnBizApp", "PlatformType", "SafeError");
+    }
+
+    [Fact]
+    public async Task ConfiguredPhoneDiagnosticFallsBackToCoreFieldsWhenOptionalFieldsAreRejected()
+    {
+        var handler = new PhoneDetailsFallbackHandler();
+        var result = await Provider(handler).GetPhoneNumberDetailsAsync("v25.0", "12345678909885", "secret", default);
+
+        result.Succeeded.Should().BeTrue();
+        result.IsOnBizApp.Should().BeFalse();
+        result.PlatformType.Should().Be("CLOUD_API");
+        result.SafeError.Should().BeNull();
+        handler.Requests.Should().HaveCount(2);
+        handler.Requests.Should().OnlyContain(x => x.Method == HttpMethod.Get);
+        handler.Requests[1].RequestUri!.Query.Should().Be("?fields=is_on_biz_app%2Cplatform_type");
+    }
+
+    [Fact]
+    public async Task ConfiguredPhoneDiagnosticSanitizesGraphErrors()
+    {
+        const string fullPhoneNumberId = "12345678909885";
+        const string secret = "phone-detail-secret";
+        var result = await Provider(new PhoneDetailsFailureHandler(fullPhoneNumberId, secret))
+            .GetPhoneNumberDetailsAsync("v25.0", fullPhoneNumberId, secret, default);
+
+        result.Succeeded.Should().BeFalse();
+        result.SafeError.Should().Be("Meta Graph error 100 (HTTP 400).");
+        JsonSerializer.Serialize(result).Should().NotContain(fullPhoneNumberId).And.NotContain(secret);
+    }
+
+    [Fact]
     public void ContactContractsAreTenantImplicitAndDoNotExposeMessageContent()
     {
         typeof(IWhatsAppService).GetMethod(nameof(IWhatsAppService.GetContactsAsync))!.GetParameters().Select(x=>x.Name).Should().Contain("tenantId");
@@ -101,17 +213,91 @@ public sealed class WhatsAppOption3ArchitectureTests
         sql.Should().Contain("BEGIN TRANSACTION").And.Contain("SET XACT_ABORT ON");
     }
 
-    private static MetaCloudApiWhatsAppProvider Provider(RecordingHandler handler)
+    private static MetaCloudApiWhatsAppProvider Provider(HttpMessageHandler handler)
     {
         var config=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>{{"WhatsApp:Meta:GraphBaseUrl","https://graph.facebook.test"}}).Build();
         return new(new Factory(handler),config,NullLogger<MetaCloudApiWhatsAppProvider>.Instance);
     }
     private static string SourceFile([CallerFilePath] string sourceFile = "") => sourceFile;
-    private sealed class Factory(RecordingHandler handler):IHttpClientFactory { public HttpClient CreateClient(string name)=>new(handler,false); }
+    private sealed class Factory(HttpMessageHandler handler):IHttpClientFactory { public HttpClient CreateClient(string name)=>new(handler,false); }
     private sealed class RecordingHandler:HttpMessageHandler
     {
         public List<(string Path,string? Authorization)> Requests {get;}=[];
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken cancellationToken)
         {Requests.Add((request.RequestUri!.AbsolutePath,request.Headers.Authorization?.ToString()));return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent("{\"messages\":[{\"id\":\"wamid.test\"}]}",Encoding.UTF8,"application/json")});}
+    }
+    private sealed class SubscriptionHandler : HttpMessageHandler
+    {
+        public HttpRequestMessage Request { get; private set; } = null!;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Request = request;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new StringContent("{\"data\":[{\"whatsapp_business_api_data\":{\"id\":\"1664327351823554\"},\"subscribed_fields\":[\"messages\"]}]}", Encoding.UTF8, "application/json") });
+        }
+    }
+    private sealed class PhoneAssetsHandler : HttpMessageHandler
+    {
+        public HttpRequestMessage Request { get; private set; } = null!;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Request = request;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"data\":[{\"id\":\"12345678909885\",\"display_phone_number\":\"+91 9981\",\"verified_name\":\"GuturGo\",\"quality_rating\":\"GREEN\",\"code_verification_status\":\"VERIFIED\",\"platform_type\":\"CLOUD_API\",\"name_status\":\"APPROVED\"}]}", Encoding.UTF8, "application/json")
+            });
+        }
+    }
+    private sealed class PhoneAssetsFallbackHandler : HttpMessageHandler
+    {
+        public List<HttpRequestMessage> Requests { get; } = [];
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            var rejected = request.RequestUri!.Query.Contains("verified_name", StringComparison.Ordinal);
+            return Task.FromResult(new HttpResponseMessage(rejected ? HttpStatusCode.BadRequest : HttpStatusCode.OK)
+            {
+                Content = new StringContent(rejected ? "{\"error\":{\"code\":100,\"message\":\"Unsupported field\"}}" : "{\"data\":[{\"id\":\"12345678909885\",\"display_phone_number\":\"+91 9981\"}]}", Encoding.UTF8, "application/json")
+            });
+        }
+    }
+    private sealed class PhoneAssetsFailureHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest)
+            { Content = new StringContent("{\"error\":{\"code\":100,\"message\":\"Invalid WABA\"}}", Encoding.UTF8, "application/json") });
+    }
+    private sealed class PhoneDetailsHandler : HttpMessageHandler
+    {
+        public List<HttpRequestMessage> Requests { get; } = [];
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new StringContent("{\"is_on_biz_app\":true,\"platform_type\":\"CLOUD_API\"}", Encoding.UTF8, "application/json") });
+        }
+    }
+    private sealed class PhoneDetailsFallbackHandler : HttpMessageHandler
+    {
+        public List<HttpRequestMessage> Requests { get; } = [];
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            var optionalFieldsRequested = request.RequestUri!.Query.Contains("quality_rating", StringComparison.Ordinal);
+            return Task.FromResult(new HttpResponseMessage(optionalFieldsRequested ? HttpStatusCode.BadRequest : HttpStatusCode.OK)
+            {
+                Content = new StringContent(optionalFieldsRequested
+                    ? "{\"error\":{\"code\":100,\"message\":\"Unsupported field\"}}"
+                    : "{\"is_on_biz_app\":false,\"platform_type\":\"CLOUD_API\"}", Encoding.UTF8, "application/json")
+            });
+        }
+    }
+    private sealed class PhoneDetailsFailureHandler(string phoneNumberId, string accessToken) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent($"{{\"error\":{{\"code\":100,\"message\":\"Invalid object {phoneNumberId}; token {accessToken}\"}}}}", Encoding.UTF8, "application/json")
+            });
     }
 }

@@ -51,6 +51,17 @@ export interface WhatsAppMetaTestDiagnostics {
 export interface WhatsAppSubscriptionDiagnostic {
   requestSucceeded:boolean; wabaId:string; subscribedApplicationIds:string[];
   khataDhariAppMatches:boolean; subscribedFields:string[]; messagesSubscribed?:boolean|null; safeError?:string;
+  phoneAssets?:WhatsAppPhoneAssetDiagnostic[]; configuredPhoneNumberIdMatchesExactlyOne?:boolean|null;
+  configuredDisplayNumberMatches?:boolean|null; otherPhoneAssetsPresent?:boolean|null;
+  configuredPhoneAsset?:WhatsAppConfiguredPhoneDiagnostic;
+}
+export interface WhatsAppPhoneAssetDiagnostic {
+  phoneNumberId:string; displayPhoneNumber?:string; verifiedName?:string; qualityRating?:string;
+  codeVerificationStatus?:string; platformType?:string; nameStatus?:string;
+  matchesConfiguredPhoneNumberId:boolean; matchesConfiguredDisplayNumber?:boolean|null;
+}
+export interface WhatsAppConfiguredPhoneDiagnostic {
+  phoneNumberId:string; isOnBizApp?:boolean|null; platformType?:string; safeError?:string;
 }
 export interface WhatsAppContact { whatsAppContactId:string;mobile:string;profileName?:string;status:'NEW'|'MATCHED'|'CONVERTED';customerId?:string;customerCode?:string;customerName?:string;firstMessageAt:string;lastMessageAt:string;messageCount:number;lastMessageType?:string; }
 export interface PagedWhatsAppContacts { items:WhatsAppContact[];totalCount:number;newCount:number;matchedCount:number;convertedCount:number;pageNumber:number;pageSize:number; }

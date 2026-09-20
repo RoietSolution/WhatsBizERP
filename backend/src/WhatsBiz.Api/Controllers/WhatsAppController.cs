@@ -50,6 +50,10 @@ public sealed class WhatsAppController(IWhatsAppService service, ICurrentUserSer
     [HttpGet("administration/tenants/{tenantId:guid}/configuration/diagnostics"), PlatformAuthorize, HasPermission(Permissions.Features.Manage)]
     public async Task<WhatsAppMetaTestDiagnosticsDto> Diagnostics(Guid tenantId, CancellationToken token) => await service.GetDiagnosticsAsync(await TargetTenant(tenantId, token), token);
 
+    [HttpGet("administration/tenants/{tenantId:guid}/configuration/subscription-diagnostics"), PlatformAuthorize, HasPermission(Permissions.Features.Manage)]
+    public async Task<WhatsAppSubscriptionDiagnosticDto> SubscriptionDiagnostics(Guid tenantId, CancellationToken token) =>
+        await service.GetSubscriptionDiagnosticAsync(await TargetTenant(tenantId, token), token);
+
     [HttpGet("administration/platform"), PlatformAuthorize, HasPermission(Permissions.Features.Manage)]
     public Task<WhatsAppPlatformConfigurationDto> Platform(CancellationToken token) => service.GetPlatformConfigurationAsync(token);
 

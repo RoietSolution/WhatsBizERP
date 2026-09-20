@@ -36,6 +36,19 @@ public sealed record WhatsAppMetaTestDiagnosticsDto(string WebhookPath, string? 
     DateTimeOffset? LastWebhookVerifiedOn, DateTimeOffset? LastWebhookReceivedOn, string? LastInboundEventType,
     string? LastMetaMessageId, bool TenantResolutionSucceeded, long DuplicateWebhookCount,
     DateTimeOffset? LastTestMessageOn, string? LastTestMessageId);
+public sealed record WhatsAppSubscriptionDiagnosticDto(bool RequestSucceeded, string WabaId,
+    IReadOnlyCollection<string> SubscribedApplicationIds, bool KhataDhariAppMatches,
+    IReadOnlyCollection<string> SubscribedFields, bool? MessagesSubscribed, string? SafeError,
+    IReadOnlyCollection<WhatsAppPhoneAssetDiagnostic>? PhoneAssets = null,
+    bool? ConfiguredPhoneNumberIdMatchesExactlyOne = null,
+    bool? ConfiguredDisplayNumberMatches = null,
+    bool? OtherPhoneAssetsPresent = null,
+    WhatsAppConfiguredPhoneDiagnostic? ConfiguredPhoneAsset = null);
+public sealed record WhatsAppPhoneAssetDiagnostic(string PhoneNumberId, string? DisplayPhoneNumber,
+    string? VerifiedName, string? QualityRating, string? CodeVerificationStatus, string? PlatformType,
+    string? NameStatus, bool MatchesConfiguredPhoneNumberId, bool? MatchesConfiguredDisplayNumber);
+public sealed record WhatsAppConfiguredPhoneDiagnostic(string PhoneNumberId, bool? IsOnBizApp,
+    string? PlatformType, string? SafeError);
 public sealed record WhatsAppPlatformConfigurationDto(string? MetaAppId, bool IsEnabled,
     bool HasAppSecret, bool HasWebhookVerifyToken, DateTimeOffset? ModifiedOn);
 public sealed record SaveWhatsAppPlatformConfigurationInput(string MetaAppId, bool IsEnabled,
@@ -68,6 +81,8 @@ public interface IWhatsAppService
     Task<WhatsAppConnectionResult> ValidateConnectionAsync(Guid tenantId, string? replacementAccessToken, CancellationToken token);
     Task<WhatsAppTestMessageResult> SendTestMessageAsync(Guid tenantId, SendWhatsAppTestMessageInput input, CancellationToken token);
     Task<WhatsAppMetaTestDiagnosticsDto> GetDiagnosticsAsync(Guid tenantId, CancellationToken token);
+    Task<WhatsAppSubscriptionDiagnosticDto> GetSubscriptionDiagnosticAsync(Guid tenantId, CancellationToken token)
+        => Task.FromResult(new WhatsAppSubscriptionDiagnosticDto(false, string.Empty, Array.Empty<string>(), false, Array.Empty<string>(), null, "Subscription diagnostics are not supported."));
     Task<WhatsAppPlatformConfigurationDto> GetPlatformConfigurationAsync(CancellationToken token);
     Task<WhatsAppPlatformConfigurationDto> SavePlatformConfigurationAsync(SaveWhatsAppPlatformConfigurationInput input, string? actor, CancellationToken token);
     Task<IReadOnlyCollection<RetailerWhatsAppConnectionDto>> GetRetailerConnectionsAsync(CancellationToken token);

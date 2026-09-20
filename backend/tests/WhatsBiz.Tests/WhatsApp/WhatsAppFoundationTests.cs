@@ -32,6 +32,7 @@ public sealed class WhatsAppFoundationTests
     [InlineData(nameof(WhatsAppController.Validate))]
     [InlineData(nameof(WhatsAppController.SendTestMessage))]
     [InlineData(nameof(WhatsAppController.Diagnostics))]
+    [InlineData(nameof(WhatsAppController.SubscriptionDiagnostics))]
     public void ConfigurationEndpointsRequireApplicationOwnerAndExplicitTenant(string methodName)
     {
         var method = typeof(WhatsAppController).GetMethod(methodName)!;

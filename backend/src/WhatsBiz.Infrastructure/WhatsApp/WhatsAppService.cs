@@ -173,6 +173,43 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
             row?.DuplicateWebhookCount ?? 0, lastSentOn, lastSentId);
     }
 
+    public async Task<WhatsAppSubscriptionDiagnosticDto> GetSubscriptionDiagnosticAsync(Guid tenantId, CancellationToken token)
+    {
+        var row = await ReadByTenant(tenantId, token);
+        var platform = await ReadPlatform(token);
+        if (row is null || !row.IsEnabled || !row.ProviderMode.Equals(WhatsAppProviderModes.Live, StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(row.WabaId) || string.IsNullOrWhiteSpace(row.PhoneNumberId) || string.IsNullOrWhiteSpace(row.ApiVersion)
+            || string.IsNullOrWhiteSpace(row.AccessTokenProtected))
+            return new(false, MaskIdentifier(row?.WabaId), Array.Empty<string>(), false, Array.Empty<string>(), null, "An enabled LIVE configuration with a WABA and protected access token is required.");
+        if (platform?.IsEnabled != true || string.IsNullOrWhiteSpace(platform.MetaAppId))
+            return new(false, MaskIdentifier(row.WabaId), Array.Empty<string>(), false, Array.Empty<string>(), null, "The shared Meta platform configuration is not enabled.");
+
+        string accessToken;
+        try { accessToken = protector.Unprotect(row.AccessTokenProtected); }
+        catch (CryptographicException) { return new(false, MaskIdentifier(row.WabaId), Array.Empty<string>(), false, Array.Empty<string>(), null, "The stored LIVE credential could not be decrypted."); }
+
+        var provider = providers.Resolve(WhatsAppProviderModes.Live);
+        var subscription = await provider.GetSubscribedAppsAsync(row.ApiVersion, row.WabaId, accessToken, token);
+        var phoneAssets = await provider.GetPhoneNumbersAsync(row.ApiVersion, row.WabaId, accessToken, token);
+        var phoneDetails = await provider.GetPhoneNumberDetailsAsync(row.ApiVersion, row.PhoneNumberId, accessToken, token);
+        var configuredDisplay = NormalizeDigits(row.DisplayPhoneNumber);
+        var applicationIds = subscription.ApplicationIds.Select(MaskIdentifier).ToArray();
+        var matches = subscription.ApplicationIds.Any(x => string.Equals(x, platform.MetaAppId, StringComparison.Ordinal));
+        var assets = phoneAssets.Assets.Select(asset => MapPhoneAsset(asset, row.PhoneNumberId, row.DisplayPhoneNumber)).ToArray();
+        var matchingIdCount = phoneAssets.Assets.Count(x => string.Equals(x.Id, row.PhoneNumberId, StringComparison.Ordinal));
+        var otherPhoneAssets = phoneAssets.Assets.Any(x => !string.Equals(x.Id, row.PhoneNumberId, StringComparison.Ordinal));
+        var displayMatch = phoneAssets.Assets.Any(x => !string.IsNullOrWhiteSpace(configuredDisplay)
+            && string.Equals(configuredDisplay, NormalizeDigits(x.DisplayPhoneNumber), StringComparison.Ordinal));
+        var errors = new[] { subscription.SafeError, phoneAssets.SafeError, phoneDetails.SafeError }.Where(x => !string.IsNullOrWhiteSpace(x));
+        var configuredPhoneAsset = new WhatsAppConfiguredPhoneDiagnostic(MaskIdentifier(row.PhoneNumberId), phoneDetails.IsOnBizApp,
+            phoneDetails.PlatformType, phoneDetails.SafeError);
+        return new(subscription.Succeeded && phoneAssets.Succeeded && phoneDetails.Succeeded, MaskIdentifier(row.WabaId), applicationIds, matches,
+            subscription.SubscribedFields, subscription.MessagesSubscribed, errors.Any() ? string.Join(" ", errors) : null,
+            assets, phoneAssets.Succeeded ? matchingIdCount == 1 : null,
+            phoneAssets.Succeeded ? displayMatch : null,
+            phoneAssets.Succeeded ? otherPhoneAssets : null, configuredPhoneAsset);
+    }
+
     public async Task<string?> VerifyWebhookAsync(string? mode, string? verifyToken, string? challenge, CancellationToken token)
     {
         var modeValid = string.Equals(mode, "subscribe", StringComparison.Ordinal);
@@ -450,6 +487,23 @@ END
     private static WhatsAppConfigurationDto Empty() => new(WhatsAppProviderModes.Mock, null, null, null, null, null, null, null, false, WhatsAppConnectionStatuses.NotConfigured, null, null, false, false, false);
     private string? ProtectReplacement(string? value, string? current, string label, bool optional) { if (!string.IsNullOrWhiteSpace(value)) return protector.Protect(value.Trim()); if (!string.IsNullOrWhiteSpace(current)) return current; if (optional) return null; throw new BusinessRuleException($"The {label} is required."); }
     private string? UnprotectOrNull(string? value) { if (value is null) return null; try { return protector.Unprotect(value); } catch (CryptographicException) { return null; } }
+    private static string MaskIdentifier(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        var trimmed = value.Trim();
+        return trimmed.Length <= 4 ? new string('*', trimmed.Length) : $"***{trimmed[^4..]}";
+    }
+    private static string NormalizeDigits(string? value) => value is null ? string.Empty : NonDigits().Replace(value, string.Empty);
+    internal static WhatsAppPhoneAssetDiagnostic MapPhoneAsset(WhatsAppProviderPhoneAsset asset, string? configuredPhoneNumberId, string? configuredDisplayNumber)
+    {
+        var configuredDisplay = NormalizeDigits(configuredDisplayNumber);
+        var matchesDisplay = string.IsNullOrWhiteSpace(configuredDisplay) || string.IsNullOrWhiteSpace(asset.DisplayPhoneNumber)
+            ? (bool?)null
+            : string.Equals(configuredDisplay, NormalizeDigits(asset.DisplayPhoneNumber), StringComparison.Ordinal);
+        return new(MaskIdentifier(asset.Id), MaskIdentifier(asset.DisplayPhoneNumber), asset.VerifiedName,
+            asset.QualityRating, asset.CodeVerificationStatus, asset.PlatformType, asset.NameStatus,
+            string.Equals(asset.Id, configuredPhoneNumberId, StringComparison.Ordinal), matchesDisplay);
+    }
     internal static void ValidateInput(SaveWhatsAppConfigurationInput x, bool usesSharedPlatformCredentials)
     {
         if (!WhatsAppProviderModes.All.Contains(x.ProviderMode)) throw new BusinessRuleException("Provider mode must be MOCK, META_TEST, or LIVE.");

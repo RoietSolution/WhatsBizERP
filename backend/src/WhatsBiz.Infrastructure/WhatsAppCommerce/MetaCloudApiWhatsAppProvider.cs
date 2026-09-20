@@ -98,6 +98,129 @@ public sealed partial class MetaCloudApiWhatsAppProvider(IHttpClientFactory clie
             catch (JsonException) { return new(false, null, now, false, 0, request.RecipientNumber, "Meta returned an unexpected message response."); }
     }
 
+    public async Task<WhatsAppProviderSubscriptionResult> GetSubscribedAppsAsync(string apiVersion, string wabaId, string accessToken, CancellationToken token)
+    {
+        try
+        {
+            using var request = Create(HttpMethod.Get,
+                $"{BaseUrl()}/{Uri.EscapeDataString(apiVersion)}/{Uri.EscapeDataString(wabaId)}/subscribed_apps",
+                accessToken);
+            using var response = await clients.CreateClient("MetaWhatsApp").SendAsync(request, token);
+            var body = await response.Content.ReadAsStringAsync(token);
+            if (!response.IsSuccessStatusCode)
+                return new(false, Array.Empty<string>(), Array.Empty<string>(), null, SafeGraphFailure(response.StatusCode, body));
+
+            using var document = JsonDocument.Parse(body);
+            if (!document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+                return new(false, Array.Empty<string>(), Array.Empty<string>(), null, "Meta returned an unexpected subscribed-apps response.");
+
+            var ids = new List<string>();
+            var subscribedFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            bool? messages = null;
+            foreach (var app in data.EnumerateArray())
+            {
+                var id = app.TryGetProperty("id", out var directId) ? directId.GetString() : null;
+                if (string.IsNullOrWhiteSpace(id) && app.TryGetProperty("whatsapp_business_api_data", out var businessApi)
+                    && businessApi.TryGetProperty("id", out var nestedId)) id = nestedId.GetString();
+                if (!string.IsNullOrWhiteSpace(id)) ids.Add(id);
+                if (TryReadFields(app, out var fields))
+                {
+                    foreach (var field in fields) subscribedFields.Add(field);
+                    messages = fields.Any(x => x.Equals("messages", StringComparison.OrdinalIgnoreCase));
+                }
+            }
+            return new(true, ids.Distinct(StringComparer.Ordinal).ToArray(), subscribedFields.ToArray(), messages, null);
+        }
+        catch (HttpRequestException) { return new(false, Array.Empty<string>(), Array.Empty<string>(), null, "Meta could not be reached. Check network connectivity and try again."); }
+        catch (JsonException) { return new(false, Array.Empty<string>(), Array.Empty<string>(), null, "Meta returned an unexpected subscribed-apps response."); }
+    }
+
+    public async Task<WhatsAppProviderPhoneAssetsResult> GetPhoneNumbersAsync(string apiVersion, string wabaId, string accessToken, CancellationToken token)
+    {
+        const string fullFields = "id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type,name_status";
+        const string minimalFields = "id,display_phone_number";
+        try
+        {
+            var response = await GetPhoneNumbersResponseAsync(apiVersion, wabaId, accessToken, fullFields, token);
+            var usedMinimal = false;
+            if (!response.IsSuccessStatusCode)
+            {
+                response.Dispose();
+                response = await GetPhoneNumbersResponseAsync(apiVersion, wabaId, accessToken, minimalFields, token);
+                usedMinimal = true;
+            }
+            using (response)
+            {
+                var body = await response.Content.ReadAsStringAsync(token);
+                if (!response.IsSuccessStatusCode)
+                    return new(false, Array.Empty<WhatsAppProviderPhoneAsset>(), usedMinimal, SafeGraphFailure(response.StatusCode, body));
+                using var document = JsonDocument.Parse(body);
+                if (!document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+                    return new(false, Array.Empty<WhatsAppProviderPhoneAsset>(), usedMinimal, "Meta returned an unexpected phone-number response.");
+                var assets = new List<WhatsAppProviderPhoneAsset>();
+                foreach (var phone in data.EnumerateArray())
+                {
+                    var id = phone.TryGetProperty("id", out var idNode) ? idNode.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(id)) continue;
+                    assets.Add(new(id, String(phone, "display_phone_number"), String(phone, "verified_name"),
+                        String(phone, "quality_rating"), String(phone, "code_verification_status"),
+                        String(phone, "platform_type"), String(phone, "name_status")));
+                }
+                return new(true, assets, usedMinimal, null);
+            }
+        }
+        catch (HttpRequestException) { return new(false, Array.Empty<WhatsAppProviderPhoneAsset>(), false, "Meta could not be reached. Check network connectivity and try again."); }
+        catch (JsonException) { return new(false, Array.Empty<WhatsAppProviderPhoneAsset>(), false, "Meta returned an unexpected phone-number response."); }
+    }
+
+    public async Task<WhatsAppProviderPhoneDetailsResult> GetPhoneNumberDetailsAsync(string apiVersion, string phoneNumberId, string accessToken, CancellationToken token)
+    {
+        const string coreFields = "is_on_biz_app,platform_type";
+        const string extendedFields = "is_on_biz_app,platform_type,quality_rating,code_verification_status,name_status";
+        try
+        {
+            var response = await GetPhoneNumberDetailsResponseAsync(apiVersion, phoneNumberId, accessToken, extendedFields, token);
+            if (!response.IsSuccessStatusCode)
+            {
+                response.Dispose();
+                response = await GetPhoneNumberDetailsResponseAsync(apiVersion, phoneNumberId, accessToken, coreFields, token);
+            }
+            using (response)
+            {
+                var body = await response.Content.ReadAsStringAsync(token);
+                if (!response.IsSuccessStatusCode)
+                    return new(false, null, null, SafeGraphFailure(response.StatusCode, body));
+                using var document = JsonDocument.Parse(body);
+                var root = document.RootElement;
+                var isOnBizApp = root.TryGetProperty("is_on_biz_app", out var bizNode) && bizNode.ValueKind is JsonValueKind.True or JsonValueKind.False
+                    ? bizNode.GetBoolean() : (bool?)null;
+                var platformType = String(root, "platform_type");
+                if (isOnBizApp is null && string.IsNullOrWhiteSpace(platformType))
+                    return new(false, null, null, "Meta returned an unexpected phone-number detail response.");
+                return new(true, isOnBizApp, platformType, null);
+            }
+        }
+        catch (HttpRequestException) { return new(false, null, null, "Meta could not be reached. Check network connectivity and try again."); }
+        catch (JsonException) { return new(false, null, null, "Meta returned an unexpected phone-number detail response."); }
+    }
+
+    private async Task<HttpResponseMessage> GetPhoneNumberDetailsResponseAsync(string apiVersion, string phoneNumberId,
+        string accessToken, string fields, CancellationToken token)
+    {
+        using var request = Create(HttpMethod.Get,
+            $"{BaseUrl()}/{Uri.EscapeDataString(apiVersion)}/{Uri.EscapeDataString(phoneNumberId)}?fields={Uri.EscapeDataString(fields)}",
+            accessToken);
+        return await clients.CreateClient("MetaWhatsApp").SendAsync(request, token);
+    }
+
+    private async Task<HttpResponseMessage> GetPhoneNumbersResponseAsync(string apiVersion, string wabaId, string accessToken, string fields, CancellationToken token)
+    {
+        using var request = Create(HttpMethod.Get,
+            $"{BaseUrl()}/{Uri.EscapeDataString(apiVersion)}/{Uri.EscapeDataString(wabaId)}/phone_numbers?fields={Uri.EscapeDataString(fields)}",
+            accessToken);
+        return await clients.CreateClient("MetaWhatsApp").SendAsync(request, token);
+    }
+
     public async Task<WhatsAppTransactionalMessageResult> SendTransactionalAsync(WhatsAppTransactionalMessageRequest request,CancellationToken token)
     {
         var now=DateTimeOffset.UtcNow;
@@ -119,6 +242,7 @@ public sealed partial class MetaCloudApiWhatsAppProvider(IHttpClientFactory clie
 
     private static HttpRequestMessage Create(HttpMethod method, string url, string token)
     { var request = new HttpRequestMessage(method, url); request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token); return request; }
+    private static string? String(JsonElement element, string property) => element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     private string BaseUrl()
     {
         var value = configuration["WhatsApp:Meta:GraphBaseUrl"];
@@ -128,6 +252,34 @@ public sealed partial class MetaCloudApiWhatsAppProvider(IHttpClientFactory clie
     }
     private static string SafeFailure(System.Net.HttpStatusCode status) =>
         $"Meta rejected the request (HTTP {(int)status}). Check the configured IDs, API version, recipient, token, and permissions.";
+
+    private static string SafeGraphFailure(System.Net.HttpStatusCode status, string body)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (document.RootElement.TryGetProperty("error", out var error))
+            {
+                var code = error.TryGetProperty("code", out var codeNode) && codeNode.ValueKind == JsonValueKind.Number
+                    && codeNode.TryGetInt32(out var numericCode) ? numericCode.ToString(System.Globalization.CultureInfo.InvariantCulture) : "unknown";
+                return $"Meta Graph error {code} (HTTP {(int)status}).";
+            }
+        }
+        catch (JsonException) { }
+        return $"Meta Graph request failed (HTTP {(int)status}).";
+    }
+
+    private static bool TryReadFields(JsonElement app, out string[] fields)
+    {
+        if (app.TryGetProperty("subscribed_fields", out var node) && node.ValueKind == JsonValueKind.Array)
+        {
+            fields = node.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String)
+                .Select(x => x.GetString()!).ToArray();
+            return true;
+        }
+        fields = Array.Empty<string>();
+        return false;
+    }
 }
 
 internal static partial class MetaProviderLogs

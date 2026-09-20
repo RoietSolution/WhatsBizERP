@@ -6,6 +6,14 @@ public sealed record WhatsAppProviderConnectionRequest(string ApiVersion, string
     string PhoneNumberId, string AccessToken);
 public sealed record WhatsAppProviderConnectionResult(bool Succeeded, string? DisplayPhoneNumber,
     string? BusinessDisplayName, string? SafeMessage);
+public sealed record WhatsAppProviderSubscriptionResult(bool Succeeded, IReadOnlyCollection<string> ApplicationIds,
+    IReadOnlyCollection<string> SubscribedFields, bool? MessagesSubscribed, string? SafeError);
+public sealed record WhatsAppProviderPhoneAsset(string Id, string? DisplayPhoneNumber, string? VerifiedName,
+    string? QualityRating, string? CodeVerificationStatus, string? PlatformType, string? NameStatus);
+public sealed record WhatsAppProviderPhoneAssetsResult(bool Succeeded, IReadOnlyCollection<WhatsAppProviderPhoneAsset> Assets,
+    bool UsedMinimalFields, string? SafeError);
+public sealed record WhatsAppProviderPhoneDetailsResult(bool Succeeded, bool? IsOnBizApp,
+    string? PlatformType, string? SafeError);
 public sealed record WhatsAppProviderTestMessageRequest(string ApiVersion, string PhoneNumberId,
     string AccessToken, string RecipientNumber, string Message);
 public sealed record WhatsAppProviderTestMessageResult(bool Succeeded, string? ProviderMessageId,
@@ -67,6 +75,12 @@ public interface IWhatsAppCommerceProvider
     Task<IReadOnlyCollection<WhatsAppCommerceMessage>> SendOrderConfirmationAsync(string orderNumber, decimal amount, CancellationToken token);
     Task<IReadOnlyCollection<WhatsAppCommerceMessage>> SendOrderStatusAsync(string orderNumber, string status, CancellationToken token);
     Task<WhatsAppProviderConnectionResult> ValidateConnectionAsync(WhatsAppProviderConnectionRequest request, CancellationToken token);
+    Task<WhatsAppProviderSubscriptionResult> GetSubscribedAppsAsync(string apiVersion, string wabaId, string accessToken, CancellationToken token)
+        => Task.FromResult(new WhatsAppProviderSubscriptionResult(false, Array.Empty<string>(), Array.Empty<string>(), null, "Subscription diagnostics are not supported by this provider."));
+    Task<WhatsAppProviderPhoneAssetsResult> GetPhoneNumbersAsync(string apiVersion, string wabaId, string accessToken, CancellationToken token)
+        => Task.FromResult(new WhatsAppProviderPhoneAssetsResult(false, Array.Empty<WhatsAppProviderPhoneAsset>(), false, "Phone-asset diagnostics are not supported by this provider."));
+    Task<WhatsAppProviderPhoneDetailsResult> GetPhoneNumberDetailsAsync(string apiVersion, string phoneNumberId, string accessToken, CancellationToken token)
+        => Task.FromResult(new WhatsAppProviderPhoneDetailsResult(false, null, null, "Phone-asset detail diagnostics are not supported by this provider."));
     Task<WhatsAppProviderTestMessageResult> SendTestMessageAsync(WhatsAppProviderTestMessageRequest request, CancellationToken token);
     Task<WhatsAppCommerceSendResult> SendProductCollectionAsync(WhatsAppCommerceSendRequest request, CancellationToken token);
     Task<WhatsAppTransactionalMessageResult> SendTransactionalAsync(WhatsAppTransactionalMessageRequest request,CancellationToken token) => Task.FromResult(new WhatsAppTransactionalMessageResult(false,null,DateTimeOffset.UtcNow,"Transactional messaging is not supported by this provider."));

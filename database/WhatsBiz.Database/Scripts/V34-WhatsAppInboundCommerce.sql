@@ -72,14 +72,14 @@ BEGIN
         TenantId uniqueidentifier NOT NULL,
         MetaMessageId nvarchar(250) NOT NULL,
         RecipientNumber nvarchar(20) NOT NULL,
-        MessageText nvarchar(4096) NOT NULL,
+        MessageText nvarchar(max) NOT NULL,
         Status nvarchar(20) NOT NULL,
         ProviderMessageId nvarchar(250) NULL,
         Attempts int NOT NULL CONSTRAINT DF_WhatsAppCommerceOutbound_Attempts DEFAULT(0),
         LastError nvarchar(500) NULL,
         CreatedOn datetimeoffset NOT NULL CONSTRAINT DF_WhatsAppCommerceOutbound_Created DEFAULT SYSUTCDATETIME(),
         UpdatedOn datetimeoffset NOT NULL CONSTRAINT DF_WhatsAppCommerceOutbound_Updated DEFAULT SYSUTCDATETIME(),
-        CONSTRAINT UQ_WhatsAppCommerceOutbound_Message UNIQUE(TenantId,MetaMessageId,RecipientNumber,MessageText),
+        CONSTRAINT UQ_WhatsAppCommerceOutbound_Message UNIQUE(TenantId,MetaMessageId,RecipientNumber),
         CONSTRAINT CK_WhatsAppCommerceOutbound_Status CHECK(Status IN(N'PENDING',N'SENT',N'FAILED'))
     );
 END;

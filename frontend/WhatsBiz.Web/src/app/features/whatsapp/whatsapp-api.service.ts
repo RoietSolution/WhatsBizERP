@@ -48,6 +48,10 @@ export interface WhatsAppMetaTestDiagnostics {
   lastInboundEventType?:string; lastMetaMessageId?:string; tenantResolutionSucceeded:boolean;
   duplicateWebhookCount:number; lastTestMessageOn?:string; lastTestMessageId?:string;
 }
+export interface WhatsAppSubscriptionDiagnostic {
+  requestSucceeded:boolean; wabaId:string; subscribedApplicationIds:string[];
+  khataDhariAppMatches:boolean; subscribedFields:string[]; messagesSubscribed?:boolean|null; safeError?:string;
+}
 export interface WhatsAppContact { whatsAppContactId:string;mobile:string;profileName?:string;status:'NEW'|'MATCHED'|'CONVERTED';customerId?:string;customerCode?:string;customerName?:string;firstMessageAt:string;lastMessageAt:string;messageCount:number;lastMessageType?:string; }
 export interface PagedWhatsAppContacts { items:WhatsAppContact[];totalCount:number;newCount:number;matchedCount:number;convertedCount:number;pageNumber:number;pageSize:number; }
 @Injectable({ providedIn: 'root' })
@@ -62,6 +66,7 @@ export class WhatsAppApiService {
   onboardingConfig() { return this.http.get<WhatsAppOnboardingConfiguration>(`${this.root}/onboarding/config`); }
   sendTestMessage(tenantId:string|undefined,recipientNumber:string,message?:string) { return this.http.post<WhatsAppTestMessageResult>(`${this.tenantConfiguration(tenantId)}/test-message`, { recipientNumber, message:message||null }); }
   diagnostics(tenantId?:string) { return this.http.get<WhatsAppMetaTestDiagnostics>(`${this.tenantConfiguration(tenantId)}/diagnostics`); }
+  subscriptionDiagnostics(tenantId:string) { return this.http.get<WhatsAppSubscriptionDiagnostic>(`${this.root}/administration/tenants/${tenantId}/configuration/subscription-diagnostics`); }
   platform(){return this.http.get<WhatsAppPlatformConfiguration>(`${this.root}/administration/platform`);}
   savePlatform(input:{metaAppId:string;isEnabled:boolean;appSecret?:string;webhookVerifyToken?:string}){return this.http.put<WhatsAppPlatformConfiguration>(`${this.root}/administration/platform`,input);}
   retailerConnections(){return this.http.get<RetailerWhatsAppConnection[]>(`${this.root}/administration/retailer-connections`);}

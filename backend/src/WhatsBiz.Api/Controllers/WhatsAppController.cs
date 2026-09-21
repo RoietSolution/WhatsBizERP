@@ -10,8 +10,14 @@ using WhatsBiz.SharedKernel;
 namespace WhatsBiz.Api.Controllers;
 
 [ApiController, Route("api/whatsapp")]
-public sealed class WhatsAppController(IWhatsAppService service, ICurrentUserService currentUser, IFeatureService? features = null) : ControllerBase
+public sealed class WhatsAppController(IWhatsAppService service, ICurrentUserService currentUser,
+    IFeatureService? features = null, IWhatsAppUsageBillingService? usageBilling = null) : ControllerBase
 {
+    [HttpGet("usage/summary"), HasPermission(Permissions.Admin.View), RequireFeature(FeatureKeys.WhatsAppCommerce)]
+    public Task<WhatsAppUsageSummary> UsageSummary([FromQuery] int year, [FromQuery] int month, CancellationToken token) =>
+        (usageBilling ?? throw new InvalidOperationException("WhatsApp usage billing service is unavailable."))
+            .GetSummaryAsync(TenantId(), year, month, token);
+
     [HttpGet("configuration"), HasPermission(Permissions.Admin.View), RequireFeature(FeatureKeys.WhatsAppConfiguration)]
     public Task<WhatsAppConfigurationDto> GetForRetailer(CancellationToken token) => service.GetConfigurationAsync(TenantId(), token);
 

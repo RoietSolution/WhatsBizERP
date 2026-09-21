@@ -509,6 +509,12 @@ export const routes: Routes = [
         redirectTo: 'orders/deliveries',pathMatch:'full'
       },
       {
+        path: 'admin/whatsapp-usage-billing',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permission: 'admin.view', feature: 'WHATSAPP_COMMERCE', title: 'WhatsApp Usage & Billing' },
+        loadComponent: () => import('./features/whatsapp/whatsapp-usage-billing.component').then(m => m.WhatsAppUsageBillingComponent),
+      },
+      {
         path: 'orders/deliveries',canActivate:[permissionGuard,featureGuard],data:{permission:'delivery.manage',feature:'DELIVERY_MANAGEMENT',title:'Delivery Management'},
         loadComponent:()=>import('./features/delivery/delivery-dashboard.component').then(m=>m.DeliveryDashboardComponent),
       },

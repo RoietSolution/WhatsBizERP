@@ -330,6 +330,13 @@ export class AdministrationHubComponent {
           route: '/admin/whatsapp-demo',
           feature: 'WHATSAPP_COMMERCE',
         },
+        {
+          title: 'WhatsApp Usage & Billing',
+          description: 'View delivered WhatsApp usage, estimated Meta charges, and plan entitlement separately.',
+          icon: 'receipt_long',
+          route: '/admin/whatsapp-usage-billing',
+          feature: 'WHATSAPP_COMMERCE',
+        },
       ],
     },
     {

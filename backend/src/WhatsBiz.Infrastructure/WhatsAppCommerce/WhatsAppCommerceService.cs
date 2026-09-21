@@ -9,13 +9,14 @@ using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.POS;
 using WhatsBiz.Application.Features.WhatsAppCommerce;
 using WhatsBiz.Application.Features.Loyalty;
+using WhatsBiz.Application.Features.WhatsApp;
 
 namespace WhatsBiz.Infrastructure.WhatsAppCommerce;
 
 public sealed partial class WhatsAppCommerceService(IConfiguration configuration, IPOSEngine pos,
     IWhatsAppCommerceProviderResolver providers, IFeatureService features, IDataProtectionProvider protection,
     ICurrentUserService currentUser,
-    ILoyaltyService? loyalty = null) : IWhatsAppCommerceService
+    ILoyaltyService? loyalty = null, IWhatsAppUsageBillingService? usageBilling = null) : IWhatsAppCommerceService
 {
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
     private Guid AuthenticatedTenant(Guid requested)
@@ -77,7 +78,9 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
         if (products.Items.Count == 0) throw new BusinessRuleException("This collection has no active, in-stock products available to send.");
         var native = config.Mode.Equals("META_TEST", StringComparison.OrdinalIgnoreCase) && products.Items.Count <= 10 && products.Items.All(x => x.CatalogId is not null && x.ExternalProductId is not null) && products.Items.Select(x => x.CatalogId).Distinct(StringComparer.Ordinal).Count() == 1;
         var accessToken = config.Mode.Equals("MOCK", StringComparison.OrdinalIgnoreCase) ? string.Empty : protection.CreateProtector("WhatsBiz.WhatsApp.Secrets.v1").Unprotect(config.ProtectedToken ?? throw new BusinessRuleException("Stored WhatsApp credential cannot be decrypted."));
-        return await providers.Resolve(config.Mode).SendProductCollectionAsync(new(config.ApiVersion ?? string.Empty, config.PhoneNumberId ?? string.Empty, accessToken, recipient, products.Title, products.Items.Select(x => new WhatsAppCommerceProductMessage(x.ProductId, x.ProductName, x.ProductCode, x.Price, x.ImageUrl, x.CatalogId, x.ExternalProductId)).ToArray(), native), token);
+        var sent = await providers.Resolve(config.Mode).SendProductCollectionAsync(new(config.ApiVersion ?? string.Empty, config.PhoneNumberId ?? string.Empty, accessToken, recipient, products.Title, products.Items.Select(x => new WhatsAppCommerceProductMessage(x.ProductId, x.ProductName, x.ProductCode, x.Price, x.ImageUrl, x.CatalogId, x.ExternalProductId)).ToArray(), native), token);
+        await TrackAccepted(tenantId, config.Mode, config.PhoneNumberId, recipient, null, sent.ProviderMessageId, sent.AttemptedAt, sent.Succeeded, token);
+        return sent;
     }
 
     public async Task<WhatsAppCommerceCart> CalculateCartAsync(Guid tenantId, Guid warehouseId, IReadOnlyCollection<WhatsAppCommerceCartItem> items, CancellationToken token)
@@ -159,6 +162,7 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
                 .Unprotect(config.ProtectedToken ?? throw new BusinessRuleException("Stored WhatsApp credential cannot be decrypted."));
             var sent = await providers.Resolve(mode).SendTransactionalAsync(new(config.ApiVersion ?? string.Empty,
                 config.PhoneNumberId ?? string.Empty, accessToken, liveRecipient!, "ORDER_CONFIRMATION", null, "en_US", text, []), token);
+            await TrackAccepted(tenantId, mode, config.PhoneNumberId, liveRecipient!, null, sent.ProviderMessageId, sent.AttemptedAt, sent.Succeeded, token);
             messages = [new("WHATS_BIZ", "ORDER", sent.Succeeded
                 ? $"{text}\n\nWhatsApp confirmation accepted by Meta."
                 : $"{text}\n\nThe ERP order was saved, but WhatsApp did not accept the confirmation: {sent.SafeMessage}")];
@@ -282,6 +286,7 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
                 var text = $"KhataDhari order #{change.Number} status: {NotificationStatus(change.Status)}.";
                 var sent = await providers.Resolve(mode).SendTransactionalAsync(new(config.ApiVersion ?? string.Empty,
                     config.PhoneNumberId ?? string.Empty, accessToken!, liveRecipient!, "ORDER_STATUS", null, "en_US", text, []), token);
+                await TrackAccepted(tenantId, mode, config.PhoneNumberId, liveRecipient!, null, sent.ProviderMessageId, sent.AttemptedAt, sent.Succeeded, token);
                 messages.Add(new("WHATS_BIZ", "STATUS", sent.Succeeded
                     ? $"{text} WhatsApp status accepted by Meta."
                     : $"{text} WhatsApp did not accept the status message: {sent.SafeMessage}"));
@@ -311,6 +316,10 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
         || mode.Equals("LIVE", StringComparison.OrdinalIgnoreCase);
     public static string OrderConfirmationText(string orderNumber, decimal amount) => $"Thank you. Your KhataDhari order #{orderNumber} has been confirmed. Total: ₹{amount:0.00}.";
     private static string NotificationStatus(string status) => status.ToUpperInvariant().Replace('_',' ');
+    private Task TrackAccepted(Guid tenantId,string mode,string? phone,string recipient,string? template,string? messageId,DateTimeOffset sentAt,bool succeeded,CancellationToken token)
+        => usageBilling is null || !succeeded || string.IsNullOrWhiteSpace(messageId) || string.IsNullOrWhiteSpace(phone)
+            ? Task.CompletedTask
+            : usageBilling.RecordAcceptedAsync(new(tenantId,mode,phone,messageId,recipient,template,WhatsAppMessageCategories.Unknown,sentAt),token);
     internal static string? NormalizeRecipient(string? mobile)
     {
         if (string.IsNullOrWhiteSpace(mobile)) return null;

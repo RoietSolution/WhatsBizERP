@@ -17,7 +17,7 @@ namespace WhatsBiz.Infrastructure.WhatsApp;
 public sealed partial class WhatsAppService(IConfiguration configuration,
     IDataProtectionProvider dataProtectionProvider, IFeatureService features, IWhatsAppCommerceProviderResolver providers,
     ILogger<WhatsAppService> logger, IHttpClientFactory clients, ICustomerReferralService? referrals = null,
-    IWhatsAppInboundCommerceHandler? inboundCommerce = null) : IWhatsAppService
+    IWhatsAppInboundCommerceHandler? inboundCommerce = null, IWhatsAppUsageBillingService? usageBilling = null) : IWhatsAppService
 {
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("WhatsBiz.WhatsApp.Secrets.v1");
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
@@ -335,9 +335,13 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
             }
             foreach(var item in envelope.Events)
             {
-                var inserted=await StoreEvent(row.TenantId,row.ProviderMode,item.EventKey,item.EventType,item.Direction,envelope.PhoneNumberId,item.ContactNumber,item.Status,item.EventTimestamp,token,item.MetaMessageId,item.MessageType);
+                var inserted=await StoreEvent(row.TenantId,row.ProviderMode,item.EventKey,item.EventType,item.Direction,envelope.PhoneNumberId,item.ContactNumber,item.Status,item.EventTimestamp,token,item.MetaMessageId,item.MessageType,item.PricingCategory,item.MetaBillable,item.PricingModel);
                 WhatsAppLogs.TransportProcessed(logger,row.ProviderMode,row.TenantId,item.EventType,item.MetaMessageId,item.Direction,inserted?"RECORDED":"DUPLICATE");
                 await MarkWebhookReceived(row.TenantId,item,!inserted,token);
+                if(item.EventType=="MESSAGE_STATUS"&&usageBilling is not null)
+                    await usageBilling.ApplyStatusAsync(new(row.TenantId,row.ProviderMode,envelope.PhoneNumberId,
+                        item.MetaMessageId,item.ContactNumber,item.Status??"UNKNOWN",item.EventTimestamp,
+                        item.PricingCategory,item.MetaBillable,item.PricingModel),token);
                 if(inserted&&item.Direction=="INBOUND"&&item.ContactNumber is not null)
                 {
                     await UpsertContact(row.TenantId,item,token);
@@ -414,16 +418,17 @@ END
 
     private async Task<bool> StoreEvent(Guid tenantId, string providerMode, string eventKey, string eventType, string direction,
         string? phoneNumberId, string? contactNumber, string? status, DateTimeOffset eventTimestamp,
-        CancellationToken token, string? metaMessageId = null, string? messageType = null)
+        CancellationToken token, string? metaMessageId = null, string? messageType = null,
+        string? pricingCategory = null, bool? metaBillable = null, string? pricingModel = null)
     {
         try
         {
             await using var connection = new SqlConnection(ConnectionString); await connection.OpenAsync(token);
             await using var command = new SqlCommand("""
                 INSERT integration.WhatsAppWebhookEvents(WhatsAppWebhookEventId,TenantId,ProviderMode,EventKey,
-                  MetaMessageId,EventType,Direction,PhoneNumberId,ContactNumber,MessageType,MessageStatus,
+                  MetaMessageId,EventType,Direction,PhoneNumberId,ContactNumber,MessageType,MessageStatus,PricingCategory,MetaBillable,MetaPricingModel,
                   EventTimestamp,ProcessingStatus,ReceivedOn)
-                VALUES(NEWID(),@tenant,@provider,@key,@message,@type,@direction,@phone,@contact,@messageType,@status,
+                VALUES(NEWID(),@tenant,@provider,@key,@message,@type,@direction,@phone,@contact,@messageType,@status,@pricingCategory,@billable,@pricingModel,
                   @timestamp,'PROCESSED',SYSUTCDATETIME());
                 """, connection);
             command.Parameters.AddWithValue("@tenant", tenantId); command.Parameters.AddWithValue("@key", eventKey);
@@ -432,9 +437,25 @@ END
             command.Parameters.AddWithValue("@type", eventType); command.Parameters.AddWithValue("@direction", direction);
             command.Parameters.AddWithValue("@phone", (object?)phoneNumberId ?? DBNull.Value); command.Parameters.AddWithValue("@contact", (object?)contactNumber ?? DBNull.Value);
             command.Parameters.AddWithValue("@messageType", (object?)messageType ?? DBNull.Value); command.Parameters.AddWithValue("@status", (object?)status ?? DBNull.Value);
+            command.Parameters.AddWithValue("@pricingCategory",(object?)pricingCategory??DBNull.Value);command.Parameters.AddWithValue("@billable",(object?)metaBillable??DBNull.Value);command.Parameters.AddWithValue("@pricingModel",(object?)pricingModel??DBNull.Value);
             command.Parameters.AddWithValue("@timestamp", eventTimestamp); await command.ExecuteNonQueryAsync(token); return true;
         }
-        catch (SqlException exception) when (exception.Number is 2601 or 2627) { return false; }
+        catch (SqlException exception) when (exception.Number is 2601 or 2627)
+        {
+            await using var connection = new SqlConnection(ConnectionString);await connection.OpenAsync(token);
+            await using var enrich = new SqlCommand("""
+                UPDATE integration.WhatsAppWebhookEvents SET
+                  PricingCategory=COALESCE(PricingCategory,@pricingCategory),
+                  MetaBillable=COALESCE(MetaBillable,@billable),
+                  MetaPricingModel=COALESCE(MetaPricingModel,@pricingModel)
+                WHERE TenantId=@tenant AND EventKey=@key;
+                """,connection);
+            enrich.Parameters.AddWithValue("@tenant",tenantId);enrich.Parameters.AddWithValue("@key",eventKey);
+            enrich.Parameters.AddWithValue("@pricingCategory",(object?)pricingCategory??DBNull.Value);
+            enrich.Parameters.AddWithValue("@billable",(object?)metaBillable??DBNull.Value);
+            enrich.Parameters.AddWithValue("@pricingModel",(object?)pricingModel??DBNull.Value);
+            await enrich.ExecuteNonQueryAsync(token);return false;
+        }
     }
 
     private static string? String(JsonElement element, string name) => element.TryGetProperty(name, out var value) ? value.GetString() : null;
@@ -469,7 +490,7 @@ END
                 if(value.TryGetProperty("messages",out var messages)&&messages.ValueKind==JsonValueKind.Array)foreach(var message in messages.EnumerateArray())
                 {var id=String(message,"id");var from=String(message,"from");var text=message.TryGetProperty("text",out var textNode)?String(textNode,"body"):null;if(!string.IsNullOrWhiteSpace(id))events.Add(new($"message:{id}",id,"MESSAGE_RECEIVED","INBOUND",from,String(message,"type"),null,Timestamp(message),text,from is not null&&profiles.TryGetValue(from,out var profileName)?profileName:null));}
                 if(value.TryGetProperty("statuses",out var statuses)&&statuses.ValueKind==JsonValueKind.Array)foreach(var status in statuses.EnumerateArray())
-                {var id=String(status,"id");var state=String(status,"status");if(!string.IsNullOrWhiteSpace(id)&&!string.IsNullOrWhiteSpace(state))events.Add(new($"status:{id}:{state}",id,"MESSAGE_STATUS","OUTBOUND",String(status,"recipient_id"),null,state,Timestamp(status),null,null));}
+                {var id=String(status,"id");var state=String(status,"status");string? category=null;string? pricingModel=null;bool? billable=null;if(status.TryGetProperty("pricing",out var pricing)&&pricing.ValueKind==JsonValueKind.Object){category=String(pricing,"category");pricingModel=String(pricing,"pricing_model");if(pricing.TryGetProperty("billable",out var billableNode)&&(billableNode.ValueKind==JsonValueKind.True||billableNode.ValueKind==JsonValueKind.False))billable=billableNode.GetBoolean();}if(!string.IsNullOrWhiteSpace(id)&&!string.IsNullOrWhiteSpace(state))events.Add(new($"status:{id}:{state}",id,"MESSAGE_STATUS","OUTBOUND",String(status,"recipient_id"),null,state,Timestamp(status),null,null,category,billable,pricingModel));}
                 result.Add(new(wabaId,phoneNumberId,events));
             }
         }
@@ -592,7 +613,8 @@ END
     private sealed record PlatformRow(string MetaAppId,string AppSecretProtected,string WebhookVerifyTokenProtected,bool IsEnabled,DateTimeOffset? ModifiedOn);
     internal sealed record WebhookEnvelope(string WabaId,string? PhoneNumberId,IReadOnlyCollection<WebhookTransportEvent> Events);
     internal sealed record WebhookTransportEvent(string EventKey, string MetaMessageId, string EventType,
-        string Direction, string? ContactNumber, string? MessageType, string? Status, DateTimeOffset EventTimestamp, string? MessageText, string? ProfileName);
+        string Direction, string? ContactNumber, string? MessageType, string? Status, DateTimeOffset EventTimestamp, string? MessageText, string? ProfileName,
+        string? PricingCategory = null, bool? MetaBillable = null, string? PricingModel = null);
 }
 
 internal static partial class WhatsAppLogs

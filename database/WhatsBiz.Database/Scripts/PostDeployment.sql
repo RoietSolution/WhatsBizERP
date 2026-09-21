@@ -80,3 +80,5 @@ GO
 GO
 :r .\RequiredReferenceDataValidation.sql
 :r .\V34-WhatsAppInboundCommerce.sql
+GO
+:r .\V35-WhatsAppUsageBilling.sql

@@ -19,6 +19,7 @@ public static class WhatsAppDependencyInjection
         if (!string.IsNullOrWhiteSpace(keyRingPath))
             dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keyRingPath));
         services.AddScoped<IWhatsAppService, WhatsAppService>();
+        services.AddScoped<IWhatsAppUsageBillingService, WhatsAppUsageBillingService>();
         services.AddScoped<IWhatsAppCommerceService, WhatsAppCommerceService>();
         services.AddScoped<IWhatsAppInboundCommerceHandler, WhatsAppInboundCommerceHandler>();
         services.AddScoped<IPOSLifecycleService, POSLifecycleService>();

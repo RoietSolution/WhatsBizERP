@@ -285,6 +285,7 @@ export const navigation: NavigationItem[] = [
       { label: 'Delivery Settings', icon: 'local_shipping', route: '/admin/delivery-settings', permission: 'delivery.settings', feature: 'DELIVERY_MANAGEMENT' },
       { label: 'WhatsApp Business', icon: 'chat', route: '/admin/whatsapp', permission: 'admin.settings', feature: 'WHATSAPP_COMMERCE' },
       { label: 'WhatsApp Ecommerce Demo', icon: 'forum', route: '/admin/whatsapp-demo', permission: 'pos.view', feature: 'WHATSAPP_COMMERCE' },
+      { label: 'WhatsApp Usage & Billing', icon: 'receipt_long', route: '/admin/whatsapp-usage-billing', permission: 'admin.view', feature: 'WHATSAPP_COMMERCE' },
       {
         label: 'Printer Configuration',
         icon: 'print',

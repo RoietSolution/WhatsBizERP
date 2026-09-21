@@ -48,7 +48,7 @@ export class FeatureService {
   requiredFeature(url: string): string | undefined {
     if (url.startsWith('/admin/features')) return undefined;
     const routes: [string, string][] = [
-      ['/delivery','DELIVERY_MANAGEMENT'], ['/orders/deliveries','DELIVERY_MANAGEMENT'], ['/admin/delivery','DELIVERY_MANAGEMENT'], ['/admin/whatsapp-deliveries','DELIVERY_MANAGEMENT'], ['/admin/whatsapp-demo','WHATSAPP_COMMERCE_DEMO'], ['/admin/whatsapp','WHATSAPP_CONFIGURATION'],
+      ['/delivery','DELIVERY_MANAGEMENT'], ['/orders/deliveries','DELIVERY_MANAGEMENT'], ['/admin/delivery','DELIVERY_MANAGEMENT'], ['/admin/whatsapp-deliveries','DELIVERY_MANAGEMENT'], ['/admin/whatsapp-demo','WHATSAPP_COMMERCE_DEMO'], ['/admin/whatsapp-usage-billing','WHATSAPP_COMMERCE'], ['/admin/whatsapp','WHATSAPP_CONFIGURATION'],
       ['/products/collections','COMMERCE_COLLECTIONS'], ['/dashboard','DASHBOARD'], ['/pos','POS'], ['/products','PRODUCTS'],
       ['/product-categories','PRODUCTS'], ['/brands','PRODUCTS'], ['/units','PRODUCTS'], ['/customers/whatsapp-contacts','WHATSAPP_COMMERCE'], ['/customers','CUSTOMERS'], ['/customer-groups','CUSTOMERS'],
       ['/suppliers','SUPPLIERS'], ['/purchases','PURCHASE'], ['/inventory','INVENTORY'], ['/finance','FINANCE'], ['/reports','REPORTS'],

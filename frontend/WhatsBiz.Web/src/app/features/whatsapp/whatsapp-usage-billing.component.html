@@ -1,0 +1,46 @@
+<app-page-container>
+  <app-page-header eyebrow="WhatsApp Commerce" title="WhatsApp Usage & Billing"
+    description="Review delivered WhatsApp usage and separately view your KhataDhari subscription entitlement." />
+
+  <section class="period" aria-label="Billing period">
+    <label for="usage-month">Month</label>
+    <input id="usage-month" type="month" [(ngModel)]="month" />
+    <button mat-flat-button color="primary" type="button" (click)="load()" [disabled]="loading()">View usage</button>
+  </section>
+  @if (error()) { <p class="error" role="alert">{{error()}}</p> }
+  @if (summary(); as data) {
+    <section class="category-grid" aria-label="WhatsApp usage by category">
+      @for (row of data.categories; track row.category) {
+        <article class="card">
+          <h2>{{label(row.category)}}</h2>
+          <p>Delivered messages: <strong>{{row.deliveredMessages}}</strong></p>
+          <p>Estimated Meta cost:
+            @if (categoryCost(row); as cost) { <strong>{{cost}}</strong> }
+            @else if (row.currencyBreakdown.length > 1) { <strong>{{breakdown(row.currencyBreakdown)}}</strong> }
+            @else if (row.estimatedMetaCost === 0 && row.rateConfigured) { <strong>0</strong> }
+            @else { <strong class="unavailable">Rate not configured</strong> }
+          </p>
+        </article>
+      }
+    </section>
+
+    <section class="total">
+      <h2>Estimated Meta Charges</h2>
+      @if (data.estimatedMetaCharges !== null && data.currency) {
+        <strong>{{amount(data.estimatedMetaCharges,data.currency)}}</strong>
+      } @else if (data.currencyBreakdown.length > 1) {
+        <div class="currency-list">{{breakdown(data.currencyBreakdown)}}</div>
+        <small>Amounts use different currencies and are not combined.</small>
+      } @else if (data.estimatedMetaCharges === 0 && data.rateConfigurationComplete) {
+        <strong>0</strong>
+      } @else { <strong class="unavailable">Rate not configured</strong> }
+    </section>
+
+    <section class="subscription">
+      <h2>KhataDhari Subscription</h2>
+      <p>Plan: <strong>{{data.khataDhariSubscription.planName || 'No active plan'}}</strong></p>
+      <p>WhatsApp Ecommerce: <strong>{{data.khataDhariSubscription.whatsAppCommerceEntitled ? 'Enabled / Included' : 'Not included'}}</strong></p>
+    </section>
+    <p class="note">Meta WhatsApp charges are separate from your KhataDhari subscription. Estimated Meta charges are calculated from recorded WhatsApp usage and configured Meta rates. Meta's billing records remain authoritative.</p>
+  }
+</app-page-container>

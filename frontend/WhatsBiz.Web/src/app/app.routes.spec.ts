@@ -46,4 +46,13 @@ describe('application routes', () => {
       expect(route?.data?.['platform']).withContext(path).toBeTrue();
     }
   });
+
+  it('protects WhatsApp usage billing with tenant permission and feature guards',()=>{
+    const mainRoute=routes.find(route=>route.canActivateChild);
+    const route=mainRoute?.children?.find(candidate=>candidate.path==='admin/whatsapp-usage-billing');
+    expect(route).toBeDefined();
+    expect(route?.data?.['permission']).toBe('admin.view');
+    expect(route?.data?.['feature']).toBe('WHATSAPP_COMMERCE');
+    expect(route?.canActivate?.length).toBe(2);
+  });
 });

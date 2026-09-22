@@ -82,3 +82,5 @@ GO
 :r .\V34-WhatsAppInboundCommerce.sql
 GO
 :r .\V35-WhatsAppUsageBilling.sql
+GO
+:r .\V36-TenantCommercePayments.sql

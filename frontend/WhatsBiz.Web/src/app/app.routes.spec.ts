@@ -55,4 +55,13 @@ describe('application routes', () => {
     expect(route?.data?.['feature']).toBe('WHATSAPP_COMMERCE');
     expect(route?.canActivate?.length).toBe(2);
   });
+
+  it('protects payment settings and payment management with tenant permissions and WhatsApp Commerce entitlement',()=>{
+    const mainRoute=routes.find(route=>route.canActivateChild);
+    const settings=mainRoute?.children?.find(candidate=>candidate.path==='admin/payment-settings');
+    const payments=mainRoute?.children?.find(candidate=>candidate.path==='admin/payments');
+    expect(settings?.data?.['permission']).toBe('admin.settings');
+    expect(payments?.data?.['permission']).toBe('payment.view');
+    for(const route of [settings,payments]){expect(route?.data?.['feature']).toBe('WHATSAPP_COMMERCE');expect(route?.canActivate?.length).toBe(2);}
+  });
 });

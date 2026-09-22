@@ -6,6 +6,8 @@ using WhatsBiz.Application.Features.WhatsAppCommerce;
 using WhatsBiz.Infrastructure.WhatsAppCommerce;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Infrastructure.POS;
+using WhatsBiz.Application.Features.Payments;
+using WhatsBiz.Infrastructure.Payments;
 
 namespace WhatsBiz.Infrastructure.WhatsApp;
 
@@ -23,6 +25,11 @@ public static class WhatsAppDependencyInjection
         services.AddScoped<IWhatsAppCommerceService, WhatsAppCommerceService>();
         services.AddScoped<IWhatsAppInboundCommerceHandler, WhatsAppInboundCommerceHandler>();
         services.AddScoped<IPOSLifecycleService, POSLifecycleService>();
+        services.AddScoped<ICommercePaymentService, CommercePaymentService>();
+        services.AddSingleton<IPaymentGateway, RazorpayPaymentGateway>();
+        services.AddSingleton<IPaymentGateway, DirectUpiPaymentGateway>();
+        services.AddSingleton<IPaymentGateway, CashOnDeliveryPaymentGateway>();
+        services.AddSingleton<IPaymentGatewayResolver, PaymentGatewayResolver>();
         services.AddSingleton<IWhatsAppCommerceProvider, MockWhatsAppProvider>();
         services.AddSingleton<IWhatsAppCommerceProvider, MetaCloudApiWhatsAppProvider>();
         services.AddSingleton<IWhatsAppCommerceProviderResolver, WhatsAppCommerceProviderResolver>();
@@ -35,6 +42,12 @@ public static class WhatsAppDependencyInjection
         // one-time authorization code in the Graph request URI. Suppress the
         // factory's default request-URI logging for this named client.
         .RemoveAllLoggers();
+        services.AddHttpClient("Razorpay", client =>
+        {
+            client.BaseAddress = new Uri("https://api.razorpay.com/v1/");
+            client.Timeout = TimeSpan.FromSeconds(20);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("WhatsBizERP/2.0");
+        }).RemoveAllLoggers();
         return services;
     }
 }

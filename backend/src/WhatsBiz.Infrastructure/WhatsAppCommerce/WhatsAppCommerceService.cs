@@ -10,13 +10,15 @@ using WhatsBiz.Application.Features.POS;
 using WhatsBiz.Application.Features.WhatsAppCommerce;
 using WhatsBiz.Application.Features.Loyalty;
 using WhatsBiz.Application.Features.WhatsApp;
+using WhatsBiz.Application.Features.Payments;
 
 namespace WhatsBiz.Infrastructure.WhatsAppCommerce;
 
 public sealed partial class WhatsAppCommerceService(IConfiguration configuration, IPOSEngine pos,
     IWhatsAppCommerceProviderResolver providers, IFeatureService features, IDataProtectionProvider protection,
     ICurrentUserService currentUser,
-    ILoyaltyService? loyalty = null, IWhatsAppUsageBillingService? usageBilling = null) : IWhatsAppCommerceService
+    ILoyaltyService? loyalty = null, IWhatsAppUsageBillingService? usageBilling = null,
+    ICommercePaymentService? payments = null) : IWhatsAppCommerceService
 {
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
     private Guid AuthenticatedTenant(Guid requested)
@@ -130,16 +132,18 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
         if (redemption.Discount >= cart.GrandTotal) throw new BusinessRuleException("Coin discount must be less than the order total.");
         var posItems = cart.Items.Select(x => new POSItemInput(x.ProductId, null, x.Quantity, x.UnitPrice, 0, 0, x.TaxPercentage)).ToArray();
         var onlinePayment = input.PaymentType == "ONLINE";
-        var paymentReference = onlinePayment ? $"demo_upi_{Guid.NewGuid():N}" : null;
-        var payments = onlinePayment
-            ? JsonSerializer.Serialize(new[] { new { MethodCode = "UPI", Amount = cart.GrandTotal - redemption.Discount, ReferenceNumber = paymentReference } })
-            : "[]";
+        var paymentService = payments ?? throw new BusinessRuleException("Payment services are unavailable.");
+        var enabledMethods = await paymentService.GetEnabledMethodsAsync(token);
+        var selectedProvider = onlinePayment
+            ? enabledMethods.Where(x => x.Provider is PaymentProviders.Razorpay or PaymentProviders.DirectUpi).OrderByDescending(x => x.IsDefault).FirstOrDefault()?.Provider
+            : enabledMethods.FirstOrDefault(x => x.Provider == PaymentProviders.Cod)?.Provider;
+        if (selectedProvider is null) throw new BusinessRuleException(onlinePayment ? "No online payment method is enabled for this tenant." : "Cash on Delivery is not enabled for this tenant.");
         var result = await pos.Post(new(null, null, input.CustomerId, input.WarehouseId, null,
-            JsonSerializer.Serialize(posItems), payments, redemption.Discount, 0, onlinePayment ? $"WhatsApp Commerce demo online payment: {paymentReference}" : "WhatsApp Commerce demo cash on delivery order",
-            onlinePayment ? "COMPLETED" : "HELD", false, null, actor, tenantId, "WHATSAPP_DEMO", redemption.RequestedCoins, 0), token);
+            JsonSerializer.Serialize(posItems), "[]", redemption.Discount, 0, "WhatsApp Commerce order awaiting retailer payment",
+            "HELD", false, null, actor, tenantId, "WHATSAPP_DEMO", redemption.RequestedCoins, 0), token);
         await using (var update = new SqlCommand("UPDATE integration.WhatsAppCommerceOrders SET DeliveryAddress=@address,FulfillmentMethod=@fulfillment,PaymentType=@payment,ProviderMode=@mode WHERE InvoiceId=@invoice AND TenantId=@tenant;", connection))
         { update.Parameters.AddWithValue("@address", input.DeliveryAddress.Trim()); update.Parameters.AddWithValue("@fulfillment", input.FulfillmentMethod); update.Parameters.AddWithValue("@payment", input.PaymentType); update.Parameters.AddWithValue("@mode", mode); update.Parameters.AddWithValue("@invoice", result.InvoiceId); update.Parameters.AddWithValue("@tenant", tenantId); await update.ExecuteNonQueryAsync(token); }
-        if (onlinePayment && loyalty is not null) await loyalty.ProcessOrderAsync(tenantId, result.InvoiceId, "COMPLETED", actor, token);
+        var paymentAttempt = await paymentService.CreateAttemptAsync(new(result.InvoiceId, selectedProvider), actor ?? "WHATSAPP_DEMO", token);
         List<WhatsAppCommerceMessage> messages;
         var text = OrderConfirmationText(result.InvoiceNumber, result.GrandTotal);
         if (mode == "MOCK")
@@ -167,7 +171,12 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
                 ? $"{text}\n\nWhatsApp confirmation accepted by Meta."
                 : $"{text}\n\nThe ERP order was saved, but WhatsApp did not accept the confirmation: {sent.SafeMessage}")];
         }
-        if (onlinePayment) messages.Add(new("WHATS_BIZ", "PAYMENT", $"Demo UPI payment received\nReference: {paymentReference}\nAmount: ₹{result.GrandTotal:0.00}"));
+        messages.Add(new("WHATS_BIZ", "PAYMENT", selectedProvider switch
+        {
+            PaymentProviders.Razorpay => $"Pay online: {paymentAttempt.PaymentAction}",
+            PaymentProviders.DirectUpi => $"Open UPI: {paymentAttempt.PaymentAction}\nPayment remains pending retailer verification.",
+            _ => "Cash on Delivery selected. Payment remains pending until collection."
+        }));
         if (redemption.RequestedCoins > 0) messages.Add(new("WHATS_BIZ", "LOYALTY", $"You redeemed {redemption.RequestedCoins} coins for ₹{redemption.Discount:0.00} off."));
         return new(result.InvoiceId, result.InvoiceNumber, result.Status, result.GrandTotal, redemption.RequestedCoins, redemption.Discount, messages);
     }

@@ -515,6 +515,18 @@ export const routes: Routes = [
         loadComponent: () => import('./features/whatsapp/whatsapp-usage-billing.component').then(m => m.WhatsAppUsageBillingComponent),
       },
       {
+        path: 'admin/payment-settings',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permission: 'admin.settings', feature: 'WHATSAPP_COMMERCE', title: 'Payment Settings' },
+        loadComponent: () => import('./features/payments/payment-settings.component').then(m => m.PaymentSettingsComponent),
+      },
+      {
+        path: 'admin/payments',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permission: 'payment.view', feature: 'WHATSAPP_COMMERCE', title: 'Payments' },
+        loadComponent: () => import('./features/payments/payment-list.component').then(m => m.PaymentListComponent),
+      },
+      {
         path: 'orders/deliveries',canActivate:[permissionGuard,featureGuard],data:{permission:'delivery.manage',feature:'DELIVERY_MANAGEMENT',title:'Delivery Management'},
         loadComponent:()=>import('./features/delivery/delivery-dashboard.component').then(m=>m.DeliveryDashboardComponent),
       },

@@ -286,6 +286,8 @@ export const navigation: NavigationItem[] = [
       { label: 'WhatsApp Business', icon: 'chat', route: '/admin/whatsapp', permission: 'admin.settings', feature: 'WHATSAPP_COMMERCE' },
       { label: 'WhatsApp Ecommerce Demo', icon: 'forum', route: '/admin/whatsapp-demo', permission: 'pos.view', feature: 'WHATSAPP_COMMERCE' },
       { label: 'WhatsApp Usage & Billing', icon: 'receipt_long', route: '/admin/whatsapp-usage-billing', permission: 'admin.view', feature: 'WHATSAPP_COMMERCE' },
+      { label: 'Payment Settings', icon: 'payments', route: '/admin/payment-settings', permission: 'admin.settings', feature: 'WHATSAPP_COMMERCE' },
+      { label: 'Payments', icon: 'receipt', route: '/admin/payments', permission: 'payment.view', feature: 'WHATSAPP_COMMERCE' },
       {
         label: 'Printer Configuration',
         icon: 'print',

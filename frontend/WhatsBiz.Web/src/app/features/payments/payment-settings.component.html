@@ -1,0 +1,26 @@
+<app-page-container>
+  <app-page-header eyebrow="WhatsApp Commerce" title="Payment Settings" description="Configure payment methods owned by this retailer. Customer funds go directly to the retailer." />
+  @if(error()){<p class="error" role="alert">{{error()}}</p>} @if(message()){<p class="success">{{message()}}</p>}
+  <section class="notice"><mat-checkbox [(ngModel)]="onlinePaymentEnabled">Online Payments</mat-checkbox> <button mat-stroked-button type="button" (click)="saveOptions()" [disabled]="loading()">Save Online Payment Setting</button><br>KhataDhari subscription billing is separate from ecommerce customer payments.</section>
+  <div class="settings-grid">
+    <form class="card" (ngSubmit)="saveRazorpay()">
+      <h2>Razorpay</h2>
+      <mat-checkbox [(ngModel)]="razorpay.isEnabled" name="razorpayEnabled">Enabled</mat-checkbox>
+      <mat-checkbox [(ngModel)]="razorpay.isDefault" name="razorpayDefault">Default</mat-checkbox>
+      <mat-checkbox [(ngModel)]="razorpay.isTestMode" name="testMode">Test mode</mat-checkbox>
+      <mat-form-field appearance="outline"><mat-label>Key ID</mat-label><input matInput [(ngModel)]="razorpay.keyId" name="keyId" autocomplete="off" [placeholder]="razorpay.maskedKeyId ? razorpay.maskedKeyId + ' — leave blank to retain' : ''"></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Key Secret</mat-label><input matInput type="password" [(ngModel)]="razorpay.keySecret" name="keySecret" autocomplete="new-password" [placeholder]="razorpay.hasKeySecret ? 'Configured — leave blank to retain' : ''"></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Webhook Secret</mat-label><input matInput type="password" [(ngModel)]="razorpay.webhookSecret" name="webhookSecret" autocomplete="new-password" [placeholder]="razorpay.hasWebhookSecret ? 'Configured — leave blank to retain' : ''"></mat-form-field>
+      <button mat-flat-button color="primary" [disabled]="loading()">Save Razorpay Configuration</button>
+    </form>
+    <form class="card" (ngSubmit)="saveUpi()">
+      <h2>Direct UPI</h2>
+      <mat-checkbox [(ngModel)]="upi.isEnabled" name="upiEnabled">Enabled</mat-checkbox><mat-checkbox [(ngModel)]="upi.isDefault" name="upiDefault">Default</mat-checkbox>
+      <mat-form-field appearance="outline"><mat-label>UPI ID / VPA</mat-label><input matInput [(ngModel)]="upi.upiVpa" name="upiVpa" autocomplete="off"></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Payee Name</mat-label><input matInput [(ngModel)]="upi.payeeName" name="payeeName"></mat-form-field>
+      <p class="hint">Opening a UPI app does not prove payment. Direct UPI remains pending until retailer verification.</p>
+      <button mat-flat-button color="primary" [disabled]="loading()">Save UPI Configuration</button>
+    </form>
+    <form class="card" (ngSubmit)="saveCod()"><h2>Cash on Delivery</h2><mat-checkbox [(ngModel)]="cod.isEnabled" name="codEnabled">Enabled</mat-checkbox><mat-checkbox [(ngModel)]="cod.isDefault" name="codDefault">Default</mat-checkbox><p class="hint">COD remains unpaid until the delivery collection workflow records receipt.</p><button mat-flat-button color="primary" [disabled]="loading()">Save COD Configuration</button></form>
+  </div>
+</app-page-container>

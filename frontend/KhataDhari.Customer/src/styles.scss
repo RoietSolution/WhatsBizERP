@@ -1,0 +1,17 @@
+:root {
+  color-scheme: light;
+  --green: #145c43;
+  --green-deep: #104a36;
+  --ink: #202b25;
+  --muted: #7c8177;
+  --canvas: #f7f7f2;
+  --line: #e9eae2;
+  --gold: #e8b64b;
+}
+
+* { box-sizing: border-box; }
+html { min-width: 320px; min-height: 100%; background: var(--canvas); scroll-behavior: smooth; }
+body { margin: 0; color: var(--ink); background: var(--canvas); font-family: 'DM Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+button, input { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+a { color: inherit; }

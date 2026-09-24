@@ -18,7 +18,9 @@ using WhatsBiz.Api.Authorization;
 using WhatsBiz.Infrastructure.WhatsApp;
 using WhatsBiz.Infrastructure.Analytics;
 using WhatsBiz.Infrastructure.Loyalty;
+using WhatsBiz.Infrastructure.Storefront;
 using WhatsBiz.Application.Features.Loyalty;
+using WhatsBiz.Application.Features.Storefront;
 using WhatsBiz.Application.Features.Referrals;
 using WhatsBiz.Application.Features.Delivery;
 using WhatsBiz.Infrastructure.Delivery;
@@ -96,6 +98,7 @@ try
     builder.Services.AddSingleton<IPrintingService, PrintingService>();
     builder.Services.AddScoped<IAdminRepository, AdminRepository>();
     builder.Services.AddScoped<ICommerceCollectionRepository, CommerceCollectionRepository>();
+    builder.Services.AddScoped<IStorefrontService, StorefrontService>();
     builder.Services.AddScoped<ICustomerGroupRepository, CustomerGroupRepository>();
     builder.Services.AddScoped<ICommerceAnalyticsService, CommerceAnalyticsService>();
     builder.Services.AddScoped<ILoyaltyService, LoyaltyService>();

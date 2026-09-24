@@ -1,0 +1,12 @@
+import { InjectionToken } from '@angular/core';
+import { Category, CustomerOrder, Product, Store } from '../models/storefront.models';
+
+export interface StorefrontDataProvider {
+  getStore(storeKey: string): Promise<Store | null>;
+  getCategories(storeKey: string): Promise<Category[]>;
+  getProducts(storeKey: string): Promise<Product[]>;
+  getProduct(storeKey: string, productId: string): Promise<Product | null>;
+  getOrders(storeKey: string): Promise<CustomerOrder[]>;
+}
+
+export const STOREFRONT_DATA_PROVIDER = new InjectionToken<StorefrontDataProvider>('STOREFRONT_DATA_PROVIDER');

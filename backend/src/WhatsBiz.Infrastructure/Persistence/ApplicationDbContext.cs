@@ -10,6 +10,7 @@ using WhatsBiz.Domain.Inventory;
 using WhatsBiz.Domain.POS;
 using WhatsBiz.Domain.Purchases;
 using WhatsBiz.Domain.Commerce;
+using WhatsBiz.Domain.Tenants;
 using WhatsBiz.Application.Common.Interfaces;
 
 namespace WhatsBiz.Infrastructure.Persistence;
@@ -48,6 +49,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
     public DbSet<Brand> Brands => Set<Brand>();
     public DbSet<UnitOfMeasure> UnitsOfMeasure => Set<UnitOfMeasure>();
@@ -96,6 +98,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         });
 
         ConfigureProductMaster(builder);
+        builder.Entity<Tenant>(entity => { entity.ToTable("Tenants", "core"); entity.HasKey(x => x.TenantId); entity.HasIndex(x => x.TenantKey).IsUnique(); entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired(); entity.Property(x => x.Name).HasMaxLength(200).IsRequired(); });
         ConfigureCommerceCollections(builder);
         ConfigureSuppliers(builder);
         ConfigureCustomers(builder);

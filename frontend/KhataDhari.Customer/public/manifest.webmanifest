@@ -1,0 +1,14 @@
+{
+  "name": "KhataDhari Shop",
+  "short_name": "Shop",
+  "description": "Shop from your neighbourhood store.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f7f7f2",
+  "theme_color": "#145c43",
+  "icons": [
+    { "src": "/icons/shop-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
@@ -334,6 +335,51 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
         if (string.IsNullOrWhiteSpace(mobile)) return null;
         var recipient = Digits().Replace(mobile, string.Empty);
         return recipient.Length >= 8 ? recipient : null;
+    }
+
+    public async Task<MetaCatalogDiscoveryResult> DiscoverMetaCatalogsAsync(Guid tenantId, CancellationToken token)
+    {
+        tenantId = AuthenticatedTenant(tenantId);
+        await using var connection = new SqlConnection(ConnectionString);
+        await connection.OpenAsync(token);
+        await using var command = new SqlCommand("""
+            SELECT TOP(1) c.ApiVersion,c.WhatsAppBusinessAccountId,c.AccessTokenProtected
+            FROM integration.WhatsAppConfigurations c
+            JOIN core.Tenants t ON t.TenantId=c.TenantId AND t.IsActive=1
+            JOIN integration.WhatsAppPlatformConfiguration p ON p.PlatformConfigurationId=1 AND p.IsEnabled=1
+            WHERE c.TenantId=@tenant AND c.ProviderMode=N'LIVE' AND c.IsEnabled=1
+              AND c.ConnectionStatus=N'CONNECTED'
+              AND NULLIF(LTRIM(RTRIM(c.ApiVersion)),N'') IS NOT NULL
+              AND NULLIF(LTRIM(RTRIM(c.WhatsAppBusinessAccountId)),N'') IS NOT NULL
+              AND c.AccessTokenProtected IS NOT NULL;
+            """, connection);
+        command.Parameters.AddWithValue("@tenant", tenantId);
+        await using var reader = await command.ExecuteReaderAsync(token);
+        if (!await reader.ReadAsync(token))
+            throw new BusinessRuleException("A connected LIVE WhatsApp configuration is required for catalog discovery.");
+        var apiVersion = reader.GetString(0);
+        var wabaId = reader.GetString(1);
+        var protectedToken = reader.GetString(2);
+        await reader.DisposeAsync();
+
+        var accessToken = TryDecryptCatalogToken(protection, protectedToken);
+        if (accessToken is null)
+            return new(wabaId, null, null, [], null, null, new("UNAVAILABLE", "UNAVAILABLE"),
+                "TOKEN_DECRYPTION_FAILED", []);
+        return await providers.Resolve(WhatsAppProviderModes.Live)
+            .DiscoverCatalogsAsync(new(apiVersion, wabaId, accessToken), token);
+    }
+
+    internal static string? TryDecryptCatalogToken(IDataProtectionProvider protection, string protectedToken)
+    {
+        try
+        {
+            return protection.CreateProtector("WhatsBiz.WhatsApp.Secrets.v1").Unprotect(protectedToken);
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
     }
 
     private static async Task<IReadOnlyCollection<WhatsAppCommerceProduct>> Products(SqlConnection connection, Guid warehouseId, Guid tenantId, CancellationToken token)

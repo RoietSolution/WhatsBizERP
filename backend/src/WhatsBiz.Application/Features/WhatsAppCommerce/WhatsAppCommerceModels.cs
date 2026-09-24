@@ -14,6 +14,17 @@ public sealed record WhatsAppProviderPhoneAssetsResult(bool Succeeded, IReadOnly
     bool UsedMinimalFields, string? SafeError);
 public sealed record WhatsAppProviderPhoneDetailsResult(bool Succeeded, bool? IsOnBizApp,
     string? PlatformType, string? SafeError);
+public sealed record MetaCatalogDiscoveryRequest(string ApiVersion, string WhatsAppBusinessAccountId,
+    string AccessToken);
+public sealed record MetaCatalogDiscoveryError(string Operation, int? HttpStatus, int? MetaCode,
+    int? MetaSubcode, string? ErrorType, string SafeMessage);
+public sealed record MetaCatalogDiscoveryCatalog(string CatalogId, string? Name, string Relationship,
+    bool? WhatsAppEligible);
+public sealed record MetaCatalogTokenCapabilities(string CatalogDiscovery, string CatalogProductManagement);
+public sealed record MetaCatalogDiscoveryResult(string WabaId, string? BusinessId, string? BusinessName,
+    IReadOnlyCollection<MetaCatalogDiscoveryCatalog> Catalogs, int? EligibleCatalogCount,
+    string? CandidateCatalogId, MetaCatalogTokenCapabilities TokenCapabilities, string Diagnostic,
+    IReadOnlyCollection<MetaCatalogDiscoveryError> Errors);
 public sealed record WhatsAppProviderTestMessageRequest(string ApiVersion, string PhoneNumberId,
     string AccessToken, string RecipientNumber, string Message);
 public sealed record WhatsAppProviderTestMessageResult(bool Succeeded, string? ProviderMessageId,
@@ -81,6 +92,9 @@ public interface IWhatsAppCommerceProvider
         => Task.FromResult(new WhatsAppProviderPhoneAssetsResult(false, Array.Empty<WhatsAppProviderPhoneAsset>(), false, "Phone-asset diagnostics are not supported by this provider."));
     Task<WhatsAppProviderPhoneDetailsResult> GetPhoneNumberDetailsAsync(string apiVersion, string phoneNumberId, string accessToken, CancellationToken token)
         => Task.FromResult(new WhatsAppProviderPhoneDetailsResult(false, null, null, "Phone-asset detail diagnostics are not supported by this provider."));
+    Task<MetaCatalogDiscoveryResult> DiscoverCatalogsAsync(MetaCatalogDiscoveryRequest request, CancellationToken token)
+        => Task.FromResult(new MetaCatalogDiscoveryResult(request.WhatsAppBusinessAccountId, null, null, [], null, null,
+            new("UNAVAILABLE", "UNAVAILABLE"), "PROVIDER_NOT_SUPPORTED", []));
     Task<WhatsAppProviderTestMessageResult> SendTestMessageAsync(WhatsAppProviderTestMessageRequest request, CancellationToken token);
     Task<WhatsAppCommerceSendResult> SendProductCollectionAsync(WhatsAppCommerceSendRequest request, CancellationToken token);
     Task<WhatsAppTransactionalMessageResult> SendTransactionalAsync(WhatsAppTransactionalMessageRequest request,CancellationToken token) => Task.FromResult(new WhatsAppTransactionalMessageResult(false,null,DateTimeOffset.UtcNow,"Transactional messaging is not supported by this provider."));
@@ -92,6 +106,7 @@ public interface IWhatsAppCommerceService
     Task<WhatsAppCommerceCart> CalculateCartAsync(Guid tenantId, Guid warehouseId, IReadOnlyCollection<WhatsAppCommerceCartItem> items, CancellationToken token);
     Task<WhatsAppCommerceOrderResult> PlaceOrderAsync(Guid tenantId, PlaceWhatsAppDemoOrderInput input, string? actor, CancellationToken token);
     Task<WhatsAppCommerceReadiness> GetReadinessAsync(Guid tenantId, CancellationToken token);
+    Task<MetaCatalogDiscoveryResult> DiscoverMetaCatalogsAsync(Guid tenantId, CancellationToken token);
     Task<IReadOnlyCollection<WhatsAppCommerceOrderSummary>> GetOrdersAsync(Guid tenantId, Guid customerId, CancellationToken token);
     Task<IReadOnlyCollection<WhatsAppCommerceOrderSummary>> GetDeliveryOrdersAsync(Guid tenantId, DateTimeOffset? fromDate, DateTimeOffset? toDate, string? deliveryStatus, string? trackingNumber, CancellationToken token);
     Task<WhatsAppCommerceOrderDetails> GetOrderAsync(Guid tenantId, Guid customerId, Guid orderId, CancellationToken token);

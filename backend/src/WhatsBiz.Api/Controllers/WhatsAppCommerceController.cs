@@ -22,6 +22,9 @@ public sealed partial class WhatsAppCommerceController(IWhatsAppCommerceService 
     public Task<WhatsAppCommerceOrderResult> OrderForRetailer(PlaceWhatsAppDemoOrderInput input, CancellationToken token) => PlaceOrder(TenantId(), input, token);
     [HttpGet("demo/readiness"), HasPermission(Permissions.POS.View), RequireFeature(FeatureKeys.WhatsAppCommerce), RequireFeature(FeatureKeys.WebhookDiagnostics), RequireFeature(FeatureKeys.WhatsAppCommerceDemo)]
     public Task<WhatsAppCommerceReadiness> ReadinessForRetailer(CancellationToken token) => service.GetReadinessAsync(TenantId(), token);
+    [HttpGet("meta/catalog-discovery"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.MetaWhatsAppIntegration)]
+    public Task<MetaCatalogDiscoveryResult> MetaCatalogDiscovery(CancellationToken token) =>
+        service.DiscoverMetaCatalogsAsync(TenantId(), token);
     [HttpGet("demo/orders"), HasPermission(Permissions.POS.View), RequireFeature(FeatureKeys.WhatsAppCommerce), RequireFeature(FeatureKeys.CommerceOrders)]
     public Task<IReadOnlyCollection<WhatsAppCommerceOrderSummary>> OrdersForRetailer([FromQuery] Guid customerId, CancellationToken token) => service.GetOrdersAsync(TenantId(), customerId, token);
     [HttpGet("demo/orders/{orderId:guid}"), HasPermission(Permissions.POS.View), RequireFeature(FeatureKeys.WhatsAppCommerce), RequireFeature(FeatureKeys.CommerceOrders)]

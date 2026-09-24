@@ -32,6 +32,8 @@ public sealed class MockWhatsAppProvider : IWhatsAppCommerceProvider
         var text = $"{request.Title}\n\n" + string.Join("\n", request.Products.Select((x, i) => $"{i + 1}. {x.ProductName}  ₹{x.SellingPrice:0.00}"));
         return Task.FromResult(new WhatsAppCommerceSendResult(true, $"mock-collection-{Guid.NewGuid():N}", DateTimeOffset.UtcNow, false, request.Products.Count, request.RecipientNumber, text));
     }
+    public Task<WhatsAppTransactionalMessageResult> SendCommerceAsync(WhatsAppCommerceOutboundRequest request, CancellationToken token) =>
+        Task.FromResult(new WhatsAppTransactionalMessageResult(true, $"mock-commerce-{Guid.NewGuid():N}", DateTimeOffset.UtcNow, request.Message.FallbackText ?? request.Message.Body));
     public Task<WhatsAppTransactionalMessageResult> SendTransactionalAsync(WhatsAppTransactionalMessageRequest request,CancellationToken token) => Task.FromResult(new WhatsAppTransactionalMessageResult(true,$"mock-delivery-{Guid.NewGuid():N}",DateTimeOffset.UtcNow,request.Message));
 }
 

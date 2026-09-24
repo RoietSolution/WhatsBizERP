@@ -3,7 +3,11 @@ using System.Security.Cryptography;
 using System.Text;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.WhatsApp;
 using WhatsBiz.Api.Controllers;
@@ -132,6 +136,35 @@ public sealed class WhatsAppWebhookVerificationTests
         WhatsAppService.ValidSignature(signature, exactBody, "another-tenant-secret").Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData(WhatsAppWebhookReceiveResult.Acknowledged, StatusCodes.Status200OK)]
+    [InlineData(WhatsAppWebhookReceiveResult.InvalidSignature, StatusCodes.Status401Unauthorized)]
+    [InlineData(WhatsAppWebhookReceiveResult.InvalidPayload, StatusCodes.Status400BadRequest)]
+    [InlineData(WhatsAppWebhookReceiveResult.PersistenceFailure, StatusCodes.Status500InternalServerError)]
+    public async Task ActualHttpPostEndpointMapsTransportOutcome(WhatsAppWebhookReceiveResult outcome, int expectedStatus)
+    {
+        const string secret = "http-endpoint-secret";
+        var body = Encoding.UTF8.GetBytes("""{"object":"whatsapp_business_account","entry":[]}""");
+        var builder = new WebHostBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<ICurrentUserService, AnonymousCurrentUser>();
+                services.AddSingleton<IWhatsAppService>(new RawBodySignatureService(secret, outcome));
+                services.AddControllers().AddApplicationPart(typeof(WhatsAppController).Assembly);
+            })
+            .Configure(app => app.UseRouting().UseEndpoints(endpoints => endpoints.MapControllers()));
+        using var server = new TestServer(builder);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/whatsapp/webhook")
+        {
+            Content = new ByteArrayContent(body)
+        };
+        request.Headers.TryAddWithoutValidation("X-Hub-Signature-256", Signature(secret, body));
+
+        using var response = await server.CreateClient().SendAsync(request);
+
+        ((int)response.StatusCode).Should().Be(expectedStatus);
+    }
+
     private static WhatsAppController Controller() =>
         new(new VerificationOnlyWhatsAppService(ConfiguredToken), new AnonymousCurrentUser());
 
@@ -180,14 +213,16 @@ public sealed class WhatsAppWebhookVerificationTests
         public Task<IReadOnlyCollection<RetailerWhatsAppConnectionDto>> GetRetailerConnectionsAsync(CancellationToken token) => throw new NotSupportedException();
         public Task<PagedWhatsAppContacts> GetContactsAsync(Guid tenantId, string? search, string? status, int pageNumber, int pageSize, CancellationToken token) => throw new NotSupportedException();
         public Task<WhatsAppContactDto> LinkContactAsync(Guid tenantId, Guid contactId, Guid customerId, string? actor, CancellationToken token) => throw new NotSupportedException();
-        public Task<bool> ReceiveWebhookAsync(string? signature, ReadOnlyMemory<byte> body, CancellationToken token) => throw new NotSupportedException();
+        public Task<WhatsAppWebhookReceiveResult> ReceiveWebhookAsync(string? signature, ReadOnlyMemory<byte> body, CancellationToken token) => throw new NotSupportedException();
     }
 
-    private sealed class RawBodySignatureService(string secret) : IWhatsAppService
+    private sealed class RawBodySignatureService(string secret, WhatsAppWebhookReceiveResult? forcedResult = null) : IWhatsAppService
     {
-        public Task<bool> ReceiveWebhookAsync(string? signature, ReadOnlyMemory<byte> body,
-            CancellationToken token) => Task.FromResult(
-            WhatsAppService.ValidSignature(signature, body.Span, secret));
+        public Task<WhatsAppWebhookReceiveResult> ReceiveWebhookAsync(string? signature, ReadOnlyMemory<byte> body,
+            CancellationToken token) => Task.FromResult(forcedResult ??
+            (WhatsAppService.ValidSignature(signature, body.Span, secret)
+                ? WhatsAppWebhookReceiveResult.Acknowledged
+                : WhatsAppWebhookReceiveResult.InvalidSignature));
 
         public Task<string?> VerifyWebhookAsync(string? mode, string? verifyToken, string? challenge, CancellationToken token) => throw new NotSupportedException();
         public Task<WhatsAppConfigurationDto> GetConfigurationAsync(Guid tenantId, CancellationToken token) => throw new NotSupportedException();

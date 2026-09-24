@@ -17,12 +17,12 @@ import { RouterLink } from '@angular/router';
     </main>
   `,
   styles: [`
-    :host { display:block; min-height:100vh; background:radial-gradient(ellipse at 80% 20%,#f7e9c5 0,transparent 38%),#f7f7f2; }
+    :host { display:block; min-height:100vh; background:radial-gradient(ellipse at 80% 20%,var(--store-accent-soft) 0,transparent 38%),var(--store-background); }
     .welcome { display:flex; flex-direction:column; min-height:100vh; width:min(1050px,100%); margin:auto; padding:26px 28px; }
     .welcome-top { display:flex; align-items:center; gap:11px; font:800 16px Manrope,sans-serif; }.welcome-top strong span { color:var(--green); font-weight:600; }
-    .brand-mark { display:grid; width:39px;height:39px;place-items:center;border-radius:13px;color:#fff;background:var(--green);font:800 19px Manrope,sans-serif; }
+    .brand-mark { display:grid; width:39px;height:39px;place-items:center;border-radius:13px;color:#fff;background:var(--store-primary);font:800 19px Manrope,sans-serif; }
     .welcome-card { max-width:530px; margin:auto 0; padding:60px 0 76px; }.eyebrow { color:var(--green);font-size:10px;letter-spacing:2px;font-weight:800; }
-    h1 { margin:20px 0 15px; color:#1c3024; font:800 clamp(46px,9vw,76px)/.99 Manrope,sans-serif; letter-spacing:-4px; }h1 em { color:#c98c2b;font-style:normal; }
+    h1 { margin:20px 0 15px; color:var(--store-text); font:800 clamp(46px,9vw,76px)/.99 Manrope,sans-serif; letter-spacing:-4px; }h1 em { color:#b8750d;font-style:normal; }
     p { max-width:380px;color:#747a70;font-size:15px;line-height:1.75; }
     .demo-link { display:flex;align-items:center;gap:13px;max-width:365px;margin-top:28px;padding:13px 15px;border:1px solid #e6e8dc;border-radius:16px;background:#fff;color:var(--ink);text-decoration:none;box-shadow:0 8px 26px #31553b0c; }
     .demo-link>span:first-child { display:grid;width:43px;height:43px;place-items:center;border-radius:13px;background:#f6f0df;font-size:22px; }.demo-link>span:nth-child(2){display:grid;gap:4px;flex:1}.demo-link b{font-size:13px}.demo-link small{color:var(--muted);font-size:10px}.demo-link i{color:var(--green);font-size:21px;font-style:normal}

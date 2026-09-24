@@ -1,5 +1,6 @@
 <app-page-container>
   <app-page-header eyebrow="WhatsApp Commerce" title="Payment Settings" description="Configure payment methods owned by this retailer. Customer funds go directly to the retailer." />
+  <label class="filter-field">Retailer <select [ngModel]="selectedTenantId()" (ngModelChange)="selectTenant($event)" [disabled]="loading()"><option value="">Select retailer</option>@for(tenant of tenants();track tenant.tenantId){<option [value]="tenant.tenantId">{{tenant.tenantName}}</option>}</select></label>
   @if(error()){<p class="error" role="alert">{{error()}}</p>} @if(message()){<p class="success">{{message()}}</p>}
   <section class="notice"><mat-checkbox [(ngModel)]="onlinePaymentEnabled">Online Payments</mat-checkbox> <button mat-stroked-button type="button" (click)="saveOptions()" [disabled]="loading()">Save Online Payment Setting</button><br>KhataDhari subscription billing is separate from ecommerce customer payments.</section>
   <div class="settings-grid">

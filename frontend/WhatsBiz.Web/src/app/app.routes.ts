@@ -515,10 +515,16 @@ export const routes: Routes = [
         loadComponent: () => import('./features/whatsapp/whatsapp-usage-billing.component').then(m => m.WhatsAppUsageBillingComponent),
       },
       {
-        path: 'admin/payment-settings',
-        canActivate: [permissionGuard, featureGuard],
-        data: { permission: 'admin.settings', feature: 'WHATSAPP_COMMERCE', title: 'Payment Settings' },
+        path: 'application-owner/payment-settings',
+        canActivate: [roleGuard, permissionGuard],
+        data: { platform: true, role: 'ApplicationOwner', permission: 'feature.manage', title: 'Payment Settings' },
         loadComponent: () => import('./features/payments/payment-settings.component').then(m => m.PaymentSettingsComponent),
+      },
+      {
+        path: 'application-owner/payments',
+        canActivate: [roleGuard, permissionGuard],
+        data: { platform: true, role: 'ApplicationOwner', permission: 'feature.manage', title: 'Payments' },
+        loadComponent: () => import('./features/payments/payment-list.component').then(m => m.PaymentListComponent),
       },
       {
         path: 'admin/payments',

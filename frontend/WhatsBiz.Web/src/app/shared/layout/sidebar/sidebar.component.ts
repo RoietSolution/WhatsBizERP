@@ -255,6 +255,8 @@ export const navigation: NavigationItem[] = [
       { label: 'WhatsApp Platform', icon: 'hub', route: '/admin/whatsapp-platform', permission: 'feature.manage', role: 'ApplicationOwner' },
       { label: 'WhatsApp Business', icon: 'chat', route: '/application-owner/whatsapp-business', permission: 'feature.manage', role: 'ApplicationOwner' },
       { label: 'WhatsApp Ecommerce Demo', icon: 'forum', route: '/application-owner/whatsapp-demo', permission: 'feature.manage', role: 'ApplicationOwner' },
+      { label: 'Payments', icon: 'receipt', route: '/application-owner/payments', permission: 'feature.manage', role: 'ApplicationOwner' },
+      { label: 'Payment Settings', icon: 'payments', route: '/application-owner/payment-settings', permission: 'feature.manage', role: 'ApplicationOwner' },
       { label: 'Backup & Restore', icon: 'backup', route: '/admin/backup', role: 'ApplicationOwner' },
       { label: 'Audit Log', icon: 'history', route: '/admin/audit', role: 'ApplicationOwner' },
       { label: 'Login History', icon: 'login', route: '/admin/login-history', role: 'ApplicationOwner' },
@@ -286,7 +288,6 @@ export const navigation: NavigationItem[] = [
       { label: 'WhatsApp Business', icon: 'chat', route: '/admin/whatsapp', permission: 'admin.settings', feature: 'WHATSAPP_COMMERCE' },
       { label: 'WhatsApp Ecommerce Demo', icon: 'forum', route: '/admin/whatsapp-demo', permission: 'pos.view', feature: 'WHATSAPP_COMMERCE' },
       { label: 'WhatsApp Usage & Billing', icon: 'receipt_long', route: '/admin/whatsapp-usage-billing', permission: 'admin.view', feature: 'WHATSAPP_COMMERCE' },
-      { label: 'Payment Settings', icon: 'payments', route: '/admin/payment-settings', permission: 'admin.settings', feature: 'WHATSAPP_COMMERCE' },
       { label: 'Payments', icon: 'receipt', route: '/admin/payments', permission: 'payment.view', feature: 'WHATSAPP_COMMERCE' },
       {
         label: 'Printer Configuration',

@@ -5,6 +5,7 @@ using UnauthorizedAccessException = System.UnauthorizedAccessException;
 using Microsoft.EntityFrameworkCore;
 using WhatsBiz.Api.Authorization;
 using WhatsBiz.Application.Common.Exceptions;
+using WhatsBiz.Application.Common.Capacity;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Infrastructure.Identity;
 using WhatsBiz.Infrastructure.Persistence;
@@ -17,7 +18,8 @@ public sealed class IdentityAdministrationController(
     UserManager<ApplicationUser> users,
     RoleManager<ApplicationRole> roles,
     ApplicationDbContext db,
-    ICurrentUserService currentUser) : ControllerBase
+    ICurrentUserService currentUser,
+    ITenantResourceLimitService capacity) : ControllerBase
 {
     private static readonly HashSet<string> NonDelegablePermissions = new(StringComparer.Ordinal)
     {
@@ -56,6 +58,7 @@ public sealed class IdentityAdministrationController(
     {
         var tenantId = RequireTenant();
         ValidateCreate(input);
+        if (input.IsActive) await capacity.EnsureCanCreateAsync(tenantId, TenantResourceTypes.Users);
         var permissions = ValidatePermissions(input.Permissions);
         var employee = new ApplicationUser
         {
@@ -83,6 +86,8 @@ public sealed class IdentityAdministrationController(
     {
         EnsureNotSelf(id);
         var employee = await FindEmployee(id, token);
+        var activatesUser = !employee.IsActive && input.IsActive;
+        if (activatesUser) await capacity.EnsureCanCreateAsync(RequireTenant(), TenantResourceTypes.Users, token);
         if (string.IsNullOrWhiteSpace(input.Email)) throw new BusinessRuleException("Email is required.");
         var permissions = ValidatePermissions(input.Permissions);
         employee.Email = input.Email.Trim();

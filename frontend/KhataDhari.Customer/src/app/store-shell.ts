@@ -1,6 +1,7 @@
 import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { CurrencyPipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, ParamMap, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { ActivatedRoute, ParamMap, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { CartService } from './cart/cart.service';
 import { StorefrontDataService } from './data/storefront-data.service';
 import { Store } from './models/storefront.models';
@@ -8,96 +9,63 @@ import { Store } from './models/storefront.models';
 @Component({
   selector: 'shop-store-shell',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [CurrencyPipe, RouterLink, RouterOutlet],
   template: `
     @if (loading()) {
-      <div class="loading-screen"><span class="loader"></span><p>Opening your neighbourhood store…</p></div>
+      <div class="shell-skeleton" role="status" aria-label="Opening store">
+        <div class="skeleton-header"><i></i><span></span><b></b></div><div class="skeleton-search"></div>
+        <div class="skeleton-body"><div></div><div></div><div></div><div></div></div>
+      </div>
     } @else if (loadFailed()) {
-      <main class="store-missing"><span class="missing-icon">!</span><h1>Store temporarily unavailable</h1><p>Please check your connection and try again.</p><button type="button" (click)="retry()">Try again</button></main>
+      <main class="state-page"><span class="state-icon">!</span><h1>Store temporarily unavailable</h1><p>We couldn't connect to this store. Check your connection and try again.</p><button type="button" (click)="retry()">Try again</button></main>
     } @else if (store(); as currentStore) {
-      <header class="store-header">
-        <div class="header-inner">
-          <a class="brand" [routerLink]="['/', currentStore.storeKey]" aria-label="Store home">
-            @if (currentStore.logoUrl) { <img [src]="currentStore.logoUrl" alt="" /> }
-            @else { <span class="brand-mark">{{ currentStore.name.slice(0, 1) }}</span> }
-            <span class="brand-copy"><strong>{{ currentStore.name }}</strong><small>{{ currentStore.tagline }}</small></span>
-          </a>
-          <div class="delivery-note"><span>📍</span> Fresh picks, close to home</div>
-          <button class="desktop-cart" type="button" (click)="goCart()" aria-label="Open cart">
-            <span>▣</span><span>Cart</span><b>{{ cart.itemCount() }}</b>
+      <div class="store-frame" [style.--store-primary]="currentStore.accentColor">
+        <header class="store-header">
+          <div class="header-inner">
+            <a class="brand" [routerLink]="['/', currentStore.storeKey]" aria-label="Store home">
+              @if (currentStore.logoUrl) { <img [src]="currentStore.logoUrl" alt="" /> }
+              @else { <span class="brand-mark">{{ currentStore.name.slice(0, 1) }}</span> }
+              <span class="brand-copy"><strong>{{ currentStore.name }}</strong><small>Powered by KhataDhari</small></span>
+            </a>
+            <form class="search-wrap" (submit)="search($event)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3m2.3-5.2a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
+              <input aria-label="Search products" placeholder="Search for products..." [value]="searchText" (input)="updateSearch($event)" />
+              @if (searchText) { <button type="button" class="clear-search" (click)="clearSearch()" aria-label="Clear search">&times;</button> }
+            </form>
+            <button class="desktop-cart" type="button" (click)="goCart()" aria-label="Open cart">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.1 10.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.6L20 8H6M10 20h.01M17 20h.01"/></svg>
+              <span><strong>Cart</strong>@if (cart.itemCount()) { <small>{{ cart.itemCount() }} items · {{ cart.total() | currency:'INR':'symbol':'1.0-0' }}</small> } @else { <small>Empty</small> }</span>
+            </button>
+          </div>
+        </header>
+
+        <main class="store-content"><router-outlet /></main>
+
+        @if (cart.itemCount() > 0) {
+          <button class="mobile-cart-bar" type="button" (click)="goCart()" aria-label="View cart">
+            <span><b>{{ cart.itemCount() }} {{ cart.itemCount() === 1 ? 'item' : 'items' }}</b><small>{{ cart.total() | currency:'INR':'symbol':'1.0-0' }}</small></span>
+            <strong>View Cart <span aria-hidden="true">→</span></strong>
           </button>
-        </div>
-        <form class="search-wrap" (submit)="search($event)">
-          <span class="search-icon">⌕</span>
-          <input aria-label="Search products" placeholder="Search milk, fruits, snacks…" [value]="searchText" (input)="updateSearch($event)" />
-          @if (searchText) { <button type="button" class="clear-search" (click)="clearSearch()" aria-label="Clear search">×</button> }
-          <button class="search-submit" type="submit">Search</button>
-        </form>
-      </header>
-
-      <main class="store-content"><router-outlet /></main>
-
-      <nav class="bottom-nav" aria-label="Main navigation">
-        <a [routerLink]="['/', currentStore.storeKey]" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">
-          <span class="nav-icon">⌂</span><small>Home</small>
-        </a>
-        <button type="button" (click)="focusSearch()"><span class="nav-icon">⌕</span><small>Search</small></button>
-        <a [routerLink]="['/', currentStore.storeKey, 'cart']" routerLinkActive="active" class="cart-nav">
-          <span class="nav-icon">▣ @if (cart.itemCount() > 0) { <i>{{ cart.itemCount() }}</i> }</span><small>Cart</small>
-        </a>
-        <a [routerLink]="['/', currentStore.storeKey, 'orders']" routerLinkActive="active">
-          <span class="nav-icon">◷</span><small>Orders</small>
-        </a>
-      </nav>
+        }
+      </div>
     } @else {
-      <main class="store-missing">
-        <span class="missing-icon">🛍️</span><h1>We couldn’t find that store</h1>
-        <p>Check the store link and try again.</p><a routerLink="/">Back to shops</a>
-      </main>
+      <main class="state-page"><span class="state-icon">?</span><h1>Store not found</h1><p>This shopping link may be incorrect or the store is unavailable.</p><a routerLink="/">Back to shops</a></main>
     }
   `,
   styles: [`
-    :host { display: block; min-height: 100vh; }
-    .store-header { position: sticky; z-index: 20; top: 0; padding: 13px 24px 12px; background: rgba(255,255,255,.96); border-bottom: 1px solid #eeefe8; backdrop-filter: blur(14px); }
-    .header-inner, .search-wrap { width: min(1080px, 100%); margin: 0 auto; }
-    .header-inner { display: flex; align-items: center; gap: 24px; min-height: 44px; }
-    .brand { display: flex; align-items: center; gap: 10px; min-width: 220px; text-decoration: none; }
-    .brand-mark { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 14px; color: #fff; background: var(--green); font: 800 21px Manrope,sans-serif; }
-    .brand img { width: 42px; height: 42px; object-fit: cover; border-radius: 14px; }
-    .brand-copy { display: flex; flex-direction: column; gap: 1px; }
-    .brand-copy strong { font: 800 17px Manrope,sans-serif; letter-spacing: -.5px; }
-    .brand-copy small { color: var(--muted); font-size: 10px; }
-    .delivery-note { display: flex; align-items: center; gap: 7px; margin: auto; color: #677168; font-size: 12px; }
-    .desktop-cart { display: flex; align-items: center; gap: 8px; border: 0; padding: 9px 12px; border-radius: 12px; color: var(--green); background: #f1f7f1; font-weight: 700; cursor: pointer; }
-    .desktop-cart b { display: grid; width: 21px; height: 21px; place-items: center; border-radius: 50%; color: #fff; background: var(--green); font-size: 11px; }
-    .search-wrap { display: flex; align-items: center; gap: 10px; height: 43px; margin-top: 12px; padding: 0 10px 0 14px; border: 1px solid #ededE7; border-radius: 13px; background: #f8f8f5; }
-    .search-icon { color: #68736a; font-size: 23px; line-height: 1; transform: rotate(-20deg); }
-    input { flex: 1; min-width: 0; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 13px; }
-    input::placeholder { color: #92968e; }
-    .search-submit, .clear-search { border: 0; color: var(--green); background: transparent; font-size: 12px; font-weight: 700; cursor: pointer; }
-    .clear-search { color: #81877e; font-size: 20px; }
-    .store-content { width: min(1080px, 100%); min-height: calc(100vh - 130px); margin: 0 auto; padding: 26px 24px 60px; }
-    .bottom-nav { display: none; }
-    .loading-screen { min-height: 70vh; display: grid; align-content: center; justify-items: center; color: var(--muted); font-size: 13px; }
-    .loader { width: 27px; height: 27px; border: 3px solid #dbe8dd; border-top-color: var(--green); border-radius: 50%; animation: spin .8s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .store-missing { display: grid; min-height: 100vh; align-content: center; justify-items: center; padding: 25px; text-align: center; }
-    .missing-icon { font-size: 42px; }.store-missing h1 { margin: 14px 0 5px; font: 800 25px Manrope,sans-serif; }.store-missing p { color: var(--muted); }.store-missing a { margin-top: 10px; color: var(--green); font-weight: 700; }
-    .store-missing button { margin-top: 9px; padding: 10px 15px; border: 0; border-radius: 10px; color: #fff; background: var(--green); font-weight: 700; cursor: pointer; }
-    @media (max-width: 640px) {
-      .store-header { padding: 10px 15px 11px; }
-      .header-inner { min-height: 42px; }
-      .brand { min-width: 0; gap: 9px; }.brand-mark,.brand img { width: 38px; height: 38px; border-radius: 13px; }
-      .brand-copy strong { font-size: 16px; }.brand-copy small { font-size: 9px; }
-      .delivery-note { display: none; }.desktop-cart { margin-left: auto; padding: 8px 9px; font-size: 0; }.desktop-cart span:first-child { font-size: 16px; }
-      .search-wrap { margin-top: 10px; height: 42px; }
-      .store-content { min-height: calc(100vh - 120px); padding: 17px 15px 98px; }
-      .bottom-nav { position: fixed; z-index: 30; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4,1fr); padding: 7px 10px max(8px, env(safe-area-inset-bottom)); border-top: 1px solid #e9ebe3; background: rgba(255,255,255,.97); backdrop-filter: blur(12px); }
-      .bottom-nav a,.bottom-nav button { display: flex; flex-direction: column; align-items: center; gap: 1px; border: 0; padding: 3px; color: #8b9088; background: transparent; text-decoration: none; cursor: pointer; }
-      .bottom-nav small { font-size: 10px; font-weight: 600; }.bottom-nav .active { color: var(--green); }
-      .nav-icon { position: relative; min-height: 24px; font-size: 22px; line-height: 1.1; }
-      .nav-icon i { position: absolute; top: -3px; right: -13px; display: grid; width: 16px; height: 16px; place-items: center; border-radius: 50%; color: white; background: #dd7754; font-size: 9px; font-style: normal; }
-    }
+    :host{display:block;min-height:100vh}.store-frame{min-height:100vh;--tenant-primary:var(--store-primary)}
+    .store-header{position:sticky;z-index:20;top:0;border-bottom:1px solid var(--store-border);background:rgba(255,255,255,.96);backdrop-filter:blur(14px)}
+    .header-inner{display:grid;grid-template-columns:250px minmax(280px,680px) 190px;align-items:center;gap:22px;width:min(var(--store-content-width),100%);min-height:76px;margin:auto;padding:12px 24px}
+    .brand{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none}.brand-mark,.brand img{display:grid;flex:0 0 auto;width:42px;height:42px;place-items:center;border-radius:12px}.brand-mark{color:#fff;background:var(--store-primary);font:800 19px Manrope,sans-serif}.brand img{object-fit:cover}
+    .brand-copy{display:grid;min-width:0;line-height:1.15}.brand-copy strong{overflow:hidden;color:var(--store-text);font:800 17px Manrope,sans-serif;text-overflow:ellipsis;white-space:nowrap}.brand-copy small{margin-top:4px;color:var(--store-muted);font-size:10px}
+    .search-wrap{display:flex;align-items:center;height:48px;border:1px solid var(--store-border);border-radius:14px;padding:0 12px;background:var(--store-background);transition:.18s}.search-wrap:focus-within{border-color:var(--store-primary);background:#fff;box-shadow:0 0 0 3px var(--store-primary-soft)}.search-wrap svg{width:20px;fill:none;stroke:var(--store-muted);stroke-linecap:round;stroke-width:1.8}.search-wrap input{flex:1;min-width:0;height:100%;border:0;padding:0 10px;color:var(--store-text);background:transparent;outline:0;font-size:14px}.search-wrap input::placeholder{color:#87918a}.clear-search{display:grid;width:30px;height:30px;place-items:center;border:0;border-radius:50%;color:var(--store-muted);background:transparent;font-size:22px;cursor:pointer}.clear-search:hover{background:var(--store-surface-muted)}
+    .desktop-cart{display:flex;align-items:center;justify-content:center;gap:10px;min-height:48px;border:1px solid var(--store-primary);border-radius:14px;padding:7px 12px;color:var(--store-primary-dark);background:var(--store-primary-soft);cursor:pointer}.desktop-cart svg{width:23px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.8}.desktop-cart>span{display:grid;text-align:left}.desktop-cart strong{font-size:13px}.desktop-cart small{margin-top:1px;color:var(--store-muted);font-size:10px;white-space:nowrap}
+    .store-content{width:min(var(--store-content-width),100%);min-height:calc(100vh - 77px);margin:auto;padding:24px 24px 80px}
+    .mobile-cart-bar{display:none}.state-page{display:grid;min-height:100vh;align-content:center;justify-items:center;padding:28px;text-align:center}.state-icon{display:grid;width:58px;height:58px;place-items:center;border-radius:18px;color:var(--store-primary-dark);background:var(--store-primary-soft);font:800 24px Manrope,sans-serif}.state-page h1{margin:16px 0 5px;font:800 24px Manrope,sans-serif}.state-page p{max-width:390px;margin:0;color:var(--store-muted);line-height:1.6}.state-page button,.state-page a{margin-top:18px;border:0;border-radius:12px;padding:12px 18px;color:#fff;background:var(--store-primary);font-weight:700;text-decoration:none;cursor:pointer}
+    .shell-skeleton{width:min(var(--store-content-width),100%);margin:auto;padding:15px 24px}.skeleton-header{display:flex;align-items:center;gap:10px}.skeleton-header i,.skeleton-header span,.skeleton-header b,.skeleton-search,.skeleton-body div{display:block;background:linear-gradient(90deg,#edf0eb 25%,#f8f9f7 50%,#edf0eb 75%);background-size:200% 100%;animation:shimmer 1.2s infinite}.skeleton-header i{width:42px;height:42px;border-radius:12px}.skeleton-header span{width:150px;height:17px;border-radius:6px}.skeleton-header b{width:120px;height:42px;margin-left:auto;border-radius:12px}.skeleton-search{height:48px;margin:18px 0;border-radius:14px}.skeleton-body{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:40px}.skeleton-body div{height:280px;border-radius:18px}@keyframes shimmer{to{background-position:-200% 0}}
+    @media(max-width:800px){.header-inner{grid-template-columns:minmax(0,1fr) auto;gap:10px;min-height:auto;padding:10px 16px 12px}.brand-mark,.brand img{width:38px;height:38px}.brand-copy strong{font-size:16px}.desktop-cart{width:44px;min-height:42px;padding:0}.desktop-cart>span{display:none}.search-wrap{grid-column:1/-1;grid-row:2;height:46px}.store-content{padding:18px 16px 104px}.mobile-cart-bar{position:fixed;z-index:30;right:12px;bottom:max(12px,env(safe-area-inset-bottom));left:12px;display:flex;align-items:center;justify-content:space-between;min-height:58px;border:0;border-radius:16px;padding:9px 14px;color:#fff;background:var(--store-primary-dark);box-shadow:0 12px 32px rgba(12,70,39,.28);cursor:pointer}.mobile-cart-bar>span{display:grid;text-align:left}.mobile-cart-bar b{font-size:12px}.mobile-cart-bar small{margin-top:2px;color:#d9f0e2;font-size:11px}.mobile-cart-bar>strong{font-size:13px}.mobile-cart-bar>strong span{margin-left:5px;font-size:17px}.skeleton-body{grid-template-columns:repeat(2,1fr);gap:10px}.skeleton-body div{height:235px}}
+    @media(max-width:360px){.header-inner,.store-content{padding-right:12px;padding-left:12px}.brand-copy small{display:none}.mobile-cart-bar{right:8px;left:8px}}
+    @media(prefers-reduced-motion:reduce){.skeleton-header i,.skeleton-header span,.skeleton-header b,.skeleton-search,.skeleton-body div{animation:none}}
   `],
 })
 export class StoreShell implements OnInit {
@@ -107,37 +75,21 @@ export class StoreShell implements OnInit {
   searchText = '';
   private readonly destroyRef = inject(DestroyRef);
 
-  constructor(
-    private readonly route: ActivatedRoute,
-    private readonly router: Router,
-    private readonly data: StorefrontDataService,
-    readonly cart: CartService,
-  ) {}
+  constructor(private readonly route: ActivatedRoute, private readonly router: Router,
+    private readonly data: StorefrontDataService, readonly cart: CartService) {}
 
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params: ParamMap) => {
       const storeKey = params.get('storeKey') ?? '';
-      this.loading.set(true);
-      this.loadFailed.set(false);
-      this.cart.useStore(storeKey);
-      void this.load(storeKey);
+      this.loading.set(true); this.loadFailed.set(false); this.cart.useStore(storeKey); void this.load(storeKey);
     });
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => this.searchText = params.get('q') ?? '');
   }
-
   updateSearch(event: Event): void { this.searchText = (event.target as HTMLInputElement).value; }
-  clearSearch(): void { this.searchText = ''; this.search(new Event('submit')); }
-  search(event: Event): void {
-    event.preventDefault();
-    const storeKey = this.store()?.storeKey;
-    if (storeKey) void this.router.navigate(['/', storeKey], { queryParams: { q: this.searchText.trim() || null } });
-  }
+  clearSearch(): void { this.searchText = ''; this.navigateSearch(); }
+  search(event: Event): void { event.preventDefault(); this.navigateSearch(); }
   goCart(): void { const key = this.store()?.storeKey; if (key) void this.router.navigate(['/', key, 'cart']); }
-  focusSearch(): void { document.querySelector<HTMLInputElement>('.search-wrap input')?.focus(); }
   retry(): void { const key = this.route.snapshot.paramMap.get('storeKey') ?? ''; this.loading.set(true); this.loadFailed.set(false); void this.load(key); }
-
-  private async load(storeKey: string): Promise<void> {
-    try { this.store.set(await this.data.getStore(storeKey)); }
-    catch { this.store.set(null); this.loadFailed.set(true); }
-    finally { this.loading.set(false); }
-  }
+  private navigateSearch(): void { const key = this.store()?.storeKey; if (key) void this.router.navigate(['/', key], { queryParams: { q: this.searchText.trim() || null } }); }
+  private async load(storeKey: string): Promise<void> { try { this.store.set(await this.data.getStore(storeKey)); } catch { this.store.set(null); this.loadFailed.set(true); } finally { this.loading.set(false); } }
 }

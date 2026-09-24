@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using WhatsBiz.Api.Authorization;
@@ -10,8 +11,9 @@ using WhatsBiz.SharedKernel;
 namespace WhatsBiz.Api.Controllers;
 
 [ApiController, Route("api/whatsapp")]
-public sealed class WhatsAppController(IWhatsAppService service, ICurrentUserService currentUser,
-    IFeatureService? features = null, IWhatsAppUsageBillingService? usageBilling = null) : ControllerBase
+public sealed partial class WhatsAppController(IWhatsAppService service, ICurrentUserService currentUser,
+    IFeatureService? features = null, IWhatsAppUsageBillingService? usageBilling = null,
+    ILogger<WhatsAppController>? logger = null) : ControllerBase
 {
     [HttpGet("usage/summary"), HasPermission(Permissions.Admin.View), RequireFeature(FeatureKeys.WhatsAppCommerce)]
     public Task<WhatsAppUsageSummary> UsageSummary([FromQuery] int year, [FromQuery] int month, CancellationToken token) =>
@@ -78,17 +80,39 @@ public sealed class WhatsAppController(IWhatsAppService service, ICurrentUserSer
     [AllowAnonymous, HttpPost("webhook")]
     public async Task<IActionResult> ReceiveWebhook(CancellationToken token)
     {
-        if (Request.ContentLength > 1_048_576) return StatusCode(StatusCodes.Status413PayloadTooLarge);
+        var started = Stopwatch.GetTimestamp();
+        if (Request.ContentLength > 1_048_576)
+        {
+            if (logger is not null) WebhookOversized(logger, "BEFORE_BODY_READ",
+                Request.Headers.ContainsKey("X-Hub-Signature-256"), StatusCodes.Status413PayloadTooLarge,
+                Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            return StatusCode(StatusCodes.Status413PayloadTooLarge);
+        }
         Request.EnableBuffering();
         if (Request.Body.CanSeek) Request.Body.Position = 0;
         using var stream = new MemoryStream();
         await Request.Body.CopyToAsync(stream, token);
         if (Request.Body.CanSeek) Request.Body.Position = 0;
-        if (stream.Length > 1_048_576) return StatusCode(StatusCodes.Status413PayloadTooLarge);
-        var accepted = await service.ReceiveWebhookAsync(
+        if (stream.Length > 1_048_576)
+        {
+            if (logger is not null) WebhookOversized(logger, "AFTER_BODY_READ",
+                Request.Headers.ContainsKey("X-Hub-Signature-256"), StatusCodes.Status413PayloadTooLarge,
+                Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            return StatusCode(StatusCodes.Status413PayloadTooLarge);
+        }
+        var result = await service.ReceiveWebhookAsync(
             Request.Headers["X-Hub-Signature-256"].FirstOrDefault(), stream.ToArray(), token);
-        return accepted ? Ok() : Unauthorized();
+        return result switch
+        {
+            WhatsAppWebhookReceiveResult.Acknowledged => Ok(),
+            WhatsAppWebhookReceiveResult.InvalidPayload => BadRequest(),
+            WhatsAppWebhookReceiveResult.PersistenceFailure => StatusCode(StatusCodes.Status500InternalServerError),
+            _ => Unauthorized()
+        };
     }
+
+    [LoggerMessage(2201, LogLevel.Warning, "WhatsApp webhook POST rejected as oversized at {Phase}; signature present: {SignaturePresent}; HTTP {StatusCode}; duration {DurationMilliseconds} ms.")]
+    private static partial void WebhookOversized(ILogger logger, string phase, bool signaturePresent, int statusCode, double durationMilliseconds);
 
     private async Task<Guid> TargetTenant(Guid tenantId, CancellationToken token)
     {

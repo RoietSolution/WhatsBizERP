@@ -10,6 +10,7 @@ using WhatsBiz.Api.Authorization;
 using WhatsBiz.Api.Controllers;
 using WhatsBiz.Application.Features.Payments;
 using WhatsBiz.Infrastructure.Payments;
+using WhatsBiz.SharedKernel;
 
 namespace WhatsBiz.Tests.Payments;
 
@@ -92,6 +93,25 @@ public sealed class PaymentArchitectureTests
         var names=typeof(PaymentProviderSetting).GetProperties().Select(x=>x.Name).ToArray();
         names.Should().NotContain("KeySecret").And.NotContain("WebhookSecret");
         names.Should().Contain(["HasKeySecret","HasWebhookSecret","MaskedKeyId"]);
+    }
+
+    [Fact]
+    public void PaymentSettingsEndpointsAreApplicationOwnerOnly()
+    {
+        var methods=typeof(PaymentsController).GetMethods().Where(x=>x.Name is nameof(PaymentsController.Settings) or nameof(PaymentsController.Razorpay) or nameof(PaymentsController.DirectUpi) or nameof(PaymentsController.Cod) or nameof(PaymentsController.Options)).ToArray();
+        methods.Should().HaveCount(5);
+        methods.Should().OnlyContain(x=>x.GetCustomAttributes(typeof(PlatformAuthorizeAttribute),true).Length==1&&x.GetCustomAttributes(typeof(HasPermissionAttribute),true).Cast<HasPermissionAttribute>().Single().Policy!.EndsWith(Permissions.Features.Manage,StringComparison.Ordinal));
+        methods.SelectMany(x=>x.GetCustomAttributes(typeof(HttpMethodAttribute),true).Cast<HttpMethodAttribute>()).Select(x=>x.Template).Where(x=>x is not null).Should().OnlyContain(x=>x!.StartsWith("administration/tenants/{tenantId:guid}/settings",StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void PaymentQueriesSeparateRetailerIsolationFromPlatformScopeAndUseServerPagination()
+    {
+        var root=Root();var source=File.ReadAllText(Path.Combine(root,"backend","src","WhatsBiz.Infrastructure","Payments","CommercePaymentService.cs"));
+        source.Should().Contain("ListPayments(Tenant,null").And.Contain("ListPayments(null,query.TenantId");
+        source.Should().Contain("p.TenantId=@tenant").And.Contain("p.CreatedAt>=@from").And.Contain("p.CreatedAt<DATEADD(day,1,@to)");
+        source.Should().Contain("COUNT_BIG(*)").And.Contain("OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY").And.Contain("ORDER BY p.CreatedAt DESC,p.PaymentId DESC");
+        source.Should().Contain("WHERE p.TenantId=@tenant AND p.PaymentId=@id");
     }
 
     private static string Root(){var d=new DirectoryInfo(AppContext.BaseDirectory);while(d is not null&&!Directory.Exists(Path.Combine(d.FullName,"database")))d=d.Parent;return d?.FullName??throw new InvalidOperationException("Repository root not found.");}

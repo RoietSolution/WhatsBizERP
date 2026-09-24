@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Category, CustomerOrder, Product, Store } from '../models/storefront.models';
+import { CartLine, Category, CheckoutCustomer, CheckoutResult, CustomerOrder, Product, Store } from '../models/storefront.models';
 import { StorefrontDataProvider } from './storefront-data.provider';
 
 const guturgoCategories: Category[] = [
@@ -54,5 +54,9 @@ export class DevelopmentStorefrontDataProvider implements StorefrontDataProvider
 
   async getOrders(_storeKey: string): Promise<CustomerOrder[]> {
     return [];
+  }
+
+  async checkoutWithRazorpay(_storeKey: string, _customer: CheckoutCustomer, lines: readonly CartLine[], _idempotencyKey: string): Promise<CheckoutResult> {
+    return { orderId: crypto.randomUUID(), orderNumber: 'MOCK-ORDER', amount: lines.reduce((sum, line) => sum + line.product.sellingPrice * line.quantity, 0), currency: 'INR', paymentId: crypto.randomUUID(), checkoutUrl: '' };
   }
 }

@@ -89,6 +89,7 @@ try
     builder.Services.AddMemoryCache(options => options.SizeLimit = 1024);
     builder.Services.AddOptions<GlobalFeatureOptions>().Bind(builder.Configuration.GetSection(GlobalFeatureOptions.SectionName));
     builder.Services.AddScoped<IFeatureService, FeatureService>();
+    builder.Services.AddScoped<ITenantResourceLimitService, TenantResourceLimitService>();
     builder.Services.AddScoped<ITenantEnrollmentService, TenantEnrollmentService>();
     builder.Services.AddScoped<IAuthorizationHandler, FeatureAuthorizationHandler>();
     builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
@@ -99,6 +100,7 @@ try
     builder.Services.AddScoped<IAdminRepository, AdminRepository>();
     builder.Services.AddScoped<ICommerceCollectionRepository, CommerceCollectionRepository>();
     builder.Services.AddScoped<IStorefrontService, StorefrontService>();
+    builder.Services.AddScoped<IStorefrontCheckoutService, StorefrontCheckoutService>();
     builder.Services.AddScoped<ICustomerGroupRepository, CustomerGroupRepository>();
     builder.Services.AddScoped<ICommerceAnalyticsService, CommerceAnalyticsService>();
     builder.Services.AddScoped<ILoyaltyService, LoyaltyService>();

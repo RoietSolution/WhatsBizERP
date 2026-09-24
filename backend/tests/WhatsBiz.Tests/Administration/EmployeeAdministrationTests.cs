@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using WhatsBiz.Api.Controllers;
 using WhatsBiz.Application.Common.Exceptions;
+using WhatsBiz.Application.Common.Capacity;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Infrastructure.Identity;
 using WhatsBiz.Infrastructure.Persistence;
@@ -17,6 +18,29 @@ namespace WhatsBiz.Tests.Administration;
 
 public sealed class EmployeeAdministrationTests
 {
+    [Fact]
+    public async Task ActiveEmployeeCreationIsRejectedWhenUserCapacityIsFull()
+    {
+        await using var fixture=CreateFixture(); fixture.Capacity.Allow=false;
+        var action=()=>fixture.Controller.CreateUser(new("blocked","blocked@example.test",null,"Employee@123456",true,[]));
+        await action.Should().ThrowAsync<BusinessRuleException>().WithMessage("*user limit*");
+    }
+
+    [Fact]
+    public async Task EditingActiveEmployeeAtLimitDoesNotConsumeCapacity()
+    {
+        await using var fixture=CreateFixture(); var employee=await fixture.AddUser(fixture.TenantId,"existing"); fixture.Capacity.Allow=false;
+        await fixture.Controller.UpdateUser(employee.Id,new("changed@example.test",null,true,[]),default);
+        fixture.Capacity.EnsureCalls.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ReactivatingEmployeeAtLimitIsRejected()
+    {
+        await using var fixture=CreateFixture(); var employee=await fixture.AddUser(fixture.TenantId,"inactive"); employee.IsActive=false; await fixture.Users.UpdateAsync(employee); fixture.Capacity.Allow=false;
+        var action=()=>fixture.Controller.UpdateUser(employee.Id,new(employee.Email!,null,true,[]),default);
+        await action.Should().ThrowAsync<BusinessRuleException>().WithMessage("*user limit*");
+    }
     [Fact]
     public async Task UserListIsLimitedToCurrentRetailer()
     {
@@ -106,7 +130,7 @@ public sealed class EmployeeAdministrationTests
             NullLogger<RoleManager<ApplicationRole>>.Instance);
         var tenantId = Guid.NewGuid();
         var current = new CurrentUser(tenantId, permissions ?? [Permissions.Users.Manage, Permissions.POS.View, Permissions.POS.Create, Permissions.POS.Discount]);
-        return new(db, users, roles, current, tenantId);
+        return new(db, users, roles, current, tenantId, new CapacityStub());
     }
 
     private sealed class Fixture(
@@ -114,12 +138,14 @@ public sealed class EmployeeAdministrationTests
         UserManager<ApplicationUser> users,
         RoleManager<ApplicationRole> roles,
         CurrentUser current,
-        Guid tenantId) : IAsyncDisposable
+        Guid tenantId,
+        CapacityStub capacity) : IAsyncDisposable
     {
         public Guid TenantId { get; } = tenantId;
         public UserManager<ApplicationUser> Users { get; } = users;
         public Task<IdentityResult> CreateRole(ApplicationRole role) => roles.CreateAsync(role);
-        public IdentityAdministrationController Controller { get; } = new(users, roles, db, current);
+        public CapacityStub Capacity { get; }=capacity;
+        public IdentityAdministrationController Controller { get; } = new(users, roles, db, current,capacity);
 
         public async Task<ApplicationUser> AddUser(Guid tenant, string name)
         {
@@ -134,6 +160,16 @@ public sealed class EmployeeAdministrationTests
             roles.Dispose();
             await db.DisposeAsync();
         }
+    }
+
+    private sealed class CapacityStub : ITenantResourceLimitService
+    {
+        public bool Allow { get; set; }=true; public int EnsureCalls { get; private set; }
+        public Task EnsureCanCreateAsync(Guid tenantId,string resourceType,CancellationToken cancellationToken=default){EnsureCalls++;if(!Allow)throw new BusinessRuleException("Your user limit has been reached. Please contact KhataDhari to add more users.");return Task.CompletedTask;}
+        public Task<bool> CanCreateAsync(Guid tenantId,string resourceType,CancellationToken cancellationToken=default)=>Task.FromResult(Allow);
+        public Task<TenantResourceCapacity> GetCurrentUsageAsync(Guid tenantId,string resourceType,CancellationToken cancellationToken=default)=>Task.FromResult(new TenantResourceCapacity(resourceType,0,null,false,false,false,true,"NOT_CONFIGURED"));
+        public Task<TenantCapacitySummary> GetTenantCapacitySummaryAsync(Guid tenantId,CancellationToken cancellationToken=default)=>Task.FromResult(new TenantCapacitySummary(tenantId,"Tenant",new(TenantResourceTypes.Users,0,null,false,false,false,true,"NOT_CONFIGURED"),new(TenantResourceTypes.Branches,0,null,false,false,false,true,"NOT_CONFIGURED")));
+        public Task<TenantCapacitySummary> UpdateTenantCapacityAsync(Guid tenantId,UpdateTenantCapacityInput input,string? changedBy,Guid? changedByUserId,CancellationToken cancellationToken=default)=>GetTenantCapacitySummaryAsync(tenantId,cancellationToken);
     }
 
     private sealed class CurrentUser(Guid tenantId, IReadOnlyCollection<string> permissions) : ICurrentUserService

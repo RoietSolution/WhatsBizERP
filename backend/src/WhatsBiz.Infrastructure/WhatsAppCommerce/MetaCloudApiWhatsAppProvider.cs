@@ -98,6 +98,74 @@ public sealed partial class MetaCloudApiWhatsAppProvider(IHttpClientFactory clie
             catch (JsonException) { return new(false, null, now, false, 0, request.RecipientNumber, "Meta returned an unexpected message response."); }
     }
 
+    public async Task<WhatsAppTransactionalMessageResult> SendCommerceAsync(WhatsAppCommerceOutboundRequest request, CancellationToken token)
+    {
+        var now = DateTimeOffset.UtcNow;
+        try
+        {
+            var payload = BuildCommercePayload(request);
+            using var httpRequest = Create(HttpMethod.Post,
+                $"{BaseUrl()}/{Uri.EscapeDataString(request.ApiVersion)}/{Uri.EscapeDataString(request.PhoneNumberId)}/messages",
+                request.AccessToken);
+            httpRequest.Content = JsonContent.Create(payload);
+            using var response = await clients.CreateClient("MetaWhatsApp").SendAsync(httpRequest, token);
+            if (!response.IsSuccessStatusCode)
+            {
+                MetaProviderLogs.RequestRejected(logger, "SEND_COMMERCE", (int)response.StatusCode);
+                return new(false, null, now, SafeFailure(response.StatusCode));
+            }
+            await using var stream = await response.Content.ReadAsStreamAsync(token);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: token);
+            var id = document.RootElement.TryGetProperty("messages", out var messages) && messages.GetArrayLength() > 0
+                && messages[0].TryGetProperty("id", out var idNode) ? idNode.GetString() : null;
+            return string.IsNullOrWhiteSpace(id)
+                ? new(false, null, now, "Meta accepted the request but returned no message ID.")
+                : new(true, id, now, "Commerce message accepted by Meta.");
+        }
+        catch (HttpRequestException) { return new(false, null, now, "Meta could not be reached. Check network connectivity and try again."); }
+        catch (JsonException) { return new(false, null, now, "Meta returned an unexpected message response."); }
+    }
+
+    internal static object BuildCommercePayload(WhatsAppCommerceOutboundRequest request)
+    {
+        var message = request.Message;
+        var actions = message.Actions?.ToArray() ?? [];
+        var products = message.Products?.Take(10).ToArray() ?? [];
+        object Text() => new { messaging_product = "whatsapp", to = request.RecipientNumber, type = "text",
+            text = new { preview_url = false, body = message.FallbackText ?? message.Body } };
+
+        if (message.Kind == WhatsAppCommerceMessageKinds.InteractiveMenu && actions.Length is > 0 and <= 10)
+            return new { messaging_product = "whatsapp", to = request.RecipientNumber, type = "interactive",
+                interactive = new { type = "list", header = new { type = "text", text = Limit(message.Header ?? "WhatsApp Store", 60) },
+                    body = new { text = Limit(message.Body, 1024) }, action = new { button = "View options",
+                        sections = new[] { new { title = "Shop", rows = actions.Select(x => new { id = x.Id, title = Limit(x.Title, 24), description = Limit(x.Description, 72) }).ToArray() } } } } };
+
+        if (message.Kind == WhatsAppCommerceMessageKinds.InteractiveButtons && actions.Length is > 0 and <= 3)
+            return new { messaging_product = "whatsapp", to = request.RecipientNumber, type = "interactive",
+                interactive = new { type = "button", body = new { text = Limit(message.Body, 1024) },
+                    action = new { buttons = actions.Select(x => new { type = "reply", reply = new { id = x.Id, title = Limit(x.Title, 20) } }).ToArray() } } };
+
+        if (message.Kind == WhatsAppCommerceMessageKinds.Product && products.Length == 1
+            && Mapped(products[0]))
+            return new { messaging_product = "whatsapp", to = request.RecipientNumber, type = "interactive",
+                interactive = new { type = "product", body = new { text = Limit(message.Body, 1024) },
+                    action = new { catalog_id = products[0].CatalogId, product_retailer_id = products[0].ExternalProductId } } };
+
+        if (message.Kind == WhatsAppCommerceMessageKinds.ProductList && products.Length is > 1 and <= 10
+            && products.All(Mapped) && products.Select(x => x.CatalogId).Distinct(StringComparer.Ordinal).Count() == 1)
+            return new { messaging_product = "whatsapp", to = request.RecipientNumber, type = "interactive",
+                interactive = new { type = "product_list", header = new { type = "text", text = Limit(message.Header ?? "Products", 60) },
+                    body = new { text = Limit(message.Body, 1024) }, action = new { catalog_id = products[0].CatalogId,
+                        sections = new[] { new { title = Limit(message.Header ?? "Products", 24),
+                            product_items = products.Select(x => new { product_retailer_id = x.ExternalProductId }).ToArray() } } } } };
+        return Text();
+    }
+
+    private static bool Mapped(WhatsAppCommerceProductMessage product) =>
+        !string.IsNullOrWhiteSpace(product.CatalogId) && !string.IsNullOrWhiteSpace(product.ExternalProductId);
+    private static string Limit(string? value, int maximum) => string.IsNullOrWhiteSpace(value)
+        ? string.Empty : value.Trim()[..Math.Min(value.Trim().Length, maximum)];
+
     public async Task<WhatsAppProviderSubscriptionResult> GetSubscribedAppsAsync(string apiVersion, string wabaId, string accessToken, CancellationToken token)
     {
         try

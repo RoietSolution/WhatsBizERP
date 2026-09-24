@@ -201,9 +201,9 @@ public sealed class SqlCommerceFixture
         var entry = new { id = WabaId, changes = new[] { change } };
         var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { tenantId = TenantA, @object = "whatsapp_business_account", entry = new[] { entry } }));
         var signature = "sha256=" + Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(WebhookSecret), body)).ToLowerInvariant();
-        (await service.ReceiveWebhookAsync(signature, body, default)).Should().BeTrue();
-        (await service.ReceiveWebhookAsync("sha256=bad", body, default)).Should().BeFalse();
-        (await service.ReceiveWebhookAsync(signature, body, default)).Should().BeTrue();
+        (await service.ReceiveWebhookAsync(signature, body, default)).Should().Be(WhatsAppWebhookReceiveResult.Acknowledged);
+        (await service.ReceiveWebhookAsync("sha256=bad", body, default)).Should().Be(WhatsAppWebhookReceiveResult.InvalidSignature);
+        (await service.ReceiveWebhookAsync(signature, body, default)).Should().Be(WhatsAppWebhookReceiveResult.Acknowledged);
 
         byte[] UnknownBody(string phone, string waba) => Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
         {
@@ -212,16 +212,16 @@ public sealed class SqlCommerceFixture
         }));
         var unknown = UnknownBody("999999999999", WabaId);
         var unknownSignature = "sha256=" + Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(WebhookSecret), unknown)).ToLowerInvariant();
-        (await service.ReceiveWebhookAsync(unknownSignature, unknown, default)).Should().BeFalse();
+        (await service.ReceiveWebhookAsync(unknownSignature, unknown, default)).Should().Be(WhatsAppWebhookReceiveResult.InvalidSignature);
         var mismatched = UnknownBody(PhoneId, "999999999998");
         var mismatchedSignature = "sha256=" + Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(WebhookSecret), mismatched)).ToLowerInvariant();
-        (await service.ReceiveWebhookAsync(mismatchedSignature, mismatched, default)).Should().BeFalse();
+        (await service.ReceiveWebhookAsync(mismatchedSignature, mismatched, default)).Should().Be(WhatsAppWebhookReceiveResult.InvalidSignature);
 
         await ExecuteAsync($"UPDATE core.Tenants SET IsActive=0 WHERE TenantId='{TenantB}'");
-        try { (await service.ReceiveWebhookAsync(signature, body, default)).Should().BeFalse(); }
+        try { (await service.ReceiveWebhookAsync(signature, body, default)).Should().Be(WhatsAppWebhookReceiveResult.InvalidSignature); }
         finally { await ExecuteAsync($"UPDATE core.Tenants SET IsActive=1 WHERE TenantId='{TenantB}'"); }
         await ExecuteAsync($"UPDATE integration.WhatsAppConfigurations SET IsEnabled=0 WHERE TenantId='{TenantB}'");
-        try { (await service.ReceiveWebhookAsync(signature, body, default)).Should().BeFalse(); }
+        try { (await service.ReceiveWebhookAsync(signature, body, default)).Should().Be(WhatsAppWebhookReceiveResult.InvalidSignature); }
         finally { await ExecuteAsync($"UPDATE integration.WhatsAppConfigurations SET IsEnabled=1 WHERE TenantId='{TenantB}'"); }
 
         var duplicateTenant = Guid.NewGuid();

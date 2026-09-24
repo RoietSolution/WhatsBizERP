@@ -48,6 +48,8 @@ export class CartService {
     this.persist();
   }
 
+  clear(): void { this.lines.set([]); this.persist(); }
+
   private persist(): void {
     const storeKey = this.activeStore();
     if (!storeKey || typeof localStorage === 'undefined') return;

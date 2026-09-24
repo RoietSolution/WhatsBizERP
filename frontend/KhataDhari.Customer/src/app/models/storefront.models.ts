@@ -46,3 +46,19 @@ export interface CustomerOrder {
   total: number;
   lines: CartLine[];
 }
+
+export interface CheckoutCustomer {
+  customerName: string;
+  mobile: string;
+  email?: string;
+  deliveryAddress: string;
+}
+
+export interface CheckoutResult {
+  orderId: string;
+  orderNumber: string;
+  amount: number;
+  currency: string;
+  paymentId: string;
+  checkoutUrl: string;
+}

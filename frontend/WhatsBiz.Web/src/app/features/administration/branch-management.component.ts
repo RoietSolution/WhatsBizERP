@@ -1,7 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
-import { AdminApiService, Branch } from './admin-api.service';
+import { AdminApiService, Branch, TenantCapacitySummary } from './admin-api.service';
 @Component({
   imports: [FormsModule, MatButtonModule],
   templateUrl: './branch-management.component.html',
@@ -38,12 +38,14 @@ import { AdminApiService, Branch } from './admin-api.service';
 })
 export class BranchManagementComponent {
   branches = signal<Branch[]>([]);
+  capacity = signal<TenantCapacitySummary | null>(null);
   model = { branchCode: '', branchName: '', phone: '', city: '', isDefault: false, isActive: true };
   constructor(private api: AdminApiService) {
     this.load();
   }
   load() {
     this.api.branches().subscribe((x) => this.branches.set(x));
+    this.api.capacity().subscribe(x=>this.capacity.set(x));
   }
   save() {
     this.api.addBranch(this.model).subscribe(() => {
@@ -57,5 +59,8 @@ export class BranchManagementComponent {
       };
       this.load();
     });
+  }
+  setActive(branch: Branch, active: boolean) {
+    this.api.updateBranch(branch.branchId,{...branch,isActive:active}).subscribe(()=>this.load());
   }
 }

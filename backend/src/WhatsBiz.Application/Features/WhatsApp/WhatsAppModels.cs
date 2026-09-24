@@ -72,6 +72,14 @@ public sealed record PagedWhatsAppContacts(IReadOnlyCollection<WhatsAppContactDt
     int NewCount, int MatchedCount, int ConvertedCount, int PageNumber, int PageSize);
 public sealed record LinkWhatsAppContactInput(Guid CustomerId);
 
+public enum WhatsAppWebhookReceiveResult
+{
+    Acknowledged,
+    InvalidSignature,
+    InvalidPayload,
+    PersistenceFailure
+}
+
 public interface IWhatsAppService
 {
     Task<WhatsAppConfigurationDto> GetConfigurationAsync(Guid tenantId, CancellationToken token);
@@ -89,5 +97,5 @@ public interface IWhatsAppService
     Task<PagedWhatsAppContacts> GetContactsAsync(Guid tenantId, string? search, string? status, int pageNumber, int pageSize, CancellationToken token);
     Task<WhatsAppContactDto> LinkContactAsync(Guid tenantId, Guid contactId, Guid customerId, string? actor, CancellationToken token);
     Task<string?> VerifyWebhookAsync(string? mode, string? verifyToken, string? challenge, CancellationToken token);
-    Task<bool> ReceiveWebhookAsync(string? signature, ReadOnlyMemory<byte> body, CancellationToken token);
+    Task<WhatsAppWebhookReceiveResult> ReceiveWebhookAsync(string? signature, ReadOnlyMemory<byte> body, CancellationToken token);
 }

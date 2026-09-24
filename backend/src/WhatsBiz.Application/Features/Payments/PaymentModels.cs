@@ -30,12 +30,14 @@ public sealed record SaveCodConfiguration(bool IsEnabled, bool IsDefault);
 public sealed record SavePaymentOptions(bool OnlinePaymentEnabled);
 public sealed record EnabledPaymentMethod(string Provider, string Label, bool IsDefault);
 public sealed record CreatePaymentAttemptInput(Guid OrderId, string Provider);
-public sealed record CommercePaymentDto(Guid PaymentId, Guid OrderId, string OrderNumber, string? CustomerName,
+public sealed record CommercePaymentDto(Guid PaymentId, Guid TenantId, string TenantName, Guid OrderId, string OrderNumber, string? CustomerName,
     string Provider, decimal Amount, string Currency, string Status, string? ProviderOrderId,
     string? ProviderPaymentId, string? PaymentLink, string? TransactionReference,
     DateTimeOffset CreatedAt, DateTimeOffset? PaidAt, DateTimeOffset? VerifiedAt, string? VerifiedBy);
 public sealed record PaymentAttemptResult(CommercePaymentDto Payment, string? PaymentAction);
-public sealed record PaymentQuery(string? Status = null, string? Provider = null, int PageNumber = 1, int PageSize = 50);
+public sealed record PaymentQuery(DateTimeOffset? DateFrom = null, DateTimeOffset? DateTo = null, string? Status = null, string? Provider = null, int PageNumber = 1, int PageSize = 50);
+public sealed record PlatformPaymentQuery(Guid? TenantId = null, DateTimeOffset? DateFrom = null, DateTimeOffset? DateTo = null, string? Status = null, string? Provider = null, int PageNumber = 1, int PageSize = 50);
+public sealed record PagedPaymentsDto(IReadOnlyCollection<CommercePaymentDto> Items, long TotalCount, int PageNumber, int PageSize);
 public sealed record VerifyDirectUpiInput(string? Reference);
 
 public sealed record PaymentGatewayConfiguration(string Provider, string? KeyId, string? KeySecret,
@@ -74,7 +76,14 @@ public interface ICommercePaymentService
     Task<PaymentAttemptResult> CreateAttemptAsync(CreatePaymentAttemptInput input, string actor, CancellationToken token);
     Task<PaymentAttemptResult> CreateAttemptForTenantAsync(Guid trustedTenantId, CreatePaymentAttemptInput input, string actor, CancellationToken token);
     Task<CommercePaymentDto> GetPaymentAsync(Guid paymentId, CancellationToken token);
-    Task<IReadOnlyCollection<CommercePaymentDto>> ListAsync(PaymentQuery query, CancellationToken token);
+    Task<PagedPaymentsDto> ListAsync(PaymentQuery query, CancellationToken token);
+    Task<CommercePaymentDto> GetPaymentForAdministrationAsync(Guid paymentId, CancellationToken token);
+    Task<PagedPaymentsDto> ListForAdministrationAsync(PlatformPaymentQuery query, CancellationToken token);
+    Task<PaymentSettingsDto> GetSettingsForTenantAsync(Guid trustedTenantId, CancellationToken token);
+    Task<PaymentSettingsDto> SaveRazorpayForTenantAsync(Guid trustedTenantId, SaveRazorpayConfiguration input, string actor, CancellationToken token);
+    Task<PaymentSettingsDto> SaveDirectUpiForTenantAsync(Guid trustedTenantId, SaveDirectUpiConfiguration input, string actor, CancellationToken token);
+    Task<PaymentSettingsDto> SaveCodForTenantAsync(Guid trustedTenantId, SaveCodConfiguration input, string actor, CancellationToken token);
+    Task<PaymentSettingsDto> SaveOptionsForTenantAsync(Guid trustedTenantId, SavePaymentOptions input, string actor, CancellationToken token);
     Task<CommercePaymentDto> VerifyDirectUpiAsync(Guid paymentId, VerifyDirectUpiInput input, Guid userId, string actor, CancellationToken token);
     Task ProcessRazorpayWebhookAsync(ReadOnlyMemory<byte> rawBody, string signature, string? eventId, CancellationToken token);
 }

@@ -84,3 +84,5 @@ GO
 :r .\V35-WhatsAppUsageBilling.sql
 GO
 :r .\V36-TenantCommercePayments.sql
+GO
+:r .\V37-TenantResourceCapacity.sql

@@ -1,17 +1,39 @@
 :root {
   color-scheme: light;
-  --green: #145c43;
-  --green-deep: #104a36;
-  --ink: #202b25;
-  --muted: #7c8177;
-  --canvas: #f7f7f2;
-  --line: #e9eae2;
-  --gold: #e8b64b;
+  --store-primary: #16844b;
+  --store-primary-dark: #0c6538;
+  --store-primary-soft: #eaf7ef;
+  --store-accent: #f5a623;
+  --store-accent-soft: #fff5df;
+  --store-background: #f6f7f4;
+  --store-surface: #ffffff;
+  --store-surface-muted: #f1f4ef;
+  --store-text: #18251d;
+  --store-muted: #66736a;
+  --store-border: #e1e7e1;
+  --store-success: #16844b;
+  --store-danger: #b83d32;
+  --store-shadow: 0 8px 28px rgba(24, 50, 34, .08);
+  --store-radius-sm: 10px;
+  --store-radius-md: 14px;
+  --store-radius-lg: 20px;
+  --store-content-width: 1240px;
+  --green: var(--store-primary);
+  --green-deep: var(--store-primary-dark);
+  --ink: var(--store-text);
+  --muted: var(--store-muted);
+  --canvas: var(--store-background);
+  --line: var(--store-border);
+  --gold: var(--store-accent);
 }
 
 * { box-sizing: border-box; }
-html { min-width: 320px; min-height: 100%; background: var(--canvas); scroll-behavior: smooth; }
-body { margin: 0; color: var(--ink); background: var(--canvas); font-family: 'DM Sans', sans-serif; -webkit-font-smoothing: antialiased; }
-button, input { font: inherit; }
-button { -webkit-tap-highlight-color: transparent; }
+html { min-width: 320px; min-height: 100%; background: var(--store-background); scroll-behavior: smooth; }
+body { margin: 0; color: var(--store-text); background: var(--store-background); font-family: 'DM Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+button, input, textarea { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid color-mix(in srgb, var(--store-primary) 24%, transparent); outline-offset: 2px; }
+img { display: block; max-width: 100%; }
 a { color: inherit; }
+::selection { color: var(--store-primary-dark); background: var(--store-primary-soft); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }

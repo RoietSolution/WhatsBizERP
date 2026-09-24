@@ -1,4 +1,5 @@
 <h1>Branch Management</h1>
+@if(capacity(); as cap){<p>Branches: {{ cap.branches.current }} of {{ cap.branches.unlimited || !cap.branches.configured ? 'Unlimited' : cap.branches.limit }} used @if(cap.branches.overLimit){ · Over Limit}</p>@if(!cap.branches.canCreate){<p>Your branch limit has been reached. Please contact KhataDhari to add more branches.</p>}}
 <form (ngSubmit)="save()">
   <input required name="code" placeholder="Branch code" [(ngModel)]="model.branchCode" /><input
     required
@@ -10,7 +11,7 @@
     placeholder="City"
     [(ngModel)]="model.city"
   /><label><input type="checkbox" name="default" [(ngModel)]="model.isDefault" />Default</label
-  ><button mat-flat-button>Add branch</button>
+  ><button mat-flat-button [disabled]="model.isActive && capacity()?.branches?.canCreate === false">Add branch</button>
 </form>
 <section>
   @for (x of branches(); track x.branchId) {
@@ -19,6 +20,7 @@
       <b>{{ x.branchCode }}</b>
       <p>{{ x.city }} · {{ x.phone }}</p>
       <span>{{ x.isDefault ? 'Default branch' : 'Active' }}</span>
+      <button mat-button type="button" (click)="setActive(x,!x.isActive)" [disabled]="!x.isActive && capacity()?.branches?.canCreate === false">{{ x.isActive ? 'Deactivate' : 'Reactivate' }}</button>
     </article>
   }
 </section>

@@ -75,6 +75,8 @@ export interface AdminUser { userId: string; userName: string; email: string; ph
 export interface AdminRole { roleId: string; roleName: string; permissions: string[]; }
 export interface EmployeeInput { userName: string; email: string; phoneNumber?: string; temporaryPassword: string; isActive: boolean; permissions: string[]; }
 export interface EmployeeUpdate { email: string; phoneNumber?: string; isActive: boolean; permissions: string[]; }
+export interface ResourceCapacity { resourceType: string; current: number; limit?: number; configured: boolean; unlimited: boolean; overLimit: boolean; canCreate: boolean; source: string; }
+export interface TenantCapacitySummary { tenantId: string; tenantName: string; users: ResourceCapacity; branches: ResourceCapacity; }
 export interface CustomerNotificationSettings {
   enabled: boolean; whatsAppEnabled: boolean; smsEnabled: boolean;
   successfulSale: boolean; successfulPayment: boolean;
@@ -117,6 +119,8 @@ export class AdminApiService {
   addBranch(x: Partial<Branch>) {
     return this.http.post<Branch>(`${this.root}/branches`, x);
   }
+  updateBranch(id: string, x: Partial<Branch>) { return this.http.put<Branch>(`${this.root}/branches/${id}`, x); }
+  capacity() { return this.http.get<TenantCapacitySummary>('/api/capacity'); }
   settings() {
     return this.http.get<Setting[]>(`${this.root}/settings`);
   }

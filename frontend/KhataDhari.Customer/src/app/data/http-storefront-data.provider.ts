@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { Category, CustomerOrder, Product, Store } from '../models/storefront.models';
+import { CartLine, Category, CheckoutCustomer, CheckoutResult, CustomerOrder, Product, Store } from '../models/storefront.models';
 import { StorefrontDataProvider } from './storefront-data.provider';
 
 interface ApiStore { storeKey: string; name: string; tagline?: string; logoUrl?: string | null; accentColor?: string; deliveryMessage?: string; }
@@ -38,6 +38,14 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
   }
 
   async getOrders(_storeKey: string): Promise<CustomerOrder[]> { return []; }
+
+  async checkoutWithRazorpay(storeKey: string, customer: CheckoutCustomer, lines: readonly CartLine[], idempotencyKey: string): Promise<CheckoutResult> {
+    return await firstValueFrom(this.http.post<CheckoutResult>(`${this.url(storeKey)}/checkout/razorpay`, {
+      ...customer,
+      email: customer.email || null,
+      items: lines.map((line) => ({ productId: line.product.id, quantity: line.quantity })),
+    }, { headers: { 'Idempotency-Key': idempotencyKey } }));
+  }
 
   private mapProduct(product: ApiProduct): Product {
     return {

@@ -6,7 +6,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { AdminApiService, AdminRole, AdminUser } from './admin-api.service';
+import { AdminApiService, AdminRole, AdminUser, TenantCapacitySummary } from './admin-api.service';
 import { PageContainerComponent } from '../../shared/components/page-container/page-container.component';
 
 @Component({
@@ -15,7 +15,8 @@ import { PageContainerComponent } from '../../shared/components/page-container/p
     <app-page-container wide>
       <header><div><h1>{{ mode === 'users' ? 'Employees' : 'Roles & Permissions' }}</h1>
         <p>{{ mode === 'users' ? 'Create retailer employees and give each person only the access they need.' : 'Review role permission assignments.' }}</p></div>
-        <div class="header-actions">@if (mode === 'users') { <button mat-flat-button type="button" (click)="startCreate()">Add Employee</button> }<a mat-stroked-button routerLink="/admin">Back to Administration</a></div></header>
+        <div class="header-actions">@if (mode === 'users') { <button mat-flat-button type="button" (click)="startCreate()" [disabled]="capacity()?.users?.canCreate === false">Add Employee</button> }<a mat-stroked-button routerLink="/admin">Back to Administration</a></div></header>
+      @if(mode === 'users' && capacity(); as cap){<p class="capacity">Users: {{ cap.users.current }} of {{ cap.users.unlimited || !cap.users.configured ? 'Unlimited' : cap.users.limit }} used @if(cap.users.overLimit){ · Over Limit}</p>@if(!cap.users.canCreate){<p class="limit-message">Your user limit has been reached. Please contact KhataDhari to add more users.</p>}}
       @if (mode === 'users') {
         @if (showEditor()) {
           <section class="editor" aria-label="Employee editor">
@@ -57,12 +58,14 @@ export class IdentityAdministrationComponent {
   readonly showEditor = signal(false);
   readonly editingId = signal<string | null>(null);
   readonly saving = signal(false);
+  readonly capacity = signal<TenantCapacitySummary | null>(null);
   draft = this.emptyDraft();
 
   constructor(route: ActivatedRoute, private api: AdminApiService, private snack: MatSnackBar) {
     this.mode = route.snapshot.data['mode'] === 'roles' ? 'roles' : 'users';
     if (this.mode === 'users') {
       this.reload();
+      api.capacity().subscribe(x=>this.capacity.set(x));
       api.employeePermissions().subscribe((x) => this.assignablePermissions.set(x));
     }
     else api.roles().subscribe((x) => this.roles.set(x));
@@ -90,7 +93,7 @@ export class IdentityAdministrationComponent {
     const request = id
       ? this.api.updateEmployee(id, { email: this.draft.email, phoneNumber: this.draft.phoneNumber, isActive: this.draft.isActive, permissions: this.draft.permissions })
       : this.api.createEmployee(this.draft);
-    request.subscribe({ next: () => { this.saving.set(false); this.cancelEditor(); this.reload(); this.notify('Employee saved.'); }, error: (error) => { this.saving.set(false); this.notify(this.errorMessage(error)); } });
+    request.subscribe({ next: () => { this.saving.set(false); this.cancelEditor(); this.reload(); this.api.capacity().subscribe(x=>this.capacity.set(x)); this.notify('Employee saved.'); }, error: (error) => { this.saving.set(false); this.notify(this.errorMessage(error)); } });
   }
 
   resetPassword(user: AdminUser) {

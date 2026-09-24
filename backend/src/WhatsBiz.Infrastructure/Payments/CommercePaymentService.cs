@@ -22,6 +22,7 @@ public sealed class CommercePaymentService(IConfiguration configuration, IDataPr
     private IDataProtector Protector => protection.CreateProtector(Purpose);
 
     public async Task<PaymentSettingsDto> GetSettingsAsync(CancellationToken token) => await GetSettings(Tenant, token);
+    public Task<PaymentSettingsDto> GetSettingsForTenantAsync(Guid trustedTenantId,CancellationToken token)=>GetSettings(trustedTenantId,token);
 
     public async Task<PaymentSettingsDto> SaveRazorpayAsync(SaveRazorpayConfiguration input, string actor, CancellationToken token)
     {
@@ -30,6 +31,8 @@ public sealed class CommercePaymentService(IConfiguration configuration, IDataPr
             keyId, input.KeySecret, input.WebhookSecret, null, null, actor, token);
         return await GetSettings(tenant, token);
     }
+    public async Task<PaymentSettingsDto> SaveRazorpayForTenantAsync(Guid trustedTenantId,SaveRazorpayConfiguration input,string actor,CancellationToken token)
+    {var keyId=input.KeyId?.Trim();await SaveProvider(trustedTenantId,PaymentProviders.Razorpay,input.IsEnabled,input.IsDefault,input.IsTestMode,keyId,input.KeySecret,input.WebhookSecret,null,null,actor,token);return await GetSettings(trustedTenantId,token);}
 
     public async Task<PaymentSettingsDto> SaveDirectUpiAsync(SaveDirectUpiConfiguration input, string actor, CancellationToken token)
     {
@@ -39,6 +42,8 @@ public sealed class CommercePaymentService(IConfiguration configuration, IDataPr
         await SaveProvider(tenant, PaymentProviders.DirectUpi, input.IsEnabled, input.IsDefault, false, null, null, null, vpa, payee, actor, token);
         return await GetSettings(tenant, token);
     }
+    public async Task<PaymentSettingsDto> SaveDirectUpiForTenantAsync(Guid trustedTenantId,SaveDirectUpiConfiguration input,string actor,CancellationToken token)
+    {var vpa=input.UpiVpa?.Trim().ToLowerInvariant();var payee=input.PayeeName?.Trim();if(!PaymentValidation.IsValidVpa(vpa))throw new BusinessRuleException("Enter a valid UPI ID/VPA.");if(string.IsNullOrWhiteSpace(payee)||payee.Length>200)throw new BusinessRuleException("Enter a valid payee name.");await SaveProvider(trustedTenantId,PaymentProviders.DirectUpi,input.IsEnabled,input.IsDefault,false,null,null,null,vpa,payee,actor,token);return await GetSettings(trustedTenantId,token);}
 
     public async Task<PaymentSettingsDto> SaveCodAsync(SaveCodConfiguration input, string actor, CancellationToken token)
     {
@@ -46,6 +51,8 @@ public sealed class CommercePaymentService(IConfiguration configuration, IDataPr
         await SaveProvider(tenant, PaymentProviders.Cod, input.IsEnabled, input.IsDefault, false, null, null, null, null, null, actor, token);
         return await GetSettings(tenant, token);
     }
+    public async Task<PaymentSettingsDto> SaveCodForTenantAsync(Guid trustedTenantId,SaveCodConfiguration input,string actor,CancellationToken token)
+    {await SaveProvider(trustedTenantId,PaymentProviders.Cod,input.IsEnabled,input.IsDefault,false,null,null,null,null,null,actor,token);return await GetSettings(trustedTenantId,token);}
 
     public async Task<PaymentSettingsDto> SaveOptionsAsync(SavePaymentOptions input, string actor, CancellationToken token)
     {
@@ -53,6 +60,10 @@ public sealed class CommercePaymentService(IConfiguration configuration, IDataPr
 WHEN MATCHED THEN UPDATE SET OnlinePaymentEnabled=@enabled,UpdatedAt=SYSUTCDATETIME(),UpdatedBy=@actor
 WHEN NOT MATCHED THEN INSERT(TenantId,OnlinePaymentEnabled,CreatedBy)VALUES(@tenant,@enabled,@actor);",c);P(q,"@tenant",tenant);P(q,"@enabled",input.OnlinePaymentEnabled);P(q,"@actor",actor);await q.ExecuteNonQueryAsync(token);return await GetSettings(tenant,token);
     }
+    public async Task<PaymentSettingsDto> SaveOptionsForTenantAsync(Guid trustedTenantId,SavePaymentOptions input,string actor,CancellationToken token)
+    {await using var c=await Open(trustedTenantId,token);await using var q=new SqlCommand(@"MERGE commerce.TenantPaymentConfigurations t USING(SELECT @tenant TenantId)s ON s.TenantId=t.TenantId
+WHEN MATCHED THEN UPDATE SET OnlinePaymentEnabled=@enabled,UpdatedAt=SYSUTCDATETIME(),UpdatedBy=@actor
+WHEN NOT MATCHED THEN INSERT(TenantId,OnlinePaymentEnabled,CreatedBy)VALUES(@tenant,@enabled,@actor);",c);P(q,"@tenant",trustedTenantId);P(q,"@enabled",input.OnlinePaymentEnabled);P(q,"@actor",actor);await q.ExecuteNonQueryAsync(token);return await GetSettings(trustedTenantId,token);}
 
     public async Task<IReadOnlyCollection<EnabledPaymentMethod>> GetEnabledMethodsAsync(CancellationToken token)
         => await GetEnabledMethodsForTenantAsync(Tenant, token);
@@ -114,12 +125,27 @@ VALUES(@id,@tenant,@invoice,@provider,@provider,@amount,N'INR',@status,@attempt,
         await using var c=await Open(tenant,token);await using var q=new SqlCommand(SelectPayment+" WHERE p.TenantId=@tenant AND p.PaymentId=@id",c);P(q,"@tenant",tenant);P(q,"@id",paymentId);await using var r=await q.ExecuteReaderAsync(token);return await r.ReadAsync(token)?Map(r):throw new EntityNotFoundException("Payment was not found.");
     }
 
-    public async Task<IReadOnlyCollection<CommercePaymentDto>> ListAsync(PaymentQuery query, CancellationToken token)
+    public async Task<CommercePaymentDto> GetPaymentForAdministrationAsync(Guid paymentId,CancellationToken token)
     {
-        var tenant=Tenant;var page=Math.Max(1,query.PageNumber);var size=Math.Clamp(query.PageSize,1,100);await using var c=await Open(tenant,token);
-        await using var q=new SqlCommand(SelectPayment+" WHERE p.TenantId=@tenant AND(@status IS NULL OR p.Status=@status)AND(@provider IS NULL OR p.Provider=@provider) ORDER BY p.CreatedAt DESC OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY",c);
-        P(q,"@tenant",tenant);P(q,"@status",string.IsNullOrWhiteSpace(query.Status)?null:query.Status.Trim().ToUpperInvariant());P(q,"@provider",string.IsNullOrWhiteSpace(query.Provider)?null:NormalizeProvider(query.Provider));P(q,"@skip",(page-1)*size);P(q,"@take",size);await using var r=await q.ExecuteReaderAsync(token);var rows=new List<CommercePaymentDto>();while(await r.ReadAsync(token))rows.Add(Map(r));return rows;
+        await using var c=new SqlConnection(ConnectionString);await c.OpenAsync(token);await using var q=new SqlCommand(SelectPayment+" WHERE p.PaymentId=@id",c);P(q,"@id",paymentId);await using var r=await q.ExecuteReaderAsync(token);return await r.ReadAsync(token)?Map(r):throw new EntityNotFoundException("Payment was not found.");
     }
+
+    public Task<PagedPaymentsDto> ListAsync(PaymentQuery query,CancellationToken token)=>ListPayments(Tenant,null,query.DateFrom,query.DateTo,query.Status,query.Provider,query.PageNumber,query.PageSize,token);
+    public Task<PagedPaymentsDto> ListForAdministrationAsync(PlatformPaymentQuery query,CancellationToken token)=>ListPayments(null,query.TenantId,query.DateFrom,query.DateTo,query.Status,query.Provider,query.PageNumber,query.PageSize,token);
+
+    private async Task<PagedPaymentsDto> ListPayments(Guid? retailerTenant,Guid? selectedTenant,DateTimeOffset? from,DateTimeOffset? to,string? status,string? provider,int pageNumber,int pageSize,CancellationToken token)
+    {
+        var tenant=retailerTenant??selectedTenant;var page=Math.Max(1,pageNumber);var size=Math.Clamp(pageSize,1,100);
+        await using var c=new SqlConnection(ConnectionString);await c.OpenAsync(token);
+        var where=" WHERE (@tenant IS NULL OR p.TenantId=@tenant) AND (@from IS NULL OR p.CreatedAt>=@from) AND (@to IS NULL OR p.CreatedAt<DATEADD(day,1,@to)) AND (@status IS NULL OR p.Status=@status) AND (@provider IS NULL OR p.Provider=@provider)";
+        var normalizedStatus=string.IsNullOrWhiteSpace(status)?null:status.Trim().ToUpperInvariant();var normalizedProvider=string.IsNullOrWhiteSpace(provider)?null:NormalizeProvider(provider);
+        await using var count=new SqlCommand("SELECT COUNT_BIG(*) FROM commerce.CommercePayments p"+where,c);AddFilters(count,tenant,from,to,normalizedStatus,normalizedProvider);var total=Convert.ToInt64(await count.ExecuteScalarAsync(token),CultureInfo.InvariantCulture);
+        await using var q=new SqlCommand(SelectPayment+where+" ORDER BY p.CreatedAt DESC,p.PaymentId DESC OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY",c);AddFilters(q,tenant,from,to,normalizedStatus,normalizedProvider);P(q,"@skip",(page-1)*size);P(q,"@take",size);
+        await using var r=await q.ExecuteReaderAsync(token);var rows=new List<CommercePaymentDto>();while(await r.ReadAsync(token))rows.Add(Map(r));return new(rows,total,page,size);
+    }
+
+    private static void AddFilters(SqlCommand command,Guid? tenant,DateTimeOffset? from,DateTimeOffset? to,string? status,string? provider)
+    {P(command,"@tenant",tenant);P(command,"@from",from);P(command,"@to",to);P(command,"@status",status);P(command,"@provider",provider);}
 
     public async Task<CommercePaymentDto> VerifyDirectUpiAsync(Guid paymentId, VerifyDirectUpiInput input, Guid userId, string actor, CancellationToken token)
     {
@@ -201,8 +227,8 @@ WHEN NOT MATCHED THEN INSERT(PaymentProviderId,TenantId,Provider,IsEnabled,IsDef
     private async Task UpdateFailed(Guid tenant,Guid payment,CancellationToken token){await using var c=await Open(tenant,token);await using var q=new SqlCommand("UPDATE commerce.CommercePayments SET Status=N'FAILED',FailedAt=SYSUTCDATETIME(),UpdatedAt=SYSUTCDATETIME() WHERE TenantId=@tenant AND PaymentId=@payment AND Status=N'PENDING'",c);P(q,"@tenant",tenant);P(q,"@payment",payment);await q.ExecuteNonQueryAsync(token);}
     private async Task<Guid> OrderId(Guid tenant,Guid payment,CancellationToken token){await using var c=await Open(tenant,token);await using var q=new SqlCommand("SELECT InvoiceId FROM commerce.CommercePayments WHERE TenantId=@tenant AND PaymentId=@payment",c);P(q,"@tenant",tenant);P(q,"@payment",payment);return (Guid)(await q.ExecuteScalarAsync(token)??throw new EntityNotFoundException("Payment was not found."));}
     private static (Guid? PaymentId,string? ProviderReference,string? ProviderOrderId) WebhookCorrelation(ReadOnlyMemory<byte> raw){try{using var j=JsonDocument.Parse(raw);var p=j.RootElement.GetProperty("payload");string? link=null,order=null,internalId=null;if(p.TryGetProperty("payment_link",out var lw)&&lw.TryGetProperty("entity",out var le)){if(le.TryGetProperty("id",out var li))link=li.GetString();if(le.TryGetProperty("notes",out var ln)&&ln.TryGetProperty("payment_id",out var lp))internalId=lp.GetString();}if(p.TryGetProperty("payment",out var pw)&&pw.TryGetProperty("entity",out var pe)){if(pe.TryGetProperty("order_id",out var oi))order=oi.GetString();if(internalId is null&&pe.TryGetProperty("notes",out var pn)&&pn.TryGetProperty("payment_id",out var pp))internalId=pp.GetString();}return(Guid.TryParseExact(internalId,"N",out var id)?id:null,link,order);}catch(JsonException){throw new BusinessRuleException("Razorpay webhook payload is invalid.");}}
-    private const string SelectPayment=@"SELECT p.PaymentId,p.InvoiceId,i.InvoiceNumber,c.CustomerName,p.Provider,p.Amount,p.Currency,p.Status,p.ProviderOrderId,p.ProviderPaymentId,p.PaymentLink,p.TransactionReference,p.CreatedAt,p.PaidAt,p.VerifiedAt,u.UserName FROM commerce.CommercePayments p JOIN sales.SalesInvoices i ON i.InvoiceId=p.InvoiceId AND i.TenantId=p.TenantId LEFT JOIN sales.Customers c ON c.CustomerId=i.CustomerId AND c.TenantId=p.TenantId LEFT JOIN core.Users u ON u.Id=p.VerifiedBy AND u.TenantId=p.TenantId";
-    private static CommercePaymentDto Map(SqlDataReader r)=>new(r.GetGuid(0),r.GetGuid(1),r.GetString(2),S(r,3),r.GetString(4),r.GetDecimal(5),r.GetString(6),r.GetString(7),S(r,8),S(r,9),S(r,10),S(r,11),r.GetDateTimeOffset(12),r.IsDBNull(13)?null:r.GetDateTimeOffset(13),r.IsDBNull(14)?null:r.GetDateTimeOffset(14),S(r,15));
+    private const string SelectPayment=@"SELECT p.PaymentId,p.TenantId,t.Name,p.InvoiceId,i.InvoiceNumber,c.CustomerName,p.Provider,p.Amount,p.Currency,p.Status,p.ProviderOrderId,p.ProviderPaymentId,p.PaymentLink,p.TransactionReference,p.CreatedAt,p.PaidAt,p.VerifiedAt,u.UserName FROM commerce.CommercePayments p JOIN core.Tenants t ON t.TenantId=p.TenantId JOIN sales.SalesInvoices i ON i.InvoiceId=p.InvoiceId AND i.TenantId=p.TenantId LEFT JOIN sales.Customers c ON c.CustomerId=i.CustomerId AND c.TenantId=p.TenantId LEFT JOIN core.Users u ON u.Id=p.VerifiedBy AND u.TenantId=p.TenantId";
+    private static CommercePaymentDto Map(SqlDataReader r)=>new(r.GetGuid(0),r.GetGuid(1),r.GetString(2),r.GetGuid(3),r.GetString(4),S(r,5),r.GetString(6),r.GetDecimal(7),r.GetString(8),r.GetString(9),S(r,10),S(r,11),S(r,12),S(r,13),r.GetDateTimeOffset(14),r.IsDBNull(15)?null:r.GetDateTimeOffset(15),r.IsDBNull(16)?null:r.GetDateTimeOffset(16),S(r,17));
     private static void P(SqlCommand q,string name,object? value)=>q.Parameters.AddWithValue(name,value??DBNull.Value);
     private static string? S(SqlDataReader r,int index)=>r.IsDBNull(index)?null:r.GetString(index);
     private sealed record ConfigRow(string Provider,bool Enabled,string? KeyId,string? KeySecret,string? WebhookSecret,bool TestMode,string? Vpa,string? Payee);

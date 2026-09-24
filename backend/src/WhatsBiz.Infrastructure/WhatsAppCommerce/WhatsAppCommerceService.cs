@@ -79,7 +79,9 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
         if (config.Mode.Equals("META_TEST", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(config.TestRecipient) && recipient != config.TestRecipient) throw new BusinessRuleException("META_TEST can send only to the configured test recipient.");
         var products = await CollectionProducts(connection, tenantId, collectionId, token);
         if (products.Items.Count == 0) throw new BusinessRuleException("This collection has no active, in-stock products available to send.");
-        var native = config.Mode.Equals("META_TEST", StringComparison.OrdinalIgnoreCase) && products.Items.Count <= 10 && products.Items.All(x => x.CatalogId is not null && x.ExternalProductId is not null) && products.Items.Select(x => x.CatalogId).Distinct(StringComparer.Ordinal).Count() == 1;
+        var native = (config.Mode.Equals("META_TEST", StringComparison.OrdinalIgnoreCase) || config.Mode.Equals("LIVE", StringComparison.OrdinalIgnoreCase))
+            && products.Items.Count <= 10 && products.Items.All(x => x.CatalogId is not null && x.ExternalProductId is not null)
+            && products.Items.Select(x => x.CatalogId).Distinct(StringComparer.Ordinal).Count() == 1;
         var accessToken = config.Mode.Equals("MOCK", StringComparison.OrdinalIgnoreCase) ? string.Empty : protection.CreateProtector("WhatsBiz.WhatsApp.Secrets.v1").Unprotect(config.ProtectedToken ?? throw new BusinessRuleException("Stored WhatsApp credential cannot be decrypted."));
         var sent = await providers.Resolve(config.Mode).SendProductCollectionAsync(new(config.ApiVersion ?? string.Empty, config.PhoneNumberId ?? string.Empty, accessToken, recipient, products.Title, products.Items.Select(x => new WhatsAppCommerceProductMessage(x.ProductId, x.ProductName, x.ProductCode, x.Price, x.ImageUrl, x.CatalogId, x.ExternalProductId)).ToArray(), native), token);
         await TrackAccepted(tenantId, config.Mode, config.PhoneNumberId, recipient, null, sent.ProviderMessageId, sent.AttemptedAt, sent.Succeeded, token);

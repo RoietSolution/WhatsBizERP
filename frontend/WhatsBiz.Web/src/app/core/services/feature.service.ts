@@ -12,6 +12,9 @@ export interface FeatureAccessState {
 export interface TenantFeatureConfiguration { tenantId: string; tenantName: string; planKey?: string; planName?: string; features: FeatureAccessState[]; }
 export interface FeatureTenantSummary { tenantId: string; tenantKey: string; tenantName: string; planKey?: string; planName?: string; }
 export interface TenantEnrollmentResult { tenantId: string; tenantKey: string; tenantName: string; planKey: string; administratorUsername: string; administratorEmail: string; configuredFeatureCount: number; }
+export interface ResourceCapacity { resourceType: string; current: number; limit?: number; configured: boolean; unlimited: boolean; overLimit: boolean; canCreate: boolean; source: string; }
+export interface TenantCapacitySummary { tenantId: string; tenantName: string; users: ResourceCapacity; branches: ResourceCapacity; }
+export interface ResourceLimitInput { configured: boolean; unlimited: boolean; limit?: number; }
 
 @Injectable({ providedIn: 'root' })
 export class FeatureService {
@@ -44,6 +47,10 @@ export class FeatureService {
   update(tenantId: string, updates: { featureKey: string; configuredEnabled: boolean }[]): Observable<TenantFeatureConfiguration> {
     return this.http.put<TenantFeatureConfiguration>(`/api/features/administration/tenants/${tenantId}`, updates).pipe(
       tap(x => { if (x.tenantId === this.currentUser.user()?.tenantId) this.configurationState.set(x); }));
+  }
+  capacity(tenantId: string): Observable<TenantCapacitySummary> { return this.http.get<TenantCapacitySummary>(`/api/system/tenants/${tenantId}/capacity`); }
+  updateCapacity(tenantId: string, users: ResourceLimitInput, branches: ResourceLimitInput): Observable<TenantCapacitySummary> {
+    return this.http.put<TenantCapacitySummary>(`/api/system/tenants/${tenantId}/capacity`, { users, branches });
   }
   requiredFeature(url: string): string | undefined {
     if (url.startsWith('/admin/features')) return undefined;

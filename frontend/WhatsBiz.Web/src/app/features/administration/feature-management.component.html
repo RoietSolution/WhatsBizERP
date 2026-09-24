@@ -14,6 +14,16 @@
     </select>
     @if (configuration(); as config) { <p><strong>Plan:</strong> {{ config.planName || config.planKey || 'No active plan' }}</p> }
   </mat-card>
+  @if (capacity(); as value) {
+    <mat-card class="tenant-card">
+      <h2>Subscription &amp; Capacity</h2>
+      <div class="capacity-grid">
+        <section><h3>Users</h3><p>Current: <strong>{{ value.users.current }}</strong></p><label><input type="checkbox" [(ngModel)]="usersUnlimited"> Unlimited</label><label>Maximum <input type="number" min="1" [(ngModel)]="userLimit" [disabled]="usersUnlimited"></label><small>{{ value.users.overLimit ? 'Over Limit' : value.users.current + ' / ' + (value.users.unlimited || !value.users.configured ? 'Unlimited' : value.users.limit) }}</small></section>
+        <section><h3>Branches</h3><p>Current: <strong>{{ value.branches.current }}</strong></p><label><input type="checkbox" [(ngModel)]="branchesUnlimited"> Unlimited</label><label>Maximum <input type="number" min="1" [(ngModel)]="branchLimit" [disabled]="branchesUnlimited"></label><small>{{ value.branches.overLimit ? 'Over Limit' : value.branches.current + ' / ' + (value.branches.unlimited || !value.branches.configured ? 'Unlimited' : value.branches.limit) }}</small></section>
+      </div>
+      <button mat-flat-button color="primary" type="button" (click)="saveCapacity()" [disabled]="saving()">Save limits</button>
+    </mat-card>
+  }
   @if (error()) { <p class="message error">{{ error() }}</p> } @if (message()) { <p class="message success">{{ message() }}</p> }
   @if (loading()) { <p>Loading feature configuration…</p> }
   @for (version of versions(); track version.featureKey) {

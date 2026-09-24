@@ -1,5 +1,15 @@
 <app-page-container><app-page-header eyebrow="WhatsApp Commerce" title="Payments" description="Retailer-owned ecommerce payment attempts and verified collections." />
 @if(error()){<p class="error" role="alert">{{error()}}</p>}
-<div class="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Provider</th><th>Amount</th><th>Status</th><th>Created</th><th>Paid / Verified</th><th>Actions</th></tr></thead><tbody>
-@for(row of rows();track row.paymentId){<tr><td>{{row.orderNumber}}</td><td>{{row.customerName || '—'}}</td><td>{{row.provider}}</td><td>{{row.currency}} {{row.amount | number:'1.2-2'}}</td><td><span class="status">{{row.status}}</span></td><td>{{row.createdAt | date:'medium'}}</td><td>{{(row.verifiedAt || row.paidAt) | date:'medium'}}</td><td>@if(row.provider==='DIRECT_UPI' && row.status==='PENDING_VERIFICATION'){<button mat-stroked-button color="primary" (click)="verify(row)">Verify Payment</button>}</td></tr>}@empty{<tr><td colspan="8">No payment attempts found.</td></tr>}
-</tbody></table></div></app-page-container>
+<section class="filters">
+  @if(applicationOwner){<label>Retailer<select [(ngModel)]="tenantId"><option value="">All Retailers</option>@for(tenant of tenants();track tenant.tenantId){<option [value]="tenant.tenantId">{{tenant.tenantName}}</option>}</select></label>}
+  <label>Date From<input type="date" [(ngModel)]="dateFrom"></label><label>Date To<input type="date" [(ngModel)]="dateTo"></label>
+  <label>Status<select [(ngModel)]="status"><option value="">All</option><option>PENDING</option><option>PENDING_VERIFICATION</option><option>COD_PENDING</option><option>PAID</option><option>FAILED</option><option>CANCELLED</option><option>REFUNDED</option></select></label>
+  <label>Provider<select [(ngModel)]="provider"><option value="">All</option><option>RAZORPAY</option><option>DIRECT_UPI</option><option>COD</option></select></label>
+  <button mat-flat-button type="button" (click)="applyFilters()" [disabled]="loading()">Apply</button>
+</section>
+<div class="table-wrap"><table><thead><tr>@if(applicationOwner){<th>Retailer</th>}<th>Date</th><th>Order</th><th>Customer</th><th>Provider</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+@for(row of rows();track row.paymentId){<tr>@if(applicationOwner){<td>{{row.tenantName}}</td>}<td>{{row.createdAt | date:'medium'}}</td><td>{{row.orderNumber}}</td><td>{{row.customerName || '—'}}</td><td>{{row.provider}}</td><td>{{row.currency}} {{row.amount | number:'1.2-2'}}</td><td><span class="status">{{row.status}}</span></td><td><button mat-button type="button" (click)="open(row)">Details</button>@if(!applicationOwner && row.provider==='DIRECT_UPI' && row.status==='PENDING_VERIFICATION'){<button mat-stroked-button color="primary" (click)="verify(row)">Verify Payment</button>}</td></tr>}@empty{<tr><td [attr.colspan]="applicationOwner ? 8 : 7">No payment attempts found.</td></tr>}
+</tbody></table></div>
+<footer class="pager"><span>{{total()}} payment(s)</span><button mat-button type="button" (click)="previous()" [disabled]="pageNumber<=1">Previous</button><span>Page {{pageNumber}}</span><button mat-button type="button" (click)="next()" [disabled]="pageNumber*pageSize>=total()">Next</button></footer>
+@if(selected();as payment){<section class="card details"><h2>Payment details</h2>@if(applicationOwner){<p><strong>Retailer:</strong> {{payment.tenantName}}</p>}<p><strong>Order:</strong> {{payment.orderNumber}}</p><p><strong>Provider:</strong> {{payment.provider}}</p><p><strong>Status:</strong> {{payment.status}}</p><p><strong>Transaction reference:</strong> {{payment.transactionReference || '—'}}</p><button mat-button type="button" (click)="selected.set(null)">Close</button></section>}
+</app-page-container>

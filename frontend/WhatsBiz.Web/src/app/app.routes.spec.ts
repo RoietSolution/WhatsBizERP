@@ -56,12 +56,16 @@ describe('application routes', () => {
     expect(route?.canActivate?.length).toBe(2);
   });
 
-  it('protects payment settings and payment management with tenant permissions and WhatsApp Commerce entitlement',()=>{
+  it('keeps payment settings platform-only and payments available to owner and retailer',()=>{
     const mainRoute=routes.find(route=>route.canActivateChild);
-    const settings=mainRoute?.children?.find(candidate=>candidate.path==='admin/payment-settings');
+    const settings=mainRoute?.children?.find(candidate=>candidate.path==='application-owner/payment-settings');
+    const ownerPayments=mainRoute?.children?.find(candidate=>candidate.path==='application-owner/payments');
     const payments=mainRoute?.children?.find(candidate=>candidate.path==='admin/payments');
-    expect(settings?.data?.['permission']).toBe('admin.settings');
+    expect(mainRoute?.children?.find(candidate=>candidate.path==='admin/payment-settings')).toBeUndefined();
+    expect(settings?.data?.['role']).toBe('ApplicationOwner');expect(settings?.data?.['platform']).toBeTrue();expect(settings?.data?.['permission']).toBe('feature.manage');
+    expect(ownerPayments?.data?.['role']).toBe('ApplicationOwner');expect(ownerPayments?.data?.['platform']).toBeTrue();
     expect(payments?.data?.['permission']).toBe('payment.view');
-    for(const route of [settings,payments]){expect(route?.data?.['feature']).toBe('WHATSAPP_COMMERCE');expect(route?.canActivate?.length).toBe(2);}
+    expect(payments?.data?.['feature']).toBe('WHATSAPP_COMMERCE');
+    for(const route of [settings,ownerPayments,payments])expect(route?.canActivate?.length).toBe(2);
   });
 });

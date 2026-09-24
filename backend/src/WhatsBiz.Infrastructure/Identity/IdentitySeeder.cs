@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using WhatsBiz.Infrastructure.Persistence;
+using WhatsBiz.Application.Common.Capacity;
+using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.SharedKernel;
 namespace WhatsBiz.Infrastructure.Identity;
 public sealed class IdentitySeeder(
@@ -76,6 +78,7 @@ public sealed class IdentitySeeder(
                 IsActive = true,
                 CreatedBy = "identity-bootstrap"
             };
+            await services.GetRequiredService<ITenantResourceLimitService>().EnsureCanCreateAsync(tenantId, TenantResourceTypes.Users, cancellationToken);
             EnsureSucceeded(await users.CreateAsync(user, options.Password));
             AdministratorCreated(logger, username, tenantKey, null);
         }

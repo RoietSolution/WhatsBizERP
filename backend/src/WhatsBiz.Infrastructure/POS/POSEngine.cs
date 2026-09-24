@@ -2,7 +2,6 @@
 using System.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
 using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Infrastructure.Persistence;
@@ -14,37 +13,37 @@ public sealed class POSEngine(
     SqlIdempotencyExecutor idempotency,
     IHttpContextAccessor httpContext,
     ICurrentUserService currentUser,
-    ILoyaltyService loyalty,
-    IConfiguration configuration) : IPOSEngine
+    ILoyaltyService loyalty) : IPOSEngine
 {
     public async Task<POSPostResult> Post(POSPostRequest r, CancellationToken token)
         => await PostInternal(r, currentUser.TenantId ?? throw new BusinessRuleException("A tenant context is required."), IdempotencyKeyReader.Read(httpContext), token);
 
     public async Task<POSPostResult> PostForTenant(POSPostRequest r, Guid tenantId, string idempotencyKey, CancellationToken token)
     {
-        await using var connection = new SqlConnection(configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable."));
-        await connection.OpenAsync(token);
-        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(token);
         try
         {
-            await using (var context = new SqlCommand("EXEC sys.sp_set_session_context @key=N'TenantId',@value=@tenant;", connection, transaction))
-            { context.Parameters.AddWithValue("@tenant", tenantId); await context.ExecuteNonQueryAsync(token); }
-            await using var command = Command(connection, transaction, "sales.POS_PostInvoice", [
-                ("@TenantId", tenantId), ("@CounterId", r.CounterId), ("@ShiftId", r.ShiftId), ("@CustomerId", r.CustomerId), ("@WarehouseId", r.WarehouseId),
-                ("@SalesPersonId", r.SalesPersonId), ("@ItemsJson", r.ItemsJson), ("@PaymentsJson", r.PaymentsJson), ("@BillDiscount", r.BillDiscount), ("@RoundOff", r.RoundOff),
-                ("@Remarks", r.Remarks), ("@Status", r.Status), ("@InterState", r.InterState), ("@DiscountAuthorizedBy", r.DiscountAuthorizedBy), ("@CreatedBy", r.User)]);
-            await using var reader = await command.ExecuteReaderAsync(token);
-            if (!await reader.ReadAsync(token)) throw new InvalidOperationException("Invoice post returned no result.");
-            var result = new POSPostResult(reader.GetGuid(reader.GetOrdinal("InvoiceId")), reader.GetString(reader.GetOrdinal("InvoiceNumber")), reader.GetDecimal(reader.GetOrdinal("GrandTotal")), reader.GetDecimal(reader.GetOrdinal("PaidAmount")), reader.GetString(reader.GetOrdinal("Status")));
-            await reader.CloseAsync();
-            if (r.TenantId.HasValue && !string.IsNullOrWhiteSpace(r.SourceChannel))
-            {
-                await using var source = new SqlCommand("INSERT integration.WhatsAppCommerceOrders(WhatsAppCommerceOrderId,TenantId,InvoiceId,SourceChannel,ProviderMode,LastNotifiedErpStatus,LastNotifiedOn,CreatedBy) VALUES(NEWID(),@tenant,@invoice,@channel,N'LIVE',@status,SYSUTCDATETIME(),@user);", connection, transaction);
-                source.Parameters.AddWithValue("@tenant", tenantId); source.Parameters.AddWithValue("@invoice", result.InvoiceId); source.Parameters.AddWithValue("@channel", r.SourceChannel); source.Parameters.AddWithValue("@status", result.Status); source.Parameters.AddWithValue("@user", r.User ?? (object)DBNull.Value); await source.ExecuteNonQueryAsync(token);
-            }
-            await transaction.CommitAsync(token); return result;
+            return await idempotency.ExecuteForTenant(idempotencyKey, "POS_SALE", r, r.User, tenantId,
+                async (connection, transaction, ct) =>
+                {
+                    await using var command = Command(connection, transaction, "sales.POS_PostInvoice", [
+                        ("@TenantId", tenantId), ("@CounterId", r.CounterId), ("@ShiftId", r.ShiftId), ("@CustomerId", r.CustomerId), ("@WarehouseId", r.WarehouseId),
+                        ("@SalesPersonId", r.SalesPersonId), ("@ItemsJson", r.ItemsJson), ("@PaymentsJson", r.PaymentsJson), ("@BillDiscount", r.BillDiscount), ("@RoundOff", r.RoundOff),
+                        ("@Remarks", r.Remarks), ("@Status", r.Status), ("@InterState", r.InterState), ("@DiscountAuthorizedBy", r.DiscountAuthorizedBy), ("@CreatedBy", r.User)]);
+                    POSPostResult result;
+                    await using (var reader = await command.ExecuteReaderAsync(ct))
+                    {
+                        if (!await reader.ReadAsync(ct)) throw new InvalidOperationException("Invoice post returned no result.");
+                        result = new(reader.GetGuid(reader.GetOrdinal("InvoiceId")), reader.GetString(reader.GetOrdinal("InvoiceNumber")), reader.GetDecimal(reader.GetOrdinal("GrandTotal")), reader.GetDecimal(reader.GetOrdinal("PaidAmount")), reader.GetString(reader.GetOrdinal("Status")));
+                    }
+                    if (r.TenantId.HasValue && !string.IsNullOrWhiteSpace(r.SourceChannel))
+                    {
+                        await using var source = new SqlCommand("INSERT integration.WhatsAppCommerceOrders(WhatsAppCommerceOrderId,TenantId,InvoiceId,SourceChannel,ProviderMode,LastNotifiedErpStatus,LastNotifiedOn,CreatedBy) VALUES(NEWID(),@tenant,@invoice,@channel,N'LIVE',@status,SYSUTCDATETIME(),@user);", connection, transaction);
+                        source.Parameters.AddWithValue("@tenant", tenantId); source.Parameters.AddWithValue("@invoice", result.InvoiceId); source.Parameters.AddWithValue("@channel", r.SourceChannel); source.Parameters.AddWithValue("@status", result.Status); source.Parameters.AddWithValue("@user", r.User ?? (object)DBNull.Value); await source.ExecuteNonQueryAsync(ct);
+                    }
+                    return result;
+                }, token);
         }
-        catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
+        catch (SqlException ex) when (ex.Number >= 51100) { throw new BusinessRuleException(ex.Message); }
     }
 
 

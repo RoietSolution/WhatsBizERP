@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using WhatsBiz.Application.Features.Storefront;
 
 namespace WhatsBiz.Api.Controllers;
@@ -7,7 +8,7 @@ namespace WhatsBiz.Api.Controllers;
 [ApiController]
 [AllowAnonymous]
 [Route("api/store/{storeKey}")]
-public sealed class StoreController(IStorefrontService storefront) : ControllerBase
+public sealed class StoreController(IStorefrontService storefront, IStorefrontCheckoutService checkout) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<StorefrontStoreDto>> GetStore(string storeKey, CancellationToken token)
@@ -43,5 +44,16 @@ public sealed class StoreController(IStorefrontService storefront) : ControllerB
     {
         var image = await storefront.GetProductImageAsync(storeKey, productId, token);
         return image is null ? NotFound() : File(image.Content, image.ContentType);
+    }
+
+    [HttpPost("checkout/razorpay")]
+    [EnableRateLimiting("StorefrontCheckout")]
+    public async Task<ActionResult<StorefrontCheckoutResult>> Checkout(
+        string storeKey, StorefrontCheckoutInput input, CancellationToken token)
+    {
+        var idempotencyKey = Request.Headers["Idempotency-Key"].ToString();
+        if (!Guid.TryParse(idempotencyKey, out var parsed) || parsed == Guid.Empty)
+            return BadRequest(new { message = "A valid Idempotency-Key header is required." });
+        return Ok(await checkout.CheckoutAsync(storeKey, input, parsed.ToString("D"), token));
     }
 }

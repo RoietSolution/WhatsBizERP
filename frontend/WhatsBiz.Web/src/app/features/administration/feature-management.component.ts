@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { FeatureAccessState, FeatureService, FeatureTenantSummary, TenantEnrollmentResult, TenantFeatureConfiguration } from '../../core/services/feature.service';
+import { FeatureAccessState, FeatureService, FeatureTenantSummary, TenantCapacitySummary, TenantEnrollmentResult, TenantFeatureConfiguration } from '../../core/services/feature.service';
 
 @Component({
   selector: 'app-feature-management',
@@ -18,6 +18,8 @@ export class FeatureManagementComponent implements OnInit {
   private readonly api = inject(FeatureService);
   readonly tenants = signal<FeatureTenantSummary[]>([]);
   readonly configuration = signal<TenantFeatureConfiguration | null>(null);
+  readonly capacity = signal<TenantCapacitySummary | null>(null);
+  userLimit: number | null = null; branchLimit: number | null = null; usersUnlimited = false; branchesUnlimited = false;
   readonly selectedTenantId = signal('');
   readonly loading = signal(false); readonly saving = signal(false); readonly importing = signal(false); readonly message = signal(''); readonly error = signal('');
   private original = new Map<string, boolean>();
@@ -29,6 +31,7 @@ export class FeatureManagementComponent implements OnInit {
   select(tenantId: string): void {
     this.selectedTenantId.set(tenantId); this.loading.set(true); this.error.set(''); this.message.set('');
     this.api.tenant(tenantId).subscribe({ next: x => { this.configuration.set(x); this.original = new Map(x.features.map(f => [f.featureKey, f.configuredEnabled])); this.loading.set(false); }, error: () => { this.error.set('Unable to load tenant feature configuration.'); this.loading.set(false); } });
+    this.api.capacity(tenantId).subscribe({next:x=>{this.capacity.set(x);this.userLimit=x.users.limit??null;this.branchLimit=x.branches.limit??null;this.usersUnlimited=x.users.unlimited||!x.users.configured;this.branchesUnlimited=x.branches.unlimited||!x.branches.configured;},error:()=>this.error.set('Unable to load tenant capacity.')});
   }
   children(version: FeatureAccessState): FeatureAccessState[] { return (this.configuration()?.features ?? []).filter(x => x.parentFeatureKey === version.featureKey); }
   save(): void {
@@ -37,6 +40,12 @@ export class FeatureManagementComponent implements OnInit {
     if (!updates.length) { this.message.set('No configuration changes to save.'); return; }
     this.saving.set(true); this.error.set(''); this.message.set('');
     this.api.update(config.tenantId, updates).subscribe({ next: x => { this.configuration.set(x); this.original = new Map(x.features.map(f => [f.featureKey, f.configuredEnabled])); this.message.set('Feature configuration saved. Effective access has been refreshed.'); this.saving.set(false); }, error: e => { this.error.set(e?.error?.detail ?? 'Feature configuration could not be saved.'); this.saving.set(false); } });
+  }
+  saveCapacity(): void {
+    if ((!this.usersUnlimited && (!this.userLimit || this.userLimit < 1)) || (!this.branchesUnlimited && (!this.branchLimit || this.branchLimit < 1))) { this.error.set('Finite limits must be at least 1.'); return; }
+    this.saving.set(true);this.error.set('');this.message.set('');
+    this.api.updateCapacity(this.selectedTenantId(),{configured:true,unlimited:this.usersUnlimited,limit:this.usersUnlimited?undefined:this.userLimit!},{configured:true,unlimited:this.branchesUnlimited,limit:this.branchesUnlimited?undefined:this.branchLimit!})
+      .subscribe({next:x=>{this.capacity.set(x);this.saving.set(false);this.message.set('Tenant capacity saved.');},error:e=>{this.saving.set(false);this.error.set(e?.error?.detail??'Capacity could not be saved.');}});
   }
   downloadEnrollmentTemplate(): void {
     this.error.set('');

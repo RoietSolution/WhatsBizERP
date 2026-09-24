@@ -36,6 +36,38 @@ public sealed record WhatsAppCommerceSendRequest(string ApiVersion, string Phone
     bool UseNativeProducts);
 public sealed record WhatsAppCommerceSendResult(bool Succeeded, string? ProviderMessageId,
     DateTimeOffset AttemptedAt, bool NativeUsed, int ProductsSent, string Recipient, string? SafeMessage);
+public static class WhatsAppCommerceMessageKinds
+{
+    public const string Text = "TEXT";
+    public const string InteractiveMenu = "INTERACTIVE_MENU";
+    public const string InteractiveButtons = "INTERACTIVE_BUTTONS";
+    public const string Product = "PRODUCT";
+    public const string ProductList = "PRODUCT_LIST";
+}
+public static class WhatsAppCommerceActionIds
+{
+    public const string Browse = "commerce_browse";
+    public const string Search = "commerce_search";
+    public const string Cart = "commerce_cart";
+    public const string Orders = "commerce_orders";
+    public const string ContinueShopping = "commerce_continue";
+    public const string Checkout = "commerce_checkout";
+    public const string PayRazorpay = "commerce_pay_razorpay";
+    public const string PayUpi = "commerce_pay_upi";
+    public const string PayCod = "commerce_pay_cod";
+    public static readonly IReadOnlySet<string> Supported = new HashSet<string>(StringComparer.Ordinal)
+    { Browse, Search, Cart, Orders, ContinueShopping, Checkout, PayRazorpay, PayUpi, PayCod };
+}
+public sealed record WhatsAppCommerceAction(string Id, string Title, string? Description = null);
+public sealed record WhatsAppCommerceOutboundMessage(string Kind, string Body, string? Header = null,
+    IReadOnlyCollection<WhatsAppCommerceAction>? Actions = null,
+    IReadOnlyCollection<WhatsAppCommerceProductMessage>? Products = null,
+    string? FallbackText = null);
+public sealed record WhatsAppCommerceOutboundRequest(string ApiVersion, string PhoneNumberId, string AccessToken,
+    string RecipientNumber, WhatsAppCommerceOutboundMessage Message);
+public sealed record WhatsAppCommerceInboundProduct(string ProductRetailerId, decimal Quantity);
+public sealed record WhatsAppCommerceInboundMessage(string? Text, string? ActionId, string? CatalogId,
+    IReadOnlyCollection<WhatsAppCommerceInboundProduct> Products);
 public sealed record WhatsAppTransactionalMessageRequest(string ApiVersion,string PhoneNumberId,string AccessToken,string RecipientNumber,string TemplateKey,string? ApprovedTemplateName,string LanguageCode,string Message,IReadOnlyCollection<string> Parameters);
 public sealed record WhatsAppTransactionalMessageResult(bool Succeeded,string? ProviderMessageId,DateTimeOffset AttemptedAt,string? SafeMessage);
 public sealed record SendCollectionInput(Guid CustomerId);
@@ -97,6 +129,9 @@ public interface IWhatsAppCommerceProvider
             new("UNAVAILABLE", "UNAVAILABLE"), "PROVIDER_NOT_SUPPORTED", []));
     Task<WhatsAppProviderTestMessageResult> SendTestMessageAsync(WhatsAppProviderTestMessageRequest request, CancellationToken token);
     Task<WhatsAppCommerceSendResult> SendProductCollectionAsync(WhatsAppCommerceSendRequest request, CancellationToken token);
+    Task<WhatsAppTransactionalMessageResult> SendCommerceAsync(WhatsAppCommerceOutboundRequest request, CancellationToken token) =>
+        SendTransactionalAsync(new(request.ApiVersion, request.PhoneNumberId, request.AccessToken, request.RecipientNumber,
+            "INBOUND_COMMERCE", null, "en_US", request.Message.FallbackText ?? request.Message.Body, []), token);
     Task<WhatsAppTransactionalMessageResult> SendTransactionalAsync(WhatsAppTransactionalMessageRequest request,CancellationToken token) => Task.FromResult(new WhatsAppTransactionalMessageResult(false,null,DateTimeOffset.UtcNow,"Transactional messaging is not supported by this provider."));
 }
 public interface IWhatsAppCommerceProviderResolver { IWhatsAppCommerceProvider Resolve(string mode); }
@@ -116,5 +151,6 @@ public interface IWhatsAppCommerceService
 }
 public interface IWhatsAppInboundCommerceHandler
 {
-    Task HandleAsync(Guid tenantId, string providerMode, string phoneNumberId, string sender, string messageId, string text, CancellationToken token);
+    Task HandleAsync(Guid tenantId, string providerMode, string phoneNumberId, string sender, string messageId,
+        WhatsAppCommerceInboundMessage message, CancellationToken token);
 }

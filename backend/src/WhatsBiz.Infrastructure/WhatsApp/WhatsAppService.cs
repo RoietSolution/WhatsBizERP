@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -254,106 +255,171 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
         return challenge;
     }
 
-    public async Task<bool> ReceiveWebhookAsync(string? signature, ReadOnlyMemory<byte> body, CancellationToken token)
+    public async Task<WhatsAppWebhookReceiveResult> ReceiveWebhookAsync(string? signature, ReadOnlyMemory<byte> body, CancellationToken token)
     {
+        var started = Stopwatch.GetTimestamp();
         var signaturePresent = !string.IsNullOrWhiteSpace(signature);
         WhatsAppLogs.WebhookPostReceived(logger, signaturePresent);
-        IReadOnlyCollection<WebhookEnvelope> envelopes;
-        try
+
+        WhatsAppWebhookReceiveResult Finish(WhatsAppWebhookReceiveResult result, string reason)
         {
-            envelopes=ParseWebhook(body);
+            var status = result switch
+            {
+                WhatsAppWebhookReceiveResult.Acknowledged => 200,
+                WhatsAppWebhookReceiveResult.InvalidPayload => 400,
+                WhatsAppWebhookReceiveResult.PersistenceFailure => 500,
+                _ => 401
+            };
+            WhatsAppLogs.WebhookPostOutcome(logger, result == WhatsAppWebhookReceiveResult.Acknowledged, reason);
+            WhatsAppLogs.WebhookPostAcknowledged(logger, status, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            return result;
         }
-        catch (JsonException)
+
+        PlatformRow? platform;
+        try { platform = await ReadPlatform(token); }
+        catch (Exception exception) when (exception is SqlException or InvalidOperationException)
         {
-            WhatsAppLogs.WebhookPostOutcome(logger, false, "INVALID_PAYLOAD");
-            return false;
+            WhatsAppLogs.WebhookPostFailure(logger, "PLATFORM_CONFIGURATION_READ_FAILED", exception.GetType().Name);
+            return Finish(WhatsAppWebhookReceiveResult.PersistenceFailure, "PLATFORM_CONFIGURATION_READ_FAILED");
         }
-        if(envelopes.Count==0)
-        {
-            WhatsAppLogs.WebhookPostOutcome(logger, false, "NO_WHATSAPP_ENVELOPE");
-            return false;
-        }
-        var platform=await ReadPlatform(token);var sharedSignatureValid=false;
-        if(platform?.IsEnabled==true)
+
+        var sharedSignatureValid = false;
+        if (platform?.IsEnabled == true)
         {
             WhatsAppLogs.WebhookPostConfiguration(logger, "SHARED_PLATFORM", true);
-            var sharedSecret=UnprotectOrNull(platform.AppSecretProtected);
-            var decrypted=!string.IsNullOrWhiteSpace(sharedSecret);
-            sharedSignatureValid=decrypted&&ValidSignature(signature,body.Span,sharedSecret!);
+            var sharedSecret = UnprotectOrNull(platform.AppSecretProtected);
+            var decrypted = !string.IsNullOrWhiteSpace(sharedSecret);
+            sharedSignatureValid = decrypted && ValidSignature(signature, body.Span, sharedSecret!);
             WhatsAppLogs.WebhookPostSignature(logger, "SHARED_PLATFORM", decrypted, sharedSignatureValid);
-            if(!sharedSignatureValid)
-            {
-                WhatsAppLogs.WebhookPostOutcome(logger, false, signaturePresent ? "INVALID_SIGNATURE" : "MISSING_SIGNATURE");
-                return false;
-            }
+            if (!sharedSignatureValid)
+                return Finish(WhatsAppWebhookReceiveResult.InvalidSignature,
+                    signaturePresent ? "INVALID_SIGNATURE" : "MISSING_SIGNATURE");
         }
-        foreach(var envelope in envelopes)
+
+        IReadOnlyCollection<WebhookEnvelope> envelopes;
+        try { envelopes = ParseWebhook(body); }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException or ArgumentOutOfRangeException)
         {
-            // Meta can deliver valid account/status/coexistence changes that do not
-            // contain a customer message (and therefore have no phone_number_id).
-            // They are acknowledged after the request signature has been checked,
-            // but must never be routed to a tenant or commerce handler.
+            WhatsAppLogs.WebhookPostPayloadRejected(logger, exception.GetType().Name);
+            return Finish(sharedSignatureValid ? WhatsAppWebhookReceiveResult.InvalidPayload : WhatsAppWebhookReceiveResult.InvalidSignature,
+                "INVALID_PAYLOAD");
+        }
+
+        if (envelopes.Count == 0)
+            return sharedSignatureValid
+                ? Finish(WhatsAppWebhookReceiveResult.Acknowledged, "IGNORED_UNSUPPORTED_ENVELOPE")
+                : Finish(WhatsAppWebhookReceiveResult.InvalidSignature, "CONFIGURATION_NOT_RESOLVED");
+
+        using var processingCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+        processingCts.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(
+            configuration.GetValue<int?>("WhatsApp:Webhook:DownstreamTimeoutSeconds") ?? 8, 1, 15)));
+        var processingToken = processingCts.Token;
+
+        foreach (var envelope in envelopes)
+        {
+            WhatsAppLogs.WebhookPostEnvelope(logger, envelope.ChangeType, MaskIdentifier(envelope.PhoneNumberId), envelope.Events.Count);
             if (envelope.Events.Count == 0 && string.IsNullOrWhiteSpace(envelope.PhoneNumberId))
             {
                 if (!sharedSignatureValid)
-                {
-                    WhatsAppLogs.WebhookPostOutcome(logger, false, "CONFIGURATION_NOT_RESOLVED");
-                    return false;
-                }
+                    return Finish(WhatsAppWebhookReceiveResult.InvalidSignature, "CONFIGURATION_NOT_RESOLVED");
+                WhatsAppLogs.WebhookPostIgnored(logger, envelope.ChangeType, "NON_ACTIONABLE_CHANGE");
                 continue;
             }
+
             if (string.IsNullOrWhiteSpace(envelope.PhoneNumberId))
+                return Finish(WhatsAppWebhookReceiveResult.InvalidPayload, "ACTIONABLE_PHONE_ID_MISSING");
+
+            ConfigRow? row;
+            try { row = await ReadByPhone(envelope.PhoneNumberId, token); }
+            catch (Exception exception) when (exception is SqlException or InvalidOperationException)
             {
-                WhatsAppLogs.WebhookPostOutcome(logger, false, "INVALID_PAYLOAD");
-                return false;
+                WhatsAppLogs.WebhookPostFailure(logger, "TENANT_CONFIGURATION_READ_FAILED", exception.GetType().Name);
+                return Finish(WhatsAppWebhookReceiveResult.PersistenceFailure, "TENANT_CONFIGURATION_READ_FAILED");
             }
-            var row=await ReadByPhone(envelope.PhoneNumberId,token);
-            var configurationResolved=row is not null&&row.ProviderMode!=WhatsAppProviderModes.Mock&&row.IsEnabled
-                &&string.Equals(row.WabaId,envelope.WabaId,StringComparison.Ordinal);
+            var configurationResolved = row is not null && row.ProviderMode != WhatsAppProviderModes.Mock && row.IsEnabled
+                && string.Equals(row.WabaId, envelope.WabaId, StringComparison.Ordinal);
             WhatsAppLogs.WebhookPostConfiguration(logger, "TENANT_WABA_PHONE", configurationResolved);
-            if(!configurationResolved)
+            if (!configurationResolved)
             {
-                WhatsAppLogs.WebhookPostOutcome(logger, false, "CONFIGURATION_NOT_RESOLVED");
-                return false;
-            }
-            if(!sharedSignatureValid)
-            {
-                var tenantSecret=UnprotectOrNull(row!.AppSecretProtected);
-                var decrypted=!string.IsNullOrWhiteSpace(tenantSecret);
-                var signatureValid=decrypted&&ValidSignature(signature,body.Span,tenantSecret!);
-                WhatsAppLogs.WebhookPostSignature(logger, "TENANT_CONFIGURATION", decrypted, signatureValid);
-                if(!signatureValid)
-                {
-                    WhatsAppLogs.WebhookPostOutcome(logger, false, signaturePresent ? "INVALID_SIGNATURE" : "MISSING_SIGNATURE");
-                    return false;
-                }
-            }
-            if(!await features.IsEnabledAsync(row!.TenantId,WhatsBiz.Application.Common.Features.FeatureKeys.WhatsAppCommerce,token))
-            {
-                WhatsAppLogs.WebhookPostProcessingSkipped(logger, row.TenantId, "FEATURE_DISABLED");
+                WhatsAppLogs.WebhookPostConfigurationNotResolved(logger, MaskIdentifier(envelope.PhoneNumberId), MaskIdentifier(envelope.WabaId));
+                if (!sharedSignatureValid)
+                    return Finish(WhatsAppWebhookReceiveResult.InvalidSignature, "CONFIGURATION_NOT_RESOLVED");
                 continue;
             }
-            foreach(var item in envelope.Events)
+
+            if (!sharedSignatureValid)
             {
-                var inserted=await StoreEvent(row.TenantId,row.ProviderMode,item.EventKey,item.EventType,item.Direction,envelope.PhoneNumberId,item.ContactNumber,item.Status,item.EventTimestamp,token,item.MetaMessageId,item.MessageType,item.PricingCategory,item.MetaBillable,item.PricingModel);
-                WhatsAppLogs.TransportProcessed(logger,row.ProviderMode,row.TenantId,item.EventType,item.MetaMessageId,item.Direction,inserted?"RECORDED":"DUPLICATE");
-                await MarkWebhookReceived(row.TenantId,item,!inserted,token);
-                if(item.EventType=="MESSAGE_STATUS"&&usageBilling is not null)
-                    await usageBilling.ApplyStatusAsync(new(row.TenantId,row.ProviderMode,envelope.PhoneNumberId,
-                        item.MetaMessageId,item.ContactNumber,item.Status??"UNKNOWN",item.EventTimestamp,
-                        item.PricingCategory,item.MetaBillable,item.PricingModel),token);
-                if(inserted&&item.Direction=="INBOUND"&&item.ContactNumber is not null)
+                if (row!.ProviderMode.Equals(WhatsAppProviderModes.Live, StringComparison.OrdinalIgnoreCase))
                 {
-                    await UpsertContact(row.TenantId,item,token);
-                    if(item.MessageText is not null)await TryCaptureReferralMessage(row.TenantId,item.ContactNumber,item.MessageText,token);
-                    if (inboundCommerce is not null && item.MessageText is not null && row.ProviderMode.Equals(WhatsAppProviderModes.Live, StringComparison.OrdinalIgnoreCase))
-                        await inboundCommerce.HandleAsync(row.TenantId, row.ProviderMode, envelope.PhoneNumberId, item.ContactNumber, item.MetaMessageId, item.MessageText, token);
+                    WhatsAppLogs.WebhookPostConfiguration(logger, "SHARED_PLATFORM_REQUIRED_FOR_LIVE", false);
+                    return Finish(WhatsAppWebhookReceiveResult.InvalidSignature, "APP_AUTHENTICATION_CONFIGURATION_NOT_RESOLVED");
+                }
+                var tenantSecret = UnprotectOrNull(row!.AppSecretProtected);
+                var decrypted = !string.IsNullOrWhiteSpace(tenantSecret);
+                var signatureValid = decrypted && ValidSignature(signature, body.Span, tenantSecret!);
+                WhatsAppLogs.WebhookPostSignature(logger, "TENANT_CONFIGURATION", decrypted, signatureValid);
+                if (!signatureValid)
+                    return Finish(WhatsAppWebhookReceiveResult.InvalidSignature,
+                        signaturePresent ? "INVALID_SIGNATURE" : "MISSING_SIGNATURE");
+            }
+
+            foreach (var item in envelope.Events)
+            {
+                bool inserted;
+                try
+                {
+                    inserted = await StoreEvent(row!.TenantId, row.ProviderMode, item.EventKey, item.EventType, item.Direction,
+                        envelope.PhoneNumberId, item.ContactNumber, item.Status, item.EventTimestamp, token, item.MetaMessageId,
+                        item.MessageType, item.PricingCategory, item.MetaBillable, item.PricingModel);
+                }
+                catch (Exception exception) when (exception is SqlException or InvalidOperationException)
+                {
+                    WhatsAppLogs.WebhookPostFailure(logger, "DURABLE_ACCEPTANCE_FAILED", exception.GetType().Name);
+                    return Finish(WhatsAppWebhookReceiveResult.PersistenceFailure, "DURABLE_ACCEPTANCE_FAILED");
+                }
+                WhatsAppLogs.TransportProcessed(logger, row!.ProviderMode, row.TenantId, item.EventType, item.MetaMessageId,
+                    item.Direction, inserted ? "RECORDED" : "DUPLICATE");
+                try { await MarkWebhookReceived(row.TenantId, item, !inserted, token); }
+                catch (Exception exception) when (exception is SqlException or InvalidOperationException)
+                { WhatsAppLogs.WebhookPostFailure(logger, "DIAGNOSTICS_UPDATE_FAILED", exception.GetType().Name); }
+                if (!inserted) continue;
+
+                try
+                {
+                    if (!await features.IsEnabledAsync(row.TenantId,
+                        WhatsBiz.Application.Common.Features.FeatureKeys.WhatsAppCommerce, processingToken))
+                    {
+                        WhatsAppLogs.WebhookPostProcessingSkipped(logger, row.TenantId, "FEATURE_DISABLED");
+                        await SetEventProcessingStatus(row.TenantId, item.EventKey, "IGNORED", processingToken);
+                        continue;
+                    }
+                    if (item.EventType == "MESSAGE_STATUS" && usageBilling is not null)
+                        await usageBilling.ApplyStatusAsync(new(row.TenantId, row.ProviderMode, envelope.PhoneNumberId,
+                            item.MetaMessageId, item.ContactNumber, item.Status ?? "UNKNOWN", item.EventTimestamp,
+                            item.PricingCategory, item.MetaBillable, item.PricingModel), processingToken);
+                    if (item.Direction == "INBOUND" && item.ContactNumber is not null)
+                    {
+                        await UpsertContact(row.TenantId, item, processingToken);
+                        if (item.MessageText is not null)
+                            await TryCaptureReferralMessage(row.TenantId, item.ContactNumber, item.MessageText, processingToken);
+                        if (inboundCommerce is not null && row.ProviderMode.Equals(WhatsAppProviderModes.Live, StringComparison.OrdinalIgnoreCase)
+                            && (item.MessageText is not null || item.InteractiveActionId is not null || item.Products.Count > 0))
+                            await inboundCommerce.HandleAsync(row.TenantId, row.ProviderMode, envelope.PhoneNumberId, item.ContactNumber,
+                                item.MetaMessageId, new(item.MessageText, item.InteractiveActionId, item.CatalogId, item.Products), processingToken);
+                    }
+                    await SetEventProcessingStatus(row.TenantId, item.EventKey, "PROCESSED", processingToken);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException || !token.IsCancellationRequested)
+                {
+                    WhatsAppLogs.WebhookPostFailure(logger, "DOWNSTREAM_PROCESSING_FAILED", exception.GetType().Name);
+                    try { await SetEventProcessingStatus(row.TenantId, item.EventKey, "FAILED", CancellationToken.None); }
+                    catch (Exception statusException) { WhatsAppLogs.WebhookPostFailure(logger, "PROCESSING_STATUS_UPDATE_FAILED", statusException.GetType().Name); }
                 }
             }
-            WhatsAppLogs.WebhookReceived(logger,row.TenantId,envelope.PhoneNumberId,string.Join(',',envelope.Events.Select(x=>x.EventType).Distinct(StringComparer.Ordinal)));
+            WhatsAppLogs.WebhookReceived(logger, row!.TenantId, MaskIdentifier(envelope.PhoneNumberId),
+                string.Join(',', envelope.Events.Select(x => x.EventType).Distinct(StringComparer.Ordinal)));
         }
-        WhatsAppLogs.WebhookPostOutcome(logger, true, "ACCEPTED");
-        return true;
+        return Finish(WhatsAppWebhookReceiveResult.Acknowledged, "ACCEPTED");
     }
 
     public async Task<PagedWhatsAppContacts> GetContactsAsync(Guid tenantId,string? search,string? status,int pageNumber,int pageSize,CancellationToken token)
@@ -429,7 +495,7 @@ END
                   MetaMessageId,EventType,Direction,PhoneNumberId,ContactNumber,MessageType,MessageStatus,PricingCategory,MetaBillable,MetaPricingModel,
                   EventTimestamp,ProcessingStatus,ReceivedOn)
                 VALUES(NEWID(),@tenant,@provider,@key,@message,@type,@direction,@phone,@contact,@messageType,@status,@pricingCategory,@billable,@pricingModel,
-                  @timestamp,'PROCESSED',SYSUTCDATETIME());
+                  @timestamp,'ACCEPTED',SYSUTCDATETIME());
                 """, connection);
             command.Parameters.AddWithValue("@tenant", tenantId); command.Parameters.AddWithValue("@key", eventKey);
             command.Parameters.AddWithValue("@provider",providerMode);
@@ -458,13 +524,58 @@ END
         }
     }
 
-    private static string? String(JsonElement element, string name) => element.TryGetProperty(name, out var value) ? value.GetString() : null;
+    private async Task SetEventProcessingStatus(Guid tenantId, string eventKey, string status, CancellationToken token)
+    {
+        await using var connection = new SqlConnection(ConnectionString);
+        await connection.OpenAsync(token);
+        await using var command = new SqlCommand(
+            "UPDATE integration.WhatsAppWebhookEvents SET ProcessingStatus=@status WHERE TenantId=@tenant AND EventKey=@key;", connection);
+        command.Parameters.AddWithValue("@tenant", tenantId);
+        command.Parameters.AddWithValue("@key", eventKey);
+        command.Parameters.AddWithValue("@status", status);
+        await command.ExecuteNonQueryAsync(token);
+    }
+
+    private static string? String(JsonElement element, string name) => element.TryGetProperty(name, out var value)
+        && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+    private static string? InteractiveAction(JsonElement message)
+    {
+        string? action = null;
+        if (message.TryGetProperty("interactive", out var interactive) && interactive.ValueKind == JsonValueKind.Object)
+        {
+            if (interactive.TryGetProperty("button_reply", out var button) && button.ValueKind == JsonValueKind.Object) action = String(button, "id");
+            else if (interactive.TryGetProperty("list_reply", out var list) && list.ValueKind == JsonValueKind.Object) action = String(list, "id");
+        }
+        else if (message.TryGetProperty("button", out var legacyButton) && legacyButton.ValueKind == JsonValueKind.Object)
+            action = String(legacyButton, "payload");
+        return action is not null && WhatsAppCommerceActionIds.Supported.Contains(action) ? action : null;
+    }
+    private static (string? CatalogId, IReadOnlyCollection<WhatsAppCommerceInboundProduct> Products) CommerceProducts(JsonElement message)
+    {
+        if (!message.TryGetProperty("order", out var order) || order.ValueKind != JsonValueKind.Object)
+            return (null, Array.Empty<WhatsAppCommerceInboundProduct>());
+        var catalog = String(order, "catalog_id");
+        if (string.IsNullOrWhiteSpace(catalog) || !order.TryGetProperty("product_items", out var items) || items.ValueKind != JsonValueKind.Array)
+            return (null, Array.Empty<WhatsAppCommerceInboundProduct>());
+        var products = new List<WhatsAppCommerceInboundProduct>();
+        foreach (var item in items.EnumerateArray())
+        {
+            var external = String(item, "product_retailer_id");
+            if (string.IsNullOrWhiteSpace(external) || !item.TryGetProperty("quantity", out var quantity)
+                || quantity.ValueKind != JsonValueKind.Number || !quantity.TryGetDecimal(out var value) || value <= 0)
+                return (null, Array.Empty<WhatsAppCommerceInboundProduct>());
+            products.Add(new(external, value));
+        }
+        return products.Count == 0 ? (null, Array.Empty<WhatsAppCommerceInboundProduct>()) : (catalog, products);
+    }
     private static DateTimeOffset Timestamp(JsonElement element) => element.TryGetProperty("timestamp", out var value)
-        && long.TryParse(value.GetString(), out var seconds) ? DateTimeOffset.FromUnixTimeSeconds(seconds) : DateTimeOffset.UtcNow;
+        && value.ValueKind == JsonValueKind.String && long.TryParse(value.GetString(), out var seconds)
+        && seconds is >= 0 and <= 253402300799 ? DateTimeOffset.FromUnixTimeSeconds(seconds) : DateTimeOffset.UtcNow;
 
     internal static IReadOnlyCollection<WebhookEnvelope> ParseWebhook(ReadOnlyMemory<byte> body)
     {
         using var document=JsonDocument.Parse(body);var root=document.RootElement;var result=new List<WebhookEnvelope>();
+        if(root.ValueKind!=JsonValueKind.Object)throw new JsonException("Webhook root must be an object.");
         if(!root.TryGetProperty("object",out var objectNode)||objectNode.GetString()!="whatsapp_business_account")return result;
         if(!root.TryGetProperty("entry",out var entries)||entries.ValueKind!=JsonValueKind.Array)return result;
         foreach(var entry in entries.EnumerateArray())
@@ -476,7 +587,8 @@ END
                 // A change without a value is malformed; leave it out of the
                 // parsed envelope so the request is rejected unless another
                 // well-formed change in the payload can be processed.
-                if(!change.TryGetProperty("value",out var value))continue;
+                if(change.ValueKind!=JsonValueKind.Object||!change.TryGetProperty("value",out var value)||value.ValueKind!=JsonValueKind.Object)continue;
+                var changeType=String(change,"field")??"UNKNOWN";
                 var phoneNumberId=value.TryGetProperty("metadata",out var metadata)?String(metadata,"phone_number_id"):null;
                 var hasMessages=value.TryGetProperty("messages",out var messagesNode)
                     && messagesNode.ValueKind==JsonValueKind.Array && messagesNode.GetArrayLength()>0;
@@ -488,10 +600,18 @@ END
                 if(value.TryGetProperty("contacts",out var contacts)&&contacts.ValueKind==JsonValueKind.Array)foreach(var contact in contacts.EnumerateArray())
                 {var waId=String(contact,"wa_id");var name=contact.TryGetProperty("profile",out var profile)?String(profile,"name"):null;if(!string.IsNullOrWhiteSpace(waId)&&!string.IsNullOrWhiteSpace(name))profiles[waId]=name;}
                 if(value.TryGetProperty("messages",out var messages)&&messages.ValueKind==JsonValueKind.Array)foreach(var message in messages.EnumerateArray())
-                {var id=String(message,"id");var from=String(message,"from");var text=message.TryGetProperty("text",out var textNode)?String(textNode,"body"):null;if(!string.IsNullOrWhiteSpace(id))events.Add(new($"message:{id}",id,"MESSAGE_RECEIVED","INBOUND",from,String(message,"type"),null,Timestamp(message),text,from is not null&&profiles.TryGetValue(from,out var profileName)?profileName:null));}
+                {
+                    if(message.ValueKind!=JsonValueKind.Object)throw new JsonException("Webhook message must be an object.");
+                    var id=String(message,"id");var from=String(message,"from");var messageType=String(message,"type");
+                    if(string.IsNullOrWhiteSpace(id)||string.IsNullOrWhiteSpace(from)||string.IsNullOrWhiteSpace(messageType))
+                        throw new JsonException("Webhook message is missing a required routing or identity field.");
+                    var text=message.TryGetProperty("text",out var textNode)&&textNode.ValueKind==JsonValueKind.Object?String(textNode,"body"):null;
+                    var action=InteractiveAction(message);var (catalogId,productItems)=CommerceProducts(message);
+                    events.Add(new($"message:{id}",id,"MESSAGE_RECEIVED","INBOUND",from,messageType,null,Timestamp(message),text,profiles.TryGetValue(from,out var profileName)?profileName:null,null,null,null,action,catalogId,productItems));
+                }
                 if(value.TryGetProperty("statuses",out var statuses)&&statuses.ValueKind==JsonValueKind.Array)foreach(var status in statuses.EnumerateArray())
-                {var id=String(status,"id");var state=String(status,"status");string? category=null;string? pricingModel=null;bool? billable=null;if(status.TryGetProperty("pricing",out var pricing)&&pricing.ValueKind==JsonValueKind.Object){category=String(pricing,"category");pricingModel=String(pricing,"pricing_model");if(pricing.TryGetProperty("billable",out var billableNode)&&(billableNode.ValueKind==JsonValueKind.True||billableNode.ValueKind==JsonValueKind.False))billable=billableNode.GetBoolean();}if(!string.IsNullOrWhiteSpace(id)&&!string.IsNullOrWhiteSpace(state))events.Add(new($"status:{id}:{state}",id,"MESSAGE_STATUS","OUTBOUND",String(status,"recipient_id"),null,state,Timestamp(status),null,null,category,billable,pricingModel));}
-                result.Add(new(wabaId,phoneNumberId,events));
+                {if(status.ValueKind!=JsonValueKind.Object)throw new JsonException("Webhook status must be an object.");var id=String(status,"id");var state=String(status,"status");if(string.IsNullOrWhiteSpace(id)||string.IsNullOrWhiteSpace(state))throw new JsonException("Webhook status is missing a required identity field.");string? category=null;string? pricingModel=null;bool? billable=null;if(status.TryGetProperty("pricing",out var pricing)&&pricing.ValueKind==JsonValueKind.Object){category=String(pricing,"category");pricingModel=String(pricing,"pricing_model");if(pricing.TryGetProperty("billable",out var billableNode)&&(billableNode.ValueKind==JsonValueKind.True||billableNode.ValueKind==JsonValueKind.False))billable=billableNode.GetBoolean();}events.Add(new($"status:{id}:{state}",id,"MESSAGE_STATUS","OUTBOUND",String(status,"recipient_id"),null,state,Timestamp(status),null,null,category,billable,pricingModel));}
+                result.Add(new(wabaId,phoneNumberId,changeType,events));
             }
         }
         return result;
@@ -611,18 +731,23 @@ END
     [GeneratedRegex("^\\s*REF\\s+([A-Z2-9]{6,20})\\s*$",RegexOptions.IgnoreCase|RegexOptions.CultureInvariant)] private static partial Regex ReferralCommand();
     private sealed record ConfigRow(Guid TenantId, string ProviderMode, string? MetaAppId, string? WabaId, string? PhoneNumberId, string? DisplayPhoneNumber, string? BusinessDisplayName, string? AccessTokenProtected, string? WebhookVerifyTokenProtected, string? AppSecretProtected, string? ApiVersion, string? TestRecipientNumber, bool IsEnabled, string ConnectionStatus, DateTimeOffset? LastValidatedOn, string? LastError, DateTimeOffset? LastWebhookVerifiedOn, DateTimeOffset? LastWebhookReceivedOn, string? LastWebhookEventType, string? LastWebhookMetaMessageId, long DuplicateWebhookCount);
     private sealed record PlatformRow(string MetaAppId,string AppSecretProtected,string WebhookVerifyTokenProtected,bool IsEnabled,DateTimeOffset? ModifiedOn);
-    internal sealed record WebhookEnvelope(string WabaId,string? PhoneNumberId,IReadOnlyCollection<WebhookTransportEvent> Events);
+    internal sealed record WebhookEnvelope(string WabaId,string? PhoneNumberId,string ChangeType,IReadOnlyCollection<WebhookTransportEvent> Events);
     internal sealed record WebhookTransportEvent(string EventKey, string MetaMessageId, string EventType,
         string Direction, string? ContactNumber, string? MessageType, string? Status, DateTimeOffset EventTimestamp, string? MessageText, string? ProfileName,
-        string? PricingCategory = null, bool? MetaBillable = null, string? PricingModel = null);
+        string? PricingCategory = null, bool? MetaBillable = null, string? PricingModel = null,
+        string? InteractiveActionId = null, string? CatalogId = null,
+        IReadOnlyCollection<WhatsAppCommerceInboundProduct>? CommerceProducts = null)
+    {
+        public IReadOnlyCollection<WhatsAppCommerceInboundProduct> Products => CommerceProducts ?? Array.Empty<WhatsAppCommerceInboundProduct>();
+    }
 }
 
 internal static partial class WhatsAppLogs
 {
     [LoggerMessage(2101, LogLevel.Warning, "Meta WhatsApp connection validation failed for tenant {TenantId} with HTTP {StatusCode}.")]
     public static partial void MetaValidationFailed(ILogger logger, Guid tenantId, int statusCode);
-    [LoggerMessage(2102, LogLevel.Information, "WhatsApp webhook received for tenant {TenantId}, phone number ID {PhoneNumberId}, fields {Fields}.")]
-    public static partial void WebhookReceived(ILogger logger, Guid tenantId, string phoneNumberId, string fields);
+    [LoggerMessage(2102, LogLevel.Information, "WhatsApp webhook received for tenant {TenantId}, masked phone number ID {MaskedPhoneNumberId}, fields {Fields}.")]
+    public static partial void WebhookReceived(ILogger logger, Guid tenantId, string maskedPhoneNumberId, string fields);
     [LoggerMessage(2103, LogLevel.Information, "WhatsApp transport {ProviderMode} tenant {TenantId} event {EventType} message {MetaMessageId} direction {Direction} result {Result}.")]
     public static partial void TransportProcessed(ILogger logger, string providerMode, Guid tenantId, string eventType,
         string metaMessageId, string direction, string result);
@@ -646,4 +771,16 @@ internal static partial class WhatsAppLogs
     public static partial void WebhookPostOutcome(ILogger logger, bool accepted, string result);
     [LoggerMessage(2114, LogLevel.Information, "WhatsApp webhook POST processing skipped for tenant {TenantId}; reason: {Reason}.")]
     public static partial void WebhookPostProcessingSkipped(ILogger logger, Guid tenantId, string reason);
+    [LoggerMessage(2115, LogLevel.Information, "WhatsApp webhook POST acknowledged with HTTP {StatusCode} after {DurationMilliseconds} ms.")]
+    public static partial void WebhookPostAcknowledged(ILogger logger, int statusCode, double durationMilliseconds);
+    [LoggerMessage(2116, LogLevel.Information, "WhatsApp webhook envelope change {ChangeType}, masked phone number ID {MaskedPhoneNumberId}, transport events {EventCount}.")]
+    public static partial void WebhookPostEnvelope(ILogger logger, string changeType, string maskedPhoneNumberId, int eventCount);
+    [LoggerMessage(2117, LogLevel.Warning, "WhatsApp webhook configuration was not resolved for masked phone number ID {MaskedPhoneNumberId} and masked WABA ID {MaskedWabaId}; event was not tenant-routed.")]
+    public static partial void WebhookPostConfigurationNotResolved(ILogger logger, string maskedPhoneNumberId, string maskedWabaId);
+    [LoggerMessage(2118, LogLevel.Information, "WhatsApp webhook change {ChangeType} ignored; reason: {Reason}.")]
+    public static partial void WebhookPostIgnored(ILogger logger, string changeType, string reason);
+    [LoggerMessage(2119, LogLevel.Warning, "WhatsApp webhook payload rejected; parser error category: {ErrorCategory}.")]
+    public static partial void WebhookPostPayloadRejected(ILogger logger, string errorCategory);
+    [LoggerMessage(2120, LogLevel.Error, "WhatsApp webhook stage failed; reason: {Reason}; error category: {ErrorCategory}.")]
+    public static partial void WebhookPostFailure(ILogger logger, string reason, string errorCategory);
 }

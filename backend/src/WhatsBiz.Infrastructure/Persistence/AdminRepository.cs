@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Administration;
 namespace WhatsBiz.Infrastructure.Persistence;
-public sealed class AdminRepository(IConfiguration config, ICurrentUserService currentUser) : IAdminRepository
+public sealed partial class AdminRepository(IConfiguration config, ICurrentUserService currentUser) : IAdminRepository
 {
     private Guid Tenant => currentUser.TenantId ?? throw new UnauthorizedAccessException("Tenant context is required for retailer configuration.");
     private SqlConnection Connection() => new(config.GetConnectionString("DefaultConnection"));

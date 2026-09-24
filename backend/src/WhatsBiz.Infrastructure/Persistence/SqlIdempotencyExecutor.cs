@@ -40,6 +40,21 @@ public sealed class SqlIdempotencyExecutor
 
     public async Task<T> Execute<T>(Guid? key, string operation, object request, string? user,
         Func<SqlConnection, SqlTransaction, CancellationToken, Task<T>> action, CancellationToken token)
+        => await ExecuteInternal(key, operation, request, user, currentUser?.TenantId, action, token);
+
+    public async Task<T> ExecuteForTenant<T>(string key, string operation, object request, string? user,
+        Guid trustedTenantId, Func<SqlConnection, SqlTransaction, CancellationToken, Task<T>> action,
+        CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(key)) throw new BusinessRuleException("An idempotency key is required.");
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(key.Trim()));
+        return await ExecuteInternal(new Guid(bytes.AsSpan(0, 16)), operation, request, user,
+            trustedTenantId, action, token);
+    }
+
+    private async Task<T> ExecuteInternal<T>(Guid? key, string operation, object request, string? user,
+        Guid? tenant, Func<SqlConnection, SqlTransaction, CancellationToken, Task<T>> action,
+        CancellationToken token)
     {
         if (!key.HasValue || key == Guid.Empty)
             throw new BusinessRuleException("An idempotency key is required.");
@@ -50,7 +65,6 @@ public sealed class SqlIdempotencyExecutor
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, token);
         try
         {
-            var tenant = currentUser?.TenantId;
             if (!tenant.HasValue || tenant.Value == Guid.Empty)
                 throw new WhatsBiz.Application.Common.Exceptions.UnauthorizedAccessException("Tenant context is required for operational database writes.");
             await SetTenantContext(connection, transaction, tenant.Value, token);

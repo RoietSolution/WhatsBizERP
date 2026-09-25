@@ -3,7 +3,7 @@ package com.khatadhari.printbridge.escpos
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 
-/** Test-only ASCII receipt. No invoice or tax calculations belong here. */
+/** Locally generated ASCII diagnostic for verifying printer transport. */
 object EscPosTestReceipt {
     fun create(): ByteArray {
         val output = ByteArrayOutputStream()

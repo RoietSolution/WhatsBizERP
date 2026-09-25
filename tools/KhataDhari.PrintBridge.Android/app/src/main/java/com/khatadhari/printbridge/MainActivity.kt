@@ -27,8 +27,8 @@ import android.widget.Toast
 import android.view.View
 import com.khatadhari.printbridge.bluetooth.ClassicBluetoothTransport
 import com.khatadhari.printbridge.escpos.EscPosTestReceipt
-import com.khatadhari.printbridge.escpos.EscPosInvoiceReceipt
-import com.khatadhari.printbridge.escpos.PrintReceiptRequest
+import com.khatadhari.printbridge.escpos.EscPosDocumentRenderer
+import com.khatadhari.printbridge.escpos.PrintDocument
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -62,13 +62,13 @@ class MainActivity : Activity() {
     private lateinit var refreshButton: Button
     private lateinit var connectButton: Button
     private lateinit var printButton: Button
-    private lateinit var receiptPrintButton: Button
-    private lateinit var receiptPreview: TextView
+    private lateinit var documentPrintButton: Button
+    private lateinit var documentPreview: TextView
     private lateinit var disconnectButton: Button
     private lateinit var logView: TextView
     private lateinit var logScroll: ScrollView
     private val logLines = mutableListOf<String>()
-    private var printRequest: PrintReceiptRequest? = null
+    private var printDocument: PrintDocument? = null
     private var printRequestGeneration = 0
     private val printerPreferences by lazy { getSharedPreferences("printer-preferences", MODE_PRIVATE) }
 
@@ -115,16 +115,16 @@ class MainActivity : Activity() {
         }
         root.addView(statusView, matchWrap())
 
-        receiptPreview = TextView(this).apply {
+        documentPreview = TextView(this).apply {
             textSize = 13f
             setTextColor(0xFF17231D.toInt())
             setPadding(dp(12), dp(10), dp(12), dp(10))
             setBackgroundColor(0xFFE7F3EC.toInt())
             visibility = View.GONE
         }
-        root.addView(receiptPreview, matchWrap().apply { topMargin = dp(8) })
-        receiptPrintButton = makeButton("Print Receipt") { printInvoiceReceipt() }.apply { visibility = View.GONE }
-        root.addView(receiptPrintButton, matchWrap().apply { topMargin = dp(6) })
+        root.addView(documentPreview, matchWrap().apply { topMargin = dp(8) })
+        documentPrintButton = makeButton("Print Document") { printServerDocument() }.apply { visibility = View.GONE }
+        root.addView(documentPrintButton, matchWrap().apply { topMargin = dp(6) })
 
         val selectorLabel = TextView(this).apply {
             text = "Paired printer"
@@ -378,19 +378,19 @@ class MainActivity : Activity() {
     }
 
     private fun printTestReceipt() {
-        sendReceipt(EscPosTestReceipt.create(), "diagnostic test")
+        sendToPrinter(EscPosTestReceipt.create(), "diagnostic test")
     }
 
-    private fun printInvoiceReceipt() {
-        val request = printRequest
-        if (request == null) {
-            appendLog("No valid invoice print request is loaded. Return to POS and tap Print Receipt again.")
+    private fun printServerDocument() {
+        val document = printDocument
+        if (document == null) {
+            appendLog("No valid print document is loaded. Return to WhatsBiz and request printing again.")
             return
         }
-        sendReceipt(EscPosInvoiceReceipt.create(request), "invoice ${request.invoice.number}")
+        sendToPrinter(EscPosDocumentRenderer.create(document), "WhatsBiz print document")
     }
 
-    private fun sendReceipt(receipt: ByteArray, description: String) {
+    private fun sendToPrinter(documentBytes: ByteArray, description: String) {
         val socket = connectedSocket
         if (socket == null || !socket.isConnected) {
             connectedSocket = null
@@ -403,13 +403,13 @@ class MainActivity : Activity() {
 
         printing = true
         updateControls()
-        appendLog("ESC/POS $description generated: ${receipt.size} bytes.")
+        appendLog("ESC/POS $description generated: ${documentBytes.size} bytes.")
         ioExecutor.execute {
             try {
                 if (connectedSocket !== socket || !socket.isConnected) throw IOException("Printer socket is no longer connected.")
-                transport.writeAndFlush(socket, receipt)
+                transport.writeAndFlush(socket, documentBytes)
                 runOnUiThread {
-                    appendLog("Bytes written: ${receipt.size}.")
+                    appendLog("Bytes written: ${documentBytes.size}.")
                     appendLog("Flush completed. Check for physical paper output; socket success alone is not proof of printing.")
                     printing = false
                     updateControls()
@@ -440,30 +440,30 @@ class MainActivity : Activity() {
         val requestGeneration = ++printRequestGeneration
         val api = uri.getQueryParameter("api")
         val reference = uri.getQueryParameter("reference")
-        printRequest = null
-        receiptPreview.visibility = View.VISIBLE
-        receiptPreview.text = "Loading saved invoice from WhatsBiz..."
-        receiptPrintButton.visibility = View.GONE
-        appendLog("WhatsBiz print request received. Retrieving invoice using short-lived reference.")
+        printDocument = null
+        documentPreview.visibility = View.VISIBLE
+        documentPreview.text = "Loading print document from WhatsBiz..."
+        documentPrintButton.visibility = View.GONE
+        appendLog("WhatsBiz print request received. Retrieving a generic document using the short-lived reference.")
         ioExecutor.execute {
             try {
                 val result = PrintBridgeApi.fetch(api, reference)
                 runOnUiThread {
                     if (requestGeneration != printRequestGeneration || isFinishing || isDestroyed) return@runOnUiThread
-                    printRequest = result
-                    receiptPreview.text = buildString {
-                        append("${result.business.name}\nInvoice ${result.invoice.number} · ${result.invoice.date}\n")
-                        append("${result.invoice.items.size} item(s) · ${result.invoice.status}\n")
-                        append("Total Rs. ${result.invoice.total.toPlainString()} · ${result.invoice.customer ?: "Walk-in"}")
+                    printDocument = result
+                    documentPreview.text = buildString {
+                        append("Print document ready\n")
+                        append("Contract version ${result.version} / ${result.paperWidth}\n")
+                        append("${result.operations.size} generic print operations")
                     }
-                    receiptPrintButton.visibility = View.VISIBLE
+                    documentPrintButton.visibility = View.VISIBLE
                     updateControls()
-                    appendLog("Saved invoice ${result.invoice.number} loaded for preview. No ERP values were recalculated.")
+                    appendLog("Generic print document loaded and validated. The bridge applies no ERP or receipt rules.")
                 }
             } catch (error: Exception) {
                 runOnUiThread {
                     if (requestGeneration != printRequestGeneration || isFinishing || isDestroyed) return@runOnUiThread
-                    receiptPreview.text = error.message ?: "Invoice request could not be loaded. Return to POS and retry."
+                    documentPreview.text = error.message ?: "Print document could not be loaded. Return to WhatsBiz and retry."
                     appendLog("Print request failed: ${error.javaClass.simpleName}: ${error.message ?: "No further detail"}")
                 }
             }
@@ -501,7 +501,7 @@ class MainActivity : Activity() {
         deviceSpinner.isEnabled = !connecting && !connected
         connectButton.isEnabled = !connecting && !connected
         printButton.isEnabled = connected && !printing
-        receiptPrintButton.isEnabled = connected && !printing && printRequest != null
+        documentPrintButton.isEnabled = connected && !printing && printDocument != null
         disconnectButton.isEnabled = connecting || connected
     }
 

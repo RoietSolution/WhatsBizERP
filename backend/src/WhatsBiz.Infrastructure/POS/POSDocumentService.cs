@@ -13,6 +13,8 @@ namespace WhatsBiz.Infrastructure.POS;
 
 public sealed class POSDocumentService(IPrintingService printing, IConfiguration configuration) : IPOSDocumentService
 {
+    private const int PrintDocumentVersion = 1;
+    private const int ReceiptCharactersPerLine = 32;
     private const string ReceiptCss = """
         .receipt{margin:0 auto;font-family:"Courier New",monospace;font-size:13px;line-height:1.35;color:#000;background:#fff}.receipt *{box-sizing:border-box}.receipt-header,.receipt-title,.receipt-center,.receipt-footer{text-align:center}.receipt-logo{display:block;max-width:42mm;max-height:16mm;margin:0 auto 3mm;object-fit:contain}.store-name{margin:0;font-size:18px;font-weight:700}.tagline,.receipt p{margin:1mm 0}.separator{border:0;border-top:1px dashed #000;margin:3mm 0}.receipt-title h1{margin:0;font-size:20px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:1mm 4mm;text-align:left;font-size:13px}.meta-row{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2mm;min-width:0}.meta-row>span:last-child{text-align:right;overflow-wrap:normal;word-break:normal}.meta-wide{grid-column:1/-1}.meta-label{font-weight:700;white-space:nowrap}.items{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px}.items th,.items td{padding:1.5mm .5mm;text-align:right;vertical-align:top}.items th{border-bottom:1px dashed #000;white-space:nowrap;font-weight:700}.items th:first-child,.items td:first-child{width:29%;padding-left:0;text-align:left;overflow-wrap:normal;word-break:normal}.items th:nth-child(2),.items td:nth-child(2){width:8%}.items th:nth-child(3),.items td:nth-child(3){width:18%}.items th:nth-child(4),.items td:nth-child(4){width:10%}.items th:nth-child(5),.items td:nth-child(5){width:15%}.items th:nth-child(6),.items td:nth-child(6){width:20%;padding-right:0}.items td:not(:first-child){white-space:nowrap}.items .item-name{font-weight:600}.total-row{display:flex;justify-content:space-between;gap:3mm;font-size:13px}.grand-total,.total-amount{font-size:18px;font-weight:700}.amount-words{font-weight:700;text-align:center;margin:3mm 0}.feedback-qr{width:60mm;height:60mm;display:block;margin:2mm auto;image-rendering:pixelated;shape-rendering:crispEdges}.receipt-footer{margin-top:3mm}
         .paper-58mm .receipt{width:54mm;max-width:54mm;font-family:"Arial Narrow",Arial,sans-serif;font-size:12px;line-height:1.3}.paper-58mm .receipt-logo{max-width:34mm;max-height:12mm}.paper-58mm .store-name{font-size:16px}.paper-58mm .receipt-title h1{font-size:16px}.paper-58mm .meta{display:block;font-size:12px}.paper-58mm .meta-row{display:grid;grid-template-columns:18mm minmax(0,1fr);margin-bottom:.5mm}.paper-58mm .items{display:block;font-size:12px}.paper-58mm .items thead{display:none}.paper-58mm .items tbody{display:block}.paper-58mm .items tr{display:grid;grid-template-columns:var(--items-template);padding:1.2mm 0;border-bottom:1px dashed #000}.paper-58mm .items td{display:block;width:auto!important;padding:.45mm .25mm;text-align:right;white-space:nowrap}.paper-58mm .items td:first-child{grid-column:1/-1;width:auto;padding:0 0 .7mm;text-align:left;font-size:12px;font-weight:700;white-space:normal}.paper-58mm .items td:not(:first-child)::before{content:attr(data-label);display:block;margin-bottom:.2mm;font-size:8px;font-weight:700;color:#222}.paper-58mm .items td:nth-child(2){padding-left:0;text-align:left}.paper-58mm .items td:last-child{padding-right:0;font-weight:700}.paper-58mm .grand-total,.paper-58mm .total-amount{font-size:15px}.paper-58mm .feedback-qr{width:50mm;height:50mm}.paper-58mm .separator{margin:2mm 0}
@@ -23,6 +25,7 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
         """;
     public string InvoiceHtml(SalesInvoice invoice, string paper, POSInvoicePrintContext context)
     {
+        var receipt = BuildReceiptPresentation(invoice, context);
         var logo = configuration["Printing:InvoiceLogoUrl"];
         var company = context.Company;
         var storeName = company.CompanyName;
@@ -45,6 +48,8 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
         var columnGroup = "<colgroup>" + string.Join("", columnWidths.Select(width => $"<col style=\"width:{width}\" />")) + "</colgroup>";
         var thermalTemplate = options.ShowGstPercentage && options.ShowGstAmount ? "1.25fr .55fr .85fr .65fr .9fr" : options.ShowGstPercentage || options.ShowGstAmount ? "1.55fr .6fr .7fr 1fr" : "1.8fr .65fr 1fr";
         var loyalty = context.Loyalty;
+        var titleDetails = string.Join("", receipt.TitleDetails.Select(x =>
+            x.Bold ? $"<p><strong>{Encode(x.Value)}</strong></p>" : $"<p>{Encode(x.Value)}</p>"));
         var body = new StringBuilder($"""
                     <style>{ReceiptCss}</style>
             <main class="receipt">
@@ -60,7 +65,8 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
               </header>
               <hr class="separator" />
               <section class="receipt-title">
-                <h1>GST INVOICE</h1>
+                <h1>{Encode(receipt.Title)}</h1>
+                {titleDetails}
                 <div class="invoice-number">Bill No: {Encode(invoice.InvoiceNumber)}</div>
               </section>
               <hr class="separator" />
@@ -101,14 +107,53 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
                 <hr class="separator" />
                 <div class="total-row total-amount"><span>Total Amount</span><span>₹{Money(invoice.GrandTotal)}</span></div>
               </section>
-              <p class="amount-words">{AmountInWords(invoice.GrandTotal)}</p>
+              <p class="amount-words">{receipt.AmountWords}</p>
               <hr class="separator" />
               {(string.IsNullOrWhiteSpace(context.PaymentQrDataUrl) ? "" : $"<section class=\"receipt-center payment-qr\"><p><strong>Scan to Pay</strong></p><img class=\"feedback-qr\" src=\"{EncodeAttribute(context.PaymentQrDataUrl)}\" alt=\"Payment QR code\" /></section>")}
-              <footer class="receipt-footer"><hr class="separator" />{OptionalParagraph(company.TermsAndConditions)}<p><strong>{Encode(string.IsNullOrWhiteSpace(company.InvoiceFooter) ? "Thank you for shopping with us!" : company.InvoiceFooter)}</strong></p></footer>
+              <footer class="receipt-footer"><hr class="separator" />{OptionalParagraph(receipt.Terms)}<p><strong>{Encode(receipt.Footer)}</strong></p></footer>
             </main><script>window.print()</script>
         """);
-        var document = printing.Document(new DocumentInput("SALES_INVOICE", invoice.InvoiceNumber, "GST INVOICE", body.ToString(), paper.ToUpperInvariant(), "html", IncludeHeader: false));
+        var document = printing.Document(new DocumentInput("SALES_INVOICE", invoice.InvoiceNumber, receipt.Title, body.ToString(), paper.ToUpperInvariant(), "html", IncludeHeader: false));
         return Encoding.UTF8.GetString(document.Data);
+    }
+
+    public PrintDocumentDto InvoicePrintDocument(SalesInvoice invoice, POSInvoicePrintContext context)
+    {
+        var receipt = BuildReceiptPresentation(invoice, context);
+        var operations = new List<PrintOperationDto>();
+        void Text(string value, string alignment = "LEFT", bool bold = false) =>
+            operations.Add(new("TEXT", PrinterText(value), alignment, bold));
+        void Columns(ReceiptPair pair) =>
+            operations.Add(new("COLUMNS", Bold: pair.Bold, Left: PrinterText(pair.Left), Right: PrinterValue(pair)));
+        void Separator() => operations.Add(new("SEPARATOR", Value: "-"));
+
+        foreach (var line in receipt.Header) Text(line.Value, "CENTER", line.Bold);
+        Separator();
+        Text(receipt.Title, "CENTER", true);
+        foreach (var line in receipt.TitleDetails) Text(line.Value, "CENTER", line.Bold);
+        Text($"Bill No: {invoice.InvoiceNumber}", "CENTER");
+        Separator();
+        foreach (var row in receipt.Metadata) Columns(row);
+        Separator();
+        foreach (var item in receipt.Items)
+        {
+            Text(item.Name, bold: true);
+            foreach (var row in item.Rows) Columns(row);
+            Separator();
+        }
+        foreach (var row in receipt.Summary) Columns(row);
+        Separator();
+        Columns(receipt.GrandTotal);
+        Separator();
+        foreach (var row in receipt.Settlement) Columns(row);
+        Separator();
+        Columns(receipt.TotalAmount);
+        Text(receipt.AmountWords, "CENTER", true);
+        Separator();
+        if (!string.IsNullOrWhiteSpace(receipt.Terms)) Text(receipt.Terms!, "CENTER");
+        Text(receipt.Footer, "CENTER", true);
+        operations.Add(new("FEED", Count: 3));
+        return new(PrintDocumentVersion, "58MM", ReceiptCharactersPerLine, operations);
     }
     public byte[] Export(IReadOnlyCollection<SalesInvoice> invoices)
     {
@@ -125,6 +170,104 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
         sheet.Columns().AdjustToContents(); using var stream = new MemoryStream(); book.SaveAs(stream); return stream.ToArray();
     }
 
+    private ReceiptPresentation BuildReceiptPresentation(SalesInvoice invoice, POSInvoicePrintContext context)
+    {
+        var company = context.Company;
+        var options = context.Options ?? new POSInvoicePrintOptions();
+        var provisional = invoice.Status is "HELD" or "SUSPENDED";
+        var header = new List<ReceiptText> { new(company.CompanyName, true) };
+        if (!string.Equals(company.LegalName, company.CompanyName, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(company.LegalName))
+            header.Add(new(company.LegalName!));
+        AddText(header, configuration["Printing:Tagline"]);
+        foreach (var line in CompanyAddressLines(company)) header.Add(new(line));
+        if (options.ShowGstNumber && !string.IsNullOrWhiteSpace(company.GSTIN)) header.Add(new($"GSTIN: {company.GSTIN}"));
+        var contact = string.Join(" \u00B7 ", new[] { company.Phone, company.Email }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        AddText(header, contact);
+        var fssai = configuration["Printing:FSSAI"];
+        if (!string.IsNullOrWhiteSpace(fssai)) header.Add(new($"FSSAI: {fssai}"));
+
+        var titleDetails = new List<ReceiptText>();
+        if (provisional)
+        {
+            titleDetails.Add(new($"Status: {invoice.Status}"));
+            titleDetails.Add(new("NOT A GST TAX INVOICE", true));
+        }
+
+        var metadata = new List<ReceiptPair>
+        {
+            new("Date", invoice.InvoiceDate.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture)),
+            new("Time", invoice.InvoiceDate.ToString("HH:mm", CultureInfo.InvariantCulture))
+        };
+        if (options.ShowCounter) metadata.Add(new("Counter", invoice.CounterId?.ToString("N")[..6] ?? ""));
+        if (options.ShowTerminal) metadata.Add(new("Terminal", configuration["Printing:Terminal"] ?? ""));
+        if (options.ShowCashier) metadata.Add(new("Cashier", invoice.CreatedBy ?? ""));
+        var payment = string.Join(", ", invoice.Payments.Select(x => x.PaymentMethod.MethodName));
+        metadata.Add(new("Payment", string.IsNullOrWhiteSpace(payment) ? "Unpaid" : payment));
+        metadata.Add(new("Customer", invoice.Customer?.CustomerName ?? "Walk-in"));
+        metadata.Add(new("Receipt No", invoice.InvoiceNumber));
+
+        var items = invoice.Items.Select(item =>
+        {
+            var rows = new List<ReceiptPair>
+            {
+                new($"Qty {Quantity(item.Quantity)}", $"Rate {Money(item.UnitPrice)}", RightIsMoney: true)
+            };
+            if (options.ShowGstPercentage || options.ShowGstAmount)
+            {
+                var left = options.ShowGstPercentage ? $"GST% {Quantity(item.TaxPercentage)}" : "";
+                var right = options.ShowGstAmount ? $"GST {Money(item.TaxAmount)}" : "";
+                rows.Add(new(left, right, RightIsMoney: options.ShowGstAmount));
+            }
+            rows.Add(new("Amount", Money(item.LineTotal), Bold: true, RightIsMoney: true));
+            return new ReceiptItem(item.Product.ProductName, rows);
+        }).ToArray();
+
+        var summary = new[]
+        {
+            new ReceiptPair("Subtotal", Money(invoice.Subtotal), RightIsMoney: true),
+            new ReceiptPair("Discount", Money(invoice.DiscountAmount), RightIsMoney: true),
+            new ReceiptPair("Taxable Amount", Money(invoice.Subtotal - invoice.DiscountAmount), RightIsMoney: true),
+            new ReceiptPair("Total GST", Money(invoice.TaxAmount), RightIsMoney: true)
+        };
+        var settlement = new List<ReceiptPair>
+        {
+            new("Paid", Money(invoice.PaidAmount), RightIsMoney: true),
+            new("Balance", Money(invoice.BalanceAmount), RightIsMoney: true)
+        };
+        if (context.Loyalty.Redeemed > 0) settlement.Add(new("Coins redeemed", $"{context.Loyalty.Redeemed} (-Rs. {Money(context.Loyalty.Discount)})"));
+        if (context.Loyalty.Earned > 0) settlement.Add(new("Coins earned", context.Loyalty.Earned.ToString(CultureInfo.InvariantCulture)));
+
+        return new(
+            header,
+            provisional ? "PROVISIONAL BILL" : "GST INVOICE",
+            titleDetails,
+            metadata,
+            items,
+            summary,
+            new("Grand Total", Money(invoice.GrandTotal), Bold: true, RightIsMoney: true),
+            settlement,
+            new("Total Amount", Money(invoice.GrandTotal), Bold: true, RightIsMoney: true),
+            AmountInWords(invoice.GrandTotal),
+            company.TermsAndConditions,
+            string.IsNullOrWhiteSpace(company.InvoiceFooter) ? "Thank you for shopping with us!" : company.InvoiceFooter!);
+    }
+
+    private static void AddText(ICollection<ReceiptText> lines, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value)) lines.Add(new(value));
+    }
+
+    private static string PrinterValue(ReceiptPair pair)
+    {
+        if (!pair.RightIsMoney || string.IsNullOrWhiteSpace(pair.Right)) return PrinterText(pair.Right);
+        var split = pair.Right.LastIndexOf(' ');
+        return split < 0
+            ? $"Rs. {pair.Right}"
+            : $"{pair.Right[..split]} Rs. {pair.Right[(split + 1)..]}";
+    }
+
+    private static string PrinterText(string value) => value.Replace("\u20B9", "Rs. ", StringComparison.Ordinal).Replace("\u00B7", "/", StringComparison.Ordinal);
+
     private static string Money(decimal value) => value.ToString("0.00", CultureInfo.InvariantCulture);
     private static string Quantity(decimal value) => value.ToString("0.####", CultureInfo.InvariantCulture);
     private static string OptionalLine(string? first, string? second) => string.IsNullOrWhiteSpace(first) && string.IsNullOrWhiteSpace(second) ? "" : $"<p>{Encode(first ?? "")}{(string.IsNullOrWhiteSpace(second) ? "" : " · " + Encode(second))}</p>";
@@ -134,6 +277,28 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
         var cityLine = string.Join(", ", new[] { company.City, company.State, company.PostalCode }.Where(x => !string.IsNullOrWhiteSpace(x)));
         return string.Join("<br />", new[] { company.AddressLine1, company.AddressLine2, cityLine, company.Country }.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => Encode(x!)));
     }
+    private static IReadOnlyCollection<string> CompanyAddressLines(CompanyDto company)
+    {
+        var cityLine = string.Join(", ", new[] { company.City, company.State, company.PostalCode }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        return new[] { company.AddressLine1, company.AddressLine2, cityLine, company.Country }.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!).ToArray();
+    }
+
+    private sealed record ReceiptPresentation(
+        IReadOnlyCollection<ReceiptText> Header,
+        string Title,
+        IReadOnlyCollection<ReceiptText> TitleDetails,
+        IReadOnlyCollection<ReceiptPair> Metadata,
+        IReadOnlyCollection<ReceiptItem> Items,
+        IReadOnlyCollection<ReceiptPair> Summary,
+        ReceiptPair GrandTotal,
+        IReadOnlyCollection<ReceiptPair> Settlement,
+        ReceiptPair TotalAmount,
+        string AmountWords,
+        string? Terms,
+        string Footer);
+    private sealed record ReceiptText(string Value, bool Bold = false);
+    private sealed record ReceiptPair(string Left, string Right, bool Bold = false, bool RightIsMoney = false);
+    private sealed record ReceiptItem(string Name, IReadOnlyCollection<ReceiptPair> Rows);
     private static string AmountInWords(decimal amount)
     {
         var whole = (long)decimal.Truncate(amount);

@@ -148,13 +148,7 @@ public sealed record GetPaymentMethods : IRequest<IReadOnlyCollection<PaymentMet
 public sealed record GetPOSUpiQr(decimal Amount) : IRequest<POSUpiQrDto>;
 public sealed record GetTodaySales : IRequest<TodaySalesDto>;
 public sealed record PrintInvoice(Guid Id, string Paper) : IRequest<string>;
-public sealed record GetPrintBridgeReceipt(Guid InvoiceId, Guid TenantId) : IRequest<POSPrintReceiptDto>;
-public sealed record POSPrintReceiptDto(POSPrintBusinessDto Business, POSPrintInvoiceDto Invoice);
-public sealed record POSPrintBusinessDto(string Name, string? LegalName, string Address, string? GSTIN, string? Phone, string? Email, string? TermsAndConditions, string? InvoiceFooter);
-public sealed record POSPrintInvoiceDto(string Number, DateTimeOffset Date, string Status, string? CustomerName, string? CustomerGSTIN, string? Counter, string? Cashier, decimal Subtotal, decimal Discount, decimal TaxableAmount, decimal Tax, decimal RoundOff, decimal GrandTotal, decimal Paid, decimal Balance, IReadOnlyCollection<POSPrintItemDto> Items, IReadOnlyCollection<POSPrintTaxDto> Taxes, IReadOnlyCollection<POSPrintPaymentDto> Payments);
-public sealed record POSPrintItemDto(string Name, decimal Quantity, string? Unit, decimal Rate, decimal Discount, decimal TaxPercentage, decimal TaxAmount, decimal Amount);
-public sealed record POSPrintTaxDto(string Type, decimal Rate, decimal TaxableAmount, decimal Amount);
-public sealed record POSPrintPaymentDto(string Method, decimal Amount, string Status);
+public sealed record GetPrintBridgeReceipt(Guid InvoiceId, Guid TenantId) : IRequest<PrintDocumentDto>;
 public sealed record ExportSales(DateTimeOffset? From, DateTimeOffset? To) : IRequest<byte[]>;
 
 /* Validators */
@@ -255,7 +249,7 @@ public sealed class POSHandlers(
     IRequestHandler<GetPOSUpiQr, POSUpiQrDto>,
     IRequestHandler<GetTodaySales, TodaySalesDto>,
     IRequestHandler<PrintInvoice, string>,
-    IRequestHandler<GetPrintBridgeReceipt, POSPrintReceiptDto>,
+    IRequestHandler<GetPrintBridgeReceipt, PrintDocumentDto>,
     IRequestHandler<ExportSales, byte[]>
 {
     public async Task<IReadOnlyCollection<POSProductDto>> Handle(SearchPOSProducts q, CancellationToken t) =>
@@ -396,22 +390,17 @@ public sealed class POSHandlers(
         return documents.InvoiceHtml(invoice, q.Paper, new(company, loyalty, paymentQr, options));
     }
 
-    public async Task<POSPrintReceiptDto> Handle(GetPrintBridgeReceipt q, CancellationToken t)
+    public async Task<PrintDocumentDto> Handle(GetPrintBridgeReceipt q, CancellationToken t)
     {
         var invoice = await repository.InvoiceForTenant(q.InvoiceId, q.TenantId, t)
             ?? throw new EntityNotFoundException("Invoice not found.");
         POSPrintBridgePolicy.EnsurePrintable(invoice.Status);
         var company = await admin.CompanyForTenant(q.TenantId, t);
-        var address = string.Join(", ", new[] { company.AddressLine1, company.AddressLine2, company.City, company.State, company.PostalCode }.Where(x => !string.IsNullOrWhiteSpace(x)));
-        return new(
-            new(company.CompanyName, string.Equals(company.LegalName, company.CompanyName, StringComparison.OrdinalIgnoreCase) ? null : company.LegalName,
-                address, company.GSTIN, company.Phone, company.Email, company.TermsAndConditions, company.InvoiceFooter),
-            new(invoice.InvoiceNumber, invoice.InvoiceDate, invoice.Status, invoice.Customer?.CustomerName, invoice.Customer?.GSTIN,
-                invoice.CounterId?.ToString("N")[..6], invoice.CreatedBy,
-                invoice.Subtotal, invoice.DiscountAmount, invoice.Subtotal - invoice.DiscountAmount, invoice.TaxAmount, invoice.RoundOff, invoice.GrandTotal, invoice.PaidAmount, invoice.BalanceAmount,
-                invoice.Items.Select(x => new POSPrintItemDto(x.Product.ProductName, x.Quantity, x.Product.Unit?.ShortName, x.UnitPrice, x.DiscountAmount, x.TaxPercentage, x.TaxAmount, x.LineTotal)).ToArray(),
-                invoice.Taxes.Select(x => new POSPrintTaxDto(x.TaxType, x.TaxPercentage, x.TaxableAmount, x.TaxAmount)).ToArray(),
-                invoice.Payments.Select(x => new POSPrintPaymentDto(x.PaymentMethod.MethodName, x.Amount, x.Status)).ToArray()));
+        var settings = await admin.SettingsForTenant(q.TenantId, t);
+        var loyalty = await repository.CoinSummaryForTenant(invoice.InvoiceId, q.TenantId, t);
+        static bool Enabled(IReadOnlyCollection<SettingDto> values, string key) => !values.Any(x => x.Key == key) || !string.Equals(values.First(x => x.Key == key).Value, "false", StringComparison.OrdinalIgnoreCase);
+        var options = new POSInvoicePrintOptions(Enabled(settings, "POS_PRINT_SHOW_COUNTER"), Enabled(settings, "POS_PRINT_SHOW_TERMINAL"), Enabled(settings, "POS_PRINT_SHOW_CASHIER"), Enabled(settings, "POS_PRINT_SHOW_GST_PERCENTAGE"), Enabled(settings, "POS_PRINT_SHOW_GST_AMOUNT"), Enabled(settings, "POS_PRINT_SHOW_GST_NUMBER"));
+        return documents.InvoicePrintDocument(invoice, new(company, loyalty, null, options));
     }
 
     public async Task<byte[]> Handle(ExportSales q, CancellationToken t)

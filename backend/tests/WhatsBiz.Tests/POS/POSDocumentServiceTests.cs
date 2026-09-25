@@ -5,6 +5,7 @@ using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Administration;
 using WhatsBiz.Application.Features.Printing;
 using WhatsBiz.Domain.POS;
+using WhatsBiz.Domain.Products;
 using WhatsBiz.Infrastructure.POS;
 
 namespace WhatsBiz.Tests.POS;
@@ -101,6 +102,93 @@ public sealed class POSDocumentServiceTests
         configured.Should().Contain("Scan to Pay").And.Contain("VEVOQU5UX0E=");
         configured.Should().NotContain("Scan to Share Feedback");
         unconfigured.Should().NotContain("payment-qr").And.NotContain("Payment QR code");
+    }
+
+    [Fact]
+    public void CompletedInvoiceGeneratesVersionedPrintDocumentInExisting58mmOrder()
+    {
+        var service = new POSDocumentService(new PassthroughPrintingService(), new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Printing:Terminal"] = "QA-POS"
+        }).Build());
+
+        var document = service.InvoicePrintDocument(PrintInvoice("COMPLETED"), new(Company(), new(0, 0, 0)));
+        var content = PrintableContent(document);
+
+        document.Version.Should().Be(1);
+        document.PaperWidth.Should().Be("58MM");
+        document.CharactersPerLine.Should().Be(32);
+        AssertInOrder(content,
+            "Retail Store", "GST INVOICE", "Bill No: INV-BRIDGE-1",
+            "Date", "Time", "Counter", "Terminal", "Cashier", "Payment", "Customer", "Receipt No",
+            "Server Saved Item", "Qty 2", "Rate Rs. 125.00", "GST% 5", "GST Rs. 11.50", "Amount", "Rs. 251.50",
+            "Subtotal", "Rs. 250.00", "Discount", "Rs. 10.00", "Taxable Amount", "Rs. 240.00",
+            "Total GST", "Rs. 43.20", "Grand Total", "Rs. 283.40", "Paid", "Balance", "Total Amount",
+            "Rupees Two Hundred Eighty Three and Forty Paise Only", "Thank you for shopping with us!");
+        document.Operations.Last().Should().Be(new PrintOperationDto("FEED", Count: 3));
+    }
+
+    [Theory]
+    [InlineData("HELD")]
+    [InlineData("SUSPENDED")]
+    public void NonFinalInvoicePresentationIsGeneratedOnlyByTheServer(string status)
+    {
+        var service = new POSDocumentService(new PassthroughPrintingService(), new ConfigurationBuilder().Build());
+        var invoice = PrintInvoice(status);
+
+        var document = service.InvoicePrintDocument(invoice, new(Company(), new(0, 0, 0)));
+        var content = PrintableContent(document);
+        var html = service.InvoiceHtml(invoice, "58MM", new(Company(), new(0, 0, 0)));
+
+        AssertInOrder(content, "PROVISIONAL BILL", $"Status: {status}", "NOT A GST TAX INVOICE", "Bill No: INV-BRIDGE-1");
+        content.Should().NotContain("|GST INVOICE|");
+        html.Should().Contain("<h1>PROVISIONAL BILL</h1>").And.Contain($"Status: {status}").And.Contain("NOT A GST TAX INVOICE");
+        html.Should().NotContain("<h1>GST INVOICE</h1>");
+    }
+
+    private static string PrintableContent(PrintDocumentDto document) => "|" + string.Join("|", document.Operations.SelectMany(x =>
+        new[] { x.Value, x.Left, x.Right }.Where(value => !string.IsNullOrWhiteSpace(value)))) + "|";
+
+    private static void AssertInOrder(string content, params string[] values)
+    {
+        var position = -1;
+        foreach (var value in values)
+        {
+            var next = content.IndexOf(value, position + 1, StringComparison.Ordinal);
+            next.Should().BeGreaterThan(position, $"'{value}' should follow the previous receipt section");
+            position = next;
+        }
+    }
+
+    private static SalesInvoice PrintInvoice(string status)
+    {
+        var invoice = new SalesInvoice
+        {
+            InvoiceId = Guid.NewGuid(),
+            InvoiceNumber = "INV-BRIDGE-1",
+            InvoiceDate = new DateTimeOffset(2026, 9, 25, 10, 30, 0, TimeSpan.FromHours(5.5)),
+            CounterId = Guid.Parse("abcdef12-0000-0000-0000-000000000000"),
+            CreatedBy = "cashier",
+            Status = status,
+            Subtotal = 250m,
+            DiscountAmount = 10m,
+            TaxAmount = 43.20m,
+            RoundOff = 0.20m,
+            GrandTotal = 283.40m,
+            PaidAmount = status is "HELD" or "SUSPENDED" ? 0m : 283.40m
+        };
+        invoice.Items.Add(new SalesInvoiceItem
+        {
+            Product = new Product { ProductName = "Server Saved Item" },
+            Quantity = 2m,
+            UnitPrice = 125m,
+            TaxPercentage = 5m,
+            TaxAmount = 11.50m,
+            LineTotal = 251.50m
+        });
+        if (status is not ("HELD" or "SUSPENDED"))
+            invoice.Payments.Add(new SalesPayment { PaymentMethod = new PaymentMethod { MethodName = "Cash" }, Amount = 283.40m, Status = "COMPLETED" });
+        return invoice;
     }
 
     private static SalesInvoice Invoice() => new()

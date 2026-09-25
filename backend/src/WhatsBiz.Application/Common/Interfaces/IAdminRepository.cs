@@ -12,6 +12,7 @@ public interface IAdminRepository
     Task<BranchDto> CreateBranch(BranchInput x, CancellationToken t);
     Task<BranchDto> UpdateBranch(Guid id, BranchInput x, CancellationToken t);
     Task<IReadOnlyCollection<SettingDto>> Settings(CancellationToken t);
+    Task<IReadOnlyCollection<SettingDto>> SettingsForTenant(Guid tenantId, CancellationToken t);
     Task SaveSettings(IReadOnlyCollection<SettingInput> xs, string? user, CancellationToken t);
     Task<IReadOnlyCollection<FinancialYearDto>> FinancialYears(CancellationToken t);
     Task SaveFinancialYear(FinancialYearInput x, CancellationToken t);

@@ -6,6 +6,7 @@ namespace WhatsBiz.Application.Common.Interfaces;
 public interface IAdminRepository
 {
     Task<CompanyDto> Company(CancellationToken t);
+    Task<CompanyDto> CompanyForTenant(Guid tenantId, CancellationToken t);
     Task<CompanyDto> SaveCompany(CompanyInput x, CancellationToken t);
     Task<IReadOnlyCollection<BranchDto>> Branches(CancellationToken t);
     Task<BranchDto> CreateBranch(BranchInput x, CancellationToken t);

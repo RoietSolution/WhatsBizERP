@@ -28,5 +28,5 @@ export class InvoiceDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly id = this.route.snapshot.paramMap.get('id') ?? '';
   constructor() { this.api.get(this.id).subscribe({ next: (item) => { this.invoice.set(item); this.loading.set(false); }, error: () => this.loading.set(false) }); }
-  print(): void { if (this.invoice()) this.api.print(this.invoice()!.invoiceId); }
+  print(): void { if (this.invoice()) this.api.printBridge(this.invoice()!.invoiceId); }
 }

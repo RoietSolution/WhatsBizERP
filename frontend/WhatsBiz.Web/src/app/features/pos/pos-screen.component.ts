@@ -314,12 +314,12 @@ export class POSScreenComponent implements OnDestroy {
           this.api.invoice(this.payload(result.payments, result.isCreditSale)).subscribe({
             next: (x) => {
               this.lastInvoiceId = x.invoiceId;
-              this.snack.open(`Invoice ${x.invoiceNumber} created.`, undefined, {
-                duration: 3000,
+              const notice = this.snack.open(`Invoice ${x.invoiceNumber} completed.`, 'Print Receipt', {
+                duration: 9000,
                 panelClass: 'wb-success',
               });
+              notice.onAction().subscribe(() => this.api.printBridge(x.invoiceId));
               this.cancel();
-              this.api.print(x.invoiceId);
             },
             error: (error) => this.showOrderError(error, 'Invoice could not be created.'),
           });

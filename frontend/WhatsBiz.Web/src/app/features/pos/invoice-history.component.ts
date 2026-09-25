@@ -42,4 +42,5 @@ export class InvoiceHistoryComponent {
   print(x: InvoiceList, paper: PaperSize) {
     this.api.print(x.invoiceId, paper);
   }
+  printBridge(x: InvoiceList) { this.api.printBridge(x.invoiceId); }
 }

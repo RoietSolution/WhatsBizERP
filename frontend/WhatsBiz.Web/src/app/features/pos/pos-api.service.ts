@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { map } from 'rxjs';
 import { PaperSize } from '../printing/paper-size';
+import { RuntimeConfigurationService } from '../../core/services/runtime-configuration.service';
 import {
   Invoice,
   PagedInvoices,
@@ -28,7 +29,7 @@ export interface POSUpiQr {
 
 @Injectable({ providedIn: 'root' })
 export class POSApiService {
-  constructor(private readonly http: HttpClient) {}
+  constructor(private readonly http: HttpClient, private readonly runtime: RuntimeConfigurationService) {}
   products(search?: string, barcode?: string, warehouseId?: string, size?: number, categoryId?: string, brandId?: string) {
     let params = new HttpParams();
     if (search) params = params.set('search', search);
@@ -105,6 +106,19 @@ export class POSApiService {
         const popup = window.open(url, '_blank');
         if (popup) popup.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
       });
+  }
+  printBridge(id: string) {
+    this.http.post<{ reference: string; expiresAtUtc: string }>(`/api/pos/invoice/${id}/print-bridge-reference`, {}).subscribe({
+      next: ({ reference }) => {
+        if (!/Android/i.test(navigator.userAgent)) { this.print(id); return; }
+        const intent = new URL('khatadhari-print://receipt');
+        intent.searchParams.set('api', this.runtime.apiBaseUrl() || window.location.origin);
+        intent.searchParams.set('reference', reference);
+        window.location.assign(intent.toString());
+        window.setTimeout(() => { if (document.visibilityState === 'visible') this.print(id); }, 1800);
+      },
+      error: () => this.print(id),
+    });
   }
   export() {
     return this.http.get('/api/pos/export', { responseType: 'blob' });

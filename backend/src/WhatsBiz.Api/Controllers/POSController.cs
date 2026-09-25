@@ -11,10 +11,15 @@ using WhatsBiz.Application.Features.Products.DTOs;
 using WhatsBiz.Application.Features.Products.MasterData;
 using WhatsBiz.Application.Features.Warehouses;
 using WhatsBiz.SharedKernel;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
+using System.Globalization;
+using System.Security.Cryptography;
 namespace WhatsBiz.Api.Controllers;
 [ApiController, Route("api/pos")]
-public sealed class POSController(ISender sender, IConfiguration configuration, ICurrentUserService currentUser, ICustomerNotificationService notifications, IPOSLifecycleService lifecycle) : ControllerBase
+public sealed class POSController(ISender sender, IConfiguration configuration, ICurrentUserService currentUser, ICustomerNotificationService notifications, IPOSLifecycleService lifecycle, IDataProtectionProvider dataProtection) : ControllerBase
 {
+    private const string PrintBridgeProtectorPurpose = "WhatsBiz.POS.PrintBridge.Reference.v1";
     [HttpGet("products"), HasPermission(Permissions.POS.View)] public Task<IReadOnlyCollection<POSProductDto>> Products([FromQuery] string? search, [FromQuery] string? barcode, [FromQuery] Guid? warehouseId, [FromQuery] Guid? categoryId, [FromQuery] Guid? brandId, [FromQuery] int size = 20, CancellationToken token = default) => sender.Send(new SearchPOSProducts(search, barcode, warehouseId, categoryId, brandId, size), token);
     [HttpGet("categories"), HasPermission(Permissions.POS.View)] public Task<IReadOnlyCollection<ProductCategoryDto>> Categories(CancellationToken token) => sender.Send(new GetProductCategoriesQuery(null, true), token);
     [HttpGet("brands"), HasPermission(Permissions.POS.View)] public Task<IReadOnlyCollection<BrandDto>> Brands(CancellationToken token) => sender.Send(new GetBrandsQuery(null, true), token);
@@ -53,6 +58,37 @@ public sealed class POSController(ISender sender, IConfiguration configuration, 
             : PaperSizes.Normalize(paper);
         return Content(await sender.Send(new PrintInvoice(id, selected), token), "text/html");
     }
+    [HttpPost("invoice/{id:guid}/print-bridge-reference"), HasPermission(Permissions.POS.View)]
+    public async Task<IActionResult> CreatePrintBridgeReference(Guid id, CancellationToken token)
+    {
+        var tenantId = currentUser.TenantId;
+        if (tenantId is null) return Forbid();
+        _ = await sender.Send(new GetPrintBridgeReceipt(id, tenantId.Value), token);
+        var expires = DateTimeOffset.UtcNow.AddMinutes(2);
+        var payload = string.Join('|', tenantId.Value.ToString("N"), id.ToString("N"), expires.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture));
+        var reference = dataProtection.CreateProtector(PrintBridgeProtectorPurpose).Protect(payload);
+        return Ok(new { reference, expiresAtUtc = expires });
+    }
+
+    [AllowAnonymous, HttpPost("print-bridge/receipt")]
+    public async Task<IActionResult> PrintBridgeReceipt([FromBody] PrintBridgeReferenceInput input, CancellationToken token)
+    {
+        var reference = input.Reference;
+        if (string.IsNullOrWhiteSpace(reference) || reference.Length > 2048) return NotFound();
+        try
+        {
+            var payload = dataProtection.CreateProtector(PrintBridgeProtectorPurpose).Unprotect(reference).Split('|');
+            if (payload.Length != 3 || !Guid.TryParseExact(payload[0], "N", out var tenantId) ||
+                !Guid.TryParseExact(payload[1], "N", out var invoiceId) ||
+                !long.TryParse(payload[2], NumberStyles.None, CultureInfo.InvariantCulture, out var expiry) ||
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds() > expiry) return NotFound();
+            Response.Headers.CacheControl = "no-store, no-cache, max-age=0";
+            Response.Headers.Pragma = "no-cache";
+            return Ok(await sender.Send(new GetPrintBridgeReceipt(invoiceId, tenantId), token));
+        }
+        catch (CryptographicException) { return NotFound(); }
+        catch (FormatException) { return NotFound(); }
+    }
     [HttpGet("export"), HasPermission(Permissions.POS.View)] public async Task<IActionResult> Export([FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, CancellationToken token) => File(await sender.Send(new ExportSales(from, to), token), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "sales.xlsx");
 
     private void EnforceCashierDiscount(POSInvoiceInput input)
@@ -62,6 +98,8 @@ public sealed class POSController(ISender sender, IConfiguration configuration, 
         CashierDiscountPolicy.Enforce(input, limit);
     }
 }
+
+public sealed record PrintBridgeReferenceInput(string? Reference);
 
 public static class CashierDiscountPolicy
 {

@@ -347,7 +347,7 @@ export class POSScreenComponent implements OnDestroy {
     });
   }
   print() {
-    if (this.lastInvoiceId) this.api.print(this.lastInvoiceId);
+    if (this.lastInvoiceId) this.api.printBridge(this.lastInvoiceId);
     else this.snack.open('Complete a bill before printing.', undefined, { duration: 2000 });
   }
   focusDiscount() {

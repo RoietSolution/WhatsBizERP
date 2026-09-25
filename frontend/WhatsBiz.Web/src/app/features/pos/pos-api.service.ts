@@ -1,5 +1,11 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+import { Component, Inject, Injectable } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
+import {
+  MAT_SNACK_BAR_DATA,
+  MatSnackBar,
+  MatSnackBarRef,
+} from '@angular/material/snack-bar';
 import { map } from 'rxjs';
 import { PaperSize } from '../printing/paper-size';
 import { RuntimeConfigurationService } from '../../core/services/runtime-configuration.service';
@@ -27,9 +33,53 @@ export interface POSUpiQr {
   amount: number;
 }
 
+interface PrintBridgeFallbackData {
+  retry: () => void;
+  browserPrint: () => void;
+}
+
+@Component({
+  selector: 'app-print-bridge-fallback',
+  imports: [MatButtonModule],
+  template: `
+    <div class='message'>If KhataDhari Print Bridge did not open, choose an option.</div>
+    <div class='actions'>
+      <button mat-button type='button' (click)='retry()'>Try Print Bridge Again</button>
+      <button mat-button type='button' (click)='browserPrint()'>Use Browser Print</button>
+    </div>
+  `,
+  styles: `
+    :host { display: block; }
+    .message { margin-bottom: 4px; }
+    .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+  `,
+})
+export class PrintBridgeFallbackComponent {
+  constructor(
+    @Inject(MAT_SNACK_BAR_DATA) private readonly data: PrintBridgeFallbackData,
+    private readonly ref: MatSnackBarRef<PrintBridgeFallbackComponent>,
+  ) {}
+
+  retry() {
+    this.ref.dismiss();
+    this.data.retry();
+  }
+
+  browserPrint() {
+    this.ref.dismiss();
+    this.data.browserPrint();
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class POSApiService {
-  constructor(private readonly http: HttpClient, private readonly runtime: RuntimeConfigurationService) {}
+  private printBridgeRequests = new Set<string>();
+  private printFallbackNotice?: MatSnackBarRef<PrintBridgeFallbackComponent>;
+  constructor(
+    private readonly http: HttpClient,
+    private readonly runtime: RuntimeConfigurationService,
+    private readonly snack: MatSnackBar,
+  ) {}
   products(search?: string, barcode?: string, warehouseId?: string, size?: number, categoryId?: string, brandId?: string) {
     let params = new HttpParams();
     if (search) params = params.set('search', search);
@@ -108,16 +158,41 @@ export class POSApiService {
       });
   }
   printBridge(id: string) {
+    if (!/Android/i.test(navigator.userAgent)) {
+      this.print(id);
+      return;
+    }
+    if (this.printBridgeRequests.has(id)) return;
+    this.printBridgeRequests.add(id);
     this.http.post<{ reference: string; expiresAtUtc: string }>(`/api/pos/invoice/${id}/print-bridge-reference`, {}).subscribe({
       next: ({ reference }) => {
-        if (!/Android/i.test(navigator.userAgent)) { this.print(id); return; }
+        this.printBridgeRequests.delete(id);
+        if (!reference) {
+          this.showPrintBridgeFallback(id);
+          return;
+        }
         const intent = new URL('khatadhari-print://receipt');
         intent.searchParams.set('api', this.runtime.apiBaseUrl() || window.location.origin);
         intent.searchParams.set('reference', reference);
+        // Chrome cannot reliably report whether a custom-scheme navigation opened an app.
+        // Keep fallback as an explicit user choice; never infer failure and call browser print.
+        this.showPrintBridgeFallback(id);
         window.location.assign(intent.toString());
-        window.setTimeout(() => { if (document.visibilityState === 'visible') this.print(id); }, 1800);
       },
-      error: () => this.print(id),
+      error: () => {
+        this.printBridgeRequests.delete(id);
+        this.showPrintBridgeFallback(id);
+      },
+    });
+  }
+  private showPrintBridgeFallback(id: string) {
+    this.printFallbackNotice?.dismiss();
+    this.printFallbackNotice = this.snack.openFromComponent(PrintBridgeFallbackComponent, {
+      duration: 0,
+      data: {
+        retry: () => this.printBridge(id),
+        browserPrint: () => this.print(id),
+      } satisfies PrintBridgeFallbackData,
     });
   }
   export() {

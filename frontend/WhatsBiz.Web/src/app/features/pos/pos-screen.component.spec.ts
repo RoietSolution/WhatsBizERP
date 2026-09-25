@@ -18,6 +18,7 @@ describe('POSScreenComponent barcode flow', () => {
       'invoice',
       'hold',
       'print',
+      'printBridge',
     ]);
     api.methods.and.returnValue(of(paymentMethods));
     api.warehouses.and.returnValue(
@@ -155,6 +156,18 @@ describe('POSScreenComponent barcode flow', () => {
     expect(component.shortcuts.slice(0, 5).map((x) => x.label)).toEqual([
       'New Bill', 'Customer', 'Payment', 'Hold', 'Print',
     ]);
+  });
+
+  it('routes repeated POS print actions through the Android-aware print bridge flow', () => {
+    const { api, component } = setup();
+    component.lastInvoiceId = 'invoice-1';
+
+    component.print();
+    component.print();
+
+    expect(api.printBridge).toHaveBeenCalledTimes(2);
+    expect(api.printBridge).toHaveBeenCalledWith('invoice-1');
+    expect(api.print).not.toHaveBeenCalled();
   });
 
   it('keeps only Cash and UPI available for sale settlement', () => {

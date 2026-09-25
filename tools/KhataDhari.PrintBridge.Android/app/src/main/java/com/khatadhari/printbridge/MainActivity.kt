@@ -69,6 +69,7 @@ class MainActivity : Activity() {
     private lateinit var logScroll: ScrollView
     private val logLines = mutableListOf<String>()
     private var printRequest: PrintReceiptRequest? = null
+    private var printRequestGeneration = 0
     private val printerPreferences by lazy { getSharedPreferences("printer-preferences", MODE_PRIVATE) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -436,6 +437,7 @@ class MainActivity : Activity() {
     private fun handlePrintIntent(intent: android.content.Intent?) {
         val uri: Uri = intent?.data ?: return
         if (uri.scheme != "khatadhari-print" || uri.host != "receipt") return
+        val requestGeneration = ++printRequestGeneration
         val api = uri.getQueryParameter("api")
         val reference = uri.getQueryParameter("reference")
         printRequest = null
@@ -446,8 +448,9 @@ class MainActivity : Activity() {
         ioExecutor.execute {
             try {
                 val result = PrintBridgeApi.fetch(api, reference)
-                printRequest = result
                 runOnUiThread {
+                    if (requestGeneration != printRequestGeneration || isFinishing || isDestroyed) return@runOnUiThread
+                    printRequest = result
                     receiptPreview.text = buildString {
                         append("${result.business.name}\nInvoice ${result.invoice.number} · ${result.invoice.date}\n")
                         append("${result.invoice.items.size} item(s) · ${result.invoice.status}\n")
@@ -459,6 +462,7 @@ class MainActivity : Activity() {
                 }
             } catch (error: Exception) {
                 runOnUiThread {
+                    if (requestGeneration != printRequestGeneration || isFinishing || isDestroyed) return@runOnUiThread
                     receiptPreview.text = error.message ?: "Invoice request could not be loaded. Return to POS and retry."
                     appendLog("Print request failed: ${error.javaClass.simpleName}: ${error.message ?: "No further detail"}")
                 }

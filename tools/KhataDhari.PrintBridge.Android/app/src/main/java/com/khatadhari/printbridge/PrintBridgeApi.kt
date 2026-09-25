@@ -49,12 +49,28 @@ object PrintBridgeApi {
         val businessJson = root.getJSONObject("business")
         val invoiceJson = root.getJSONObject("invoice")
         val itemsJson = invoiceJson.getJSONArray("items")
-        require(invoiceJson.getString("number").isNotBlank() && itemsJson.length() > 0) { "The print request does not contain a finalized invoice." }
-        val business = PrintBusiness(businessJson.getString("name"), businessJson.optString("address", ""), businessJson.optNullableString("gstin"), businessJson.optNullableString("phone"))
+        require(invoiceJson.getString("number").isNotBlank() && itemsJson.length() > 0) { "The print request does not contain a printable saved invoice." }
+        val business = PrintBusiness(
+            businessJson.getString("name"),
+            businessJson.optNullableString("legalName"),
+            businessJson.optString("address", ""),
+            businessJson.optNullableString("gstin"),
+            businessJson.optNullableString("phone"),
+            businessJson.optNullableString("email"),
+            businessJson.optNullableString("termsAndConditions"),
+            businessJson.optNullableString("invoiceFooter"),
+        )
         val items = itemsJson.mapObjects { x -> PrintItem(x.getString("name"), x.decimal("quantity"), x.optNullableString("unit"), x.decimal("rate"), x.decimal("discount"), x.decimal("taxPercentage"), x.decimal("taxAmount"), x.decimal("amount")) }
         val taxes = invoiceJson.optJSONArray("taxes").mapObjects { x -> PrintTax(x.getString("type"), x.decimal("rate"), x.decimal("taxableAmount"), x.decimal("amount")) }
         val payments = invoiceJson.optJSONArray("payments").mapObjects { x -> PrintPayment(x.getString("method"), x.decimal("amount"), x.getString("status")) }
-        val invoice = PrintInvoice(invoiceJson.getString("number"), invoiceJson.getString("date"), invoiceJson.getString("status"), invoiceJson.optNullableString("customerName"), invoiceJson.optNullableString("customerGstin"), invoiceJson.decimal("subtotal"), invoiceJson.decimal("discount"), invoiceJson.decimal("tax"), invoiceJson.decimal("roundOff"), invoiceJson.decimal("grandTotal"), invoiceJson.decimal("paid"), invoiceJson.decimal("balance"), items, taxes, payments)
+        val invoice = PrintInvoice(
+            invoiceJson.getString("number"), invoiceJson.getString("date"), invoiceJson.getString("status"),
+            invoiceJson.optNullableString("customerName"), invoiceJson.optNullableString("customerGstin"),
+            invoiceJson.optNullableString("counter"), invoiceJson.optNullableString("cashier"),
+            invoiceJson.decimal("subtotal"), invoiceJson.decimal("discount"), invoiceJson.decimal("taxableAmount"),
+            invoiceJson.decimal("tax"), invoiceJson.decimal("roundOff"), invoiceJson.decimal("grandTotal"),
+            invoiceJson.decimal("paid"), invoiceJson.decimal("balance"), items, taxes, payments,
+        )
         return PrintReceiptRequest(business, invoice)
     }
 

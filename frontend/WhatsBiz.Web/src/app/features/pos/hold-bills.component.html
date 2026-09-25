@@ -2,7 +2,7 @@
 @for (x of bills(); track x.invoiceId) {
   <section>
     <span><strong>{{ x.invoiceNumber }}</strong> · {{ x.invoiceDate }} · {{ x.grandTotal }} @if(x.sourceChannel){<b class="source-badge">{{x.sourceChannel}}</b>}</span>
-    <span><button mat-flat-button (click)="complete(x)">Payment &amp; Complete</button><button mat-button (click)="cancel(x)">Cancel</button></span>
+    <span><button mat-stroked-button (click)="print(x)">Print Provisional Bill</button><button mat-flat-button (click)="complete(x)">Payment &amp; Complete</button><button mat-button (click)="cancel(x)">Cancel</button></span>
   </section>
 } @empty {
   <p>No held bills.</p>

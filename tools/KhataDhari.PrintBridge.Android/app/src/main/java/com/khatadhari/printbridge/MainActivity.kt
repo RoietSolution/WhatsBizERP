@@ -442,7 +442,7 @@ class MainActivity : Activity() {
         val reference = uri.getQueryParameter("reference")
         printRequest = null
         receiptPreview.visibility = View.VISIBLE
-        receiptPreview.text = "Loading finalized invoice from WhatsBiz..."
+        receiptPreview.text = "Loading saved invoice from WhatsBiz..."
         receiptPrintButton.visibility = View.GONE
         appendLog("WhatsBiz print request received. Retrieving invoice using short-lived reference.")
         ioExecutor.execute {
@@ -458,7 +458,7 @@ class MainActivity : Activity() {
                     }
                     receiptPrintButton.visibility = View.VISIBLE
                     updateControls()
-                    appendLog("Finalized invoice ${result.invoice.number} loaded for preview. No ERP values were recalculated.")
+                    appendLog("Saved invoice ${result.invoice.number} loaded for preview. No ERP values were recalculated.")
                 }
             } catch (error: Exception) {
                 runOnUiThread {

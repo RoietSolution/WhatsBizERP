@@ -45,5 +45,6 @@ export class HoldBillsComponent {
       ).subscribe({next:()=>{this.snack.open(`Held bill ${x.invoiceNumber} completed.`,undefined,{duration:3000,panelClass:'wb-success'});this.load();this.api.print(x.invoiceId);},error:()=>this.snack.open('The held bill could not be completed. Check stock and payment details, then retry.','Dismiss',{duration:6000})});
     });
   }
+  print(x:InvoiceList){this.api.printBridge(x.invoiceId);}
   cancel(x:InvoiceList){this.api.cancelHeld(x.invoiceId).subscribe(()=>this.load());}
 }

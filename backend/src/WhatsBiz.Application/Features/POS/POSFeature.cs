@@ -150,8 +150,8 @@ public sealed record GetTodaySales : IRequest<TodaySalesDto>;
 public sealed record PrintInvoice(Guid Id, string Paper) : IRequest<string>;
 public sealed record GetPrintBridgeReceipt(Guid InvoiceId, Guid TenantId) : IRequest<POSPrintReceiptDto>;
 public sealed record POSPrintReceiptDto(POSPrintBusinessDto Business, POSPrintInvoiceDto Invoice);
-public sealed record POSPrintBusinessDto(string Name, string Address, string? GSTIN, string? Phone);
-public sealed record POSPrintInvoiceDto(string Number, DateTimeOffset Date, string Status, string? CustomerName, string? CustomerGSTIN, decimal Subtotal, decimal Discount, decimal Tax, decimal RoundOff, decimal GrandTotal, decimal Paid, decimal Balance, IReadOnlyCollection<POSPrintItemDto> Items, IReadOnlyCollection<POSPrintTaxDto> Taxes, IReadOnlyCollection<POSPrintPaymentDto> Payments);
+public sealed record POSPrintBusinessDto(string Name, string? LegalName, string Address, string? GSTIN, string? Phone, string? Email, string? TermsAndConditions, string? InvoiceFooter);
+public sealed record POSPrintInvoiceDto(string Number, DateTimeOffset Date, string Status, string? CustomerName, string? CustomerGSTIN, string? Counter, string? Cashier, decimal Subtotal, decimal Discount, decimal TaxableAmount, decimal Tax, decimal RoundOff, decimal GrandTotal, decimal Paid, decimal Balance, IReadOnlyCollection<POSPrintItemDto> Items, IReadOnlyCollection<POSPrintTaxDto> Taxes, IReadOnlyCollection<POSPrintPaymentDto> Payments);
 public sealed record POSPrintItemDto(string Name, decimal Quantity, string? Unit, decimal Rate, decimal Discount, decimal TaxPercentage, decimal TaxAmount, decimal Amount);
 public sealed record POSPrintTaxDto(string Type, decimal Rate, decimal TaxableAmount, decimal Amount);
 public sealed record POSPrintPaymentDto(string Method, decimal Amount, string Status);
@@ -400,14 +400,15 @@ public sealed class POSHandlers(
     {
         var invoice = await repository.InvoiceForTenant(q.InvoiceId, q.TenantId, t)
             ?? throw new EntityNotFoundException("Invoice not found.");
-        if (invoice.Status is not ("COMPLETED" or "PARTIALLY_RETURNED" or "RETURNED"))
-            throw new BusinessRuleException("Only finalized invoices can be printed from the bridge.");
+        POSPrintBridgePolicy.EnsurePrintable(invoice.Status);
         var company = await admin.CompanyForTenant(q.TenantId, t);
         var address = string.Join(", ", new[] { company.AddressLine1, company.AddressLine2, company.City, company.State, company.PostalCode }.Where(x => !string.IsNullOrWhiteSpace(x)));
         return new(
-            new(company.CompanyName, address, company.GSTIN, company.Phone),
+            new(company.CompanyName, string.Equals(company.LegalName, company.CompanyName, StringComparison.OrdinalIgnoreCase) ? null : company.LegalName,
+                address, company.GSTIN, company.Phone, company.Email, company.TermsAndConditions, company.InvoiceFooter),
             new(invoice.InvoiceNumber, invoice.InvoiceDate, invoice.Status, invoice.Customer?.CustomerName, invoice.Customer?.GSTIN,
-                invoice.Subtotal, invoice.DiscountAmount, invoice.TaxAmount, invoice.RoundOff, invoice.GrandTotal, invoice.PaidAmount, invoice.BalanceAmount,
+                invoice.CounterId?.ToString("N")[..6], invoice.CreatedBy,
+                invoice.Subtotal, invoice.DiscountAmount, invoice.Subtotal - invoice.DiscountAmount, invoice.TaxAmount, invoice.RoundOff, invoice.GrandTotal, invoice.PaidAmount, invoice.BalanceAmount,
                 invoice.Items.Select(x => new POSPrintItemDto(x.Product.ProductName, x.Quantity, x.Product.Unit?.ShortName, x.UnitPrice, x.DiscountAmount, x.TaxPercentage, x.TaxAmount, x.LineTotal)).ToArray(),
                 invoice.Taxes.Select(x => new POSPrintTaxDto(x.TaxType, x.TaxPercentage, x.TaxableAmount, x.TaxAmount)).ToArray(),
                 invoice.Payments.Select(x => new POSPrintPaymentDto(x.PaymentMethod.MethodName, x.Amount, x.Status)).ToArray()));
@@ -439,6 +440,18 @@ public sealed class POSHandlers(
             x.Remarks,
             x.Items.Select(i => new POSInvoiceItemDto(i.InvoiceItemId, i.ProductId, i.Product.ProductCode, i.Product.ProductName, i.Barcode, i.Quantity, i.ReturnedQuantity, i.UnitPrice, i.DiscountPercentage, i.DiscountAmount, i.TaxPercentage, i.TaxAmount, i.LineTotal)).ToArray(),
             x.Payments.Select(p => new POSPaymentDto(p.PaymentId, p.PaymentMethod.MethodCode, p.PaymentMethod.MethodName, p.Amount, p.ReferenceNumber, p.PaymentDate)).ToArray());
+}
+
+internal static class POSPrintBridgePolicy
+{
+    internal static readonly IReadOnlySet<string> PrintableStatuses =
+        new HashSet<string>(StringComparer.Ordinal) { "COMPLETED", "PARTIALLY_RETURNED", "RETURNED", "HELD", "SUSPENDED" };
+
+    internal static void EnsurePrintable(string status)
+    {
+        if (!PrintableStatuses.Contains(status))
+            throw new BusinessRuleException("Only finalized, held, or suspended invoices can be printed from the bridge.");
+    }
 }
 
 public static class POSSettlementPolicy

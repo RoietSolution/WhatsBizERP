@@ -7,7 +7,7 @@ export interface StorefrontDataProvider {
   getProducts(storeKey: string): Promise<Product[]>;
   getProduct(storeKey: string, productId: string): Promise<Product | null>;
   getOrders(storeKey: string): Promise<CustomerOrder[]>;
-  checkoutWithRazorpay(storeKey: string, customer: CheckoutCustomer, lines: readonly CartLine[], idempotencyKey: string): Promise<CheckoutResult>;
+  checkout(storeKey: string, customer: CheckoutCustomer, lines: readonly CartLine[], idempotencyKey: string, paymentProvider: string): Promise<CheckoutResult>;
 }
 
 export const STOREFRONT_DATA_PROVIDER = new InjectionToken<StorefrontDataProvider>('STOREFRONT_DATA_PROVIDER');

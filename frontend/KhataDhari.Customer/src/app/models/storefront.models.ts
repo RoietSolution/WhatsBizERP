@@ -5,12 +5,18 @@ export interface Store {
   logoUrl?: string;
   accentColor: string;
   deliveryMessage: string;
+  banners: StoreBanner[];
+  paymentMethods: StorePaymentMethod[];
 }
+
+export interface StoreBanner { slot: 'PRIMARY' | 'SECONDARY'; imageUrl: string; title?: string; subtitle?: string; targetUrl?: string; displayOrder: number; }
+export interface StorePaymentMethod { code: 'RAZORPAY' | 'DIRECT_UPI' | 'COD'; label: string; description: string; isDefault: boolean; usesHostedPaymentPage: boolean; }
 
 export interface Category {
   id: string;
   name: string;
   emoji?: string;
+  imageUrl?: string;
 }
 
 export interface Product {
@@ -22,7 +28,7 @@ export interface Product {
   sellingPrice: number;
   compareAtPrice?: number;
   available: boolean;
-  unitLabel: string;
+  unitLabel?: string;
   badge?: string;
 }
 
@@ -60,5 +66,8 @@ export interface CheckoutResult {
   amount: number;
   currency: string;
   paymentId: string;
-  checkoutUrl: string;
+  checkoutUrl?: string;
+  paymentProvider: string;
+  paymentStatus: string;
+  customerMessage?: string;
 }

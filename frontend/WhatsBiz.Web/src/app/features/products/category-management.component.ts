@@ -56,7 +56,8 @@ export class CategoryManagementComponent {
   private readonly fb = inject(FormBuilder);
   readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
   readonly importing = signal(false);
-  readonly columns = ['code', 'name', 'status', 'actions'];
+  readonly columns = ['code', 'name', 'image', 'status', 'actions'];
+  readonly imageVersion=signal(Date.now());
   readonly items = signal<Category[]>([]);
   readonly flat = signal<Category[]>([]);
   editingId?: string;
@@ -138,6 +139,10 @@ export class CategoryManagementComponent {
       error: () => this.snack.open('Category import failed.', 'Dismiss', { duration: 4000 }),
     });
   }
+  categoryImage(id:string):string{return `/api/storefront-administration/categories/${id}/image?v=${this.imageVersion()}`;}
+  hideBrokenImage(event:Event):void{(event.target as HTMLImageElement).style.display='none';}
+  uploadCategoryImage(id:string,event:Event):void{const input=event.target as HTMLInputElement,file=input.files?.[0];if(!file)return;this.api.uploadCategoryStorefrontImage(id,file).subscribe({next:()=>{this.imageVersion.set(Date.now());input.value='';this.snack.open('Category image updated.',undefined,{duration:2000});},error:()=>this.snack.open('Category image could not be uploaded.','Dismiss',{duration:4000})});}
+  removeCategoryImage(id:string):void{this.api.removeCategoryStorefrontImage(id).subscribe({next:()=>{this.imageVersion.set(Date.now());this.snack.open('Category image removed.',undefined,{duration:2000});},error:()=>this.snack.open('Category image could not be removed.','Dismiss',{duration:4000})});}
   private flatten(items: Category[]): Category[] {
     return items.flatMap((item) => [item, ...this.flatten(item.children)]);
   }

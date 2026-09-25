@@ -21,7 +21,7 @@ import { Product } from '../models/storefront.models';
           @else { <div class="image-placeholder"><svg viewBox="0 0 24 24"><path d="M4 6.5A1.5 1.5 0 0 1 5.5 5h13A1.5 1.5 0 0 1 20 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5zM7 16l3.2-3.4 2.3 2.2 1.8-1.7L18 16M9 9h.01"/></svg><span>Image coming soon</span></div> }
         </div>
         <div class="info">
-          <span class="unit">{{ item.unitLabel }}</span><h1>{{ item.name }}</h1>
+          @if (item.unitLabel) { <span class="unit">{{ item.unitLabel }}</span> }<h1>{{ item.name }}</h1>
           @if (item.description) { <p class="description">{{ item.description }}</p> }
           <div class="price-line"><strong>{{ item.sellingPrice | currency:'INR':'symbol':'1.0-2' }}</strong>@if (item.compareAtPrice) { <del>{{ item.compareAtPrice | currency:'INR':'symbol':'1.0-2' }}</del> }</div>
           <p class="availability" [class.unavailable]="!item.available"><i></i>{{ item.available ? 'In stock and ready to order' : 'Currently out of stock' }}</p>

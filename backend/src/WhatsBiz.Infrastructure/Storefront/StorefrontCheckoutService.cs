@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Payments;
@@ -14,7 +15,8 @@ namespace WhatsBiz.Infrastructure.Storefront;
 public sealed partial class StorefrontCheckoutService(
     IConfiguration configuration,
     IPOSEngine pos,
-    ICommercePaymentService payments) : IStorefrontCheckoutService
+    ICommercePaymentService payments,
+    ILogger<StorefrontCheckoutService> logger) : IStorefrontCheckoutService
 {
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection")
         ?? throw new InvalidOperationException("Database connection unavailable.");
@@ -47,9 +49,10 @@ public sealed partial class StorefrontCheckoutService(
 
         var tenantId = await ResolveTenant(storeKey, token)
             ?? throw new EntityNotFoundException("Store was not found.");
+        var provider = NormalizeProvider(input.PaymentProvider);
         var methods = await payments.GetEnabledMethodsForTenantAsync(tenantId, token);
-        if (methods.All(method => method.Provider != PaymentProviders.Razorpay))
-            throw new BusinessRuleException("Online payment is not currently available for this store.");
+        if (methods.All(method => method.Provider != provider))
+            throw new BusinessRuleException("The selected payment method is not currently available for this store.");
 
         var cartJson = JsonSerializer.Serialize(items);
         var (warehouseId, lines) = await PriceCart(tenantId, cartJson, items.Length, token);
@@ -57,25 +60,32 @@ public sealed partial class StorefrontCheckoutService(
         var posItems = lines.Select(line => new POSItemInput(line.ProductId, null, line.Quantity,
             line.UnitPrice, 0, 0, line.TaxPercentage)).ToArray();
         var orderRequest = new POSPostRequest(null, null, customerId, warehouseId, null,
-            JsonSerializer.Serialize(posItems), "[]", 0, 0, "Storefront order awaiting Razorpay payment",
+            JsonSerializer.Serialize(posItems), "[]", 0, 0, "Storefront order awaiting payment/collection",
             "HELD", false, null, "STOREFRONT", tenantId, "STOREFRONT");
         var order = await pos.PostForTenant(orderRequest, tenantId, $"STOREFRONT:{tenantId:N}:{requestKey:N}", token);
 
-        await UpdateOrderMetadata(tenantId, order.InvoiceId, address, token);
-        var existing = await ExistingPayment(tenantId, order.InvoiceId, token);
-        if (existing is not null && Uri.TryCreate(existing.Value.Url, UriKind.Absolute, out var existingUri)
-            && existingUri.Scheme == Uri.UriSchemeHttps)
-            return new(order.InvoiceId, order.InvoiceNumber, order.GrandTotal, "INR", existing.Value.PaymentId, existingUri.AbsoluteUri);
+        await UpdateOrderMetadata(tenantId, order.InvoiceId, address, provider, token);
+        var existing = await ExistingPayment(tenantId, order.InvoiceId, provider, token);
+        if (existing is not null)
+            return new(order.InvoiceId, order.InvoiceNumber, existing.Value.Amount, "INR", existing.Value.PaymentId,
+                provider == PaymentProviders.Cod ? null : existing.Value.Url, provider, existing.Value.Status, CustomerMessage(provider));
 
         var attempt = await payments.CreateAttemptForTenantAsync(tenantId,
-            new(order.InvoiceId, PaymentProviders.Razorpay), "STOREFRONT", token);
+            new(order.InvoiceId, provider), "STOREFRONT", token);
         var checkoutUrl = attempt.PaymentAction ?? attempt.Payment.PaymentLink;
-        if (string.IsNullOrWhiteSpace(checkoutUrl)
+        if (provider == PaymentProviders.Cod) checkoutUrl = null;
+        if (provider == PaymentProviders.Razorpay && (string.IsNullOrWhiteSpace(checkoutUrl)
             || !Uri.TryCreate(checkoutUrl, UriKind.Absolute, out var checkoutUri)
-            || checkoutUri.Scheme != Uri.UriSchemeHttps)
-            throw new BusinessRuleException("Razorpay did not return a checkout URL.");
+            || checkoutUri.Scheme != Uri.UriSchemeHttps))
+        {
+            StorefrontCheckoutLogs.InvalidPaymentAction(logger, tenantId, order.InvoiceId, provider);
+            throw new BusinessRuleException("Online payment is currently unavailable. Please try again.");
+        }
+        if (provider == PaymentProviders.DirectUpi && !string.IsNullOrWhiteSpace(checkoutUrl)
+            && (!Uri.TryCreate(checkoutUrl, UriKind.Absolute, out var upiUri) || upiUri.Scheme != "upi"))
+            throw new BusinessRuleException("UPI payment is currently unavailable. Please try again.");
         return new(order.InvoiceId, order.InvoiceNumber, attempt.Payment.Amount,
-            attempt.Payment.Currency, attempt.Payment.PaymentId, checkoutUri.AbsoluteUri);
+            attempt.Payment.Currency, attempt.Payment.PaymentId, checkoutUrl, provider, attempt.Payment.Status, CustomerMessage(provider));
     }
 
     private async Task<Guid?> ResolveTenant(string storeKey, CancellationToken token)
@@ -168,34 +178,36 @@ public sealed partial class StorefrontCheckoutService(
         return id;
     }
 
-    private async Task UpdateOrderMetadata(Guid tenantId, Guid orderId, string address, CancellationToken token)
+    private async Task UpdateOrderMetadata(Guid tenantId, Guid orderId, string address, string provider, CancellationToken token)
     {
         await using var connection = await Open(tenantId, token);
         await using var command = new SqlCommand("""
             UPDATE integration.WhatsAppCommerceOrders
-            SET DeliveryAddress=@address,FulfillmentMethod=N'RETAILER_DELIVERY',PaymentType=N'ONLINE'
+            SET DeliveryAddress=@address,FulfillmentMethod=N'RETAILER_DELIVERY',PaymentType=@paymentType
             WHERE TenantId=@tenant AND InvoiceId=@order;
             """, connection);
         command.Parameters.AddWithValue("@address", address);
+        command.Parameters.AddWithValue("@paymentType", provider == PaymentProviders.Cod ? "COD" : "ONLINE");
         command.Parameters.AddWithValue("@tenant", tenantId);
         command.Parameters.AddWithValue("@order", orderId);
         await command.ExecuteNonQueryAsync(token);
     }
 
-    private async Task<(Guid PaymentId, string Url)?> ExistingPayment(Guid tenantId, Guid orderId,
+    private async Task<(Guid PaymentId, decimal Amount, string Status, string? Url)?> ExistingPayment(Guid tenantId, Guid orderId, string provider,
         CancellationToken token)
     {
         await using var connection = await Open(tenantId, token);
         await using var command = new SqlCommand("""
-            SELECT TOP(1) PaymentId,PaymentLink FROM commerce.CommercePayments
-            WHERE TenantId=@tenant AND InvoiceId=@order AND Provider=N'RAZORPAY'
-              AND Status=N'PENDING' AND PaymentLink IS NOT NULL
+            SELECT TOP(1) PaymentId,Amount,Status,COALESCE(PaymentLink,ProviderReference) FROM commerce.CommercePayments
+            WHERE TenantId=@tenant AND InvoiceId=@order AND Provider=@provider
+              AND Status IN(N'PENDING',N'PENDING_VERIFICATION',N'COD_PENDING')
             ORDER BY AttemptNumber DESC;
             """, connection);
         command.Parameters.AddWithValue("@tenant", tenantId);
         command.Parameters.AddWithValue("@order", orderId);
+        command.Parameters.AddWithValue("@provider", provider);
         await using var reader = await command.ExecuteReaderAsync(token);
-        return await reader.ReadAsync(token) ? (reader.GetGuid(0), reader.GetString(1)) : null;
+        return await reader.ReadAsync(token) ? (reader.GetGuid(0), reader.GetDecimal(1), reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3)) : null;
     }
 
     private async Task<SqlConnection> Open(Guid tenantId, CancellationToken token)
@@ -209,6 +221,24 @@ public sealed partial class StorefrontCheckoutService(
     }
 
     private sealed record PricedLine(Guid ProductId, decimal Quantity, decimal UnitPrice, decimal TaxPercentage);
+    private static string NormalizeProvider(string? provider)
+    {
+        var value = string.IsNullOrWhiteSpace(provider) ? PaymentProviders.Razorpay : provider.Trim().ToUpperInvariant();
+        if (!PaymentProviders.All.Contains(value)) throw new BusinessRuleException("Select a supported payment method.");
+        return value;
+    }
+    private static string CustomerMessage(string provider) => provider switch
+    {
+        PaymentProviders.Cod => "Your order is confirmed for cash payment on delivery.",
+        PaymentProviders.DirectUpi => "Your UPI payment will remain pending until the retailer verifies it.",
+        _ => "Complete payment securely on Razorpay."
+    };
     [GeneratedRegex("^[A-Z0-9_-]{1,100}$", RegexOptions.CultureInvariant)] private static partial Regex StoreKeyPattern();
     [GeneratedRegex("[^0-9]+", RegexOptions.CultureInvariant)] private static partial Regex Digits();
+}
+
+internal static partial class StorefrontCheckoutLogs
+{
+    [LoggerMessage(3401, LogLevel.Warning, "Storefront payment provider {Provider} returned an invalid action for tenant {TenantId}, order {OrderId}.")]
+    public static partial void InvalidPaymentAction(ILogger logger, Guid tenantId, Guid orderId, string provider);
 }

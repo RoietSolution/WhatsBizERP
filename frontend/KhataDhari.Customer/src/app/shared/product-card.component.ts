@@ -22,7 +22,7 @@ import { CartService } from '../cart/cart.service';
       </a>
       <div class="product-info">
         <a class="product-name" [routerLink]="['/', storeKey(), 'products', product().id]">{{ product().name }}</a>
-        <span class="unit-label">{{ product().unitLabel }}</span>
+        @if (product().unitLabel) { <span class="unit-label">{{ product().unitLabel }}</span> }
         <div class="product-buy-row">
           <div class="price-wrap"><strong class="price">{{ product().sellingPrice | currency:'INR':'symbol':'1.0-2' }}</strong>@if (product().compareAtPrice) { <del>{{ product().compareAtPrice | currency:'INR':'symbol':'1.0-0' }}</del> }</div>
           @if (!product().available) {

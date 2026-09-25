@@ -26,6 +26,8 @@
     <Build Update="StoredProcedures\Inventory_Adjust.sql"><SuppressTSqlWarnings>71502</SuppressTSqlWarnings></Build>
     <Build Update="StoredProcedures\Purchase_AddPayment.sql"><SuppressTSqlWarnings>71502</SuppressTSqlWarnings></Build>
     <Build Update="StoredProcedures\POS_AddPayment.sql"><SuppressTSqlWarnings>71502</SuppressTSqlWarnings></Build>
+    <!-- V37 creates this dependency through its replayable post-deployment migration. -->
+    <Build Update="Triggers\TR_Users_ResourceCapacity.sql"><SuppressTSqlWarnings>71502</SuppressTSqlWarnings></Build>
     <None Include="SeedData\DemoData.sql"/><None Include="SeedData\ApplyRealDemoImages.sql"/><None Include="SeedData\FinanceBaseline.sql"/><None Include="Scripts\VerifyPOS.sql"/><None Include="Scripts\VerifyPurchase.sql"/><None Include="Scripts\V1_ReleaseHardening.sql"/>
     <None Include="Scripts\RCDEV008-RuntimeObjects.sql"/>
     <None Include="Scripts\RCDEV009-PrintingPaperSize.sql"/>
@@ -68,6 +70,7 @@
     <None Include="Scripts\V35-WhatsAppUsageBilling.sql"/>
     <None Include="Scripts\V36-TenantCommercePayments.sql"/>
     <None Include="Scripts\V37-TenantResourceCapacity.sql"/>
+    <None Include="Scripts\V38-StorefrontPresentation.sql"/>
     <None Include="Scripts\V5-DashboardInventoryAvailability.sql"/>
     <None Include="Scripts\V6-DashboardTenantOwnershipAudit.sql"/>
     <None Include="Scripts\V7-SafeInventoryTenantColumns.sql"/>

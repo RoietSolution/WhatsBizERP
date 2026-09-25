@@ -11,7 +11,7 @@ export class StorefrontDataService {
   getProducts(storeKey: string): Promise<Product[]> { return this.provider.getProducts(storeKey); }
   getProduct(storeKey: string, id: string): Promise<Product | null> { return this.provider.getProduct(storeKey, id); }
   getOrders(storeKey: string): Promise<CustomerOrder[]> { return this.provider.getOrders(storeKey); }
-  checkoutWithRazorpay(storeKey: string, customer: CheckoutCustomer, lines: readonly CartLine[], idempotencyKey: string): Promise<CheckoutResult> {
-    return this.provider.checkoutWithRazorpay(storeKey, customer, lines, idempotencyKey);
+  checkout(storeKey: string, customer: CheckoutCustomer, lines: readonly CartLine[], idempotencyKey: string, paymentProvider: string): Promise<CheckoutResult> {
+    return this.provider.checkout(storeKey, customer, lines, idempotencyKey, paymentProvider);
   }
 }

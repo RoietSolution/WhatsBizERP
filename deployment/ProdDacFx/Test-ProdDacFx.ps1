@@ -5,6 +5,11 @@ $classificationModule = Join-Path $PSScriptRoot 'ProdDatabaseClassification.psm1
 $optionsScript = Join-Path (Split-Path -Parent $PSScriptRoot) 'sql\Production_DatabaseOptions.sql'
 $ownershipValidation = Join-Path (Split-Path -Parent $PSScriptRoot) 'sql\Production_TenantOwnershipStateValidation.sql'
 $postValidation = Join-Path (Split-Path -Parent $PSScriptRoot) '..\database\WhatsBiz.Database\Scripts\Production_PostValidation.sql'
+$databaseProject = Join-Path (Split-Path -Parent $PSScriptRoot) '..\database\WhatsBiz.Database\WhatsBiz.Database.sqlproj'
+$resourceCapacityTrigger = Join-Path (Split-Path -Parent $PSScriptRoot) '..\database\WhatsBiz.Database\Triggers\TR_Users_ResourceCapacity.sql'
+$v37Migration = Join-Path (Split-Path -Parent $PSScriptRoot) '..\database\WhatsBiz.Database\Scripts\V37-TenantResourceCapacity.sql'
+$v38Migration = Join-Path (Split-Path -Parent $PSScriptRoot) '..\database\WhatsBiz.Database\Scripts\V38-StorefrontPresentation.sql'
+$dacpac = Join-Path (Split-Path -Parent $PSScriptRoot) '..\database\WhatsBiz.Database\bin\Release\WhatsBiz.Database.dacpac'
 if (-not (Test-Path -LiteralPath $helper)) { throw 'Build ProdDacFx before running its offline tests.' }
 Import-Module -Name $classificationModule -Force
 
@@ -127,12 +132,47 @@ try {
         $passes = $case.PageVerify -ceq 'CHECKSUM' -and $case.RecoverySeconds -eq 60
         if ($passes -ne $case.Expected) { throw "Offline production database option validation failed for PAGE_VERIFY=$($case.PageVerify), TARGET_RECOVERY_TIME=$($case.RecoverySeconds)." }
     }
-    $projectText = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) '..\database\WhatsBiz.Database\WhatsBiz.Database.sqlproj') -Raw
+    $projectText = Get-Content -LiteralPath $databaseProject -Raw
     if ($projectText -notmatch '<PageVerify>CHECKSUM</PageVerify>' -or
         $projectText -notmatch '<TargetRecoveryTimePeriod>60</TargetRecoveryTimePeriod>' -or
         $projectText -notmatch '<TargetRecoveryTimeUnit>Seconds</TargetRecoveryTimeUnit>') { throw 'SQL project database-option properties have changed unexpectedly.' }
     $postDeployment = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) '..\database\WhatsBiz.Database\Scripts\PostDeployment.sql') -Raw
     if ($postDeployment -match '(?im)^\s*:r\s+.*(?:Bootstrap_QA|DemoData|ApplyRealDemoImages)\.sql\s*$') { throw 'QA/demo fixture entered the production DACPAC chain.' }
+    $triggerText = Get-Content -LiteralPath $resourceCapacityTrigger -Raw
+    $v37Text = Get-Content -LiteralPath $v37Migration -Raw
+    $v38Text = Get-Content -LiteralPath $v38Migration -Raw
+    if ($triggerText -notmatch '(?is)CREATE\s+TRIGGER\s+\[core\]\.\[TR_Users_ResourceCapacity\].*?ON\s+\[core\]\.\[Users\].*?AFTER\s+INSERT\s*,\s*UPDATE' -or
+        $triggerText -notmatch 'UPDLOCK\s*,\s*HOLDLOCK' -or
+        $triggerText -notmatch "THROW\s+51851\s*,\s*N?'The tenant user limit has been reached\.'" -or
+        $triggerText -notmatch "l\.ResourceType\s*=\s*N'USERS'" -or
+        $v37Text -match '(?is)CREATE\s+OR\s+ALTER\s+TRIGGER\s+core\.TR_Users_ResourceCapacity') {
+        throw 'V37 user resource-capacity trigger must be represented declaratively with its original behavior and not duplicated in PostDeployment.'
+    }
+    if (-not (Test-Path -LiteralPath $dacpac)) { throw 'Built database DACPAC is missing for declarative-trigger verification.' }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $package = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $dacpac))
+    try {
+        $modelEntry = $package.Entries | Where-Object { $_.FullName -match '(^|/)model\.xml$' } | Select-Object -First 1
+        if (-not $modelEntry) { throw 'DACPAC has no model.xml entry.' }
+        $modelReader = [System.IO.StreamReader]::new($modelEntry.Open())
+        try { $modelXml = $modelReader.ReadToEnd() } finally { $modelReader.Dispose() }
+        if ($modelXml -notmatch 'TR_Users_ResourceCapacity') { throw 'Resource-capacity trigger is absent from the DACPAC model.' }
+    }
+    finally { $package.Dispose() }
+    if ($postDeployment -notmatch '(?im)^\s*:r\s+\.\\V37-TenantResourceCapacity\.sql\s*$' -or
+        $postDeployment -notmatch '(?im)^\s*:r\s+\.\\V38-StorefrontPresentation\.sql\s*$' -or
+        $v37Text -notmatch 'CREATE OR ALTER TRIGGER core\.TR_TenantResourceLimits_Ownership' -or
+        $v37Text -notmatch 'CREATE OR ALTER TRIGGER admin\.TR_Branches_ResourceCapacity') {
+        throw 'V37/V38 post-deployment migration-chain references or non-user V37 trigger behavior are missing.'
+    }
+    foreach ($source in @('WHATSAPP', 'WHATSAPP_DEMO', 'STOREFRONT')) {
+        if ($v38Text -notmatch [regex]::Escape("N'$source'")) { throw "V38 SourceChannel check no longer permits $source." }
+    }
+    if ($wrapperText -notmatch '<Operation Name="Drop">' -or
+        $wrapperText -notmatch 'DACPAC plan contains object drops; review') {
+        throw 'The production plan must continue rejecting unapproved DacFx object drops.'
+    }
+    Write-Host 'PASS: V37 resource-capacity trigger is project-owned and V38 remains in the guarded production migration chain.'
     $v26 = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) '..\database\WhatsBiz.Database\Scripts\V26-FinanceTenantIsolationAndPostingRepair.sql') -Raw
     if ($v26 -notmatch "IF N'\$\(FreshProductionInitialization\)'\s*<>\s*N'True'") { throw 'V26 ownership backfill is not skipped for a fresh production deployment.' }
     $runtimeObjects = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) '..\database\WhatsBiz.Database\Scripts\RCDEV008-RuntimeObjects.sql') -Raw

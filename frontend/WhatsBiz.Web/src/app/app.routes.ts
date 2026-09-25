@@ -460,6 +460,12 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'admin/storefront',
+        canActivate: [permissionGuard],
+        data: { ...adminSettings, title: 'Storefront Branding' },
+        loadComponent: () => import('./features/administration/storefront-settings.component').then((m) => m.StorefrontSettingsComponent),
+      },
+      {
         path: 'admin/whatsapp-platform',
         canActivate: [roleGuard, permissionGuard],
         data: { platform: true, role: 'ApplicationOwner', permission: 'feature.manage', title: 'KhataDhari Meta App & Retailer Connections' },

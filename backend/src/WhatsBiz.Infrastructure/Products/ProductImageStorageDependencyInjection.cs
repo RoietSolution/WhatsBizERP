@@ -17,7 +17,9 @@ public static class ProductImageStorageDependencyInjection
             .ValidateOnStart();
         services.AddSingleton<IExternalProductImageStore,LocalProductImageStore>();
         services.AddSingleton<IExternalProductImageStore,S3ProductImageStore>();
-        services.AddSingleton<IProductImageStorage,ProductImageStorage>();
+        services.AddSingleton<ProductImageStorage>();
+        services.AddSingleton<IProductImageStorage>(provider=>provider.GetRequiredService<ProductImageStorage>());
+        services.AddSingleton<IStorefrontMediaStorage>(provider=>provider.GetRequiredService<ProductImageStorage>());
         return services;
     }
 }

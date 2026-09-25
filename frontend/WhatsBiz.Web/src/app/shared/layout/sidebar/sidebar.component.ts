@@ -283,6 +283,7 @@ export const navigation: NavigationItem[] = [
         route: '/admin/settings',
         permission: 'admin.settings',
       },
+      { label: 'Storefront Branding', icon: 'storefront', route: '/admin/storefront', permission: 'admin.settings' },
       { label: 'Delivery Agents', icon: 'two_wheeler', route: '/admin/delivery-agents', permission: 'delivery.agent-manage', feature: 'DELIVERY_MANAGEMENT' },
       { label: 'Delivery Settings', icon: 'local_shipping', route: '/admin/delivery-settings', permission: 'delivery.settings', feature: 'DELIVERY_MANAGEMENT' },
       { label: 'WhatsApp Business', icon: 'chat', route: '/admin/whatsapp', permission: 'admin.settings', feature: 'WHATSAPP_COMMERCE' },

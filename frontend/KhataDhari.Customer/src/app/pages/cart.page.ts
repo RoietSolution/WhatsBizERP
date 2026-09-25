@@ -4,6 +4,7 @@ import { Component, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CartService } from '../cart/cart.service';
 import { StorefrontDataService } from '../data/storefront-data.service';
+import { StorePaymentMethod } from '../models/storefront.models';
 
 @Component({
   standalone: true,
@@ -12,13 +13,14 @@ import { StorefrontDataService } from '../data/storefront-data.service';
     <header class="page-heading"><div><span class="eyebrow">YOUR ORDER</span><h1>Shopping cart</h1></div>@if (cart.itemCount()) { <span>{{ cart.itemCount() }} {{ cart.itemCount() === 1 ? 'item' : 'items' }}</span> }</header>
     @if (checking()) { <div class="notice checking" role="status"><i></i>Checking current prices and availability...</div> }
     @else if (refreshFailed()) { <div class="notice error" role="alert"><b>!</b><span>We couldn't refresh availability. Please retry before checkout.</span><button type="button" (click)="refresh()">Retry</button></div> }
+    @if(orderNumber() && selectedPayment()==='COD'){<p class="checkout-success order-placed" role="status">Order {{orderNumber()}} placed. Cash will be collected on delivery.</p>}
     @if (cart.lines().length) {
       <div class="cart-layout">
         <section class="lines" aria-label="Cart items">
           @for (line of cart.lines(); track line.product.id) {
             <article class="line" [class.unavailable]="!line.product.available">
               <a class="line-image" [routerLink]="['/', cart.storeKey(), 'products', line.product.id]"><img [src]="line.product.imageUrl" [alt]="line.product.name" (error)="imageFailed($event)" /></a>
-              <div class="line-info"><a [routerLink]="['/', cart.storeKey(), 'products', line.product.id]">{{ line.product.name }}</a><small>{{ line.product.unitLabel }} · {{ line.product.sellingPrice | currency:'INR':'symbol':'1.0-2' }} each</small>@if (!line.product.available) { <em>Out of stock — remove to continue</em> }</div>
+              <div class="line-info"><a [routerLink]="['/', cart.storeKey(), 'products', line.product.id]">{{ line.product.name }}</a><small>@if(line.product.unitLabel){<span>{{line.product.unitLabel}} · </span>}{{ line.product.sellingPrice | currency:'INR':'symbol':'1.0-2' }} each</small>@if (!line.product.available) { <em>Out of stock — remove to continue</em> }</div>
               <strong class="line-total">{{ line.product.sellingPrice * line.quantity | currency:'INR':'symbol':'1.0-2' }}</strong>
               <div class="line-actions"><div class="quantity"><button type="button" (click)="cart.adjust(line.product.id,-1)" [attr.aria-label]="'Decrease ' + line.product.name">−</button><b>{{ line.quantity }}</b><button type="button" (click)="cart.adjust(line.product.id,1)" [disabled]="!line.product.available" [attr.aria-label]="'Increase ' + line.product.name">+</button></div><button class="remove" type="button" (click)="cart.remove(line.product.id)">Remove</button></div>
             </article>
@@ -28,7 +30,10 @@ import { StorefrontDataService } from '../data/storefront-data.service';
 
         <aside class="checkout-card">
           <section class="summary"><h2>Order summary</h2><div><span>Subtotal</span><b>{{ cart.total() | currency:'INR':'symbol':'1.0-2' }}</b></div><div><span>Delivery</span><small>Confirmed by the retailer</small></div><hr/><div class="total"><span>Total</span><b>{{ cart.total() | currency:'INR':'symbol':'1.0-2' }}</b></div></section>
-          <section class="payment"><div class="section-title"><span>Payment method</span><b>1</b></div><div class="razorpay"><span class="payment-mark">R</span><span><strong>Razorpay</strong><small>UPI, cards, netbanking and wallets</small></span><i>✓</i></div></section>
+          <section class="payment"><div class="section-title"><span>Payment method</span><b>1</b></div>
+            @for(method of paymentMethods();track method.code){<label class="payment-option" [class.selected]="selectedPayment()===method.code"><input type="radio" name="paymentMethod" [value]="method.code" [checked]="selectedPayment()===method.code" (change)="selectedPayment.set(method.code)"/><span><strong>{{method.label}}</strong><small>{{method.description}}</small>@if(method.code==='RAZORPAY'){<em>Choose the actual instrument on Razorpay's secure payment page.</em>}</span></label>}
+            @if(!paymentMethods().length&&!checking()){<p class="checkout-error">No payment method is currently available.</p>}
+          </section>
           <form (submit)="submitCheckout($event)">
             <div class="section-title"><span>Delivery details</span><b>2</b></div>
             <label><span>Full name</span><input name="customerName" [value]="customerName" (input)="customerName=fieldValue($event)" autocomplete="name" maxlength="250" placeholder="Name for this order" required /></label>
@@ -36,10 +41,10 @@ import { StorefrontDataService } from '../data/storefront-data.service';
             <label><span>Email <small>optional</small></span><input name="email" [value]="email" (input)="email=fieldValue($event)" autocomplete="email" type="email" maxlength="256" placeholder="For payment updates" /></label>
             <label><span>Delivery address</span><textarea name="deliveryAddress" [value]="deliveryAddress" (input)="deliveryAddress=fieldValue($event)" autocomplete="street-address" maxlength="1000" rows="3" placeholder="House, street, area and city" required></textarea></label>
             @if (checkoutError()) { <p class="checkout-error" role="alert"><b>!</b>{{ checkoutError() }}</p> }
-            @if (orderNumber()) { <p class="checkout-success" role="status">Order {{ orderNumber() }} created. Opening payment...</p> }
-            <button class="pay-button" type="submit" [disabled]="!canCheckout()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 10 0v3m-11 0h12v9H6z"/></svg>{{ submitting() ? 'Opening secure payment...' : 'Pay securely ' + (cart.total() | currency:'INR':'symbol':'1.0-2') }}</button>
+            @if (orderNumber()) { <p class="checkout-success" role="status">Order {{ orderNumber() }} created. @if(selectedPayment()==='RAZORPAY'){Opening secure payment...}</p> }
+            <button class="pay-button" type="submit" [disabled]="!canCheckout()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 10 0v3m-11 0h12v9H6z"/></svg>{{ submitting() ? 'Creating your order...' : actionLabel() }}</button>
           </form>
-          <p class="secure-note">Secure payment powered by Razorpay. Stock and prices are verified before your order is created.</p>
+          <p class="secure-note">@if(selectedPayment()==='RAZORPAY'){Online payment is processed securely by Razorpay. }Stock and prices are verified before your order is created.</p>
         </aside>
       </div>
     } @else if (!checking()) {
@@ -53,16 +58,18 @@ import { StorefrontDataService } from '../data/storefront-data.service';
     @media(max-width:850px){.cart-layout{grid-template-columns:1fr}.checkout-card{position:static;order:-1}.checkout-card form{grid-template-columns:1fr 1fr}.checkout-card .section-title,.checkout-error,.checkout-success,.pay-button{grid-column:1/-1}.secure-note{grid-column:1/-1}.line-info>a{white-space:normal}}
     @media(max-width:560px){.page-heading h1{font-size:21px}.cart-layout{gap:12px}.lines,.checkout-card{border-radius:15px}.line{grid-template-columns:66px minmax(0,1fr) auto;gap:5px 9px;padding:11px}.line-image{width:66px;height:66px}.line-total{font-size:11px}.checkout-card form{grid-template-columns:1fr}.checkout-card form>*{grid-column:1/-1}.pay-button{position:sticky;bottom:8px;z-index:2;box-shadow:0 8px 22px rgba(12,70,39,.2)}}
     @media(max-width:360px){.line{grid-template-columns:58px minmax(0,1fr)}.line-image{width:58px;height:58px}.line-total{grid-column:2;grid-row:2;justify-self:end}.line-actions{grid-column:2}.page-heading>span{display:none}}
-  `],
+  `, `.payment-option{display:flex!important;align-items:flex-start!important;justify-content:flex-start!important;gap:10px!important;margin-top:8px;border:1px solid var(--store-border);border-radius:11px;padding:11px!important;background:#fff;cursor:pointer}.payment-option.selected{border-color:var(--store-primary);background:var(--store-primary-soft)}.payment-option input{width:auto!important;margin-top:3px}.payment-option>span{display:grid}.payment-option strong{color:var(--store-text);font-size:11px}.payment-option small,.payment-option em{margin-top:2px;color:var(--store-muted);font-size:9px;font-style:normal}.payment-option em{font-size:8px}`],
 })
 export class CartPage implements OnInit {
   readonly checking=signal(true);readonly refreshFailed=signal(false);readonly submitting=signal(false);readonly checkoutError=signal('');readonly orderNumber=signal('');
+  readonly paymentMethods=signal<StorePaymentMethod[]>([]);readonly selectedPayment=signal('');
   customerName='';mobile='';email='';deliveryAddress='';private checkoutKey='';private checkoutFingerprint='';
   constructor(readonly cart:CartService,private readonly route:ActivatedRoute,private readonly data:StorefrontDataService){}
   ngOnInit():void{void this.refresh();}
-  async refresh():Promise<void>{this.checking.set(true);this.refreshFailed.set(false);try{const key=this.route.parent?.snapshot.paramMap.get('storeKey')??'';this.cart.refreshProducts(await this.data.getProducts(key));}catch{this.refreshFailed.set(true);}finally{this.checking.set(false);}}
-  canCheckout():boolean{return!this.checking()&&!this.submitting()&&!this.refreshFailed()&&this.cart.lines().every(line=>line.product.available)&&!!this.customerName.trim()&&!!this.mobile.trim()&&!!this.deliveryAddress.trim();}
+  async refresh():Promise<void>{this.checking.set(true);this.refreshFailed.set(false);try{const key=this.route.parent?.snapshot.paramMap.get('storeKey')??'';const[products,store]=await Promise.all([this.data.getProducts(key),this.data.getStore(key)]);this.cart.refreshProducts(products);this.paymentMethods.set(store?.paymentMethods??[]);if(!this.paymentMethods().some(x=>x.code===this.selectedPayment()))this.selectedPayment.set(this.paymentMethods().find(x=>x.isDefault)?.code??this.paymentMethods()[0]?.code??'');}catch{this.refreshFailed.set(true);}finally{this.checking.set(false);}}
+  canCheckout():boolean{return!this.checking()&&!this.submitting()&&!this.refreshFailed()&&!!this.selectedPayment()&&this.cart.lines().every(line=>line.product.available)&&!!this.customerName.trim()&&!!this.mobile.trim()&&!!this.deliveryAddress.trim();}
+  actionLabel():string{return this.selectedPayment()==='COD'?'Place order':this.selectedPayment()==='DIRECT_UPI'?'Continue to UPI':'Pay securely '+new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format(this.cart.total());}
   submitCheckout(event:Event):void{event.preventDefault();void this.checkout();}fieldValue(event:Event):string{return(event.target as HTMLInputElement|HTMLTextAreaElement).value;}
-  async checkout():Promise<void>{if(!this.canCheckout())return;this.submitting.set(true);this.checkoutError.set('');this.orderNumber.set('');try{const fingerprint=JSON.stringify({customerName:this.customerName.trim(),mobile:this.mobile.trim(),email:this.email.trim(),deliveryAddress:this.deliveryAddress.trim(),items:this.cart.lines().map(line=>[line.product.id,line.quantity])});if(fingerprint!==this.checkoutFingerprint){this.checkoutFingerprint=fingerprint;this.checkoutKey=crypto.randomUUID();}const result=await this.data.checkoutWithRazorpay(this.cart.storeKey(),{customerName:this.customerName.trim(),mobile:this.mobile.trim(),email:this.email.trim()||undefined,deliveryAddress:this.deliveryAddress.trim()},this.cart.lines(),this.checkoutKey);this.orderNumber.set(result.orderNumber);if(result.checkoutUrl){const checkoutUrl=new URL(result.checkoutUrl);if(checkoutUrl.protocol!=='https:')throw new Error('Invalid checkout URL.');window.location.assign(checkoutUrl);}else this.cart.clear();}catch(error){const body=error instanceof HttpErrorResponse?error.error as{message?:string;title?:string}|null:null;this.checkoutError.set(body?.message??body?.title??'Checkout could not be started. Please try again.');}finally{this.submitting.set(false);}}
+  async checkout():Promise<void>{if(!this.canCheckout())return;this.submitting.set(true);this.checkoutError.set('');this.orderNumber.set('');try{const fingerprint=JSON.stringify({customerName:this.customerName.trim(),mobile:this.mobile.trim(),email:this.email.trim(),deliveryAddress:this.deliveryAddress.trim(),paymentProvider:this.selectedPayment(),items:this.cart.lines().map(line=>[line.product.id,line.quantity])});if(fingerprint!==this.checkoutFingerprint){this.checkoutFingerprint=fingerprint;this.checkoutKey=crypto.randomUUID();}const result=await this.data.checkout(this.cart.storeKey(),{customerName:this.customerName.trim(),mobile:this.mobile.trim(),email:this.email.trim()||undefined,deliveryAddress:this.deliveryAddress.trim()},this.cart.lines(),this.checkoutKey,this.selectedPayment());this.orderNumber.set(result.orderNumber);if(result.checkoutUrl){const checkoutUrl=new URL(result.checkoutUrl);if(!['https:','upi:'].includes(checkoutUrl.protocol))throw new Error('Invalid checkout URL.');if(result.paymentProvider==='DIRECT_UPI')this.cart.clear();window.location.assign(checkoutUrl);}else{this.cart.clear();this.checkoutError.set(result.customerMessage??'Your order has been created.');}}catch(error){const body=error instanceof HttpErrorResponse?error.error as{message?:string;detail?:string;title?:string}|null:null;this.checkoutError.set(body?.message??body?.detail??body?.title??'Checkout could not be started. Please try again.');}finally{this.submitting.set(false);}}
   imageFailed(event:Event):void{(event.target as HTMLImageElement).src='/images/product-placeholder.svg';}
 }

@@ -99,6 +99,8 @@ export class ProductApiService {
   exportCategories(): Observable<Blob> { return this.http.get('/api/productcategories/export', { responseType: 'blob' }); }
   categoryTemplate(): Observable<Blob> { return this.http.get('/api/productcategories/import-template', { responseType: 'blob' }); }
   importCategories(file: File): Observable<ImportResult> { return this.importMaster('/api/productcategories/import', file); }
+  uploadCategoryStorefrontImage(id: string, file: File): Observable<void> { const data=new FormData();data.append('file',file);return this.http.post<void>(`/api/storefront-administration/categories/${id}/image`,data); }
+  removeCategoryStorefrontImage(id: string): Observable<void> { return this.http.delete<void>(`/api/storefront-administration/categories/${id}/image`); }
   brands(): Observable<Brand[]> {
     return this.http.get<Brand[]>('/api/brands');
   }

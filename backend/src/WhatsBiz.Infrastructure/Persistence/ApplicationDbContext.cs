@@ -59,6 +59,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<ProductTaxMapping> ProductTaxMappings => Set<ProductTaxMapping>();
     public DbSet<CommerceCollection> CommerceCollections => Set<CommerceCollection>();
     public DbSet<CommerceCollectionProduct> CommerceCollectionProducts => Set<CommerceCollectionProduct>();
+    public DbSet<StorefrontConfiguration> StorefrontConfigurations => Set<StorefrontConfiguration>();
+    public DbSet<StorefrontMedia> StorefrontMedia => Set<StorefrontMedia>();
+    public DbSet<StorefrontBanner> StorefrontBanners => Set<StorefrontBanner>();
+    public DbSet<StorefrontCategoryImage> StorefrontCategoryImages => Set<StorefrontCategoryImage>();
     public DbSet<CustomerGroup> CustomerGroups => Set<CustomerGroup>();
     public DbSet<Supplier> Suppliers => Set<Supplier>(); public DbSet<SupplierContact> SupplierContacts => Set<SupplierContact>(); public DbSet<SupplierAddress> SupplierAddresses => Set<SupplierAddress>(); public DbSet<SupplierBankAccount> SupplierBankAccounts => Set<SupplierBankAccount>(); public DbSet<SupplierDocument> SupplierDocuments => Set<SupplierDocument>(); public DbSet<SupplierPaymentTerm> SupplierPaymentTerms => Set<SupplierPaymentTerm>(); public DbSet<Customer> Customers => Set<Customer>(); public DbSet<CustomerContact> CustomerContacts => Set<CustomerContact>(); public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>(); public DbSet<CustomerBankAccount> CustomerBankAccounts => Set<CustomerBankAccount>(); public DbSet<CustomerDocument> CustomerDocuments => Set<CustomerDocument>(); public DbSet<CustomerPaymentTerm> CustomerPaymentTerms => Set<CustomerPaymentTerm>(); public DbSet<Warehouse> Warehouses => Set<Warehouse>(); public DbSet<WarehouseType> WarehouseTypes => Set<WarehouseType>(); public DbSet<WarehouseAddress> WarehouseAddresses => Set<WarehouseAddress>(); public DbSet<WarehouseContact> WarehouseContacts => Set<WarehouseContact>(); public DbSet<WarehouseZone> WarehouseZones => Set<WarehouseZone>(); public DbSet<WarehouseBin> WarehouseBins => Set<WarehouseBin>(); public DbSet<InventoryBalance> InventoryBalances => Set<InventoryBalance>(); public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>(); public DbSet<InventoryTransactionDetail> InventoryTransactionDetails => Set<InventoryTransactionDetail>(); public DbSet<StockAdjustment> StockAdjustments => Set<StockAdjustment>(); public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>(); public DbSet<StockReservation> StockReservations => Set<StockReservation>(); public DbSet<InventorySettings> InventorySettings => Set<InventorySettings>(); public DbSet<InventoryValuation> InventoryValuations => Set<InventoryValuation>(); public DbSet<SalesInvoice> SalesInvoices => Set<SalesInvoice>(); public DbSet<SalesInvoiceItem> SalesInvoiceItems => Set<SalesInvoiceItem>(); public DbSet<SalesPayment> SalesPayments => Set<SalesPayment>(); public DbSet<SalesTax> SalesTaxes => Set<SalesTax>(); public DbSet<SalesDiscount> SalesDiscounts => Set<SalesDiscount>(); public DbSet<PaymentMethod> PaymentMethods => Set<PaymentMethod>(); public DbSet<SalesInvoiceReturn> SalesInvoiceReturns => Set<SalesInvoiceReturn>();
 
@@ -100,6 +104,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         ConfigureProductMaster(builder);
         builder.Entity<Tenant>(entity => { entity.ToTable("Tenants", "core"); entity.HasKey(x => x.TenantId); entity.HasIndex(x => x.TenantKey).IsUnique(); entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired(); entity.Property(x => x.Name).HasMaxLength(200).IsRequired(); });
         ConfigureCommerceCollections(builder);
+        ConfigureStorefrontPresentation(builder);
         ConfigureSuppliers(builder);
         ConfigureCustomers(builder);
         ConfigureCustomerGroups(builder);
@@ -228,6 +233,14 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.Collection).WithMany(x => x.Products).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Cascade);
         });
+    }
+
+    private static void ConfigureStorefrontPresentation(ModelBuilder b)
+    {
+        b.Entity<StorefrontConfiguration>(e => { e.ToTable("StorefrontConfigurations", "commerce", tb => tb.UseSqlOutputClause(false)); e.HasKey(x => x.TenantId); e.Property(x => x.Tagline).HasMaxLength(250); e.Property(x => x.AccentColor).HasMaxLength(20); e.Property(x => x.DeliveryMessage).HasMaxLength(250); });
+        b.Entity<StorefrontMedia>(e => { e.ToTable("StorefrontMedia", "commerce", tb => tb.UseSqlOutputClause(false)); e.HasKey(x => x.MediaId); e.Property(x => x.ResourceType).HasMaxLength(30); e.Property(x => x.FileName).HasMaxLength(255); e.Property(x => x.ContentType).HasMaxLength(100); e.Property(x => x.ThumbnailContentType).HasMaxLength(100); e.Property(x => x.StorageProvider).HasMaxLength(20); e.Property(x => x.ObjectKey).HasMaxLength(1024); e.Property(x => x.ThumbnailObjectKey).HasMaxLength(1024); e.Property(x => x.ContentHash).HasMaxLength(64).IsUnicode(false); e.HasIndex(x => new { x.TenantId, x.MediaId }); });
+        b.Entity<StorefrontBanner>(e => { e.ToTable("StorefrontBanners", "commerce", tb => tb.UseSqlOutputClause(false)); e.HasKey(x => x.BannerId); e.Property(x => x.Slot).HasMaxLength(20); e.Property(x => x.Title).HasMaxLength(150); e.Property(x => x.Subtitle).HasMaxLength(300); e.Property(x => x.TargetUrl).HasMaxLength(500); e.HasIndex(x => new { x.TenantId, x.Slot }).IsUnique(); });
+        b.Entity<StorefrontCategoryImage>(e => { e.ToTable("StorefrontCategoryImages", "commerce", tb => tb.UseSqlOutputClause(false)); e.HasKey(x => new { x.TenantId, x.ProductCategoryId }); e.HasIndex(x => new { x.TenantId, x.MediaId }).IsUnique(); });
     }
 
     private static void ConfigureAudit<TEntity>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity> entity) where TEntity : ProductMasterEntity

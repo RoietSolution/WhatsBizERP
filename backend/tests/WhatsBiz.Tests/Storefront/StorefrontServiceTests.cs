@@ -3,9 +3,11 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Storefront;
+using WhatsBiz.Application.Features.Payments;
 using WhatsBiz.Domain.Inventory;
 using WhatsBiz.Domain.Products;
 using WhatsBiz.Domain.Tenants;
+using WhatsBiz.Domain.Commerce;
 using WhatsBiz.Domain.Warehouses;
 using WhatsBiz.Infrastructure.Persistence;
 using WhatsBiz.Infrastructure.Storefront;
@@ -76,6 +78,97 @@ public sealed class StorefrontServiceTests
         publicFields.Should().NotContain(name => SensitiveFieldNames.Contains(name));
     }
 
+    [Fact]
+    public async Task PublicBrandingAndCategoryImagesAreResolvedOnlyForTheirTenant()
+    {
+        await using var db = CreateDb();
+        var first = await AddCatalogAsync(db, "BRAND1", "Brand One", false);
+        var second = await AddCatalogAsync(db, "BRAND2", "Brand Two", false);
+        var logo = new StorefrontMedia { MediaId = Guid.NewGuid(), TenantId = first.Tenant.TenantId, ResourceType = "logo", StorageProvider = "DATABASE", ContentType = "image/webp", ImageData = [1], ContentHash = "a" };
+        var category = new StorefrontMedia { MediaId = Guid.NewGuid(), TenantId = first.Tenant.TenantId, ResourceType = "category", StorageProvider = "DATABASE", ContentType = "image/webp", ImageData = [2], ContentHash = "b" };
+        db.StorefrontMedia.AddRange(logo, category);
+        db.StorefrontConfigurations.Add(new() { TenantId = first.Tenant.TenantId, LogoMediaId = logo.MediaId });
+        db.StorefrontCategoryImages.Add(new() { TenantId = first.Tenant.TenantId, ProductCategoryId = first.Category.ProductCategoryId, MediaId = category.MediaId });
+        await db.SaveChangesAsync();
+        var media = new MemoryStorefrontImages(); var service = new StorefrontService(db, new NoProductImages(), media);
+
+        (await service.GetStoreAsync("BRAND1", default))!.LogoUrl.Should().NotBeNull();
+        (await service.GetStoreAsync("BRAND2", default))!.LogoUrl.Should().BeNull();
+        (await service.GetCategoriesAsync("BRAND1", default))!.Single().ImageUrl.Should().NotBeNull();
+        (await service.GetCategoriesAsync("BRAND2", default))!.Single().ImageUrl.Should().BeNull();
+        (await service.GetPresentationImageAsync("BRAND1", "logo", null, default))!.Content.Should().Equal(1);
+        (await service.GetPresentationImageAsync("BRAND2", "logo", null, default)).Should().BeNull();
+        (await service.GetPresentationImageAsync("BRAND1", "category", second.Category.ProductCategoryId, default)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PublicBannerDtoHonorsServerScheduleAndBothSlots()
+    {
+        await using var db = CreateDb();
+        var tenant = await AddCatalogAsync(db, "BANNER", "Banner Store", false);
+        var disabledTenant = await AddCatalogAsync(db, "BNO", "Banner Disabled", false);
+        var expiredTenant = await AddCatalogAsync(db, "BEX", "Banner Expired", false);
+        var primary = new StorefrontMedia { MediaId = Guid.NewGuid(), TenantId = tenant.Tenant.TenantId, ResourceType = "banner-primary", StorageProvider = "DATABASE", ContentType = "image/webp", ImageData = [3], ContentHash = "c" };
+        var secondary = new StorefrontMedia { MediaId = Guid.NewGuid(), TenantId = tenant.Tenant.TenantId, ResourceType = "banner-secondary", StorageProvider = "DATABASE", ContentType = "image/webp", ImageData = [4], ContentHash = "d" };
+        var disabled = new StorefrontMedia { MediaId = Guid.NewGuid(), TenantId = disabledTenant.Tenant.TenantId, ResourceType = "banner-primary", StorageProvider = "DATABASE", ContentType = "image/webp", ImageData = [5], ContentHash = "e" };
+        var expired = new StorefrontMedia { MediaId = Guid.NewGuid(), TenantId = expiredTenant.Tenant.TenantId, ResourceType = "banner-secondary", StorageProvider = "DATABASE", ContentType = "image/webp", ImageData = [6], ContentHash = "f" };
+        db.StorefrontMedia.AddRange(primary, secondary, disabled, expired);
+        var now = DateTimeOffset.UtcNow;
+        db.StorefrontBanners.AddRange(
+            new StorefrontBanner { BannerId = Guid.NewGuid(), TenantId = tenant.Tenant.TenantId, Slot = StorefrontBannerSlots.Primary, MediaId = primary.MediaId, IsEnabled = true },
+            new StorefrontBanner { BannerId = Guid.NewGuid(), TenantId = tenant.Tenant.TenantId, Slot = StorefrontBannerSlots.Secondary, MediaId = secondary.MediaId, IsEnabled = true, StartsAt = now.AddDays(1) },
+            new StorefrontBanner { BannerId = Guid.NewGuid(), TenantId = disabledTenant.Tenant.TenantId, Slot = StorefrontBannerSlots.Primary, MediaId = disabled.MediaId, IsEnabled = false },
+            new StorefrontBanner { BannerId = Guid.NewGuid(), TenantId = expiredTenant.Tenant.TenantId, Slot = StorefrontBannerSlots.Secondary, MediaId = expired.MediaId, IsEnabled = true, EndsAt = now.AddDays(-1) });
+        await db.SaveChangesAsync();
+        var service = new StorefrontService(db, new NoProductImages(), new MemoryStorefrontImages());
+        var banners = (await service.GetStoreAsync("BANNER", default))!.Banners;
+        banners.Should().ContainSingle().Which.Slot.Should().Be(StorefrontBannerSlots.Primary);
+        (await service.GetPresentationImageAsync("BANNER", "banner-primary", null, default)).Should().NotBeNull();
+        (await service.GetPresentationImageAsync("BANNER", "banner-secondary", null, default)).Should().BeNull();
+        (await service.GetStoreAsync("BNO", default))!.Banners.Should().BeEmpty();
+        (await service.GetStoreAsync("BEX", default))!.Banners.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GenericUnitIsOmittedAndMeasuredWeightUsesActualUnit()
+    {
+        await using var db = CreateDb();
+        var catalog = await AddCatalogAsync(db, "UNITS", "Unit Store", false);
+        catalog.Product.Unit.ShortName = "Unit";
+        catalog.Product.Weight = 500;
+        catalog.Unit.ShortName = "g";
+        await db.SaveChangesAsync();
+        var service = new StorefrontService(db, new NoProductImages());
+        (await service.GetProductsAsync("UNITS", default))!.Single().UnitLabel.Should().Be("500 g");
+        catalog.Unit.ShortName = "Unit";
+        await db.SaveChangesAsync();
+        (await service.GetProductsAsync("UNITS", default))!.Single().UnitLabel.Should().BeNull();
+        catalog.Product.Weight = null;
+        await db.SaveChangesAsync();
+        (await service.GetProductsAsync("UNITS", default))!.Single().UnitLabel.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CustomerPaymentMethodsAreEffectiveAndIsolatedByStoreTenant()
+    {
+        await using var db = CreateDb();
+        var first = await AddCatalogAsync(db, "PAYONE", "Payment One", false);
+        var second = await AddCatalogAsync(db, "PAYTWO", "Payment Two", false);
+        await db.SaveChangesAsync();
+        var proxy = DispatchProxy.Create<ICommercePaymentService, EnabledMethodsProxy>();
+        ((EnabledMethodsProxy)(object)proxy).Resolve = tenantId => tenantId == first.Tenant.TenantId
+            ? [new("RAZORPAY", "Pay Online", true), new("COD", "Cash on Delivery", false)]
+            : [new("DIRECT_UPI", "UPI Transfer", true)];
+        var service = new StorefrontService(db, new NoProductImages(), payments: proxy);
+
+        var firstMethods = (await service.GetStoreAsync("PAYONE", default))!.PaymentMethods;
+        firstMethods.Select(x => x.Code).Should().Equal("RAZORPAY", "COD");
+        firstMethods.Single(x => x.Code == "RAZORPAY").Label.Should().Be("Pay Online");
+        var secondMethods = (await service.GetStoreAsync("PAYTWO", default))!.PaymentMethods;
+        secondMethods.Select(x => x.Code).Should().Equal("DIRECT_UPI");
+        secondMethods.Single().Label.Should().Be("UPI");
+    }
+
     private static async Task<CatalogFixture> AddCatalogAsync(ApplicationDbContext db, string key, string name, bool withStock)
     {
         var tenant = new Tenant { TenantId = Guid.NewGuid(), TenantKey = key, Name = name, IsActive = true };
@@ -134,5 +227,24 @@ public sealed class StorefrontServiceTests
         public Task<StoredProductImage> StoreAsync(ProductImageStorageWriteRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ProductImageStorageContent?> ReadAsync(ProductImageStorageReadRequest request, CancellationToken cancellationToken) => Task.FromResult<ProductImageStorageContent?>(null);
         public Task DeleteAsync(ProductImageStorageDeleteRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class MemoryStorefrontImages : IStorefrontMediaStorage
+    {
+        public string ActiveProvider => "DATABASE";
+        public Task<StoredStorefrontMedia> StoreStorefrontAsync(StorefrontMediaStorageWriteRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ProductImageStorageContent?> ReadStorefrontAsync(StorefrontMediaStorageReadRequest request, CancellationToken cancellationToken) => Task.FromResult<ProductImageStorageContent?>(request.DatabaseContent.Length == 0 ? null : new(request.DatabaseContent, request.ContentType));
+        public Task DeleteStorefrontAsync(StorefrontMediaStorageDeleteRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    public class EnabledMethodsProxy : DispatchProxy
+    {
+        public Func<Guid, IReadOnlyCollection<WhatsBiz.Application.Features.Payments.EnabledPaymentMethod>> Resolve { get; set; } = _ => [];
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            if (targetMethod?.Name == nameof(ICommercePaymentService.GetEnabledMethodsForTenantAsync))
+                return Task.FromResult(Resolve((Guid)args![0]!));
+            throw new NotSupportedException(targetMethod?.Name);
+        }
     }
 }

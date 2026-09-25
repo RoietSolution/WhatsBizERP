@@ -38,7 +38,7 @@ internal interface IExternalProductImageStore
     Task DeletePairAsync(string? catalogKey, string? thumbnailKey, CancellationToken token);
 }
 
-internal sealed class ProductImageStorage : IProductImageStorage
+internal sealed class ProductImageStorage : IProductImageStorage, IStorefrontMediaStorage
 {
     private readonly IReadOnlyDictionary<string,IExternalProductImageStore> stores;
     private readonly ILogger<ProductImageStorage> logger;
@@ -86,7 +86,48 @@ internal sealed class ProductImageStorage : IProductImageStorage
         {ProductImageStorageLogs.DeleteFailed(logger,exception,request.TenantId);}
     }
 
+    public async Task<StoredStorefrontMedia> StoreStorefrontAsync(StorefrontMediaStorageWriteRequest request,CancellationToken token)
+    {
+        var resource=NormalizeResource(request.ResourceType);var hash=Convert.ToHexString(SHA256.HashData(request.CatalogContent));
+        if(ActiveProvider==ProductImageStorageProviders.Database)
+            return new(ActiveProvider,null,null,request.CatalogContent.LongLength,request.ThumbnailContent.LongLength,hash);
+        var store=Resolve(ActiveProvider);var baseKey=$"{store.KeyPrefix}tenants/{request.TenantId:N}/storefront/{resource}/{request.ResourceId:N}/";
+        var catalogKey=baseKey+"catalog.webp";var thumbnailKey=baseKey+"thumbnail.webp";
+        await store.StorePairAsync(catalogKey,request.CatalogContent,thumbnailKey,request.ThumbnailContent,request.ContentType,token);
+        return new(ActiveProvider,catalogKey,thumbnailKey,request.CatalogContent.LongLength,request.ThumbnailContent.LongLength,hash);
+    }
+
+    public async Task<ProductImageStorageContent?> ReadStorefrontAsync(StorefrontMediaStorageReadRequest request,CancellationToken token)
+    {
+        if(request.Provider.Equals(ProductImageStorageProviders.Database,StringComparison.OrdinalIgnoreCase))
+            return request.DatabaseContent.Length==0?null:new(request.DatabaseContent,request.ContentType);
+        if(string.IsNullOrWhiteSpace(request.ObjectKey))return null;
+        ValidateTenantKey(request.TenantId,request.ObjectKey);
+        var content=await Resolve(request.Provider).ReadAsync(request.ObjectKey,token);
+        return content is null?null:new(content,request.ContentType);
+    }
+
+    public async Task DeleteStorefrontAsync(StorefrontMediaStorageDeleteRequest request,CancellationToken token)
+    {
+        if(request.Provider.Equals(ProductImageStorageProviders.Database,StringComparison.OrdinalIgnoreCase))return;
+        try
+        {
+            if(request.ObjectKey is not null)ValidateTenantKey(request.TenantId,request.ObjectKey);
+            if(request.ThumbnailObjectKey is not null)ValidateTenantKey(request.TenantId,request.ThumbnailObjectKey);
+            await Resolve(request.Provider).DeletePairAsync(request.ObjectKey,request.ThumbnailObjectKey,token);
+        }
+        catch(Exception exception)when(exception is not OperationCanceledException)
+        {ProductImageStorageLogs.DeleteFailed(logger,exception,request.TenantId);}
+    }
+
     private IExternalProductImageStore Resolve(string provider)=>stores.TryGetValue(provider,out var value)?value:throw new InvalidOperationException($"Product image storage provider '{provider}' is unavailable.");
+    private static string NormalizeResource(string value)
+    {
+        var resource=value.Trim().ToLowerInvariant();
+        if(resource is not ("logo" or "category" or "banner-primary" or "banner-secondary"))
+            throw new InvalidOperationException("The storefront media resource type is invalid.");
+        return resource;
+    }
     internal static void ValidateTenantKey(Guid tenantId,string key)
     {
         var normalized=key.Replace('\\','/');

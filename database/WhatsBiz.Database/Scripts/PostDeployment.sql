@@ -86,3 +86,4 @@ GO
 :r .\V36-TenantCommercePayments.sql
 GO
 :r .\V37-TenantResourceCapacity.sql
+:r .\V38-StorefrontPresentation.sql

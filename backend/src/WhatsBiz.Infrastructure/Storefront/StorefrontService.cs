@@ -2,19 +2,35 @@ using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Storefront;
+using WhatsBiz.Application.Features.Payments;
+using WhatsBiz.Domain.Commerce;
 using WhatsBiz.Domain.Products;
 using WhatsBiz.Infrastructure.Persistence;
 
 namespace WhatsBiz.Infrastructure.Storefront;
 
-public sealed class StorefrontService(ApplicationDbContext db, IProductImageStorage images) : IStorefrontService
+public sealed class StorefrontService(ApplicationDbContext db, IProductImageStorage images,
+    IStorefrontMediaStorage? presentationImages = null, ICommercePaymentService? payments = null) : IStorefrontService
 {
     private static readonly Regex StoreKeyPattern = new("^[A-Z0-9_-]{1,100}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public async Task<StorefrontStoreDto?> GetStoreAsync(string storeKey, CancellationToken token)
     {
         var tenant = await ResolveTenantAsync(storeKey, token);
-        return tenant is null ? null : ToStore(tenant);
+        if (tenant is null) return null;
+        var configuration = await db.StorefrontConfigurations.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenant.TenantId, token);
+        var now = DateTimeOffset.UtcNow;
+        var banners = await db.StorefrontBanners.AsNoTracking()
+            .Where(x => x.TenantId == tenant.TenantId && x.IsEnabled && x.MediaId != null
+                && (x.StartsAt == null || x.StartsAt <= now) && (x.EndsAt == null || x.EndsAt >= now))
+            .OrderBy(x => x.DisplayOrder).Select(x => new StorefrontBannerDto(x.Slot,
+                $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/banners/{x.Slot.ToLowerInvariant()}",
+                x.Title, x.Subtitle, x.TargetUrl, x.DisplayOrder)).ToArrayAsync(token);
+        var enabled = payments is null ? [] : await payments.GetEnabledMethodsForTenantAsync(tenant.TenantId, token);
+        var methods = enabled.Select(ToPaymentMethod).ToArray();
+        return new(tenant.TenantKey.ToLowerInvariant(), tenant.Name,
+            configuration?.Tagline ?? "Good things, close to home.", configuration?.LogoMediaId is null ? null : $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/logo",
+            configuration?.AccentColor ?? "#145c43", configuration?.DeliveryMessage ?? "Fresh picks, close to home.", banners, methods);
     }
 
     public async Task<IReadOnlyCollection<StorefrontCategoryDto>?> GetCategoriesAsync(string storeKey, CancellationToken token)
@@ -27,7 +43,9 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
                 && db.Set<TenantProductCategory>().Any(link => link.TenantId == tenant.TenantId && link.ProductCategoryId == category.ProductCategoryId)
                 && products.Any(product => product.CategoryId == category.ProductCategoryId))
             .OrderBy(category => category.DisplayOrder).ThenBy(category => category.CategoryName)
-            .Select(category => new StorefrontCategoryDto(category.ProductCategoryId, category.CategoryName))
+            .Select(category => new StorefrontCategoryDto(category.ProductCategoryId, category.CategoryName,
+                db.StorefrontCategoryImages.Any(x => x.TenantId == tenant.TenantId && x.ProductCategoryId == category.ProductCategoryId)
+                    ? $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/categories/{category.ProductCategoryId}" : null))
             .ToArrayAsync(token);
     }
 
@@ -60,6 +78,32 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
         if (image is null) return null;
         var content = await images.ReadAsync(new(image.TenantId, image.StorageProvider, image.ObjectKey, image.ImageData, image.ContentType), token);
         return content is null ? null : new(content.ContentType, content.Content);
+    }
+
+    public async Task<StorefrontImage?> GetPresentationImageAsync(string storeKey, string resource, Guid? categoryId, CancellationToken token)
+    {
+        var tenant = await ResolveTenantAsync(storeKey, token);
+        if (tenant is null || presentationImages is null) return null;
+        Guid? mediaId = resource.ToLowerInvariant() switch
+        {
+            "logo" => await db.StorefrontConfigurations.AsNoTracking().Where(x => x.TenantId == tenant.TenantId).Select(x => x.LogoMediaId).SingleOrDefaultAsync(token),
+            "banner-primary" => await EligibleBannerMedia(tenant.TenantId, StorefrontBannerSlots.Primary).SingleOrDefaultAsync(token),
+            "banner-secondary" => await EligibleBannerMedia(tenant.TenantId, StorefrontBannerSlots.Secondary).SingleOrDefaultAsync(token),
+            "category" when categoryId.HasValue => await db.StorefrontCategoryImages.AsNoTracking().Where(x => x.TenantId == tenant.TenantId && x.ProductCategoryId == categoryId).Select(x => (Guid?)x.MediaId).SingleOrDefaultAsync(token),
+            _ => null
+        };
+        if (mediaId is null) return null;
+        var media = await db.StorefrontMedia.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenant.TenantId && x.MediaId == mediaId, token);
+        if (media is null) return null;
+        var content = await presentationImages.ReadStorefrontAsync(new(media.TenantId, media.StorageProvider, media.ObjectKey, media.ImageData ?? [], media.ContentType), token);
+        return content is null ? null : new(content.ContentType, content.Content);
+    }
+
+    private IQueryable<Guid?> EligibleBannerMedia(Guid tenantId, string slot)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return db.StorefrontBanners.AsNoTracking().Where(x => x.TenantId == tenantId && x.Slot == slot && x.IsEnabled && x.MediaId != null
+            && (x.StartsAt == null || x.StartsAt <= now) && (x.EndsAt == null || x.EndsAt >= now)).Select(x => x.MediaId);
     }
 
     private IQueryable<Product> EligibleProducts(Guid tenantId) => db.Products.AsNoTracking()
@@ -96,7 +140,7 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
             product.SellingPrice,
             product.MRP > product.SellingPrice ? product.MRP : null,
             stock.GetValueOrDefault(product.ProductId) ? "IN_STOCK" : "OUT_OF_STOCK",
-            string.IsNullOrWhiteSpace(product.Unit.ShortName) ? product.Unit.UnitName : product.Unit.ShortName)).ToArray();
+            UnitLabel(product))).ToArray();
     }
 
     private async Task<WhatsBiz.Domain.Tenants.Tenant?> ResolveTenantAsync(string storeKey, CancellationToken token)
@@ -107,6 +151,18 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
         return await db.Tenants.AsNoTracking().SingleOrDefaultAsync(tenant => tenant.TenantKey == normalized && tenant.IsActive, token);
     }
 
-    private static StorefrontStoreDto ToStore(WhatsBiz.Domain.Tenants.Tenant tenant) =>
-        new(tenant.TenantKey.ToLowerInvariant(), tenant.Name, "Good things, close to home.", null, "#145c43", "Fresh picks, close to home.");
+    private static string? UnitLabel(Product product)
+    {
+        var unit = string.IsNullOrWhiteSpace(product.Unit.ShortName) ? product.Unit.UnitName : product.Unit.ShortName;
+        if (string.IsNullOrWhiteSpace(unit) || unit.Trim().Equals("Unit", StringComparison.OrdinalIgnoreCase)) return null;
+        return product.Weight is > 0 ? $"{product.Weight.Value:0.####} {unit.Trim()}" : unit.Trim();
+    }
+
+    private static StorefrontPaymentMethodDto ToPaymentMethod(EnabledPaymentMethod method) => method.Provider switch
+    {
+        PaymentProviders.Razorpay => new(method.Provider, "Pay Online", "UPI, Credit / Debit Card, Net Banking", method.IsDefault, true),
+        PaymentProviders.DirectUpi => new(method.Provider, "UPI", "Payment is confirmed by the retailer after verification", method.IsDefault, false),
+        PaymentProviders.Cod => new(method.Provider, "Cash on Delivery", "Pay when your order is delivered", method.IsDefault, false),
+        _ => throw new InvalidOperationException("Unsupported storefront payment method.")
+    };
 }

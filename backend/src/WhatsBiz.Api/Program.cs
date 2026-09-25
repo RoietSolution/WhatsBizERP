@@ -101,6 +101,7 @@ try
     builder.Services.AddScoped<ICommerceCollectionRepository, CommerceCollectionRepository>();
     builder.Services.AddScoped<IStorefrontService, StorefrontService>();
     builder.Services.AddScoped<IStorefrontCheckoutService, StorefrontCheckoutService>();
+    builder.Services.AddScoped<IStorefrontAdministrationService, StorefrontAdministrationService>();
     builder.Services.AddScoped<ICustomerGroupRepository, CustomerGroupRepository>();
     builder.Services.AddScoped<ICommerceAnalyticsService, CommerceAnalyticsService>();
     builder.Services.AddScoped<ILoyaltyService, LoyaltyService>();

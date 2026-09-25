@@ -30,6 +30,8 @@ const demoStore: Store = {
   tagline: 'Good things, close to home.',
   accentColor: '#145c43',
   deliveryMessage: 'Free delivery on orders above ₹499',
+  banners: [],
+  paymentMethods: [{code:'RAZORPAY',label:'Pay Online',description:'UPI, Credit / Debit Card, Net Banking',isDefault:true,usesHostedPaymentPage:true}],
 };
 
 /** GuturGo demo data, selected only by the explicit mock build configuration. */
@@ -56,7 +58,7 @@ export class DevelopmentStorefrontDataProvider implements StorefrontDataProvider
     return [];
   }
 
-  async checkoutWithRazorpay(_storeKey: string, _customer: CheckoutCustomer, lines: readonly CartLine[], _idempotencyKey: string): Promise<CheckoutResult> {
-    return { orderId: crypto.randomUUID(), orderNumber: 'MOCK-ORDER', amount: lines.reduce((sum, line) => sum + line.product.sellingPrice * line.quantity, 0), currency: 'INR', paymentId: crypto.randomUUID(), checkoutUrl: '' };
+  async checkout(_storeKey: string, _customer: CheckoutCustomer, lines: readonly CartLine[], _idempotencyKey: string, paymentProvider: string): Promise<CheckoutResult> {
+    return { orderId: crypto.randomUUID(), orderNumber: 'MOCK-ORDER', amount: lines.reduce((sum, line) => sum + line.product.sellingPrice * line.quantity, 0), currency: 'INR', paymentId: crypto.randomUUID(), paymentProvider, paymentStatus:'PENDING' };
   }
 }

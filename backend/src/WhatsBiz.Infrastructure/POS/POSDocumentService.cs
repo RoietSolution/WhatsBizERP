@@ -94,9 +94,12 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
               <hr class="separator" />
               <section aria-label="Invoice totals">
                 <div class="total-row"><span>Subtotal</span><span>{Money(invoice.Subtotal)}</span></div>
-                <div class="total-row"><span>Discount</span><span>{Money(invoice.DiscountAmount)}</span></div>
-                <div class="total-row"><span>Taxable Amount</span><span>{Money(invoice.Subtotal - invoice.DiscountAmount)}</span></div>
+                <div class="total-row"><span>Existing Discounts</span><span>{Money(invoice.DiscountAmount - invoice.PromotionDiscountAmount)}</span></div>
+                {(invoice.PromotionDiscountAmount > 0 ? $"<div class=\"total-row\"><span>Storefront Offer: {Encode(invoice.AppliedPromotionName ?? "Offer")}</span><span>-₹{Money(invoice.PromotionDiscountAmount)}</span></div>" : "")}
+                <div class="total-row"><span>Taxable Amount</span><span>{Money(invoice.Subtotal - invoice.DiscountAmount + invoice.PromotionDiscountAmount)}</span></div>
                 <div class="total-row"><span>Total GST</span><span>{Money(invoice.TaxAmount)}</span></div>
+                {(invoice.ServicePincode is not null ? $"<div class=\"total-row\"><span>Delivery Charges</span><span>{(invoice.DeliveryCharge == 0 ? "FREE" : "₹" + Money(invoice.DeliveryCharge))}</span></div>" : "")}
+                {(invoice.RoundOff != 0 ? $"<div class=\"total-row\"><span>Round Off</span><span>{Money(invoice.RoundOff)}</span></div>" : "")}
                 <hr class="separator" />
                 <div class="total-row grand-total"><span>Grand Total</span><span>₹{Money(invoice.GrandTotal)}</span></div>
                 <hr class="separator" />
@@ -222,13 +225,19 @@ public sealed class POSDocumentService(IPrintingService printing, IConfiguration
             return new ReceiptItem(item.Product.ProductName, rows);
         }).ToArray();
 
-        var summary = new[]
+        var summary = new List<ReceiptPair>
         {
-            new ReceiptPair("Subtotal", Money(invoice.Subtotal), RightIsMoney: true),
-            new ReceiptPair("Discount", Money(invoice.DiscountAmount), RightIsMoney: true),
-            new ReceiptPair("Taxable Amount", Money(invoice.Subtotal - invoice.DiscountAmount), RightIsMoney: true),
-            new ReceiptPair("Total GST", Money(invoice.TaxAmount), RightIsMoney: true)
+            new("Subtotal", Money(invoice.Subtotal), RightIsMoney: true),
+            new("Existing Discounts", Money(invoice.DiscountAmount - invoice.PromotionDiscountAmount), RightIsMoney: true)
         };
+        if (invoice.PromotionDiscountAmount > 0)
+            summary.Add(new($"Storefront Offer: {invoice.AppliedPromotionName ?? "Offer"}", $"-{Money(invoice.PromotionDiscountAmount)}", RightIsMoney: true));
+        summary.Add(new("Taxable Amount", Money(invoice.Subtotal - invoice.DiscountAmount + invoice.PromotionDiscountAmount), RightIsMoney: true));
+        summary.Add(new("Total GST", Money(invoice.TaxAmount), RightIsMoney: true));
+        if (invoice.ServicePincode is not null)
+            summary.Add(new("Delivery Charges", invoice.DeliveryCharge == 0 ? "FREE" : Money(invoice.DeliveryCharge), RightIsMoney: invoice.DeliveryCharge > 0));
+        if (invoice.RoundOff != 0)
+            summary.Add(new("Round Off", Money(invoice.RoundOff), RightIsMoney: true));
         var settlement = new List<ReceiptPair>
         {
             new("Paid", Money(invoice.PaidAmount), RightIsMoney: true),

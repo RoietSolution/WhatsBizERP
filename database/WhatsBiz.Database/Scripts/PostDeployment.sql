@@ -87,3 +87,7 @@ GO
 GO
 :r .\V37-TenantResourceCapacity.sql
 :r .\V38-StorefrontPresentation.sql
+GO
+:r .\V39-StorefrontCustomerSessions.sql
+GO
+:r .\V40-StorefrontAllCategoryImage.sql

@@ -85,18 +85,23 @@ public sealed class StorefrontServiceTests
         var first = await AddCatalogAsync(db, "BRAND1", "Brand One", false);
         var second = await AddCatalogAsync(db, "BRAND2", "Brand Two", false);
         var logo = new StorefrontMedia { MediaId = Guid.NewGuid(), TenantId = first.Tenant.TenantId, ResourceType = "logo", StorageProvider = "DATABASE", ContentType = "image/webp", ImageData = [1], ContentHash = "a" };
+        var allCategory = new StorefrontMedia { MediaId = Guid.NewGuid(), TenantId = first.Tenant.TenantId, ResourceType = "category-all", StorageProvider = "DATABASE", ContentType = "image/webp", ImageData = [7], ContentHash = "all" };
         var category = new StorefrontMedia { MediaId = Guid.NewGuid(), TenantId = first.Tenant.TenantId, ResourceType = "category", StorageProvider = "DATABASE", ContentType = "image/webp", ImageData = [2], ContentHash = "b" };
-        db.StorefrontMedia.AddRange(logo, category);
-        db.StorefrontConfigurations.Add(new() { TenantId = first.Tenant.TenantId, LogoMediaId = logo.MediaId });
+        db.StorefrontMedia.AddRange(logo, allCategory, category);
+        db.StorefrontConfigurations.Add(new() { TenantId = first.Tenant.TenantId, LogoMediaId = logo.MediaId, AllCategoryMediaId = allCategory.MediaId });
         db.StorefrontCategoryImages.Add(new() { TenantId = first.Tenant.TenantId, ProductCategoryId = first.Category.ProductCategoryId, MediaId = category.MediaId });
         await db.SaveChangesAsync();
         var media = new MemoryStorefrontImages(); var service = new StorefrontService(db, new NoProductImages(), media);
 
         (await service.GetStoreAsync("BRAND1", default))!.LogoUrl.Should().NotBeNull();
+        (await service.GetStoreAsync("BRAND1", default))!.AllCategoryImageUrl.Should().EndWith("/presentation/categories/all");
+        (await service.GetStoreAsync("BRAND2", default))!.AllCategoryImageUrl.Should().BeNull();
         (await service.GetStoreAsync("BRAND2", default))!.LogoUrl.Should().BeNull();
         (await service.GetCategoriesAsync("BRAND1", default))!.Single().ImageUrl.Should().NotBeNull();
         (await service.GetCategoriesAsync("BRAND2", default))!.Single().ImageUrl.Should().BeNull();
         (await service.GetPresentationImageAsync("BRAND1", "logo", null, default))!.Content.Should().Equal(1);
+        (await service.GetPresentationImageAsync("BRAND1", "category-all", null, default))!.Content.Should().Equal(7);
+        (await service.GetPresentationImageAsync("BRAND2", "category-all", null, default)).Should().BeNull();
         (await service.GetPresentationImageAsync("BRAND2", "logo", null, default)).Should().BeNull();
         (await service.GetPresentationImageAsync("BRAND1", "category", second.Category.ProductCategoryId, default)).Should().BeNull();
     }
@@ -135,17 +140,17 @@ public sealed class StorefrontServiceTests
         await using var db = CreateDb();
         var catalog = await AddCatalogAsync(db, "UNITS", "Unit Store", false);
         catalog.Product.Unit.ShortName = "Unit";
-        catalog.Product.Weight = 500;
+        catalog.Product.PackSize = "500 g";
         catalog.Unit.ShortName = "g";
         await db.SaveChangesAsync();
         var service = new StorefrontService(db, new NoProductImages());
-        (await service.GetProductsAsync("UNITS", default))!.Single().UnitLabel.Should().Be("500 g");
-        catalog.Unit.ShortName = "Unit";
+        (await service.GetProductsAsync("UNITS", default))!.Single().PackSize.Should().Be("500 g");
+        catalog.Product.PackSize = null;
         await db.SaveChangesAsync();
-        (await service.GetProductsAsync("UNITS", default))!.Single().UnitLabel.Should().BeNull();
-        catalog.Product.Weight = null;
+        (await service.GetProductsAsync("UNITS", default))!.Single().PackSize.Should().BeNull();
+        catalog.Product.PackSize = null;
         await db.SaveChangesAsync();
-        (await service.GetProductsAsync("UNITS", default))!.Single().UnitLabel.Should().BeNull();
+        (await service.GetProductsAsync("UNITS", default))!.Single().PackSize.Should().BeNull();
     }
 
     [Fact]
@@ -167,6 +172,30 @@ public sealed class StorefrontServiceTests
         var secondMethods = (await service.GetStoreAsync("PAYTWO", default))!.PaymentMethods;
         secondMethods.Select(x => x.Code).Should().Equal("DIRECT_UPI");
         secondMethods.Single().Label.Should().Be("UPI");
+    }
+
+    [Fact]
+    public async Task ProductRatingsAreAggregatedServerSideAndHonorStoreSetting()
+    {
+        await using var db = CreateDb();
+        var catalog = await AddCatalogAsync(db, "RATING", "Rating Store", false);
+        db.StorefrontConfigurations.Add(new() { TenantId = catalog.Tenant.TenantId, ShowProductRatings = true, ShowProductReviews = true });
+        db.StorefrontProductReviews.AddRange(
+            new() { TenantId = catalog.Tenant.TenantId, ProductId = catalog.Product.ProductId, CustomerId = Guid.NewGuid(), Rating = 1, ReviewText = "Poor", Status = "PUBLISHED" },
+            new() { TenantId = catalog.Tenant.TenantId, ProductId = catalog.Product.ProductId, CustomerId = Guid.NewGuid(), Rating = 5, ReviewText = "Excellent", Status = "PUBLISHED" },
+            new() { TenantId = catalog.Tenant.TenantId, ProductId = catalog.Product.ProductId, CustomerId = Guid.NewGuid(), Rating = 5, ReviewText = "Hidden", Status = "HIDDEN" });
+        await db.SaveChangesAsync();
+        var service = new StorefrontService(db, new NoProductImages());
+
+        var visible = (await service.GetProductsAsync("RATING", default))!.Single();
+        visible.AverageRating.Should().Be(3m);
+        visible.RatingCount.Should().Be(2);
+
+        (await db.StorefrontConfigurations.SingleAsync()).ShowProductRatings = false;
+        await db.SaveChangesAsync();
+        var hidden = (await service.GetProductsAsync("RATING", default))!.Single();
+        hidden.AverageRating.Should().BeNull();
+        hidden.RatingCount.Should().Be(0);
     }
 
     private static async Task<CatalogFixture> AddCatalogAsync(ApplicationDbContext db, string key, string name, bool withStock)

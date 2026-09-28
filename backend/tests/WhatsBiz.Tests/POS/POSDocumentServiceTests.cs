@@ -160,6 +160,27 @@ public sealed class POSDocumentServiceTests
         }
     }
 
+    [Fact]
+    public void StorefrontReceiptSeparatesPromotionAndDeliveryFromMerchandise()
+    {
+        var service = new POSDocumentService(new PassthroughPrintingService(), new ConfigurationBuilder().Build());
+        var invoice = Invoice();
+        invoice.Subtotal = 1000;
+        invoice.TaxAmount = 0;
+        invoice.DiscountAmount = 50;
+        invoice.PromotionDiscountAmount = 50;
+        invoice.AppliedPromotionName = "Welcome Offer";
+        invoice.DeliveryCharge = 40;
+        invoice.ServicePincode = "226001";
+        invoice.GrandTotal = 990;
+        var html = service.InvoiceHtml(invoice, "80MM", new(Company(), new(0, 0, 20)));
+        html.Should().Contain("Storefront Offer: Welcome Offer");
+        html.Should().Contain("Delivery Charges");
+        html.Should().Contain("990.00");
+        var print = service.InvoicePrintDocument(invoice, new(Company(), new(0, 0, 20)));
+        print.Operations.Select(x => x.Left).Should().Contain("Delivery Charges");
+        print.Operations.Select(x => x.Left).Should().Contain("Storefront Offer: Welcome Offer");
+    }
     private static SalesInvoice PrintInvoice(string status)
     {
         var invoice = new SalesInvoice

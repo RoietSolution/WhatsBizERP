@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 using WhatsBiz.Api.Authorization;
 using WhatsBiz.Application.Common.Features;
 using WhatsBiz.Application.Common.Interfaces;
@@ -41,7 +42,8 @@ public sealed class PaymentsController(ICommercePaymentService payments, ICurren
 }
 
 [ApiController,Route("api/payments/webhooks")]
-public sealed class PaymentWebhooksController(ICommercePaymentService payments):ControllerBase
+public sealed class PaymentWebhooksController(ICommercePaymentService payments,
+    ICommerceRefundService refunds):ControllerBase
 {
     [AllowAnonymous,HttpPost("razorpay"),RequestSizeLimit(262144)]
     public async Task<IActionResult> Razorpay(CancellationToken token)
@@ -49,6 +51,18 @@ public sealed class PaymentWebhooksController(ICommercePaymentService payments):
         await using var buffer=new MemoryStream();await Request.Body.CopyToAsync(buffer,token);
         var signature=Request.Headers["X-Razorpay-Signature"].ToString();var eventId=Request.Headers["x-razorpay-event-id"].ToString();
         if(string.IsNullOrWhiteSpace(signature))return Unauthorized();
-        try{await payments.ProcessRazorpayWebhookAsync(buffer.ToArray(),signature,string.IsNullOrWhiteSpace(eventId)?null:eventId,token);return Ok();}catch(UnauthorizedAccessException){return Unauthorized();}
+        var body=buffer.ToArray();
+        try
+        {
+            using var json=JsonDocument.Parse(body);
+            var eventType=json.RootElement.TryGetProperty("event",out var value)?value.GetString():null;
+            if(eventType?.StartsWith("refund.",StringComparison.Ordinal)==true)
+                await refunds.ProcessRazorpayRefundWebhookAsync(body,signature,token);
+            else
+                await payments.ProcessRazorpayWebhookAsync(body,signature,string.IsNullOrWhiteSpace(eventId)?null:eventId,token);
+            return Ok();
+        }
+        catch(UnauthorizedAccessException){return Unauthorized();}
+        catch(JsonException){return BadRequest();}
     }
 }

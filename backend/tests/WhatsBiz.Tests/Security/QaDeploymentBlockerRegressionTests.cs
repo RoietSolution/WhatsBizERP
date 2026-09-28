@@ -17,7 +17,7 @@ public sealed class QaDeploymentBlockerRegressionTests
     [Fact]
     public async Task Cod_rejects_a_supplied_tenant_that_is_not_the_authenticated_tenant_before_sql()
     {
-        var service = new DeliveryService(Configuration(), DataProtectionProvider.Create("qa-blocker-test"), null!, null!, new CurrentUser(TenantA));
+        var service = new DeliveryService(Configuration(), DataProtectionProvider.Create("qa-blocker-test"), null!, null!, new CurrentUser(TenantA), null!);
 
         var action = () => service.RecordCod(TenantB, Guid.NewGuid(), Guid.NewGuid(), new("CASH", 1m, null), "test", true, default);
 
@@ -27,7 +27,7 @@ public sealed class QaDeploymentBlockerRegressionTests
     [Fact]
     public async Task Cod_rejects_missing_authenticated_tenant_before_sql()
     {
-        var service = new DeliveryService(Configuration(), DataProtectionProvider.Create("qa-blocker-test"), null!, null!, new CurrentUser(null));
+        var service = new DeliveryService(Configuration(), DataProtectionProvider.Create("qa-blocker-test"), null!, null!, new CurrentUser(null), null!);
 
         var action = () => service.RecordCod(TenantA, Guid.NewGuid(), Guid.NewGuid(), new("CASH", 1m, null), "test", true, default);
 
@@ -50,10 +50,10 @@ public sealed class QaDeploymentBlockerRegressionTests
         var delivery = File.ReadAllText(Find("backend", "src", "WhatsBiz.Infrastructure", "Delivery", "DeliveryService.cs"));
         var commerce = File.ReadAllText(Find("backend", "src", "WhatsBiz.Infrastructure", "WhatsAppCommerce", "WhatsAppCommerceService.cs"));
 
-        delivery.Should().Contain("P(pay,\"@TenantId\",tenantId)")
+        delivery.Should().Contain("erpPayments.ApplyAsync(c,tx,new(tenantId,row.OrderId")
             .And.Contain("i.InvoiceId=d.OrderId AND i.TenantId=d.TenantId")
             .And.Contain("SetTenantContext(c,tx,tenantId,token)");
-        delivery.IndexOf("await pay.ExecuteNonQueryAsync(token)", StringComparison.Ordinal)
+        delivery.IndexOf("await erpPayments.ApplyAsync(c,tx", StringComparison.Ordinal)
             .Should().BeLessThan(delivery.IndexOf("CodCollected=1", StringComparison.Ordinal));
         delivery.IndexOf("CodCollected=1", StringComparison.Ordinal)
             .Should().BeLessThan(delivery.IndexOf("await tx.CommitAsync(token)", delivery.IndexOf("CodCollected=1", StringComparison.Ordinal), StringComparison.Ordinal));

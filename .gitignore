@@ -11,6 +11,16 @@
 *.suo
 appsettings.Development.json
 
+# Repository-local reproducible build and IDE state
+/frontend/KhataDhari.Customer/.angular/
+/publish/
+/tools/KhataDhari.PrintBridge.Android/.idea/
+/tools/KhataDhari.PrintBridge.Android/.wrapper-bootstrap/
+
+# Local production release package/evidence (generated, not source)
+/artifacts/prod-api/
+/artifacts/whatsbiz-prod-api.tar.gz
+
 # Deployment secrets and local environment files. Safe examples stay tracked.
 .env
 .env.*

@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
+using WhatsBiz.Tests.Integration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using WhatsBiz.Application.Features.Authentication.DTOs;
@@ -24,6 +26,11 @@ public sealed class ReleaseReadinessTests
         Permissions.All.Should().OnlyHaveUniqueItems();
         Permissions.All.Should().NotContain(string.Empty);
 
+        await using (var gate = new SqlConnection(SqlIntegrationDatabase.ConnectionString))
+        {
+            await gate.OpenAsync();
+            await SqlIntegrationDatabase.VerifyOpenedDatabaseAsync(gate);
+        }
         await using var factory = new ReleaseFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
         var testUser = await factory.CreateTestUserAsync();
@@ -52,7 +59,7 @@ public sealed class ReleaseReadinessTests
             .UseEnvironment("Development")
             .ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                { "ConnectionStrings:DefaultConnection", "Server=DESKTOP-DQ0868S;Database=WhatsBizERP;Integrated Security=True;Encrypt=False;TrustServerCertificate=True" }
+                { "ConnectionStrings:DefaultConnection", SqlIntegrationDatabase.ConnectionString }
             }));
 
         public async Task<(Guid UserId, string UserName, string Password)> CreateTestUserAsync()

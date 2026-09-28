@@ -27,7 +27,7 @@ public sealed class POSFinancePostingRegressionTests
     [Fact]
     public void Finance_source_resolution_is_document_and_tenant_scoped()
     {
-        var finance = ReadScript("V26-FinanceTenantIsolationAndPostingRepair.sql");
+        var finance = ReadScript(Path.Combine("..", "StoredProcedures", "Finance_PostSource.sql"));
 
         finance.Should().Contain("FROM sales.SalesInvoices WHERE InvoiceId=@SourceId")
             .And.Contain("i.InvoiceId=@SourceId AND i.TenantId=@TenantId")
@@ -42,8 +42,8 @@ public sealed class POSFinancePostingRegressionTests
         var postDeployment = ReadScript("PostDeployment.sql");
 
         migration.Should().Contain(":r .\\V18-POS-PostInvoice-TenantHardening.sql");
-        postDeployment.Should().Contain(":r .\\V28-DeferredPOSFinancePosting.sql");
-        ReadScript("V18-POS-PostInvoice-TenantHardening.sql").Should().Contain("CREATE OR ALTER PROCEDURE [sales].[POS_PostInvoice]");
+        postDeployment.Should().NotContain(":r .\\V28-DeferredPOSFinancePosting.sql");
+        ReadScript(Path.Combine("..", "StoredProcedures", "POS_PostInvoice.sql")).Should().Contain("CREATE PROCEDURE [sales].[POS_PostInvoice]").And.Contain("IF @Status='COMPLETED' EXEC finance.PostSource");
     }
 
     private static string ReadScript(string name)

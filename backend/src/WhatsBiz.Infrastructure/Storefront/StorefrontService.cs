@@ -30,7 +30,9 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
         var methods = enabled.Select(ToPaymentMethod).ToArray();
         return new(tenant.TenantKey.ToLowerInvariant(), tenant.Name,
             configuration?.Tagline ?? "Good things, close to home.", configuration?.LogoMediaId is null ? null : $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/logo",
-            configuration?.AccentColor ?? "#145c43", configuration?.DeliveryMessage ?? "Fresh picks, close to home.", banners, methods);
+            configuration?.AccentColor ?? "#145c43", configuration?.DeliveryMessage ?? "Fresh picks, close to home.", configuration?.FreeDeliveryThreshold,
+            configuration?.ShowProductRatings ?? true, configuration?.ShowProductReviews ?? true, banners, methods,
+            configuration?.AllCategoryMediaId is null ? null : $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/categories/all");
     }
 
     public async Task<IReadOnlyCollection<StorefrontCategoryDto>?> GetCategoriesAsync(string storeKey, CancellationToken token)
@@ -87,6 +89,7 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
         Guid? mediaId = resource.ToLowerInvariant() switch
         {
             "logo" => await db.StorefrontConfigurations.AsNoTracking().Where(x => x.TenantId == tenant.TenantId).Select(x => x.LogoMediaId).SingleOrDefaultAsync(token),
+            "category-all" => await db.StorefrontConfigurations.AsNoTracking().Where(x => x.TenantId == tenant.TenantId).Select(x => x.AllCategoryMediaId).SingleOrDefaultAsync(token),
             "banner-primary" => await EligibleBannerMedia(tenant.TenantId, StorefrontBannerSlots.Primary).SingleOrDefaultAsync(token),
             "banner-secondary" => await EligibleBannerMedia(tenant.TenantId, StorefrontBannerSlots.Secondary).SingleOrDefaultAsync(token),
             "category" when categoryId.HasValue => await db.StorefrontCategoryImages.AsNoTracking().Where(x => x.TenantId == tenant.TenantId && x.ProductCategoryId == categoryId).Select(x => (Guid?)x.MediaId).SingleOrDefaultAsync(token),
@@ -125,6 +128,11 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
             .GroupBy(balance => balance.ProductId)
             .Select(group => new { ProductId = group.Key, Available = group.Sum(balance => balance.QuantityOnHand - balance.QuantityReserved) > 0 })
             .ToDictionaryAsync(row => row.ProductId, row => row.Available, token);
+        var showRatings = await db.StorefrontConfigurations.AsNoTracking().Where(x => x.TenantId == tenantId).Select(x => (bool?)x.ShowProductRatings).SingleOrDefaultAsync(token) ?? true;
+        var ratings = await db.StorefrontProductReviews.AsNoTracking()
+            .Where(x => showRatings && x.TenantId == tenantId && ids.Contains(x.ProductId) && x.Status == "PUBLISHED")
+            .GroupBy(x => x.ProductId).Select(x => new { ProductId = x.Key, Average = x.Average(r => (decimal)r.Rating), Count = x.Count() })
+            .ToDictionaryAsync(x => x.ProductId, token);
         var imageRows = await db.ProductImages.AsNoTracking()
             .Where(image => image.TenantId == tenantId && ids.Contains(image.ProductId) && image.IsActive && !image.IsDeleted)
             .OrderByDescending(image => image.IsPrimary).ThenBy(image => image.CreatedOn)
@@ -140,7 +148,8 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
             product.SellingPrice,
             product.MRP > product.SellingPrice ? product.MRP : null,
             stock.GetValueOrDefault(product.ProductId) ? "IN_STOCK" : "OUT_OF_STOCK",
-            UnitLabel(product))).ToArray();
+            product.PackSize, ratings.TryGetValue(product.ProductId, out var rating) ? decimal.Round(rating.Average, 1) : null,
+            ratings.TryGetValue(product.ProductId, out rating) ? rating.Count : 0)).ToArray();
     }
 
     private async Task<WhatsBiz.Domain.Tenants.Tenant?> ResolveTenantAsync(string storeKey, CancellationToken token)

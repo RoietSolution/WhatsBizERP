@@ -16,7 +16,7 @@ INSERT @Accounts VALUES
     (N'CASH', N'Cash', N'ASSET'), (N'BANK', N'Bank', N'ASSET'),
     (N'CUSTOMER', N'Customer Receivables', N'ASSET'), (N'SUPPLIER', N'Supplier Payables', N'LIABILITY'),
     (N'INVENTORY', N'Inventory', N'ASSET'), (N'INPUT_GST', N'Input GST', N'ASSET'),
-    (N'OUTPUT_GST', N'Output GST', N'LIABILITY'), (N'SALES', N'Sales', N'INCOME'),
+    (N'OUTPUT_GST', N'Output GST', N'LIABILITY'), (N'DELIVERY_CLEARING', N'Delivery Charges Clearing', N'LIABILITY'), (N'SALES', N'Sales', N'INCOME'),
     (N'PURCHASE_RETURN', N'Purchase Returns', N'INCOME'), (N'SALES_RETURN', N'Sales Returns', N'EXPENSE'),
     (N'STOCK_ADJUST', N'Stock Adjustments', N'EXPENSE');
 MERGE finance.Accounts AS target

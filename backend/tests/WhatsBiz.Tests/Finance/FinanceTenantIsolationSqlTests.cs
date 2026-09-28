@@ -2,24 +2,14 @@ using System.Data;
 using System.Globalization;
 using FluentAssertions;
 using Microsoft.Data.SqlClient;
+using WhatsBiz.Tests.Integration;
 
 namespace WhatsBiz.Tests.Finance;
 
 [Collection("SQL finance tenant isolation")]
 public sealed class FinanceTenantIsolationSqlTests
 {
-    private static string ConnectionString
-    {
-        get
-        {
-            var value = Environment.GetEnvironmentVariable("ConnectionStrings__IntegrationTests")
-                ?? "Server=DESKTOP-DQ0868S;Database=WhatsBizERP;Integrated Security=True;Encrypt=False;TrustServerCertificate=True;Connection Timeout=10";
-            var separator = value.IndexOf('=');
-            return separator >= 0 && value[..separator].Trim() == "$env:ConnectionStrings__IntegrationTests"
-                ? value[(separator + 1)..].Trim().Trim('"')
-                : value;
-        }
-    }
+    private static string ConnectionString => SqlIntegrationDatabase.ConnectionString;
 
     [Fact]
     public async Task TwoTenantPostingAndDashboardReadsAreIsolatedAndAtomic()
@@ -121,14 +111,7 @@ public sealed class FinanceTenantIsolationSqlTests
         ];
     }
 
-    private static async Task Gate(SqlConnection connection)
-    {
-        await using var command = new SqlCommand("SELECT @@SERVERNAME,DB_NAME(),SYSTEM_USER", connection);
-        await using var reader = await command.ExecuteReaderAsync();
-        (await reader.ReadAsync()).Should().BeTrue();
-        reader.GetString(0).Should().Be("DESKTOP-DQ0868S");
-        reader.GetString(1).Should().Be("WhatsBizERP");
-    }
+    private static Task Gate(SqlConnection connection) => SqlIntegrationDatabase.VerifyOpenedDatabaseAsync(connection);
 
     private static async Task SetTenant(SqlConnection connection, Guid tenant)
     {

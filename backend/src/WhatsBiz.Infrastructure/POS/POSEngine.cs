@@ -25,10 +25,48 @@ public sealed class POSEngine(
             return await idempotency.ExecuteForTenant(idempotencyKey, "POS_SALE", r, r.User, tenantId,
                 async (connection, transaction, ct) =>
                 {
-                    await using var command = Command(connection, transaction, "sales.POS_PostInvoice", [
+                    if (r.AppliedPromotionId is Guid promotionId)
+                    {
+                        if (r.CustomerId is not Guid promotionCustomerId)
+                            throw new BusinessRuleException("An authenticated customer is required for this offer.");
+                        await using var customerLock = new SqlCommand("SELECT CustomerId FROM sales.Customers WITH(UPDLOCK,HOLDLOCK) WHERE TenantId=@tenant AND CustomerId=@customer AND IsActive=1 AND IsDeleted=0", connection, transaction);
+                        customerLock.Parameters.AddWithValue("@tenant", tenantId);
+                        customerLock.Parameters.AddWithValue("@customer", promotionCustomerId);
+                        if (await customerLock.ExecuteScalarAsync(ct) is not Guid)
+                            throw new BusinessRuleException("Customer is no longer available.");
+                        await using var eligibility = new SqlCommand("""
+                            SELECT p.OfferType,p.UsageLimitPerCustomer,
+                              (SELECT COUNT(1) FROM commerce.StorefrontPromotionUses u
+                               JOIN sales.SalesInvoices i ON i.InvoiceId=u.InvoiceId AND i.TenantId=u.TenantId
+                               OUTER APPLY(SELECT TOP(1) cp.Status FROM commerce.CommercePayments cp WHERE cp.TenantId=i.TenantId AND cp.InvoiceId=i.InvoiceId ORDER BY cp.AttemptNumber DESC) payment
+                               WHERE u.TenantId=@tenant AND u.PromotionId=p.PromotionId AND u.CustomerId=@customer
+                                 AND i.Status NOT IN(N'CANCELLED',N'VOID') AND (i.Status=N'COMPLETED' OR payment.Status IS NULL OR payment.Status<>N'FAILED')),
+                              (SELECT COUNT(1) FROM sales.SalesInvoices i
+                               JOIN integration.WhatsAppCommerceOrders w ON w.InvoiceId=i.InvoiceId AND w.TenantId=i.TenantId AND w.SourceChannel=N'STOREFRONT'
+                               WHERE i.TenantId=@tenant AND i.CustomerId=@customer AND i.Status=N'COMPLETED')
+                            FROM commerce.StorefrontPromotions p WITH(UPDLOCK,HOLDLOCK)
+                            WHERE p.TenantId=@tenant AND p.PromotionId=@promotion AND p.IsDeleted=0 AND p.IsActive=1
+                              AND (p.StartsAt IS NULL OR p.StartsAt<=SYSUTCDATETIME())
+                              AND (p.EndsAt IS NULL OR p.EndsAt>SYSUTCDATETIME());
+                            """, connection, transaction);
+                        eligibility.Parameters.AddWithValue("@tenant", tenantId);
+                        eligibility.Parameters.AddWithValue("@customer", promotionCustomerId);
+                        eligibility.Parameters.AddWithValue("@promotion", promotionId);
+                        await using var eligibilityReader = await eligibility.ExecuteReaderAsync(ct);
+                        if (!await eligibilityReader.ReadAsync(ct))
+                            throw new BusinessRuleException("The offer is no longer available. Refresh your cart.");
+                        var offerType = eligibilityReader.GetString(0);
+                        var usageLimit = eligibilityReader.IsDBNull(1) ? (int?)null : eligibilityReader.GetInt32(1);
+                        var previousUses = eligibilityReader.GetInt32(2);
+                        var completedOrders = eligibilityReader.GetInt32(3);
+                        if (usageLimit is not null && previousUses >= usageLimit.Value
+                            || offerType == "FIRST_ORDER" && (previousUses > 0 || completedOrders > 0))
+                            throw new BusinessRuleException("The offer is no longer available. Refresh your cart.");
+                        await eligibilityReader.CloseAsync();
+                    }                    await using var command = Command(connection, transaction, "sales.POS_PostInvoice", [
                         ("@TenantId", tenantId), ("@CounterId", r.CounterId), ("@ShiftId", r.ShiftId), ("@CustomerId", r.CustomerId), ("@WarehouseId", r.WarehouseId),
                         ("@SalesPersonId", r.SalesPersonId), ("@ItemsJson", r.ItemsJson), ("@PaymentsJson", r.PaymentsJson), ("@BillDiscount", r.BillDiscount), ("@RoundOff", r.RoundOff),
-                        ("@Remarks", r.Remarks), ("@Status", r.Status), ("@InterState", r.InterState), ("@DiscountAuthorizedBy", r.DiscountAuthorizedBy), ("@CreatedBy", r.User)]);
+                        ("@Remarks", r.Remarks), ("@Status", r.Status), ("@InterState", r.InterState), ("@DiscountAuthorizedBy", r.DiscountAuthorizedBy), ("@CreatedBy", r.User), ("@DeliveryCharge", r.DeliveryCharge), ("@PromotionDiscountAmount", r.PromotionDiscountAmount), ("@AppliedPromotionId", r.AppliedPromotionId), ("@AppliedPromotionName", r.AppliedPromotionName), ("@FreeDeliveryApplied", r.FreeDeliveryApplied), ("@FreeDeliveryThresholdSnapshot", r.FreeDeliveryThresholdSnapshot), ("@ServicePincode", r.ServicePincode)]);
                     POSPostResult result;
                     await using (var reader = await command.ExecuteReaderAsync(ct))
                     {
@@ -40,7 +78,15 @@ public sealed class POSEngine(
                         await using var source = new SqlCommand("INSERT integration.WhatsAppCommerceOrders(WhatsAppCommerceOrderId,TenantId,InvoiceId,SourceChannel,ProviderMode,LastNotifiedErpStatus,LastNotifiedOn,CreatedBy) VALUES(NEWID(),@tenant,@invoice,@channel,N'LIVE',@status,SYSUTCDATETIME(),@user);", connection, transaction);
                         source.Parameters.AddWithValue("@tenant", tenantId); source.Parameters.AddWithValue("@invoice", result.InvoiceId); source.Parameters.AddWithValue("@channel", r.SourceChannel); source.Parameters.AddWithValue("@status", result.Status); source.Parameters.AddWithValue("@user", r.User ?? (object)DBNull.Value); await source.ExecuteNonQueryAsync(ct);
                     }
-                    return result;
+                    if (r.AppliedPromotionId is Guid usedPromotionId && r.CustomerId is Guid usedCustomerId)
+                    {
+                        await using var redemption = new SqlCommand("INSERT commerce.StorefrontPromotionUses(TenantId,PromotionId,CustomerId,InvoiceId,CreatedAt) VALUES(@tenant,@promotion,@customer,@invoice,SYSUTCDATETIME())", connection, transaction);
+                        redemption.Parameters.AddWithValue("@tenant", tenantId);
+                        redemption.Parameters.AddWithValue("@promotion", usedPromotionId);
+                        redemption.Parameters.AddWithValue("@customer", usedCustomerId);
+                        redemption.Parameters.AddWithValue("@invoice", result.InvoiceId);
+                        await redemption.ExecuteNonQueryAsync(ct);
+                    }                    return result;
                 }, token);
         }
         catch (SqlException ex) when (ex.Number >= 51100) { throw new BusinessRuleException(ex.Message); }

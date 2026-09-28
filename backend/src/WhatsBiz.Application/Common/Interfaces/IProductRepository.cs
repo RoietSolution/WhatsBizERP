@@ -5,8 +5,9 @@ namespace WhatsBiz.Application.Common.Interfaces;
 
 public interface IProductRepository
 {
-    Task<(IReadOnlyCollection<Product> Items, int TotalCount)> SearchAsync(string? search, bool? isActive, string sortBy, bool descending, int pageNumber, int pageSize, CancellationToken cancellationToken);
+    Task<(IReadOnlyCollection<Product> Items, int TotalCount)> SearchAsync(string? search, bool? isActive, Guid? categoryId, Guid? brandId, string sortBy, bool descending, int pageNumber, int pageSize, CancellationToken cancellationToken);
     Task<Product?> GetAsync(Guid id, bool tracking, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<Product>> GetManyAsync(IReadOnlyCollection<Guid> ids, bool tracking, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<ProductHistoryDto>> GetHistoryAsync(Guid id, CancellationToken cancellationToken);
     Task<bool> ProductCodeExistsAsync(string code, Guid? excludingId, CancellationToken cancellationToken);
     Task<bool> BarcodeExistsAsync(string barcode, Guid? excludingId, CancellationToken cancellationToken);

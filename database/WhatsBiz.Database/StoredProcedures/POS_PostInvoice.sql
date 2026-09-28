@@ -2,7 +2,9 @@ CREATE PROCEDURE [sales].[POS_PostInvoice]
  @CounterId UNIQUEIDENTIFIER=NULL,@ShiftId UNIQUEIDENTIFIER=NULL,@CustomerId UNIQUEIDENTIFIER=NULL,@WarehouseId UNIQUEIDENTIFIER,
  @SalesPersonId UNIQUEIDENTIFIER=NULL,@ItemsJson NVARCHAR(MAX),@PaymentsJson NVARCHAR(MAX)=NULL,@BillDiscount DECIMAL(18,2)=0,
  @RoundOff DECIMAL(18,2)=0,@Remarks NVARCHAR(1000)=NULL,@Status NVARCHAR(20)='COMPLETED',@InterState BIT=0,
- @DiscountAuthorizedBy NVARCHAR(256)=NULL,@CreatedBy NVARCHAR(256)=NULL,@TenantId UNIQUEIDENTIFIER
+ @DiscountAuthorizedBy NVARCHAR(256)=NULL,@CreatedBy NVARCHAR(256)=NULL,@TenantId UNIQUEIDENTIFIER,
+ @DeliveryCharge DECIMAL(18,2)=0,@PromotionDiscountAmount DECIMAL(18,2)=0,@AppliedPromotionId UNIQUEIDENTIFIER=NULL,
+ @AppliedPromotionName NVARCHAR(150)=NULL,@FreeDeliveryApplied BIT=0,@FreeDeliveryThresholdSnapshot DECIMAL(18,2)=NULL,@ServicePincode VARCHAR(6)=NULL
 AS
 BEGIN
  SET NOCOUNT ON; SET XACT_ABORT ON;
@@ -12,6 +14,8 @@ BEGIN
  IF @CustomerId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM sales.Customers WHERE CustomerId=@CustomerId AND TenantId=@TenantId AND IsDeleted=0) THROW 51412,'Customer is not available.',1;
  IF ISJSON(@ItemsJson)<>1 OR NOT EXISTS(SELECT 1 FROM OPENJSON(@ItemsJson)) THROW 51100,'Invoice requires items.',1;
  IF EXISTS (SELECT 1 FROM OPENJSON(@ItemsJson) WITH(ProductId UNIQUEIDENTIFIER '$.ProductId') j LEFT JOIN master.Products p ON p.ProductId=j.ProductId WHERE p.ProductId IS NULL OR p.TenantId<>@TenantId OR p.IsActive=0 OR p.IsDeleted=1) THROW 51413,'One or more products are not available.',1;
+ IF @DeliveryCharge<0 OR @PromotionDiscountAmount<0 OR @PromotionDiscountAmount>@BillDiscount OR @FreeDeliveryThresholdSnapshot<0 THROW 51100,'Invalid Storefront delivery or promotion amount.',1;
+ IF @DeliveryCharge>0 AND @ServicePincode IS NULL THROW 51100,'A serviceable pincode is required for a delivery charge.',1;
  IF @Status NOT IN('COMPLETED','HELD','SUSPENDED') THROW 51100,'Invalid invoice status.',1;
  DECLARE @InvoiceId UNIQUEIDENTIFIER=NEWID(),@SeriesId UNIQUEIDENTIFIER,@Prefix NVARCHAR(20),@Next BIGINT,@Length INT,@InvoiceNumber NVARCHAR(50),@Subtotal DECIMAL(18,2)=0,@ItemDiscount DECIMAL(18,2)=0,@Tax DECIMAL(18,2)=0,@Grand DECIMAL(18,2),@Paid DECIMAL(18,2)=0,@InventoryTransactionId UNIQUEIDENTIFIER=NEWID(),@AllowNegative BIT=(SELECT TOP(1)NegativeStockAllowed FROM inventory.InventorySettings);
  SET TRANSACTION ISOLATION LEVEL SERIALIZABLE; BEGIN TRAN;
@@ -19,9 +23,9 @@ BEGIN
  IF @SeriesId IS NULL BEGIN ROLLBACK; THROW 51100,'Active invoice series not configured.',1; END;
  SET @InvoiceNumber=CONCAT(@Prefix,'-',RIGHT(REPLICATE('0',@Length)+CONVERT(NVARCHAR(20),@Next),@Length)); UPDATE sales.InvoiceSeries SET NextNumber=NextNumber+1 WHERE InvoiceSeriesId=@SeriesId;
  SELECT @Subtotal=SUM(Quantity*UnitPrice),@ItemDiscount=SUM(CASE WHEN DiscountAmount>0 THEN DiscountAmount ELSE Quantity*UnitPrice*DiscountPercentage/100 END),@Tax=SUM(((Quantity*UnitPrice)-CASE WHEN DiscountAmount>0 THEN DiscountAmount ELSE Quantity*UnitPrice*DiscountPercentage/100 END)*TaxPercentage/100) FROM OPENJSON(@ItemsJson) WITH(ProductId UNIQUEIDENTIFIER,Quantity DECIMAL(18,4),UnitPrice DECIMAL(18,4),DiscountPercentage DECIMAL(5,2),DiscountAmount DECIMAL(18,2),TaxPercentage DECIMAL(5,2));
- SET @Grand=ROUND(@Subtotal-@ItemDiscount-@BillDiscount+@Tax+@RoundOff,2); IF @Grand<0 BEGIN ROLLBACK; THROW 51100,'Invoice total cannot be negative.',1; END;
+ SET @Grand=ROUND(@Subtotal-@ItemDiscount-@BillDiscount+@Tax+@DeliveryCharge+@RoundOff,2); IF @Grand<0 BEGIN ROLLBACK; THROW 51100,'Invoice total cannot be negative.',1; END;
  IF ISJSON(@PaymentsJson)=1 SELECT @Paid=ISNULL(SUM(Amount),0) FROM OPENJSON(@PaymentsJson) WITH(Amount DECIMAL(18,2)); IF @Paid>@Grand BEGIN ROLLBACK; THROW 51100,'Payment exceeds invoice total.',1; END;
- INSERT sales.SalesInvoices(InvoiceId,InvoiceNumber,InvoiceDate,CounterId,ShiftId,CustomerId,WarehouseId,SalesPersonId,Subtotal,DiscountAmount,TaxAmount,RoundOff,GrandTotal,PaidAmount,Status,Remarks,CreatedBy,TenantId) VALUES(@InvoiceId,@InvoiceNumber,SYSUTCDATETIME(),@CounterId,@ShiftId,@CustomerId,@WarehouseId,@SalesPersonId,@Subtotal,@ItemDiscount+@BillDiscount,@Tax,@RoundOff,@Grand,@Paid,@Status,@Remarks,@CreatedBy,@TenantId);
+ INSERT sales.SalesInvoices(InvoiceId,InvoiceNumber,InvoiceDate,CounterId,ShiftId,CustomerId,WarehouseId,SalesPersonId,Subtotal,DiscountAmount,TaxAmount,RoundOff,DeliveryCharge,DeliveryTaxAmount,PromotionDiscountAmount,AppliedPromotionId,AppliedPromotionName,FreeDeliveryApplied,FreeDeliveryThresholdSnapshot,ServicePincode,GrandTotal,PaidAmount,Status,Remarks,CreatedBy,TenantId) VALUES(@InvoiceId,@InvoiceNumber,SYSUTCDATETIME(),@CounterId,@ShiftId,@CustomerId,@WarehouseId,@SalesPersonId,@Subtotal,@ItemDiscount+@BillDiscount,@Tax,@RoundOff,@DeliveryCharge,0,@PromotionDiscountAmount,@AppliedPromotionId,@AppliedPromotionName,@FreeDeliveryApplied,@FreeDeliveryThresholdSnapshot,@ServicePincode,@Grand,@Paid,@Status,@Remarks,@CreatedBy,@TenantId);
  IF @Status='COMPLETED' INSERT inventory.InventoryTransactions(TransactionId,TransactionNo,TransactionType,ReferenceType,ReferenceId,WarehouseId,Remarks,CreatedBy,TenantId) VALUES(@InventoryTransactionId,@InvoiceNumber+'-STK','SALE','SALES_INVOICE',@InvoiceId,@WarehouseId,@Remarks,@CreatedBy,@TenantId);
  DECLARE item_cursor CURSOR LOCAL FAST_FORWARD FOR SELECT ProductId,Barcode,Quantity,UnitPrice,DiscountPercentage,DiscountAmount,TaxPercentage FROM OPENJSON(@ItemsJson) WITH(ProductId UNIQUEIDENTIFIER,Barcode NVARCHAR(100),Quantity DECIMAL(18,4),UnitPrice DECIMAL(18,4),DiscountPercentage DECIMAL(5,2),DiscountAmount DECIMAL(18,2),TaxPercentage DECIMAL(5,2));
  DECLARE @ProductId UNIQUEIDENTIFIER,@Barcode NVARCHAR(100),@Quantity DECIMAL(18,4),@UnitPrice DECIMAL(18,4),@DiscountPercentage DECIMAL(5,2),@DiscountAmount DECIMAL(18,2),@TaxPercentage DECIMAL(5,2),@Taxable DECIMAL(18,2),@TaxAmount DECIMAL(18,2),@LineTotal DECIMAL(18,2),@ItemId UNIQUEIDENTIFIER,@BalanceId UNIQUEIDENTIFIER,@Available DECIMAL(18,4),@AverageCost DECIMAL(18,4);

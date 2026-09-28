@@ -14,7 +14,7 @@ using WhatsBiz.Application.Features.Payments;
 namespace WhatsBiz.Infrastructure.Payments;
 
 public sealed class CommercePaymentService(IConfiguration configuration, IDataProtectionProvider protection,
-    ICurrentUserService currentUser, IPaymentGatewayResolver gateways, ILoyaltyService? loyalty = null) : ICommercePaymentService
+    ICurrentUserService currentUser, IPaymentGatewayResolver gateways, IErpPaymentPosting erpPayments, ILoyaltyService? loyalty = null) : ICommercePaymentService
 {
     private const string Purpose = "WhatsBiz.Payments.Razorpay.Secrets.v1";
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
@@ -183,7 +183,7 @@ ELSE BEGIN INSERT commerce.PaymentProviderEvents(PaymentProviderEventId,TenantId
     private async Task ApplySuccessfulPayment(Guid tenant,Guid paymentId,string provider,string? providerPayment,string? reference,Guid userId,string actor,CancellationToken token)
     { await using var c=await Open(tenant,token);await using var tx=(SqlTransaction)await c.BeginTransactionAsync(token);await ApplySuccessfulPayment(c,tx,tenant,paymentId,provider,providerPayment,reference,userId,actor,token);await tx.CommitAsync(token);if(loyalty is not null)await loyalty.ProcessOrderAsync(tenant,await OrderId(tenant,paymentId,token),"COMPLETED",actor,token); }
 
-    private static async Task ApplySuccessfulPayment(SqlConnection c,SqlTransaction tx,Guid tenant,Guid paymentId,string provider,string? providerPayment,string? reference,Guid? userId,string actor,CancellationToken token)
+    private async Task ApplySuccessfulPayment(SqlConnection c,SqlTransaction tx,Guid tenant,Guid paymentId,string provider,string? providerPayment,string? reference,Guid? userId,string actor,CancellationToken token)
     {
         Guid invoice;decimal amount,balance;string currency,status,invoiceStatus;
         await using(var q=new SqlCommand(@"SELECT p.InvoiceId,p.Amount,p.Currency,p.Status,i.BalanceAmount,i.Status FROM commerce.CommercePayments p WITH(UPDLOCK,HOLDLOCK) JOIN sales.SalesInvoices i WITH(UPDLOCK) ON i.InvoiceId=p.InvoiceId AND i.TenantId=p.TenantId WHERE p.TenantId=@tenant AND p.PaymentId=@payment AND p.Provider=@provider",c,tx))
@@ -192,7 +192,8 @@ ELSE BEGIN INSERT commerce.PaymentProviderEvents(PaymentProviderEventId,TenantId
         if(provider==PaymentProviders.DirectUpi&&status!=CommercePaymentStatuses.PendingVerification)throw new BusinessRuleException("Only a Direct UPI payment pending verification can be verified.");
         if(currency!="INR"||amount!=balance)throw new BusinessRuleException("Payment amount or currency no longer matches the order balance.");
         var method=provider==PaymentProviders.Razorpay?"RAZORPAY":"UPI";
-        await using(var pay=new SqlCommand("sales.POS_AddPayment",c,tx){CommandType=CommandType.StoredProcedure}){P(pay,"@InvoiceId",invoice);P(pay,"@MethodCode",method);P(pay,"@Amount",amount);P(pay,"@ReferenceNumber",reference??providerPayment);P(pay,"@CreatedBy",actor);P(pay,"@TenantId",tenant);await pay.ExecuteNonQueryAsync(token);}
+        var posted=await erpPayments.ApplyAsync(c,tx,new(tenant,invoice,method,amount,reference??providerPayment,actor),token);
+        if(posted.InvoiceId!=invoice||posted.BalanceAmount!=0)throw new BusinessRuleException("ERP payment did not settle the expected invoice balance.");
         if(invoiceStatus is "HELD" or "SUSPENDED"){await using var complete=new SqlCommand("sales.POS_TransitionHeldInvoice",c,tx){CommandType=CommandType.StoredProcedure};P(complete,"@InvoiceId",invoice);P(complete,"@Action","COMPLETE");P(complete,"@ModifiedBy",actor);await complete.ExecuteNonQueryAsync(token);}
         await using(var app=new SqlCommand("INSERT commerce.PaymentApplications(PaymentApplicationId,TenantId,PaymentId,InvoiceId,Amount,Currency,AppliedBy)VALUES(NEWID(),@tenant,@payment,@invoice,@amount,@currency,@actor)",c,tx)){P(app,"@tenant",tenant);P(app,"@payment",paymentId);P(app,"@invoice",invoice);P(app,"@amount",amount);P(app,"@currency",currency);P(app,"@actor",actor);await app.ExecuteNonQueryAsync(token);}
         await using(var update=new SqlCommand("UPDATE commerce.CommercePayments SET Status=N'PAID',ProviderPaymentId=COALESCE(@providerPayment,ProviderPaymentId),ProviderReference=COALESCE(@reference,ProviderReference),PaidAt=SYSUTCDATETIME(),VerifiedAt=CASE WHEN @user IS NULL THEN VerifiedAt ELSE SYSUTCDATETIME() END,VerifiedBy=COALESCE(@user,VerifiedBy),AppliedAt=SYSUTCDATETIME(),UpdatedAt=SYSUTCDATETIME() WHERE TenantId=@tenant AND PaymentId=@payment",c,tx)){P(update,"@providerPayment",providerPayment);P(update,"@reference",reference);P(update,"@user",userId);P(update,"@tenant",tenant);P(update,"@payment",paymentId);await update.ExecuteNonQueryAsync(token);}

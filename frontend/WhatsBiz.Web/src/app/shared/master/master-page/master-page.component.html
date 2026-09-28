@@ -152,6 +152,11 @@
                   <div><dt>{{ field.label }}</dt><dd>{{ displayCardValue(item, field.key) }}</dd></div>
                 }
               </dl>
+              @if (config().statusToggle; as status) {
+                <button mat-stroked-button type="button" [disabled]="status.busy(item)" [attr.aria-label]="status.label(item)" (click)="status.toggle(item)">
+                  <span class="material-symbols-rounded">{{ status.active(item) ? 'toggle_on' : 'toggle_off' }}</span>{{ status.active(item) ? 'Active' : 'Inactive' }}
+                </button>
+              }
               <div class="card-actions">
                 @if (config().compactCardActions) {
                   <button mat-icon-button type="button" aria-label="View details" title="View details" (click)="open(item)"><span class="material-symbols-rounded">visibility</span></button>

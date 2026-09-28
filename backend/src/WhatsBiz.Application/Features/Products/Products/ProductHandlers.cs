@@ -10,7 +10,7 @@ namespace WhatsBiz.Application.Features.Products.Products;
 
 public sealed class GetProductsQueryHandler(IProductRepository repository, IMapper mapper) : IRequestHandler<GetProductsQuery, PagedResult<ProductListItemDto>>
 {
-    public async Task<PagedResult<ProductListItemDto>> Handle(GetProductsQuery request, CancellationToken cancellationToken) { var (items, count) = await repository.SearchAsync(request.Search, request.IsActive, request.SortBy, request.Descending, request.PageNumber, request.PageSize, cancellationToken); return new PagedResult<ProductListItemDto>(mapper.Map<IReadOnlyCollection<ProductListItemDto>>(items), count, request.PageNumber, request.PageSize); }
+    public async Task<PagedResult<ProductListItemDto>> Handle(GetProductsQuery request, CancellationToken cancellationToken) { var (items, count) = await repository.SearchAsync(request.Search, request.IsActive, request.CategoryId, request.BrandId, request.SortBy, request.Descending, request.PageNumber, request.PageSize, cancellationToken); return new PagedResult<ProductListItemDto>(mapper.Map<IReadOnlyCollection<ProductListItemDto>>(items), count, request.PageNumber, request.PageSize); }
 }
 
 public sealed class GetProductByIdQueryHandler(IProductRepository repository, IMapper mapper) : IRequestHandler<GetProductByIdQuery, ProductDto>
@@ -57,7 +57,7 @@ public sealed class CreateProductCommandHandler(IProductRepository repository, I
         }
         if (!await repository.ReferencesExistAsync(input.CategoryId, input.BrandId, input.UnitId, token)) throw new BusinessRuleException("Category, brand, or unit is invalid or inactive.");
     }
-    internal static void Apply(Product product, ProductInput input) { product.ProductCode = input.ProductCode.Trim(); product.Barcode = string.IsNullOrWhiteSpace(input.Barcode) ? null : input.Barcode; product.BarcodeType = input.BarcodeType.Trim().ToUpperInvariant(); product.ProductName = input.ProductName.Trim(); product.ShortDescription = input.ShortDescription?.Trim(); product.LongDescription = input.LongDescription?.Trim(); product.CategoryId = input.CategoryId; product.BrandId = input.BrandId; product.UnitId = input.UnitId; product.HSNCode = input.HSNCode?.Trim(); product.SACCode = input.SACCode?.Trim(); product.GSTPercentage = input.GSTPercentage; product.PurchasePrice = input.PurchasePrice; product.SellingPrice = input.SellingPrice; product.MRP = input.MRP; product.MinimumStock = input.MinimumStock; product.MaximumStock = input.MaximumStock; product.ReorderLevel = input.ReorderLevel; product.Weight = input.Weight; product.Length = input.Length; product.Width = input.Width; product.Height = input.Height; product.IsBatchManaged = input.IsBatchManaged; product.IsSerialManaged = input.IsSerialManaged; product.IsActive = input.IsActive; product.IsWhatsAppVisible = input.IsWhatsAppVisible; }
+    internal static void Apply(Product product, ProductInput input) { product.ProductCode = input.ProductCode.Trim(); product.Barcode = string.IsNullOrWhiteSpace(input.Barcode) ? null : input.Barcode; product.BarcodeType = input.BarcodeType.Trim().ToUpperInvariant(); product.ProductName = input.ProductName.Trim(); product.ShortDescription = input.ShortDescription?.Trim(); product.LongDescription = input.LongDescription?.Trim(); product.CategoryId = input.CategoryId; product.BrandId = input.BrandId; product.UnitId = input.UnitId; product.HSNCode = input.HSNCode?.Trim(); product.SACCode = input.SACCode?.Trim(); product.GSTPercentage = input.GSTPercentage; product.PurchasePrice = input.PurchasePrice; product.SellingPrice = input.SellingPrice; product.MRP = input.MRP; product.MinimumStock = input.MinimumStock; product.MaximumStock = input.MaximumStock; product.ReorderLevel = input.ReorderLevel; product.Weight = input.Weight; product.PackSize = string.IsNullOrWhiteSpace(input.PackSize) ? null : input.PackSize.Trim(); product.Length = input.Length; product.Width = input.Width; product.Height = input.Height; product.IsBatchManaged = input.IsBatchManaged; product.IsSerialManaged = input.IsSerialManaged; product.IsActive = input.IsActive; product.IsWhatsAppVisible = input.IsWhatsAppVisible; }
 }
 
 public sealed class UpdateProductCommandHandler(IProductRepository repository, ICurrentUserService currentUser, IMapper mapper) : IRequestHandler<UpdateProductCommand, ProductDto>
@@ -162,7 +162,7 @@ public sealed class DeleteProductCommandHandler(IProductRepository repository, I
 
 public sealed class ExportProductsQueryHandler(IProductRepository repository, IProductSpreadsheetService spreadsheet) : IRequestHandler<ExportProductsQuery, byte[]>
 {
-    public async Task<byte[]> Handle(ExportProductsQuery request, CancellationToken cancellationToken) { var (items, _) = await repository.SearchAsync(request.Search, request.IsActive, "productName", false, 1, 10000, cancellationToken); return spreadsheet.Export(items); }
+    public async Task<byte[]> Handle(ExportProductsQuery request, CancellationToken cancellationToken) { var (items, _) = await repository.SearchAsync(request.Search, request.IsActive, null, null, "productName", false, 1, 10000, cancellationToken); return spreadsheet.Export(items); }
 }
 
 public sealed class DownloadProductTemplateQueryHandler(IProductSpreadsheetService spreadsheet) : IRequestHandler<DownloadProductTemplateQuery, byte[]> { public Task<byte[]> Handle(DownloadProductTemplateQuery request, CancellationToken cancellationToken) => Task.FromResult(spreadsheet.CreateTemplate()); }
@@ -207,3 +207,41 @@ public sealed class GetProductImagesQueryHandler(IProductRepository repository) 
 public sealed class GetProductImageByIdQueryHandler(IProductRepository repository,IProductImageStorage storage) : IRequestHandler<GetProductImageByIdQuery, ProductImageFile?> { public async Task<ProductImageFile?> Handle(GetProductImageByIdQuery request, CancellationToken cancellationToken) { var image = await repository.GetImageByIdAsync(request.ProductId, request.ImageId, false, cancellationToken);if(image is null)return null;var content=await storage.ReadAsync(new(image.TenantId,image.StorageProvider,request.Thumbnail?image.ThumbnailObjectKey:image.ObjectKey,request.Thumbnail?image.ThumbnailData:image.ImageData,request.Thumbnail?image.ThumbnailContentType:image.ContentType),cancellationToken);return content is null?null:new(image.FileName,content.ContentType,content.Content); } }
 
 public sealed class DeleteProductImageCommandHandler(IProductRepository repository, ICurrentUserService currentUser,IProductImageStorage storage) : IRequestHandler<DeleteProductImageCommand> { public async Task Handle(DeleteProductImageCommand request, CancellationToken cancellationToken) { var product = await repository.GetAsync(request.ProductId, true, cancellationToken) ?? throw new EntityNotFoundException("Product was not found."); var image = await repository.GetImageByIdAsync(request.ProductId, request.ImageId, true, cancellationToken) ?? throw new EntityNotFoundException("Product image was not found.");var deletion=new ProductImageStorageDeleteRequest(image.TenantId,image.StorageProvider,image.ObjectKey,image.ThumbnailObjectKey); image.IsDeleted = true; image.IsActive = false; image.ImageData = []; image.ThumbnailData = []; image.ModifiedOn = DateTimeOffset.UtcNow; image.ModifiedBy = currentUser.Username; var remaining = (await repository.GetImagesAsync(request.ProductId, false, cancellationToken)).Where(x => x.ProductImageId != image.ProductImageId).ToArray(); if (image.IsPrimary && remaining.Length > 0) remaining.First().IsPrimary = true; product.ImageUrl = remaining.FirstOrDefault()?.ProductImageId is Guid primary ? $"/api/products/{request.ProductId}/images/{primary}" : null; await repository.SaveChangesAsync(cancellationToken);await storage.DeleteAsync(deletion,cancellationToken); } }
+
+public sealed class SetProductStatusCommandHandler(IProductRepository repository, ICurrentUserService currentUser) : IRequestHandler<SetProductStatusCommand>
+{
+    public async Task Handle(SetProductStatusCommand request, CancellationToken cancellationToken)
+    {
+        var product = await repository.GetAsync(request.ProductId, true, cancellationToken)
+            ?? throw new EntityNotFoundException("Product was not found.");
+        product.IsActive = request.IsActive;
+        product.ModifiedOn = DateTimeOffset.UtcNow;
+        product.ModifiedBy = currentUser.Username;
+        await repository.SaveChangesAsync(cancellationToken);
+    }
+}
+
+public sealed class SetProductsStatusCommandHandler(IProductRepository repository, ICurrentUserService currentUser) : IRequestHandler<SetProductsStatusCommand, ProductStatusBulkResult>
+{
+    public async Task<ProductStatusBulkResult> Handle(SetProductsStatusCommand request, CancellationToken cancellationToken)
+    {
+        var ids = request.ProductIds.Where(x => x != Guid.Empty).Distinct().ToArray();
+        if (ids.Length == 0) throw new BusinessRuleException("Select at least one product.");
+        if (ids.Length > 500) throw new BusinessRuleException("A maximum of 500 products can be updated at once.");
+        var products = await repository.GetManyAsync(ids, true, cancellationToken);
+        var found = products.Select(x => x.ProductId).ToHashSet();
+        var missing = ids.Where(x => !found.Contains(x)).ToList();
+        var updated = 0;
+        var changedAt = DateTimeOffset.UtcNow;
+        foreach (var product in products)
+        {
+            if (product.IsActive == request.IsActive) continue;
+            product.IsActive = request.IsActive;
+            product.ModifiedOn = changedAt;
+            product.ModifiedBy = currentUser.Username;
+            updated++;
+        }
+        if (updated > 0) await repository.SaveChangesAsync(cancellationToken);
+        return new(ids.Length, updated, missing);
+    }
+}

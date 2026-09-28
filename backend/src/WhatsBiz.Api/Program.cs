@@ -101,6 +101,12 @@ try
     builder.Services.AddScoped<ICommerceCollectionRepository, CommerceCollectionRepository>();
     builder.Services.AddScoped<IStorefrontService, StorefrontService>();
     builder.Services.AddScoped<IStorefrontCheckoutService, StorefrontCheckoutService>();
+    builder.Services.AddScoped<IStorefrontCustomerService, StorefrontCustomerService>();
+    builder.Services.AddScoped<IStorefrontCancellationService, StorefrontCancellationService>();
+    builder.Services.AddScoped<IStorefrontReviewService, StorefrontReviewService>();
+    builder.Services.AddScoped<IStorefrontCustomerAuthenticationService, StorefrontCustomerAuthenticationService>();
+    builder.Services.AddSingleton<ICustomerOtpSender, CustomerOtpSender>();
+    builder.Services.AddHttpClient("StorefrontOtp", client => client.Timeout = TimeSpan.FromSeconds(15));
     builder.Services.AddScoped<IStorefrontAdministrationService, StorefrontAdministrationService>();
     builder.Services.AddScoped<ICustomerGroupRepository, CustomerGroupRepository>();
     builder.Services.AddScoped<ICommerceAnalyticsService, CommerceAnalyticsService>();

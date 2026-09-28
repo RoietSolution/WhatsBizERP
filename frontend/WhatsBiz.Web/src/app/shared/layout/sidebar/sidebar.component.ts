@@ -243,6 +243,7 @@ export const navigation: NavigationItem[] = [
   },
   { label: 'Warehouses', icon: 'factory', route: '/warehouses', permission: 'warehouse.view', feature: 'WAREHOUSES' },
   { label: 'My Deliveries', icon: 'two_wheeler', route: '/delivery', permission: 'delivery.view', feature: 'DELIVERY_MANAGEMENT' },
+  { label: 'Storefront Orders', icon: 'shopping_cart', route: '/orders/storefront', permission: 'pos.view' },
   { label: 'Delivery Management', icon: 'local_shipping', route: '/orders/deliveries', permission: 'delivery.manage', feature: 'DELIVERY_MANAGEMENT' },
   {
     label: 'Application Owner',

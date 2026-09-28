@@ -80,6 +80,7 @@ public sealed class Product : ProductMasterEntity
     public decimal MaximumStock { get; set; }
     public decimal ReorderLevel { get; set; }
     public decimal? Weight { get; set; }
+    public string? PackSize { get; set; }
     public decimal? Length { get; set; }
     public decimal? Width { get; set; }
     public decimal? Height { get; set; }

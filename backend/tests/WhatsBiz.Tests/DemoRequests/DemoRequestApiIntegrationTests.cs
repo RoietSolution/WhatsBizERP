@@ -6,17 +6,23 @@ using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Net.Http.Json;
 using WhatsBiz.Application.Features.DemoRequests;
+using WhatsBiz.Tests.Integration;
 
 namespace WhatsBiz.Tests.DemoRequests;
 
 [Collection("SQL demo requests")]
 public sealed class DemoRequestApiIntegrationTests
 {
-    private const string ConnectionString = "Server=DESKTOP-DQ0868S;Database=WhatsBizERP;Integrated Security=True;Encrypt=False;TrustServerCertificate=True;Connection Timeout=10";
+    private static string ConnectionString => SqlIntegrationDatabase.ConnectionString;
 
     [Fact]
     public async Task PublicEndpointPersistsLeadAndCorsAllowsOnlyConfiguredWebsite()
     {
+        await using (var gate = new SqlConnection(ConnectionString))
+        {
+            await gate.OpenAsync();
+            await SqlIntegrationDatabase.VerifyOpenedDatabaseAsync(gate);
+        }
         await using var factory = new DemoRequestFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
         var mobile = "91" + Random.Shared.NextInt64(7000000000, 9999999999);

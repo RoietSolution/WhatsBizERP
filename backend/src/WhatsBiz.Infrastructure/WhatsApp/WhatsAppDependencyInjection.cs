@@ -26,6 +26,7 @@ public static class WhatsAppDependencyInjection
         services.AddScoped<IWhatsAppInboundCommerceHandler, WhatsAppInboundCommerceHandler>();
         services.AddScoped<IPOSLifecycleService, POSLifecycleService>();
         services.AddScoped<ICommercePaymentService, CommercePaymentService>();
+        services.AddScoped<ICommerceRefundService, CommerceRefundService>();
         services.AddSingleton<IPaymentGateway, RazorpayPaymentGateway>();
         services.AddSingleton<IPaymentGateway, DirectUpiPaymentGateway>();
         services.AddSingleton<IPaymentGateway, CashOnDeliveryPaymentGateway>();

@@ -1,11 +1,18 @@
-import { Component } from '@angular/core';
-import { RouterLink } from '@angular/router';
-import { CartService } from '../cart/cart.service';
+import { CurrencyPipe, DatePipe } from '@angular/common';
+import { Component, OnInit, signal } from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { StorefrontDataService } from '../data/storefront-data.service';
+import { CustomerOrder } from '../models/storefront.models';
+import { CustomerSessionService } from '../customer-session.service';
 
-@Component({
-  standalone: true,
-  imports: [RouterLink],
-  template: `<section class="orders"><span class="icon"><svg viewBox="0 0 24 24"><path d="M7 3h10v3H7zM6 5H5a1 1 0 0 0-1 1v14h16V6a1 1 0 0 0-1-1h-1M8 11h8M8 15h6"/></svg></span><span class="eyebrow">YOUR SHOPPING</span><h1>No orders to show</h1><p>Completed storefront orders will appear here when customer order tracking is available.</p><a [routerLink]="['/', cart.storeKey()]">Continue shopping</a></section>`,
-  styles: [`:host{display:grid;min-height:55vh;place-items:center}.orders{display:grid;max-width:410px;justify-items:center;padding:30px;text-align:center}.icon{display:grid;width:58px;height:58px;place-items:center;margin-bottom:15px;border-radius:18px;color:var(--store-primary-dark);background:var(--store-primary-soft)}.icon svg{width:28px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.6}.eyebrow{color:var(--store-primary);font-size:9px;font-weight:800;letter-spacing:1.5px}.orders h1{margin:7px 0 5px;font:800 23px Manrope,sans-serif}.orders p{margin:0;color:var(--store-muted);font-size:12px;line-height:1.6}.orders a{margin-top:17px;border-radius:11px;padding:11px 16px;color:#fff;background:var(--store-primary);font-size:11px;font-weight:800;text-decoration:none}`],
-})
-export class OrdersPage { constructor(readonly cart: CartService) {} }
+@Component({selector:'shop-orders-page',standalone:true,imports:[CurrencyPipe,DatePipe,RouterLink],template:`
+<section class="page"><span class="eyebrow">YOUR SHOPPING</span><h1>Your orders</h1>
+@if(loading()){<p class="state">Loading orders...</p>}
+@else if(!session.active()){<div class="state"><h2>Sign in to view orders</h2><p>Only orders belonging to your verified customer account are shown here.</p><a [routerLink]="['/',storeKey,'auth']">Sign in</a></div>}
+@else if(!orders().length){<div class="state"><h2>No orders yet</h2><p>Your storefront orders will appear here.</p><a [routerLink]="['/',storeKey]">Continue shopping</a></div>}
+@else{<div class="orders">@for(order of orders();track order.id){<article>
+<div class="top"><div><strong>{{order.orderNumber}}</strong><small>{{order.placedAt|date:'medium'}}</small></div><b>{{order.total|currency:'INR'}}</b></div>
+<div class="bottom"><span class="status">{{order.status}}</span><span>{{order.itemCount}} {{order.itemCount===1?'item':'items'}} · {{order.paymentMethod}} · {{order.paymentStatus}}</span></div>
+<a [routerLink]="['/',storeKey,'orders',order.id]">View details →</a>
+</article>}</div>}</section>`,styles:[`:host{display:block}.page{max-width:820px;margin:auto;min-width:0}.eyebrow{color:var(--store-primary);font-size:9px;font-weight:800;letter-spacing:1.5px}.page>h1{margin:4px 0 18px;font:800 25px Manrope,sans-serif}.state{display:grid;min-height:260px;align-content:center;justify-items:center;border:1px solid var(--store-border);border-radius:18px;padding:25px;background:#fff;text-align:center}.state p{max-width:480px;color:var(--store-muted);font-size:11px;line-height:1.6}.state a,.orders a{margin-top:12px;color:var(--store-primary);font-weight:800;text-decoration:none}.orders{display:grid;gap:10px}.orders article{border:1px solid var(--store-border);border-radius:14px;padding:15px;background:#fff;min-width:0}.top,.bottom{display:flex;justify-content:space-between;gap:10px;align-items:center}.top>div{display:grid;min-width:0}.top strong{font-size:13px;overflow-wrap:anywhere}.top small,.bottom{color:var(--store-muted);font-size:10px}.top b{font-size:14px;white-space:nowrap}.bottom{margin:11px 0;flex-wrap:wrap}.status{border-radius:99px;padding:5px 8px;color:var(--store-primary-dark);background:var(--store-primary-soft);font-weight:800}.orders a{font-size:11px}@media(max-width:390px){.page>h1{font-size:21px}.orders article{padding:12px}.top b{font-size:12px}}`]})
+export class OrdersPage implements OnInit{readonly orders=signal<CustomerOrder[]>([]);readonly loading=signal(true);storeKey='';constructor(private readonly route:ActivatedRoute,private readonly data:StorefrontDataService,readonly session:CustomerSessionService){}ngOnInit():void{this.storeKey=this.route.parent?.snapshot.paramMap.get('storeKey')??'';this.session.restore(this.storeKey);void this.load();}private async load():Promise<void>{try{await this.session.refresh(this.storeKey);if(this.session.active())this.orders.set(await this.data.getOrders(this.storeKey));}finally{this.loading.set(false);}}}

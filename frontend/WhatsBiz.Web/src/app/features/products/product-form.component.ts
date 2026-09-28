@@ -328,6 +328,7 @@ export class ProductFormComponent implements OnDestroy {
       maximumStock: [0, Validators.min(0)],
       reorderLevel: [0, Validators.min(0)],
       weight: [null as number | null, Validators.min(0)],
+      packSize: [null as string | null, Validators.maxLength(50)],
       length: [null as number | null, Validators.min(0)],
       width: [null as number | null, Validators.min(0)],
       height: [null as number | null, Validators.min(0)],

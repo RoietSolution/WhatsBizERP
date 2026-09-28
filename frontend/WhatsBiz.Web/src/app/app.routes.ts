@@ -539,6 +539,10 @@ export const routes: Routes = [
         loadComponent: () => import('./features/payments/payment-list.component').then(m => m.PaymentListComponent),
       },
       {
+        path: 'orders/storefront',canActivate:[permissionGuard],data:{permission:'pos.view',title:'Storefront Orders'},
+        loadComponent:()=>import('./features/delivery/storefront-orders.component').then(m=>m.StorefrontOrdersComponent),
+      },
+      {
         path: 'orders/deliveries',canActivate:[permissionGuard,featureGuard],data:{permission:'delivery.manage',feature:'DELIVERY_MANAGEMENT',title:'Delivery Management'},
         loadComponent:()=>import('./features/delivery/delivery-dashboard.component').then(m=>m.DeliveryDashboardComponent),
       },

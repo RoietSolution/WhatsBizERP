@@ -12,10 +12,24 @@ public sealed class StorefrontAdministrationController(IStorefrontAdministration
 {
     private const long MaxImageBytes = 5 * 1024 * 1024;
     [HttpGet] public Task<StorefrontAdminDto> Get(CancellationToken token) => service.GetAsync(token);
-    [HttpPut("banners/{slot}")] public async Task<IActionResult> UpdateBanner(string slot, UpdateStorefrontBannerInput input, CancellationToken token) { await service.UpdateBannerAsync(slot, input, token); return NoContent(); }
+    [HttpPut("review-settings")] public async Task<IActionResult> UpdateReviewSettings(UpdateStorefrontReviewSettingsInput input, CancellationToken token) { await service.UpdateReviewSettingsAsync(input, token); return NoContent(); }
+    [HttpPut("delivery-settings")] public async Task<IActionResult> UpdateDeliverySettings(UpdateStorefrontDeliverySettingsInput input, CancellationToken token) { await service.UpdateDeliverySettingsAsync(input, token); return NoContent(); }
+    [HttpPut("pincodes")]
+    public async Task<IActionResult> SavePincode(StorefrontPincodeDto input, CancellationToken token) { await service.SavePincodeAsync(input, token); return NoContent(); }
+    [HttpDelete("pincodes/{pincode}")]
+    public async Task<IActionResult> RemovePincode(string pincode, CancellationToken token) { await service.RemovePincodeAsync(pincode, token); return NoContent(); }
+    [HttpPost("promotions")]
+    public Task<StorefrontPromotionDto> CreatePromotion(SaveStorefrontPromotionInput input, CancellationToken token) => service.SavePromotionAsync(null, input, token);
+    [HttpPut("promotions/{id:guid}")]
+    public Task<StorefrontPromotionDto> UpdatePromotion(Guid id, SaveStorefrontPromotionInput input, CancellationToken token) => service.SavePromotionAsync(id, input, token);
+    [HttpDelete("promotions/{id:guid}")]
+    public async Task<IActionResult> RemovePromotion(Guid id, CancellationToken token) { await service.RemovePromotionAsync(id, token); return NoContent(); }    [HttpPut("banners/{slot}")] public async Task<IActionResult> UpdateBanner(string slot, UpdateStorefrontBannerInput input, CancellationToken token) { await service.UpdateBannerAsync(slot, input, token); return NoContent(); }
     [HttpGet("logo")] public async Task<IActionResult> Logo(CancellationToken token) => ToImage(await service.GetImageAsync("logo", null, token));
     [HttpPost("logo")] public Task<IActionResult> UploadLogo(IFormFile file, CancellationToken token) => Upload("logo", null, file, token);
     [HttpDelete("logo")] public async Task<IActionResult> RemoveLogo(CancellationToken token) { await service.RemoveImageAsync("logo", null, token); return NoContent(); }
+    [HttpGet("categories/all/image")] public async Task<IActionResult> AllCategoryImage(CancellationToken token) => ToImage(await service.GetImageAsync("category-all", null, token));
+    [HttpPost("categories/all/image")] public Task<IActionResult> UploadAllCategoryImage(IFormFile file, CancellationToken token) => Upload("category-all", null, file, token);
+    [HttpDelete("categories/all/image")] public async Task<IActionResult> RemoveAllCategoryImage(CancellationToken token) { await service.RemoveImageAsync("category-all", null, token); return NoContent(); }
     [HttpGet("banners/{slot}/image")] public async Task<IActionResult> BannerImage(string slot, CancellationToken token) => ToImage(await service.GetImageAsync($"banner-{slot.ToLowerInvariant()}", null, token));
     [HttpPost("banners/{slot}/image")] public Task<IActionResult> UploadBanner(string slot, IFormFile file, CancellationToken token) => Upload($"banner-{slot.ToLowerInvariant()}", null, file, token);
     [HttpDelete("banners/{slot}/image")] public async Task<IActionResult> RemoveBanner(string slot, CancellationToken token) { await service.RemoveImageAsync($"banner-{slot.ToLowerInvariant()}", null, token); return NoContent(); }

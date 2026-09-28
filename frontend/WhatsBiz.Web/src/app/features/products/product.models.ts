@@ -9,11 +9,14 @@ export interface ProductListItem {
   productCode: string;
   barcode?: string;
   productName: string;
+  categoryId: string;
+  brandId: string;
   categoryName: string;
   brandName: string;
   unitName: string;
   purchasePrice: number;
   sellingPrice: number;
+  mrp: number;
   gstPercentage: number;
   isActive: boolean;
   isWhatsAppVisible: boolean;
@@ -52,10 +55,12 @@ export interface ProductInput {
   purchasePrice: number;
   sellingPrice: number;
   mrp: number;
+
   minimumStock: number;
   maximumStock: number;
   reorderLevel: number;
   weight: number | null;
+  packSize: string | null;
   length: number | null;
   width: number | null;
   height: number | null;

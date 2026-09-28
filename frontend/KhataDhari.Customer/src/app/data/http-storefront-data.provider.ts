@@ -2,22 +2,23 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { CartLine, Category, CheckoutCustomer, CheckoutResult, CustomerOrder, Product, Store } from '../models/storefront.models';
+import { CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerOrder, Product, ProductReview, ProductReviewSummary, Store } from '../models/storefront.models';
 import { StorefrontDataProvider } from './storefront-data.provider';
+import { CustomerSessionService } from '../customer-session.service';
 
-interface ApiStore { storeKey: string; name: string; tagline?: string; logoUrl?: string | null; accentColor?: string; deliveryMessage?: string; banners?: Array<{slot:'PRIMARY'|'SECONDARY';imageUrl:string;title?:string;subtitle?:string;targetUrl?:string;displayOrder:number}>; paymentMethods?: Array<{code:'RAZORPAY'|'DIRECT_UPI'|'COD';label:string;description:string;isDefault:boolean;usesHostedPaymentPage:boolean}>; }
+interface ApiStore { storeKey: string; name: string; tagline?: string; logoUrl?: string | null; allCategoryImageUrl?: string | null; accentColor?: string; deliveryMessage?: string; freeDeliveryThreshold?:number|null; banners?: Array<{slot:'PRIMARY'|'SECONDARY';imageUrl:string;title?:string;subtitle?:string;targetUrl?:string;displayOrder:number}>; showProductRatings?:boolean; showProductReviews?:boolean; paymentMethods?: Array<{code:'RAZORPAY'|'DIRECT_UPI'|'COD';label:string;description:string;isDefault:boolean;usesHostedPaymentPage:boolean}>; }
 interface ApiCategory { id: string; name: string; imageUrl?: string | null; }
-interface ApiProduct { id: string; categoryId: string; name: string; description?: string | null; imageUrl?: string | null; sellingPrice: number; compareAtPrice?: number | null; availability: 'IN_STOCK' | 'OUT_OF_STOCK'; unitLabel?: string | null; }
+interface ApiProduct { id: string; categoryId: string; name: string; description?: string | null; imageUrl?: string | null; sellingPrice: number; compareAtPrice?: number | null; availability: 'IN_STOCK' | 'OUT_OF_STOCK'; packSize?: string | null; averageRating?: number | null; ratingCount?: number; }
 
 @Injectable({ providedIn: 'root' })
 export class HttpStorefrontDataProvider implements StorefrontDataProvider {
-  constructor(private readonly http: HttpClient) {}
+  constructor(private readonly http: HttpClient, private readonly session: CustomerSessionService) {}
 
   async getStore(storeKey: string): Promise<Store | null> {
     let store: ApiStore;
     try { store = await firstValueFrom(this.http.get<ApiStore>(this.url(storeKey))); }
     catch (error) { if (error instanceof HttpErrorResponse && error.status === 404) return null; throw error; }
-    return { storeKey: store.storeKey, name: store.name, tagline: store.tagline ?? 'Good things, close to home.', logoUrl: this.asset(store.logoUrl), accentColor: store.accentColor ?? '#145c43', deliveryMessage: store.deliveryMessage ?? 'Fresh picks, close to home.', banners:(store.banners??[]).map(b=>({...b,imageUrl:this.asset(b.imageUrl)!})),paymentMethods:store.paymentMethods??[] };
+    return { storeKey: store.storeKey, name: store.name, tagline: store.tagline ?? 'Good things, close to home.', logoUrl: this.asset(store.logoUrl), allCategoryImageUrl:this.asset(store.allCategoryImageUrl), accentColor: store.accentColor ?? '#145c43', freeDeliveryThreshold:store.freeDeliveryThreshold??undefined, deliveryMessage: store.deliveryMessage ?? 'Fresh picks, close to home.', showProductRatings:store.showProductRatings??true, showProductReviews:store.showProductReviews??true, banners:(store.banners??[]).map(b=>({...b,imageUrl:this.asset(b.imageUrl)!})),paymentMethods:store.paymentMethods??[] };
   }
 
   async getCategories(storeKey: string): Promise<Category[]> {
@@ -37,7 +38,18 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
     return this.mapProduct(product);
   }
 
-  async getOrders(_storeKey: string): Promise<CustomerOrder[]> { return []; }
+  async getOrders(storeKey: string): Promise<CustomerOrder[]> {
+    const token = this.session.token(storeKey);
+    if (!token) return [];
+    try { return await firstValueFrom(this.http.get<CustomerOrder[]>(this.url(storeKey) + '/orders', { headers: { 'X-Customer-Session': token } })); }
+    catch (error) { if (error instanceof HttpErrorResponse && error.status === 401) this.session.clear(storeKey); return []; }
+  }
+
+  async getOrder(storeKey:string,orderId:string):Promise<CustomerOrder|null>{const token=this.session.token(storeKey);if(!token)return null;try{return await firstValueFrom(this.http.get<CustomerOrder>(`${this.url(storeKey)}/orders/${encodeURIComponent(orderId)}`,{headers:{'X-Customer-Session':token}}));}catch(error){if(error instanceof HttpErrorResponse&&error.status===401)this.session.clear(storeKey);return null;}}
+  async requestCancellation(storeKey:string,orderId:string,reason:string):Promise<void>{const token=this.session.token(storeKey);if(!token)throw new Error('Sign in to request cancellation.');await firstValueFrom(this.http.post(`${this.url(storeKey)}/orders/${encodeURIComponent(orderId)}/cancellation-request`, {reason},{headers:{'X-Customer-Session':token}}));}
+  async quote(storeKey:string,lines:readonly CartLine[],pincode:string):Promise<CartQuote|null>{if(!lines.length)return null;const token=this.session.token(storeKey);return await firstValueFrom(this.http.post<CartQuote>(`${this.url(storeKey)}/cart/quote`,{pincode,items:lines.map(x=>({productId:x.product.id,quantity:x.quantity}))},{headers:token?{'X-Customer-Session':token}:{}}));}
+  async getReviews(storeKey:string,productId:string):Promise<ProductReviewSummary>{const token=this.session.token(storeKey);return await firstValueFrom(this.http.get<ProductReviewSummary>(`${this.url(storeKey)}/products/${encodeURIComponent(productId)}/reviews`,{headers:token?{'X-Customer-Session':token}:{}}));}
+  async saveReview(storeKey:string,productId:string,rating:number,reviewText:string):Promise<ProductReview>{return await firstValueFrom(this.http.put<ProductReview>(`${this.url(storeKey)}/products/${encodeURIComponent(productId)}/reviews/mine`,{rating,reviewText},{headers:{'X-Customer-Session':this.session.token(storeKey)}}));}
 
   async checkout(storeKey: string, customer: CheckoutCustomer, lines: readonly CartLine[], idempotencyKey: string, paymentProvider: string): Promise<CheckoutResult> {
     return await firstValueFrom(this.http.post<CheckoutResult>(`${this.url(storeKey)}/checkout`, {
@@ -45,7 +57,7 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
       email: customer.email || null,
       paymentProvider,
       items: lines.map((line) => ({ productId: line.product.id, quantity: line.quantity })),
-    }, { headers: { 'Idempotency-Key': idempotencyKey } }));
+    }, { headers: { 'Idempotency-Key': idempotencyKey, ...(this.session.token(storeKey) ? { 'X-Customer-Session': this.session.token(storeKey) } : {}) } }));
   }
 
   private mapProduct(product: ApiProduct): Product {
@@ -58,7 +70,9 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
       sellingPrice: product.sellingPrice,
       compareAtPrice: product.compareAtPrice ?? undefined,
       available: product.availability === 'IN_STOCK',
-      unitLabel: product.unitLabel ?? undefined,
+      packSize: product.packSize ?? undefined,
+      averageRating: product.averageRating ?? undefined,
+      ratingCount: product.ratingCount ?? 0,
     };
   }
 

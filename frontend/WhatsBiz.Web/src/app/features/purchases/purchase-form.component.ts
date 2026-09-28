@@ -10,6 +10,9 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatDialog } from '@angular/material/dialog';
+import { PurchaseProductSelectorDialogComponent } from './purchase-product-selector-dialog.component';
+import { ProductListItem } from '../products/product.models';
 import { forkJoin, of } from 'rxjs';
 import { PageContainerComponent } from '../../shared/components/page-container/page-container.component';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
@@ -76,6 +79,7 @@ export class PurchaseFormComponent {
     route: ActivatedRoute,
     private router: Router,
     private snack: MatSnackBar,
+    private dialog: MatDialog,
   ) {
     this.id = route.snapshot.paramMap.get('id') ?? '';
     api.suppliers().subscribe((x) => this.suppliers.set(x));
@@ -118,15 +122,25 @@ export class PurchaseFormComponent {
       this.addProduct(p);
     });
   }
-  addProduct(p: ProductLookup) {
+  openProductSelector() {
+    this.dialog.open(PurchaseProductSelectorDialogComponent, { width: '1000px', maxWidth: '96vw', maxHeight: '92vh' }).afterClosed().subscribe((products: ProductListItem[] | undefined) => {
+      if (!products?.length) return;
+      let added = 0;
+      for (const product of products) if (this.addProduct(product, false)) added++;
+      const skipped = products.length - added;
+      this.snack.open(`${added} product(s) added${skipped ? `; ${skipped} already present` : ''}.`, 'Close', { duration: 3000 });
+    });
+  }
+  addProduct(p: ProductLookup, notifyDuplicate = true): boolean {
     if (this.items().some((x) => x.productId === p.productId)) {
-      this.snack.open('Product is already added', 'Close', { duration: 2000 });
+      if (notifyDuplicate) this.snack.open('Product is already added', 'Close', { duration: 2000 });
       this.lookup = '';
-      return;
+      return false;
     }
     this.items.update((a) => [...a, { productId: p.productId, productName: p.productName, barcode: p.barcode, quantity: 1, freeQuantity: 0, purchasePrice: p.purchasePrice ?? 0, mrp: p.mrp, sellingPrice: p.sellingPrice, discountPercentage: 0, discountAmount: 0, gstPercentage: p.gstPercentage }]);
     this.lookup = '';
     this.productOptions.set([]);
+    return true;
   }
   selectAttachments(event: Event) {
     const input = event.target as HTMLInputElement;

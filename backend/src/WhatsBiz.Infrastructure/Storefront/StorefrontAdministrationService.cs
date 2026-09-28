@@ -22,9 +22,94 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
             ? new StorefrontBannerAdminDto(slot, row.IsEnabled, row.StartsAt, row.EndsAt, row.Title, row.Subtitle, row.TargetUrl, row.DisplayOrder,
                 row.MediaId is null ? null : $"/api/storefront-administration/banners/{slot}/image")
             : new StorefrontBannerAdminDto(slot, false, null, null, null, null, null, slot == StorefrontBannerSlots.Primary ? 1 : 2, null)).ToArray();
-        return new(name, config?.LogoMediaId is null ? null : "/api/storefront-administration/logo", banners);
+        var pincodes = await db.StorefrontServiceablePincodes.AsNoTracking().Where(x => x.TenantId == tenant)
+            .OrderBy(x => x.Pincode).Select(x => new StorefrontPincodeDto(x.Pincode, x.IsActive)).ToArrayAsync(token);
+        var promotions = await db.StorefrontPromotions.AsNoTracking().Where(x => x.TenantId == tenant && !x.IsDeleted)
+            .OrderBy(x => x.OfferName).Select(x => new StorefrontPromotionDto(x.PromotionId, x.OfferName, x.OfferType,
+                x.MinimumPurchaseAmount, x.DiscountType, x.DiscountValue, x.MaximumDiscount, x.StartsAt, x.EndsAt,
+                x.IsActive, x.UsageLimitPerCustomer)).ToArrayAsync(token);
+        return new(name, config?.LogoMediaId is null ? null : "/api/storefront-administration/logo",
+            config?.DeliveryEnabled ?? false, config?.StandardDeliveryCharge ?? 0, config?.FreeDeliveryEnabled ?? false,
+            config?.FreeDeliveryThreshold, config?.ShowProductRatings ?? true, config?.ShowProductReviews ?? true,
+            banners, pincodes, promotions, config?.AllCategoryMediaId is null ? null : "/api/storefront-administration/categories/all/image");
     }
 
+    public async Task UpdateReviewSettingsAsync(UpdateStorefrontReviewSettingsInput input, CancellationToken token)
+    {
+        var tenant = Tenant;
+        var row = await db.StorefrontConfigurations.SingleOrDefaultAsync(x => x.TenantId == tenant, token);
+        if (row is null) { row = new() { TenantId = tenant, CreatedAt = DateTime.UtcNow }; db.StorefrontConfigurations.Add(row); }
+        row.ShowProductRatings = input.ShowProductRatings;
+        row.ShowProductReviews = input.ShowProductReviews;
+        row.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(token);
+    }
+
+    public async Task UpdateDeliverySettingsAsync(UpdateStorefrontDeliverySettingsInput input, CancellationToken token)
+    {
+        if (input.FreeDeliveryThreshold is < 0 or > 10000000 || input.StandardDeliveryCharge is < 0 or > 1000000) throw new BusinessRuleException("Delivery settings contain an invalid amount.");
+        if (input.FreeDeliveryEnabled && input.FreeDeliveryThreshold is null or <= 0) throw new BusinessRuleException("A positive threshold is required when free delivery is enabled.");
+        var tenant = Tenant;
+        var row = await db.StorefrontConfigurations.SingleOrDefaultAsync(x => x.TenantId == tenant, token);
+        if (row is null) { row = new() { TenantId = tenant, CreatedAt = DateTime.UtcNow }; db.StorefrontConfigurations.Add(row); }
+        row.DeliveryEnabled = input.DeliveryEnabled;
+        row.StandardDeliveryCharge = decimal.Round(input.StandardDeliveryCharge, 2);
+        row.FreeDeliveryEnabled = input.FreeDeliveryEnabled;
+        row.FreeDeliveryThreshold = input.FreeDeliveryThreshold is null or 0 ? null : decimal.Round(input.FreeDeliveryThreshold.Value, 2);
+        row.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(token);
+    }
+    public async Task SavePincodeAsync(StorefrontPincodeDto input, CancellationToken token)
+    {
+        if (input.Pincode?.Length != 6 || !input.Pincode.All(char.IsAsciiDigit)) throw new BusinessRuleException("Enter a valid six-digit Indian pincode.");
+        var tenant = Tenant;
+        var row = await db.StorefrontServiceablePincodes.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Pincode == input.Pincode, token);
+        if (row is null) { row = new() { TenantId = tenant, Pincode = input.Pincode }; db.StorefrontServiceablePincodes.Add(row); }
+        row.IsActive = input.IsActive; row.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(token);
+    }
+
+    public async Task RemovePincodeAsync(string pincode, CancellationToken token)
+    {
+        var tenant = Tenant;
+        var row = await db.StorefrontServiceablePincodes.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Pincode == pincode, token);
+        if (row is null) throw new EntityNotFoundException("Pincode was not found.");
+        db.StorefrontServiceablePincodes.Remove(row);
+        await db.SaveChangesAsync(token);
+    }
+
+    public async Task<StorefrontPromotionDto> SavePromotionAsync(Guid? id, SaveStorefrontPromotionInput input, CancellationToken token)
+    {
+        var name = input.OfferName?.Trim();
+        if (string.IsNullOrWhiteSpace(name) || name.Length > 150 || input.OfferType is not ("MINIMUM_PURCHASE" or "FIRST_ORDER")
+            || input.DiscountType is not ("FLAT" or "PERCENTAGE") || input.MinimumPurchaseAmount < 0
+            || input.DiscountValue <= 0 || input.DiscountType == "PERCENTAGE" && input.DiscountValue > 100
+            || input.MaximumDiscount is <= 0 || input.UsageLimitPerCustomer is <= 0
+            || input.StartsAt is not null && input.EndsAt is not null && input.StartsAt >= input.EndsAt)
+            throw new BusinessRuleException("Enter valid promotion details.");
+        var tenant = Tenant;
+        var row = id is null ? null : await db.StorefrontPromotions.SingleOrDefaultAsync(x => x.TenantId == tenant && x.PromotionId == id && !x.IsDeleted, token);
+        if (id is not null && row is null) throw new EntityNotFoundException("Promotion was not found.");
+        if (row is null) { row = new() { TenantId = tenant, PromotionId = Guid.NewGuid(), CreatedAt = DateTimeOffset.UtcNow }; db.StorefrontPromotions.Add(row); }
+        row.OfferName = name; row.OfferType = input.OfferType; row.MinimumPurchaseAmount = decimal.Round(input.MinimumPurchaseAmount, 2);
+        row.DiscountType = input.DiscountType; row.DiscountValue = decimal.Round(input.DiscountValue, 2);
+        row.MaximumDiscount = input.MaximumDiscount is null ? null : decimal.Round(input.MaximumDiscount.Value, 2);
+        row.StartsAt = input.StartsAt; row.EndsAt = input.EndsAt; row.IsActive = input.IsActive;
+        row.UsageLimitPerCustomer = input.OfferType == "FIRST_ORDER" ? 1 : input.UsageLimitPerCustomer;
+        row.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(token);
+        return new(row.PromotionId, row.OfferName, row.OfferType, row.MinimumPurchaseAmount, row.DiscountType,
+            row.DiscountValue, row.MaximumDiscount, row.StartsAt, row.EndsAt, row.IsActive, row.UsageLimitPerCustomer);
+    }
+
+    public async Task RemovePromotionAsync(Guid id, CancellationToken token)
+    {
+        var tenant = Tenant;
+        var row = await db.StorefrontPromotions.SingleOrDefaultAsync(x => x.TenantId == tenant && x.PromotionId == id && !x.IsDeleted, token);
+        if (row is null) throw new EntityNotFoundException("Promotion was not found.");
+        row.IsActive = false; row.IsDeleted = true; row.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(token);
+    }
     public async Task UpdateBannerAsync(string slot, UpdateStorefrontBannerInput input, CancellationToken token)
     {
         var normalized = NormalizeSlot(slot);
@@ -91,11 +176,13 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
     private async Task<Guid?> Attach(Guid tenant, string resource, Guid? categoryId, Guid? mediaId, CancellationToken token)
     {
         Guid? old;
-        if (resource == "logo")
+        if (resource is "logo" or "category-all")
         {
             var row = await db.StorefrontConfigurations.SingleOrDefaultAsync(x => x.TenantId == tenant, token);
             if (row is null) { row = new() { TenantId = tenant, CreatedAt = DateTime.UtcNow }; db.StorefrontConfigurations.Add(row); }
-            old = row.LogoMediaId; row.LogoMediaId = mediaId; row.UpdatedAt = DateTime.UtcNow;
+            old = resource == "logo" ? row.LogoMediaId : row.AllCategoryMediaId;
+            if (resource == "logo") row.LogoMediaId = mediaId; else row.AllCategoryMediaId = mediaId;
+            row.UpdatedAt = DateTime.UtcNow;
         }
         else if (resource == "category")
         {
@@ -125,6 +212,7 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
     {
         var normalized = NormalizeResource(resource); await ValidateCategory(tenant, normalized, categoryId, token);
         if (normalized == "logo") return await db.StorefrontConfigurations.Where(x => x.TenantId == tenant).Select(x => x.LogoMediaId).SingleOrDefaultAsync(token);
+        if (normalized == "category-all") return await db.StorefrontConfigurations.Where(x => x.TenantId == tenant).Select(x => x.AllCategoryMediaId).SingleOrDefaultAsync(token);
         if (normalized == "category") return await db.StorefrontCategoryImages.Where(x => x.TenantId == tenant && x.ProductCategoryId == categoryId).Select(x => (Guid?)x.MediaId).SingleOrDefaultAsync(token);
         var slot = normalized == "banner-primary" ? StorefrontBannerSlots.Primary : StorefrontBannerSlots.Secondary;
         return await db.StorefrontBanners.Where(x => x.TenantId == tenant && x.Slot == slot).Select(x => x.MediaId).SingleOrDefaultAsync(token);
@@ -135,7 +223,7 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
         if (!categoryId.HasValue || !await db.Set<TenantProductCategory>().AnyAsync(x => x.TenantId == tenant && x.ProductCategoryId == categoryId, token))
             throw new EntityNotFoundException("Category was not found.");
     }
-    private static string NormalizeResource(string resource) { var value = resource.Trim().ToLowerInvariant(); if (value is not ("logo" or "category" or "banner-primary" or "banner-secondary")) throw new EntityNotFoundException("Storefront image was not found."); return value; }
+    private static string NormalizeResource(string resource) { var value = resource.Trim().ToLowerInvariant(); if (value is not ("logo" or "category" or "category-all" or "banner-primary" or "banner-secondary")) throw new EntityNotFoundException("Storefront image was not found."); return value; }
     private static string NormalizeSlot(string slot) { var value = slot.Trim().ToUpperInvariant(); if (!StorefrontBannerSlots.All.Contains(value)) throw new EntityNotFoundException("Banner slot was not found."); return value; }
     private static string? Trim(string? value, int max) { var text = value?.Trim(); if (string.IsNullOrEmpty(text)) return null; if (text.Length > max) throw new BusinessRuleException($"Text cannot exceed {max} characters."); return text; }
     private static string? NormalizeTarget(string? value) { var text = Trim(value, 500); if (text is null) return null; if (text[0] == '/' && !text.StartsWith("//", StringComparison.Ordinal)) return text; if (Uri.TryCreate(text, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps) return uri.AbsoluteUri; throw new BusinessRuleException("Banner target must be a relative store path or an HTTPS URL."); }

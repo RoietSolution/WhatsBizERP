@@ -20,6 +20,8 @@ export class ProductApiService {
   search(query: {
     search?: string;
     isActive?: boolean;
+    categoryId?: string;
+    brandId?: string;
     sortBy: string;
     descending: boolean;
     pageNumber: number;
@@ -32,6 +34,8 @@ export class ProductApiService {
       .set('pageSize', query.pageSize);
     if (query.search) params = params.set('search', query.search);
     if (query.isActive !== undefined) params = params.set('isActive', query.isActive);
+    if (query.categoryId) params = params.set('categoryId', query.categoryId);
+    if (query.brandId) params = params.set('brandId', query.brandId);
     return this.http.get<PagedResult<ProductListItem>>('/api/products', { params });
   }
   get(id: string): Observable<Product> {
@@ -47,6 +51,8 @@ export class ProductApiService {
   update(id: string, input: ProductInput): Observable<Product> {
     return this.http.put<Product>(`/api/products/${id}`, input);
   }
+  setStatus(id: string, isActive: boolean): Observable<void> { return this.http.patch<void>(`/api/products/${id}/status`, { isActive }); }
+  setStatuses(productIds: string[], isActive: boolean): Observable<{ requestedCount: number; updatedCount: number; notFoundProductIds: string[] }> { return this.http.patch<{ requestedCount: number; updatedCount: number; notFoundProductIds: string[] }>('/api/products/status', { productIds, isActive }); }
   delete(id: string): Observable<void> {
     return this.http.delete<void>(`/api/products/${id}`);
   }

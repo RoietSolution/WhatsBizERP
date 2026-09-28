@@ -31,6 +31,30 @@
               "optimization": { "fonts": false }
             },
             "development": { "optimization": false, "extractLicenses": false, "sourceMap": true },
+		"qa": {
+  "fileReplacements": [
+    {
+      "replace": "src/environments/environment.ts",
+      "with": "src/environments/environment.qa.ts"
+    }
+  ],
+  "budgets": [
+    {
+      "type": "initial",
+      "maximumWarning": "500kB",
+      "maximumError": "1MB"
+    },
+    {
+      "type": "anyComponentStyle",
+      "maximumWarning": "20kB",
+      "maximumError": "30kB"
+    }
+  ],
+  "outputHashing": "all",
+  "optimization": {
+    "fonts": false
+  }
+},
             "mock": {
               "fileReplacements": [{ "replace": "src/environments/environment.ts", "with": "src/environments/environment.mock.ts" }],
               "optimization": false,
@@ -45,6 +69,7 @@
           "configurations": {
             "production": { "buildTarget": "KhataDhari.Customer:build:production" },
             "development": { "buildTarget": "KhataDhari.Customer:build:development" },
+	    "qa": {"buildTarget": "KhataDhari.Customer:build:qa"},
             "mock": { "buildTarget": "KhataDhari.Customer:build:mock" }
           },
           "defaultConfiguration": "development"

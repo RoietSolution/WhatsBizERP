@@ -9,3 +9,6 @@ public sealed record DeleteProductCommand(Guid ProductId) : IRequest;
 public sealed record ImportProductsCommand(byte[] Content) : IRequest<ImportProductsResult>;
 public sealed record UploadProductImageCommand(Guid ProductId, string FileName, string ContentType, byte[] Content) : IRequest<ProductImageDto>;
 public sealed record DeleteProductImageCommand(Guid ProductId, Guid ImageId) : IRequest;
+public sealed record SetProductStatusCommand(Guid ProductId, bool IsActive) : IRequest;
+public sealed record SetProductsStatusCommand(IReadOnlyCollection<Guid> ProductIds, bool IsActive) : IRequest<ProductStatusBulkResult>;
+public sealed record ProductStatusBulkResult(int RequestedCount, int UpdatedCount, IReadOnlyCollection<Guid> NotFoundProductIds);

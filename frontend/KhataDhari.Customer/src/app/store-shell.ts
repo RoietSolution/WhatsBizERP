@@ -5,6 +5,7 @@ import { ActivatedRoute, ParamMap, Router, RouterLink, RouterOutlet } from '@ang
 import { CartService } from './cart/cart.service';
 import { StorefrontDataService } from './data/storefront-data.service';
 import { Store } from './models/storefront.models';
+import { CustomerSessionService } from './customer-session.service';
 
 @Component({
   selector: 'shop-store-shell',
@@ -37,6 +38,10 @@ import { Store } from './models/storefront.models';
               <span><strong>Cart</strong>@if (cart.itemCount()) { <small>{{ cart.itemCount() }} items · {{ cart.total() | currency:'INR':'symbol':'1.0-0' }}</small> } @else { <small>Empty</small> }</span>
             </button>
           </div>
+          <nav class="customer-nav" aria-label="Customer account">
+@if(session.active()){<a [routerLink]="['/',currentStore.storeKey,'account']">My Account</a><a [routerLink]="['/',currentStore.storeKey,'orders']">My Orders</a><a [routerLink]="['/',currentStore.storeKey,'wishlist']">Wishlist</a><button type="button" (click)="signOut(currentStore.storeKey)">Sign Out</button>}
+@else{<a [routerLink]="['/',currentStore.storeKey,'auth']">Sign In</a><a [routerLink]="['/',currentStore.storeKey,'auth']" [queryParams]="{mode:'signup'}">Sign Up</a><a [routerLink]="['/',currentStore.storeKey,'wishlist']">Wishlist</a>}
+</nav>
         </header>
 
         <main class="store-content"><router-outlet /></main>
@@ -54,7 +59,7 @@ import { Store } from './models/storefront.models';
   `,
   styles: [`
     :host{display:block;min-height:100vh}.store-frame{min-height:100vh;--tenant-primary:var(--store-primary)}
-    .store-header{position:sticky;z-index:20;top:0;border-bottom:1px solid var(--store-border);background:rgba(255,255,255,.96);backdrop-filter:blur(14px)}
+    .store-header{position:sticky;z-index:20;top:0;border-bottom:1px solid var(--store-border);background:rgba(255,255,255,.96);backdrop-filter:blur(14px)}.customer-nav{display:flex;justify-content:flex-end;gap:14px;width:min(var(--store-content-width),100%);margin:-8px auto 7px;padding:0 24px}.customer-nav a,.customer-nav button{border:0;color:var(--store-primary-dark);background:transparent;font-size:10px;font-weight:800;text-decoration:none;cursor:pointer}
     .header-inner{display:grid;grid-template-columns:250px minmax(280px,680px) 190px;align-items:center;gap:22px;width:min(var(--store-content-width),100%);min-height:76px;margin:auto;padding:12px 24px}
     .brand{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none}.brand-mark,.brand img{display:grid;flex:0 0 auto;width:42px;height:42px;place-items:center;border-radius:12px}.brand-mark{color:#fff;background:var(--store-primary);font:800 19px Manrope,sans-serif}.brand img{object-fit:cover}
     .brand-copy{display:grid;min-width:0;line-height:1.15}.brand-copy strong{overflow:hidden;color:var(--store-text);font:800 17px Manrope,sans-serif;text-overflow:ellipsis;white-space:nowrap}.brand-copy small{margin-top:4px;color:var(--store-muted);font-size:10px}
@@ -76,12 +81,12 @@ export class StoreShell implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   constructor(private readonly route: ActivatedRoute, private readonly router: Router,
-    private readonly data: StorefrontDataService, readonly cart: CartService) {}
+    private readonly data: StorefrontDataService, readonly cart: CartService, readonly session: CustomerSessionService) {}
 
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params: ParamMap) => {
       const storeKey = params.get('storeKey') ?? '';
-      this.loading.set(true); this.loadFailed.set(false); this.cart.useStore(storeKey); void this.load(storeKey);
+      this.loading.set(true); this.loadFailed.set(false); this.cart.useStore(storeKey); this.session.restore(storeKey); void this.load(storeKey);
     });
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => this.searchText = params.get('q') ?? '');
   }
@@ -89,6 +94,7 @@ export class StoreShell implements OnInit {
   clearSearch(): void { this.searchText = ''; this.navigateSearch(); }
   search(event: Event): void { event.preventDefault(); this.navigateSearch(); }
   goCart(): void { const key = this.store()?.storeKey; if (key) void this.router.navigate(['/', key, 'cart']); }
+  signOut(storeKey:string):void{this.session.signOut(storeKey);}
   retry(): void { const key = this.route.snapshot.paramMap.get('storeKey') ?? ''; this.loading.set(true); this.loadFailed.set(false); void this.load(key); }
   private navigateSearch(): void { const key = this.store()?.storeKey; if (key) void this.router.navigate(['/', key], { queryParams: { q: this.searchText.trim() || null } }); }
   private async load(storeKey: string): Promise<void> { try { this.store.set(await this.data.getStore(storeKey)); } catch { this.store.set(null); this.loadFailed.set(true); } finally { this.loading.set(false); } }

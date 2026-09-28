@@ -51,6 +51,9 @@ public sealed record GatewayWebhookResult(bool SignatureValid, string? EventId, 
     string? ProviderOrderId, string? ProviderReference, string? ProviderPaymentId,
     decimal? Amount, string? Currency, bool IsPaid, bool IsFailed);
 
+public sealed record GatewayRefundResult(string ProviderRefundId, string Status, decimal Amount,
+    string Currency, string ProviderPaymentId);
+
 public interface IPaymentGateway
 {
     string Provider { get; }
@@ -60,6 +63,14 @@ public interface IPaymentGateway
         string signature, string? eventId);
     Task RefundPaymentAsync(PaymentGatewayConfiguration configuration, string providerPaymentId, decimal amount, string currency, CancellationToken token)
         => throw new NotSupportedException($"Refunds are not supported by {Provider}.");
+    Task<GatewayRefundResult> CreateRefundAsync(PaymentGatewayConfiguration configuration,
+        string providerPaymentId, decimal amount, string currency, Guid refundId,
+        Guid attemptId, CancellationToken token)
+        => throw new NotSupportedException($"Refunds are not supported by {Provider}.");
+    Task<GatewayRefundResult?> FindRefundAsync(PaymentGatewayConfiguration configuration,
+        string providerPaymentId, string? providerRefundId, Guid refundId,
+        Guid attemptId, CancellationToken token)
+        => throw new NotSupportedException($"Refund reconciliation is not supported by {Provider}.");
 }
 
 public interface IPaymentGatewayResolver { IPaymentGateway Resolve(string provider); }

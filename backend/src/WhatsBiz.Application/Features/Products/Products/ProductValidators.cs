@@ -45,6 +45,7 @@ public sealed class ProductInputValidator : AbstractValidator<ProductInput>
         RuleFor(x => x.MaximumStock).GreaterThanOrEqualTo(x => x.MinimumStock);
         RuleFor(x => x.ReorderLevel).GreaterThanOrEqualTo(0);
         RuleFor(x => x.Weight).GreaterThanOrEqualTo(0).When(x => x.Weight.HasValue);
+        RuleFor(x => x.PackSize).MaximumLength(50);
         RuleFor(x => x.Length).GreaterThanOrEqualTo(0).When(x => x.Length.HasValue);
         RuleFor(x => x.Width).GreaterThanOrEqualTo(0).When(x => x.Width.HasValue);
         RuleFor(x => x.Height).GreaterThanOrEqualTo(0).When(x => x.Height.HasValue);

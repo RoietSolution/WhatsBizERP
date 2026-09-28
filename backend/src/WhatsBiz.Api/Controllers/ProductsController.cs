@@ -15,7 +15,7 @@ public sealed class ProductsController(ISender sender, IEntityCodeService codes)
     [HttpGet("next-code"), HasPermission(Permissions.Product.Create)]
     public Task<string> NextCode(CancellationToken cancellationToken) => codes.NextAsync(EntityCodeKind.Product, cancellationToken);
     [HttpGet, HasPermission(Permissions.Product.View)]
-    public Task<PagedResult<ProductListItemDto>> Get([FromQuery] string? search, [FromQuery] bool? isActive, [FromQuery] string sortBy = "productName", [FromQuery] bool descending = false, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) => sender.Send(new GetProductsQuery(search, isActive, sortBy, descending, pageNumber, pageSize), cancellationToken);
+    public Task<PagedResult<ProductListItemDto>> Get([FromQuery] string? search, [FromQuery] bool? isActive, [FromQuery] Guid? categoryId, [FromQuery] Guid? brandId, [FromQuery] string sortBy = "productName", [FromQuery] bool descending = false, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) => sender.Send(new GetProductsQuery(search, isActive, categoryId, brandId, sortBy, descending, pageNumber, pageSize), cancellationToken);
 
     [HttpGet("{id:guid}"), HasPermission(Permissions.Product.View)]
     public Task<ProductDto> GetById(Guid id, CancellationToken cancellationToken) => sender.Send(new GetProductByIdQuery(id), cancellationToken);
@@ -29,6 +29,12 @@ public sealed class ProductsController(ISender sender, IEntityCodeService codes)
 
     [HttpPut("{id:guid}"), HasPermission(Permissions.Product.Edit)]
     public Task<ProductDto> Update(Guid id, ProductInput input, CancellationToken cancellationToken) => sender.Send(new UpdateProductCommand(id, input), cancellationToken);
+
+    [HttpPatch("{id:guid}/status"), HasPermission(Permissions.Product.Edit)]
+    public async Task<IActionResult> SetStatus(Guid id, ProductStatusInput input, CancellationToken cancellationToken) { await sender.Send(new SetProductStatusCommand(id, input.IsActive), cancellationToken); return NoContent(); }
+
+    [HttpPatch("status"), HasPermission(Permissions.Product.Edit)]
+    public Task<ProductStatusBulkResult> SetStatuses(ProductStatusBulkInput input, CancellationToken cancellationToken) => sender.Send(new SetProductsStatusCommand(input.ProductIds, input.IsActive), cancellationToken);
 
     [HttpDelete("{id:guid}"), HasPermission(Permissions.Product.Delete)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken) { await sender.Send(new DeleteProductCommand(id), cancellationToken); return NoContent(); }
@@ -55,3 +61,6 @@ public sealed class ProductsController(ISender sender, IEntityCodeService codes)
     [HttpDelete("{id:guid}/images/{imageId:guid}"), HasPermission(Permissions.Product.Edit)]
     public async Task<IActionResult> DeleteImage(Guid id, Guid imageId, CancellationToken cancellationToken) { await sender.Send(new DeleteProductImageCommand(id, imageId), cancellationToken); return NoContent(); }
 }
+
+public sealed record ProductStatusInput(bool IsActive);
+public sealed record ProductStatusBulkInput(IReadOnlyCollection<Guid> ProductIds, bool IsActive);

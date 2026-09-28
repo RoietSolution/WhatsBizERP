@@ -3,8 +3,12 @@ export interface Store {
   name: string;
   tagline: string;
   logoUrl?: string;
+  allCategoryImageUrl?: string;
   accentColor: string;
   deliveryMessage: string;
+  freeDeliveryThreshold?: number;
+  showProductRatings: boolean;
+  showProductReviews: boolean;
   banners: StoreBanner[];
   paymentMethods: StorePaymentMethod[];
 }
@@ -28,7 +32,9 @@ export interface Product {
   sellingPrice: number;
   compareAtPrice?: number;
   available: boolean;
-  unitLabel?: string;
+  packSize?: string;
+  averageRating?: number;
+  ratingCount?: number;
   badge?: string;
 }
 
@@ -48,16 +54,32 @@ export interface CustomerOrder {
   id: string;
   orderNumber: string;
   placedAt: string;
-  status: 'processing' | 'ready' | 'delivered' | 'cancelled';
+  status: string;
   total: number;
-  lines: CartLine[];
+  deliveryStatus?: string;
+  trackingNumber?: string;
+  paymentMethod: string;
+  paymentStatus: string;
+  itemCount: number;
+  lines?: CustomerOrderLine[];
+  timeline?: OrderMilestone[];
+  deliveryCharge?: number;
+  promotionDiscount?: number;
+  promotionName?: string;
+  merchandiseAmount?: number;
+  cancellation?: CustomerOrderCancellation;
 }
 
+export interface CustomerOrderCancellation { canRequest:boolean;unavailableReason?:string;requestStatus?:string;reason?:string;refundableAmount:number;refundStatus:string;refundAmount:number;refundedAt?:string;refundNeedsReconciliation?:boolean;decisionNote?:string; }
+export interface CustomerOrderLine { productId:string;productName:string;packSize?:string;quantity:number;lineTotal:number; }
+export interface OrderMilestone { code:string;label:string;state:string;occurredAt?:string; }
+export interface CartQuote { eligibleAmount:number;freeDeliveryThreshold?:number;remainingAmount:number;progressPercent:number;isFreeDeliveryUnlocked:boolean;isDeliveryEnabled:boolean;isPincodeServiceable:boolean;merchandiseAmount:number;merchandiseTaxAmount:number;standardDeliveryCharge:number;freeDeliveryEnabled:boolean;deliveryCharge:number;promotionDiscount:number;promotionName?:string;finalPayableAmount:number; }
 export interface CheckoutCustomer {
   customerName: string;
   mobile: string;
   email?: string;
   deliveryAddress: string;
+  pincode: string;
 }
 
 export interface CheckoutResult {
@@ -70,4 +92,8 @@ export interface CheckoutResult {
   paymentProvider: string;
   paymentStatus: string;
   customerMessage?: string;
+  customerSessionToken?: string;
 }
+
+export interface ProductReview { reviewId:string; reviewerName:string; rating:number; reviewText:string; createdAt:string; updatedAt:string; isOwn:boolean; }
+export interface ProductReviewSummary { averageRating?:number; ratingCount:number; reviews:ProductReview[]; }

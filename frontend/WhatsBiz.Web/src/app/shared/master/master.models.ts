@@ -38,6 +38,7 @@ export interface MasterPageConfig<T extends object> {
   compactCardActions?: boolean;
   viewRoute?: string;
   recentEnabled?: boolean;
+  statusToggle?: { label: (row: T) => string; active: (row: T) => boolean; busy: (row: T) => boolean; toggle: (row: T) => void };
 }
 export interface MasterDetailField<T extends object> {
   label: string;

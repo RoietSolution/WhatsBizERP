@@ -72,7 +72,12 @@ public static class ApiServiceCollectionExtensions
                     QueueLimit = 0,
                     AutoReplenishment = true
                 }));
-            options.AddPolicy("StorefrontCheckout", context => RateLimitPartition.GetFixedWindowLimiter(
+            options.AddPolicy("StorefrontOtpRequest", context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 3, Window = TimeSpan.FromMinutes(10), QueueLimit = 0, AutoReplenishment = true }));
+            options.AddPolicy("StorefrontOtpVerify", context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(5), QueueLimit = 0, AutoReplenishment = true }));            options.AddPolicy("StorefrontCheckout", context => RateLimitPartition.GetFixedWindowLimiter(
                 context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
                 _ => new FixedWindowRateLimiterOptions
                 {

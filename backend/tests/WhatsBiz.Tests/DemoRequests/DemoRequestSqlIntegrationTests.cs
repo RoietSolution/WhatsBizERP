@@ -4,18 +4,23 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using WhatsBiz.Application.Features.DemoRequests;
 using WhatsBiz.Infrastructure.DemoRequests;
+using WhatsBiz.Tests.Integration;
 
 namespace WhatsBiz.Tests.DemoRequests;
 
 [Collection("SQL demo requests")]
 public sealed class DemoRequestSqlIntegrationTests
 {
-    private static string ConnectionString => Environment.GetEnvironmentVariable("ConnectionStrings__IntegrationTests")
-        ?? "Server=DESKTOP-DQ0868S;Database=WhatsBizERP;Integrated Security=True;Encrypt=False;TrustServerCertificate=True;Connection Timeout=10";
+    private static string ConnectionString => SqlIntegrationDatabase.ConnectionString;
 
     [Fact]
     public async Task SqlPersistenceReferenceAndRapidDuplicateProtectionWorkTogether()
     {
+        await using (var gate = new SqlConnection(ConnectionString))
+        {
+            await gate.OpenAsync();
+            await SqlIntegrationDatabase.VerifyOpenedDatabaseAsync(gate);
+        }
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:DefaultConnection"] = ConnectionString }).Build();
         var repository = new DemoRequestRepository(configuration, Options.Create(new DemoRequestOptions { DuplicateWindowMinutes = 5 }));
         var mobile = "91" + Random.Shared.NextInt64(7000000000, 9999999999);

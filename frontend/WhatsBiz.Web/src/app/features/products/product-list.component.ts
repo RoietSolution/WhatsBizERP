@@ -8,7 +8,9 @@ import {
   viewChild,
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { MatDialog } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogActions, MatDialogClose, MatDialogContent, MatDialogTitle } from '@angular/material/dialog';
+import { MatButtonModule } from '@angular/material/button';
+import { inject } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { catchError, finalize, forkJoin, map, of } from 'rxjs';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
@@ -34,6 +36,7 @@ export class ProductListComponent implements OnDestroy {
   readonly items = signal<ProductListItem[]>([]);
   readonly total = signal(0);
   readonly loading = signal(false);
+  readonly statusBusy = signal(new Set<string>());
   readonly cardImages = signal<Record<string, string>>({});
   readonly summaries = computed(() =>
     this.cards(
@@ -65,6 +68,12 @@ export class ProductListComponent implements OnDestroy {
     cardSubtitleField: 'productCode',
     cardPriceField: 'sellingPrice',
     compactCardActions: true,
+    statusToggle: {
+      label: (row) => `Mark ${row.productName} ${row.isActive ? 'inactive' : 'active'}`,
+      active: (row) => row.isActive,
+      busy: (row) => this.statusBusy().has(row.productId),
+      toggle: (row) => this.toggleStatus(row),
+    },
     viewRoute: '/products',
     cardFields: [
       { label: 'Category', key: 'categoryName' },
@@ -87,7 +96,20 @@ export class ProductListComponent implements OnDestroy {
       {
         field: 'isActive',
         headerName: 'Status',
-        valueFormatter: (p) => (p.value ? 'Active' : 'Inactive'),
+        sortable: false,
+        cellRenderer: (p: { data?: ProductListItem }) => {
+          const row = p.data;
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'product-status-toggle';
+          button.style.cssText = 'border:1px solid #cbd5cf;border-radius:999px;padding:4px 9px;background:#fff;color:#145c43;font-weight:700;cursor:pointer';
+          if (!row) return button;
+          button.textContent = row.isActive ? '● Active' : '○ Inactive';
+          button.title = `Mark ${row.productName} ${row.isActive ? 'inactive' : 'active'}`;
+          button.disabled = this.statusBusy().has(row.productId);
+          button.addEventListener('click', () => this.toggleStatus(row));
+          return button;
+        },
       },
     ],
     detailFields: [
@@ -184,10 +206,38 @@ export class ProductListComponent implements OnDestroy {
     else if (e.action === 'history' && e.row)
       this.dialog.open(ProductHistoryDialogComponent, { data: e.row, width: '680px' });
     else if (e.action === 'delete' && e.rows?.length) this.remove(e.rows);
+    else if (e.action === 'bulk' && e.rows?.length) this.bulkStatus(e.rows);
     else
       this.snack.open(`${e.action} is ready for the selected product(s).`, undefined, {
         duration: 2500,
       });
+  }
+  toggleStatus(row: ProductListItem) {
+    if (this.statusBusy().has(row.productId)) return;
+    const previous = row.isActive;
+    row.isActive = !previous;
+    this.items.update((items) => [...items]);
+    this.statusBusy.update((busy) => new Set(busy).add(row.productId));
+    this.api.setStatus(row.productId, row.isActive).pipe(finalize(() => this.statusBusy.update((busy) => { const next = new Set(busy); next.delete(row.productId); return next; }))).subscribe({
+      next: () => this.snack.open(`Product marked ${row.isActive ? 'active' : 'inactive'}.`, undefined, { duration: 2500 }),
+      error: () => { row.isActive = previous; this.items.update((items) => [...items]); this.snack.open('Unable to update product status.', 'Dismiss', { duration: 4000 }); },
+    });
+  }
+  bulkStatus(rows: ProductListItem[]) {
+    this.dialog.open(ProductBulkStatusDialogComponent, { data: { count: rows.length }, width: '420px' }).afterClosed().subscribe((isActive: boolean | undefined) => {
+      if (isActive === undefined) return;
+      const ids = rows.map((row) => row.productId);
+      this.loading.set(true);
+      this.api.setStatuses(ids, isActive).pipe(finalize(() => this.loading.set(false))).subscribe({
+        next: (result) => {
+          const missing = new Set(result.notFoundProductIds);
+          this.items.update((items) => items.map((item) => ids.includes(item.productId) && !missing.has(item.productId) ? { ...item, isActive } : item));
+          const detail = missing.size ? ` ${missing.size} product(s) were not found for this tenant.` : '';
+          this.snack.open(`${result.updatedCount} product(s) marked ${isActive ? 'active' : 'inactive'}.${detail}`, 'Dismiss', { duration: 4500 });
+        },
+        error: () => this.snack.open('Unable to update selected products.', 'Dismiss', { duration: 4000 }),
+      });
+    });
   }
   remove(rows: ProductListItem[]) {
     this.dialog
@@ -292,3 +342,11 @@ export class ProductListComponent implements OnDestroy {
     URL.revokeObjectURL(u);
   }
 }
+
+@Component({
+  selector: 'app-product-bulk-status-dialog',
+  standalone: true,
+  imports: [MatButtonModule, MatDialogTitle, MatDialogContent, MatDialogActions, MatDialogClose],
+  template: `<h2 mat-dialog-title>Update product status</h2><mat-dialog-content><p>{{ data.count }} selected product(s)</p><p>Choose the status to apply. Products outside your tenant are never changed.</p></mat-dialog-content><mat-dialog-actions align="end"><button mat-button mat-dialog-close>Cancel</button><button mat-stroked-button [mat-dialog-close]="false">Mark Inactive</button><button mat-flat-button color="primary" [mat-dialog-close]="true">Mark Active</button></mat-dialog-actions>`,
+})
+class ProductBulkStatusDialogComponent { readonly data = inject<{ count: number }>(MAT_DIALOG_DATA); }

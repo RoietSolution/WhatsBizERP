@@ -57,6 +57,50 @@ public sealed class PaymentArchitectureTests
     }
 
     [Fact]
+    public async Task RazorpayRefundUsesCommittedAmountAndDurableCorrelationNote()
+    {
+        var refund=Guid.NewGuid(); var attempt=Guid.NewGuid();
+        var handler=new CaptureHandler("{\"id\":\"rfnd_test\",\"payment_id\":\"pay_test\",\"status\":\"created\",\"amount\":99000,\"currency\":\"INR\"}");
+        var gateway=new RazorpayPaymentGateway(new ClientFactory(handler));
+        var result=await gateway.CreateRefundAsync(
+            new(PaymentProviders.Razorpay,"synthetic-key","synthetic-secret",null,true,null,null),
+            "pay_test",990m,"INR",refund,attempt,default);
+        handler.Method.Should().Be(HttpMethod.Post);
+        handler.Path.Should().EndWith("/payments/pay_test/refund");
+        using var body=JsonDocument.Parse(handler.Body!);
+        body.RootElement.GetProperty("amount").GetInt64().Should().Be(99000);
+        body.RootElement.GetProperty("notes").GetProperty("refund_id").GetString()
+            .Should().Be(refund.ToString("N"));
+        body.RootElement.GetProperty("notes").GetProperty("attempt_id").GetString()
+            .Should().Be(attempt.ToString("N"));
+        result.Status.Should().Be("CREATED");
+        result.ProviderRefundId.Should().Be("rfnd_test");
+    }
+
+    [Fact]
+    public async Task RazorpayRefundReconciliationMatchesOnlyOurRefundMarker()
+    {
+        var refund=Guid.NewGuid(); var attempt=Guid.NewGuid();
+        var body=JsonSerializer.Serialize(new { items=new[]
+        {
+            new { id="rfnd_other",payment_id="pay_test",status="processed",amount=99000,
+                currency="INR",notes=new { refund_id=refund.ToString("N"),attempt_id=Guid.NewGuid().ToString("N") } },
+            new { id="rfnd_ours",payment_id="pay_test",status="processed",amount=99000,
+                currency="INR",notes=new { refund_id=refund.ToString("N"),attempt_id=attempt.ToString("N") } }
+        } });
+        var handler=new CaptureHandler(body);
+        var gateway=new RazorpayPaymentGateway(new ClientFactory(handler));
+        var result=await gateway.FindRefundAsync(
+            new(PaymentProviders.Razorpay,"synthetic-key","synthetic-secret",null,true,null,null),
+            "pay_test",null,refund,attempt,default);
+        handler.Method.Should().Be(HttpMethod.Get);
+        handler.Path.Should().EndWith("/payments/pay_test/refunds");
+        result.Should().NotBeNull();
+        result!.ProviderRefundId.Should().Be("rfnd_ours");
+        result.Status.Should().Be("PROCESSED");
+    }
+
+    [Fact]
     public void RazorpayWebhookRequiresRawBodySignatureAndParsesCapturedPayment()
     {
         const string secret="webhook-secret";
@@ -75,6 +119,22 @@ public sealed class PaymentArchitectureTests
         var webhook=typeof(PaymentWebhooksController).GetMethod(nameof(PaymentWebhooksController.Razorpay))!;
         webhook.GetCustomAttributes(typeof(AllowAnonymousAttribute),true).Should().ContainSingle();
         webhook.GetCustomAttributes(typeof(HttpPostAttribute),true).Should().ContainSingle();
+    }
+
+    [Fact]
+    public void RefundActionsRequireRetailerPermissionsAndNoCustomerEndpointCanSettleMoney()
+    {
+        var methods=typeof(StorefrontRefundsController).GetMethods()
+            .Where(x=>x.GetCustomAttributes(typeof(HttpMethodAttribute),true).Length>0).ToArray();
+        methods.Should().HaveCount(5);
+        methods.Should().OnlyContain(x=>x.GetCustomAttributes(typeof(HasPermissionAttribute),true).Length>0);
+        methods.Should().OnlyContain(x=>x.GetCustomAttributes(typeof(AllowAnonymousAttribute),true).Length==0);
+        var moneyOut=methods.Where(x=>x.Name is nameof(StorefrontRefundsController.StartRazorpay)
+            or nameof(StorefrontRefundsController.Reconcile)
+            or nameof(StorefrontRefundsController.ConfirmManual));
+        moneyOut.Should().OnlyContain(x=>x.GetCustomAttributes(typeof(HasPermissionAttribute),true)
+            .Cast<HasPermissionAttribute>().Any(a=>a.Policy!.EndsWith(Permissions.Finance.PaymentCreate,
+                StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -117,5 +177,5 @@ public sealed class PaymentArchitectureTests
     private static string Root(){var d=new DirectoryInfo(AppContext.BaseDirectory);while(d is not null&&!Directory.Exists(Path.Combine(d.FullName,"database")))d=d.Parent;return d?.FullName??throw new InvalidOperationException("Repository root not found.");}
     private sealed class ClientFactory(HttpMessageHandler handler):IHttpClientFactory{public HttpClient CreateClient(string name)=>new(handler,false){BaseAddress=new Uri("https://api.razorpay.com/v1/")};}
     private sealed class CaptureHandler(string response):HttpMessageHandler
-    {public string? Body{get;private set;}public string? Authorization{get;private set;}protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token){Body=request.Content is null?null:await request.Content.ReadAsStringAsync(token);Authorization=request.Headers.Authorization?.ToString();return new(HttpStatusCode.OK){Content=new StringContent(response)};}}
+    {public string? Body{get;private set;}public string? Authorization{get;private set;}public HttpMethod? Method{get;private set;}public string? Path{get;private set;}protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token){Body=request.Content is null?null:await request.Content.ReadAsStringAsync(token);Authorization=request.Headers.Authorization?.ToString();Method=request.Method;Path=request.RequestUri?.AbsolutePath;return new(HttpStatusCode.OK){Content=new StringContent(response)};}}
 }

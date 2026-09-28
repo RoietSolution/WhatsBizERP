@@ -3,7 +3,7 @@ using WhatsBiz.Application.Features.Products.DTOs;
 
 namespace WhatsBiz.Application.Features.Products.Products;
 
-public sealed record GetProductsQuery(string? Search = null, bool? IsActive = null, string SortBy = "productName", bool Descending = false, int PageNumber = 1, int PageSize = 20) : IRequest<PagedResult<ProductListItemDto>>;
+public sealed record GetProductsQuery(string? Search = null, bool? IsActive = null, Guid? CategoryId = null, Guid? BrandId = null, string SortBy = "productName", bool Descending = false, int PageNumber = 1, int PageSize = 20) : IRequest<PagedResult<ProductListItemDto>>;
 public sealed record GetProductByIdQuery(Guid ProductId) : IRequest<ProductDto>;
 public sealed record GetProductHistoryQuery(Guid ProductId) : IRequest<IReadOnlyCollection<ProductHistoryDto>>;
 public sealed record ExportProductsQuery(string? Search = null, bool? IsActive = null) : IRequest<byte[]>;

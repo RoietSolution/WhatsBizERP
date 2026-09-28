@@ -74,6 +74,9 @@ public static class DependencyInjection
         services.AddSingleton<IInventorySpreadsheetService, InventorySpreadsheetService>();
         services.AddScoped<IPOSRepository, POSRepository>();
         services.AddScoped<IPOSEngine, POSEngine>();
+        services.AddScoped<IErpPaymentPosting, ErpPaymentPosting>();
+        services.AddScoped<IErpSaleReversal, ErpSaleReversal>();
+        services.AddScoped<IErpRefundSettlement, ErpRefundSettlement>();
         services.AddSingleton<IPOSDocumentService, POSDocumentService>();
         services.AddScoped<IPurchaseRepository, PurchaseRepository>();
         services.AddScoped<IFinanceRepository, FinanceRepository>();

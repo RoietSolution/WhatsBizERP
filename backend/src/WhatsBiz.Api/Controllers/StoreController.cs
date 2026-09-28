@@ -10,7 +10,7 @@ namespace WhatsBiz.Api.Controllers;
 [ApiController]
 [AllowAnonymous]
 [Route("api/store/{storeKey}")]
-public sealed partial class StoreController(IStorefrontService storefront, IStorefrontCheckoutService checkout, ILogger<StoreController> logger) : ControllerBase
+public sealed partial class StoreController(IStorefrontService storefront, IStorefrontCheckoutService checkout, IStorefrontCustomerService customers, IStorefrontCustomerAuthenticationService customerAuth, IStorefrontReviewService reviews, IStorefrontCancellationService cancellations, ILogger<StoreController> logger) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<StorefrontStoreDto>> GetStore(string storeKey, CancellationToken token)
@@ -40,6 +40,26 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         return product is null ? NotFound() : Ok(product);
     }
 
+    [HttpGet("products/{productId:guid}/reviews")]
+    public async Task<ActionResult<StorefrontReviewSummaryDto>> GetReviews(string storeKey, Guid productId, CancellationToken token)
+    {
+        var result = await reviews.GetAsync(storeKey, productId, CustomerSessionToken(), token);
+        return result is null ? NotFound() : Ok(result);
+    }
+
+    [HttpPut("products/{productId:guid}/reviews/mine")]
+    [EnableRateLimiting("StorefrontCheckout")]
+    public async Task<ActionResult<StorefrontReviewDto>> UpsertReview(string storeKey, Guid productId, StorefrontReviewInput input, CancellationToken token)
+    {
+        try
+        {
+            var result = await reviews.UpsertAsync(storeKey, productId, CustomerSessionToken(), input, token);
+            return result is null ? Unauthorized() : Ok(result);
+        }
+        catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
+        catch (EntityNotFoundException) { return NotFound(); }
+    }
+
     [HttpGet("products/{productId:guid}/image")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
     public async Task<IActionResult> GetProductImage(string storeKey, Guid productId, CancellationToken token)
@@ -63,6 +83,116 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
     public async Task<IActionResult> GetCategoryImage(string storeKey, Guid categoryId, CancellationToken token)
         => ToImage(await storefront.GetPresentationImageAsync(storeKey, "category", categoryId, token));
 
+    [HttpGet("presentation/categories/all")]
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
+    public async Task<IActionResult> GetAllCategoryImage(string storeKey, CancellationToken token)
+        => ToImage(await storefront.GetPresentationImageAsync(storeKey, "category-all", null, token));
+
+    [HttpPost("customer-auth/otp/request")]
+    [EnableRateLimiting("StorefrontOtpRequest")]
+    public async Task<IActionResult> RequestCustomerOtp(string storeKey, StorefrontOtpRequest input, CancellationToken token)
+    {
+        try
+        {
+            var challenge = await customerAuth.RequestOtpAsync(storeKey, input, token);
+            return challenge is null ? BadRequest(new { message = "Enter a valid mobile number." }) : Accepted(challenge);
+        }
+        catch (BusinessRuleException exception)
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { message = exception.Message });
+        }
+    }
+
+    [HttpPost("customer-auth/otp/verify")]
+    [EnableRateLimiting("StorefrontOtpVerify")]
+    public async Task<ActionResult<StorefrontAuthenticationDto>> VerifyCustomerOtp(string storeKey, StorefrontOtpVerifyInput input, CancellationToken token)
+    {
+        try
+        {
+            var result = await customerAuth.VerifyOtpAsync(storeKey, input, token);
+            return result is null ? Unauthorized(new { message = "The verification code is invalid or expired." }) : Ok(result);
+        }
+        catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
+    }
+
+    [HttpPut("session/profile")]
+    [EnableRateLimiting("StorefrontOtpVerify")]
+    public async Task<ActionResult<StorefrontCustomerDto>> UpdateCustomerProfile(string storeKey, UpdateStorefrontCustomerInput input, CancellationToken token)
+    {
+        try
+        {
+            var result = await customerAuth.UpdateProfileAsync(storeKey, CustomerSessionToken(), input, token);
+            return result is null ? Unauthorized() : Ok(result);
+        }
+        catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
+    }
+    [HttpGet("session")]
+    public async Task<ActionResult<StorefrontCustomerDto>> GetSession(string storeKey, CancellationToken token)
+    {
+        var session = await customers.GetSessionAsync(storeKey, CustomerSessionToken(), token);
+        return session is null ? Unauthorized() : Ok(session);
+    }
+
+    [HttpGet("orders")]
+    public async Task<ActionResult<IReadOnlyCollection<StorefrontCustomerOrderDto>>> GetOrders(string storeKey, CancellationToken token)
+    {
+        var orders = await customers.GetOrdersAsync(storeKey, CustomerSessionToken(), token);
+        return orders is null ? Unauthorized() : Ok(orders);
+    }
+
+    [HttpGet("orders/{orderId:guid}")]
+    public async Task<ActionResult<StorefrontCustomerOrderDto>> GetOrder(string storeKey, Guid orderId, CancellationToken token)
+    {
+        var order = await customers.GetOrderAsync(storeKey, CustomerSessionToken(), orderId, token);
+        if (order is null) return NotFound();
+        var cancellation = await cancellations.GetCustomerStatusAsync(storeKey, CustomerSessionToken(), orderId, token);
+        return Ok(order with { Cancellation = cancellation });
+    }
+
+    [HttpPost("orders/{orderId:guid}/cancellation-request")]
+    [EnableRateLimiting("StorefrontCheckout")]
+    public async Task<ActionResult<StorefrontCancellationDto>> RequestCancellation(
+        string storeKey, Guid orderId, StorefrontCancellationRequestInput input, CancellationToken token)
+    {
+        try
+        {
+            var result = await cancellations.RequestAsync(storeKey, CustomerSessionToken(), orderId, input.Reason, token);
+            return result is null ? Unauthorized() : Ok(result);
+        }
+        catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
+    }
+    [HttpPost("cart/quote")]
+    [EnableRateLimiting("StorefrontCheckout")]
+    public async Task<ActionResult<StorefrontCartQuoteDto>> Quote(string storeKey, StorefrontCartQuoteInput input, CancellationToken token)
+    {
+        try
+        {
+            var quote = await checkout.QuoteAsync(storeKey, input, CustomerSessionToken(), token);
+            return quote is null ? NotFound() : Ok(quote);
+        }
+        catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
+    }
+    [HttpGet("wishlist")]
+    public async Task<ActionResult<IReadOnlyCollection<StorefrontProductDto>>> GetWishlist(string storeKey, CancellationToken token)
+    {
+        var products = await customers.GetWishlistAsync(storeKey, CustomerSessionToken(), token);
+        return products is null ? Unauthorized() : Ok(products);
+    }
+
+    [HttpPut("wishlist/{productId:guid}")]
+    [EnableRateLimiting("StorefrontCheckout")]
+    public async Task<IActionResult> AddWishlist(string storeKey, Guid productId, CancellationToken token)
+        => await customers.AddWishlistAsync(storeKey, CustomerSessionToken(), productId, token) ? NoContent() : Unauthorized();
+
+    [HttpDelete("wishlist/{productId:guid}")]
+    [EnableRateLimiting("StorefrontCheckout")]
+    public async Task<IActionResult> RemoveWishlist(string storeKey, Guid productId, CancellationToken token)
+        => await customers.RemoveWishlistAsync(storeKey, CustomerSessionToken(), productId, token) ? NoContent() : Unauthorized();
+
+    [HttpPost("wishlist/merge")]
+    [EnableRateLimiting("StorefrontCheckout")]
+    public async Task<IActionResult> MergeWishlist(string storeKey, StorefrontWishlistInput input, CancellationToken token)
+        => await customers.MergeWishlistAsync(storeKey, CustomerSessionToken(), input.ProductIds ?? [], token) ? NoContent() : Unauthorized();
     [HttpPost("checkout")]
     [EnableRateLimiting("StorefrontCheckout")]
     public async Task<ActionResult<StorefrontCheckoutResult>> CheckoutWithSelectedMethod(
@@ -79,7 +209,7 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         var idempotencyKey = Request.Headers["Idempotency-Key"].ToString();
         if (!Guid.TryParse(idempotencyKey, out var parsed) || parsed == Guid.Empty)
             return BadRequest(new { message = "A valid Idempotency-Key header is required." });
-        try { return Ok(await checkout.CheckoutAsync(storeKey, input, parsed.ToString("D"), token)); }
+        try { return Ok(await checkout.CheckoutAsync(storeKey, input, parsed.ToString("D"), CustomerSessionToken(), token)); }
         catch (BusinessRuleException exception)
         {
             var safeMessage = SafeCheckoutMessage(exception.Message);
@@ -91,6 +221,8 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
             return Conflict(new ProblemDetails { Status = StatusCodes.Status409Conflict, Title = "Checkout could not be completed", Detail = safeMessage });
         }
     }
+
+    private string CustomerSessionToken() => Request.Headers["X-Customer-Session"].ToString();
 
     private IActionResult ToImage(StorefrontImage? image) => image is null ? NotFound() : File(image.Content, image.ContentType);
     private static string? SafeCheckoutMessage(string message) => message switch

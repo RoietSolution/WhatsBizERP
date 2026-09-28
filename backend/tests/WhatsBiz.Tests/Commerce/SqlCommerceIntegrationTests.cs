@@ -17,6 +17,7 @@ using WhatsBiz.Infrastructure.Analytics;
 using WhatsBiz.Infrastructure.Persistence;
 using WhatsBiz.Infrastructure.WhatsApp;
 using WhatsBiz.Infrastructure.WhatsAppCommerce;
+using WhatsBiz.Tests.Integration;
 
 namespace WhatsBiz.Tests.Commerce;
 
@@ -99,8 +100,7 @@ public sealed class SqlCommerceIntegrationTests(SqlCommerceFixture fixture)
 
 public sealed class SqlCommerceFixture
 {
-    public static string ConnectionString => Environment.GetEnvironmentVariable("ConnectionStrings__IntegrationTests")
-        ?? "Server=DESKTOP-DQ0868S;Database=WhatsBizERP;Integrated Security=True;Encrypt=False;TrustServerCertificate=True;Connection Timeout=10";
+    public static string ConnectionString => SqlIntegrationDatabase.ConnectionString;
     private string Tag { get; } = $"SQLIT-{Guid.NewGuid():N}";
     public Guid TenantA { get; private set; }
     public Guid TenantB { get; private set; }
@@ -139,6 +139,11 @@ public sealed class SqlCommerceFixture
     public async Task InitializeAsync()
     {
         if (TenantA != Guid.Empty) return;
+        await using (var gate = new Microsoft.Data.SqlClient.SqlConnection(ConnectionString))
+        {
+            await gate.OpenAsync();
+            await SqlIntegrationDatabase.VerifyOpenedDatabaseAsync(gate);
+        }
         await using var db = CreateDb();
         TenantA = await db.Database.SqlQuery<Guid>($"SELECT TOP(1) TenantId AS Value FROM core.Tenants WHERE IsActive=1 ORDER BY CreatedOn").SingleAsync();
         WarehouseId = await db.Database.SqlQuery<Guid>($"SELECT TOP(1) WarehouseId AS Value FROM inventory.Warehouses WHERE IsActive=1 AND IsDeleted=0 ORDER BY IsDefault DESC,CreatedOn").SingleAsync();

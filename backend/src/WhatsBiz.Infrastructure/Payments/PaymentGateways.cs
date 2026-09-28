@@ -85,7 +85,76 @@ public sealed class RazorpayPaymentGateway(IHttpClientFactory clients) : IPaymen
     }
 
     public Task RefundPaymentAsync(PaymentGatewayConfiguration configuration, string providerPaymentId, decimal amount, string currency, CancellationToken token)
-        => throw new NotSupportedException("Razorpay refunds are intentionally outside this initial implementation.");
+        => throw new NotSupportedException("Use CreateRefundAsync with a durable refund and attempt identity.");
+
+    public async Task<GatewayRefundResult> CreateRefundAsync(PaymentGatewayConfiguration configuration,
+        string providerPaymentId, decimal amount, string currency, Guid refundId,
+        Guid attemptId, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(providerPaymentId) || refundId == Guid.Empty || attemptId==Guid.Empty)
+            throw new BusinessRuleException("A verified provider payment is required for refund.");
+        var payload = new { amount = ToMinorUnits(amount, currency), notes = new {
+            refund_id = refundId.ToString("N"), attempt_id = attemptId.ToString("N") } };
+        using var request = new HttpRequestMessage(HttpMethod.Post,
+            $"payments/{Uri.EscapeDataString(providerPaymentId)}/refund");
+        AuthorizeRefund(request, configuration);
+        request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+        using var response = await clients.CreateClient("Razorpay").SendAsync(request, token);
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException("Razorpay refund outcome requires reconciliation.");
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
+        return ParseRefund(json.RootElement);
+    }
+
+    public async Task<GatewayRefundResult?> FindRefundAsync(PaymentGatewayConfiguration configuration,
+        string providerPaymentId, string? providerRefundId, Guid refundId,
+        Guid attemptId, CancellationToken token)
+    {
+        var path = providerRefundId is null
+            ? $"payments/{Uri.EscapeDataString(providerPaymentId)}/refunds"
+            : $"refunds/{Uri.EscapeDataString(providerRefundId)}";
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        AuthorizeRefund(request, configuration);
+        using var response = await clients.CreateClient("Razorpay").SendAsync(request, token);
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException("Razorpay refund status could not be confirmed.");
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
+        if (providerRefundId is not null) return ParseRefund(json.RootElement);
+        if (!json.RootElement.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array)
+            throw new BusinessRuleException("Razorpay returned an invalid refund list.");
+        foreach (var item in items.EnumerateArray())
+        {
+            if (item.TryGetProperty("notes", out var notes) && notes.ValueKind == JsonValueKind.Object &&
+                notes.TryGetProperty("refund_id", out var marker) &&
+                notes.TryGetProperty("attempt_id", out var attemptMarker) &&
+                marker.ValueKind == JsonValueKind.String && attemptMarker.ValueKind == JsonValueKind.String &&
+                string.Equals(marker.GetString(), refundId.ToString("N"), StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(attemptMarker.GetString(), attemptId.ToString("N"), StringComparison.OrdinalIgnoreCase))
+                return ParseRefund(item);
+        }
+        // Absence is not proof that a timed-out create request failed. Never auto-POST again.
+        return null;
+    }
+
+    private static void AuthorizeRefund(HttpRequestMessage request, PaymentGatewayConfiguration configuration)
+    {
+        if (string.IsNullOrWhiteSpace(configuration.KeyId) || string.IsNullOrWhiteSpace(configuration.KeySecret))
+            throw new BusinessRuleException("Razorpay is not fully configured.");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Basic",
+            Convert.ToBase64String(Encoding.UTF8.GetBytes($"{configuration.KeyId}:{configuration.KeySecret}")));
+    }
+
+    private static GatewayRefundResult ParseRefund(JsonElement value)
+    {
+        var id = Text(value, "id"); var payment = Text(value, "payment_id");
+        var status = Text(value, "status"); var currency = Text(value, "currency");
+        var amount = Long(value, "amount");
+        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(payment) ||
+            string.IsNullOrWhiteSpace(status) || string.IsNullOrWhiteSpace(currency) || amount is null)
+            throw new BusinessRuleException("Razorpay returned an incomplete refund status.");
+        return new(id, status.ToUpperInvariant(), amount.Value / 100m,
+            currency.ToUpperInvariant(), payment);
+    }
 
     internal static long ToMinorUnits(decimal amount, string currency)
     {

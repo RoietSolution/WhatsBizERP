@@ -105,7 +105,10 @@ public sealed class DeploymentConfigurationTests
         var root = document.RootElement;
 
         root.GetProperty("AllowedHosts").GetString().Should().Be(apiHost);
-        root.GetProperty("Cors").GetProperty("AllowedOriginsCsv").GetString().Should().Be($"https://{webHost}");
+        root.GetProperty("Cors").GetProperty("AllowedOriginsCsv").GetString().Should().Be(
+            fileName == "appsettings.QA.json"
+                ? $"https://{webHost},https://qa-shop.khatadhari.com"
+                : $"https://{webHost},https://shop.khatadhari.com");
         root.GetProperty("ProductImageStorage").GetProperty("S3").GetProperty("BucketName").GetString().Should().Be(bucketName);
         root.GetProperty("PasswordReset").GetProperty("FrontendBaseUrl").GetString().Should().Be($"https://{webHost}");
         root.TryGetProperty("ConnectionStrings", out _).Should().BeFalse();

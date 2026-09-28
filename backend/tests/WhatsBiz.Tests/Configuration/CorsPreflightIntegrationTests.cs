@@ -12,7 +12,7 @@ namespace WhatsBiz.Tests.Configuration;
 
 public sealed class CorsPreflightIntegrationTests
 {
-    private const string AllowedOrigin = "https://qa.khatadhari.com";
+    private const string AllowedOrigin = "https://qa-shop.khatadhari.com";
 
     [Fact]
     public async Task CorsPreflightRunsBeforeTenantSecurityWhileActualApiRemainsProtected()

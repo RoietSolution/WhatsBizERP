@@ -60,6 +60,12 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         catch (EntityNotFoundException) { return NotFound(); }
     }
 
+    [HttpGet("offers/{offerId:guid}")]
+    public async Task<ActionResult<StorefrontOfferDto>> GetOffer(string storeKey, Guid offerId, CancellationToken token)
+    {
+        var offer = await storefront.GetOfferAsync(storeKey, offerId, token);
+        return offer is null ? NotFound() : Ok(offer);
+    }
     [HttpGet("products/{productId:guid}/image")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
     public async Task<IActionResult> GetProductImage(string storeKey, Guid productId, CancellationToken token)
@@ -202,7 +208,7 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
     [EnableRateLimiting("StorefrontCheckout")]
     public async Task<ActionResult<StorefrontCheckoutResult>> Checkout(
         string storeKey, StorefrontCheckoutInput input, CancellationToken token)
-        => await CheckoutCore(storeKey, input with { PaymentProvider = "RAZORPAY" }, token);
+        => await CheckoutCore(storeKey, input with { PaymentMethod = string.IsNullOrWhiteSpace(input.PaymentMethod) ? "UPI" : input.PaymentMethod }, token);
 
     private async Task<ActionResult<StorefrontCheckoutResult>> CheckoutCore(string storeKey, StorefrontCheckoutInput input, CancellationToken token)
     {

@@ -7,6 +7,7 @@ import {
   input,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
@@ -64,6 +65,7 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MasterPageComponent<T extends object> {
+  private readonly table = viewChild(DataTableComponent);
   readonly config = input.required<MasterPageConfig<T>>();
   readonly rows = input<T[]>([]);
   readonly total = input(0);
@@ -155,6 +157,7 @@ export class MasterPageComponent<T extends object> {
       checked ? [...items.filter((item) => this.cardId(item) !== id), row] : items.filter((item) => this.cardId(item) !== id),
     );
   }
+  clearSelection(): void { this.selected.set([]); this.table()?.clearSelection(); }
   drawerEdit(): void {
     const row = this.drawerRow();
     if (row) this.action.emit({ action: 'edit', row, rows: [row] });

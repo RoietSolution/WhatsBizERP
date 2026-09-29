@@ -117,7 +117,7 @@
         <a mat-flat-button color="primary" [routerLink]="config().newRoute">Create New</a>
       </div>
     } @else {
-      <section class="master-cards" [attr.aria-label]="config().title + ' cards'">
+      <section class="master-cards" [class.product-cards]="config().compactCardActions" [attr.aria-label]="config().title + ' cards'">
         @for (item of rows(); track cardId(item)) {
           <article class="master-card" [class.selected]="isSelected(item)">
             <mat-checkbox
@@ -153,15 +153,15 @@
                 }
               </dl>
               @if (config().statusToggle; as status) {
-                <button mat-stroked-button type="button" [disabled]="status.busy(item)" [attr.aria-label]="status.label(item)" (click)="status.toggle(item)">
-                  <span class="material-symbols-rounded">{{ status.active(item) ? 'toggle_on' : 'toggle_off' }}</span>{{ status.active(item) ? 'Active' : 'Inactive' }}
+                <button class="card-status" type="button" role="switch" [class.inactive]="!status.active(item)" [disabled]="status.busy(item)" [attr.aria-checked]="status.active(item)" [attr.aria-label]="status.label(item)" (click)="status.toggle(item)">
+                  <span class="status-track" aria-hidden="true"><span></span></span><span>{{ status.active(item) ? 'Active' : 'Inactive' }}</span>
                 </button>
               }
               <div class="card-actions">
                 @if (config().compactCardActions) {
-                  <button mat-icon-button type="button" aria-label="View details" title="View details" (click)="open(item)"><span class="material-symbols-rounded">visibility</span></button>
-                  <button mat-icon-button type="button" aria-label="Edit" title="Edit" (click)="row({ action: 'edit', row: item })"><span class="material-symbols-rounded">edit</span></button>
-                  <button mat-icon-button type="button" class="danger-action" aria-label="Delete" title="Delete" (click)="row({ action: 'delete', row: item })"><span class="material-symbols-rounded">delete</span></button>
+                  <button class="card-action" type="button" (click)="open(item)"><span class="material-symbols-rounded" aria-hidden="true">visibility</span>View</button>
+                  <button class="card-action" type="button" (click)="row({ action: 'edit', row: item })"><span class="material-symbols-rounded" aria-hidden="true">edit</span>Edit</button>
+                  <button class="card-action danger-action" type="button" (click)="row({ action: 'delete', row: item })"><span class="material-symbols-rounded" aria-hidden="true">delete</span>Delete</button>
                 } @else {
                   <button mat-button (click)="open(item)">View details</button>
                   <button mat-button (click)="row({ action: 'edit', row: item })">Edit</button>

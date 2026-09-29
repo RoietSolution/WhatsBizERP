@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
+import { catchError, forkJoin, map, of } from 'rxjs';
 import { CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -47,15 +48,20 @@ import { CollectionDetail, CollectionProduct } from './collection.models';
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CollectionProductsComponent {
+export class CollectionProductsComponent implements OnDestroy {
+  readonly cardImages=signal<Record<string,string>>({});
+  private imageGeneration=0;
+  ngOnDestroy():void{this.imageGeneration++;this.releaseCardImages();}
   readonly id = inject(ActivatedRoute).snapshot.paramMap.get('id')!; readonly collection = signal<CollectionDetail|null>(null); readonly members = signal<CollectionProduct[]>([]); readonly products = signal<ProductListItem[]>([]); readonly selected = signal(new Set<string>()); search = ''; loading = signal(false);
   readonly availableProducts = computed(() => this.products().filter(product => !this.has(product.productId)));
   constructor(private readonly api: CollectionApiService, private readonly productApi: ProductApiService, private readonly snack: MatSnackBar, private readonly router: Router) { this.load(); }
-  load() { this.loading.set(true); this.api.get(this.id).subscribe({ next: x => { this.collection.set(x); this.members.set(x.products); this.searchProducts(); }, error: () => this.snack.open('Collection could not be loaded.', 'Dismiss', { duration: 3500 }) }); }
-  searchProducts() { this.productApi.search({ search: this.search || undefined, isActive: true, sortBy: 'productName', descending: false, pageNumber: 1, pageSize: 50 }).subscribe(x => this.products.set(x.items.filter(product => product.isWhatsAppVisible))); }
+  load() { this.loading.set(true); this.api.get(this.id).subscribe({ next: x => { this.collection.set(x); this.members.set(x.products); this.loadCardImages(); this.searchProducts(); }, error: () => this.snack.open('Collection could not be loaded.', 'Dismiss', { duration: 3500 }) }); }
+  searchProducts() { this.productApi.search({ search: this.search || undefined, isActive: true, sortBy: 'productName', descending: false, pageNumber: 1, pageSize: 50 }).subscribe(x => { this.products.set(x.items.filter(product => product.isWhatsAppVisible)); this.loadCardImages(); }); }
+  private releaseCardImages():void{for(const url of Object.values(this.cardImages()))URL.revokeObjectURL(url);this.cardImages.set({});}
+  private loadCardImages():void{const generation=++this.imageGeneration;this.releaseCardImages();const ids=[...new Set([...this.members().map(x=>x.productId),...this.products().map(x=>x.productId)])];if(!ids.length)return;forkJoin(ids.map(id=>this.productApi.image(id).pipe(map(blob=>({id,url:URL.createObjectURL(blob)})),catchError(()=>of(null))))).subscribe(images=>{const next:Record<string,string>={};for(const image of images)if(image)next[image.id]=image.url;if(generation!==this.imageGeneration){for(const url of Object.values(next))URL.revokeObjectURL(url);return;}this.cardImages.set(next);});}
   has(id: string) { return this.members().some(x => x.productId === id); }
   toggle(id: string) { this.selected.update(current => { const next = new Set(current); next.has(id) ? next.delete(id) : next.add(id); return next; }); }
-  add() { const ids = [...this.selected()]; if (!ids.length) return; this.api.addProducts(this.id, ids).subscribe({ next: x => { this.members.set(x); this.selected.set(new Set()); this.snack.open('Products added to collection.', undefined, { duration: 2500 }); }, error: () => this.snack.open('Products could not be added.', 'Dismiss', { duration: 3500 }) }); }
-  remove(item: CollectionProduct) { this.api.removeProduct(this.id, item.productId).subscribe({ next: () => { this.members.update(x => x.filter(y => y.productId !== item.productId)); this.snack.open('Product removed from collection.', undefined, { duration: 2500 }); }, error: () => this.snack.open('Product could not be removed.', 'Dismiss', { duration: 3500 }) }); }
+  add() { const ids = [...this.selected()]; if (!ids.length) return; this.api.addProducts(this.id, ids).subscribe({ next: x => { this.members.set(x); this.loadCardImages(); this.selected.set(new Set()); this.snack.open('Products added to collection.', undefined, { duration: 2500 }); }, error: () => this.snack.open('Products could not be added.', 'Dismiss', { duration: 3500 }) }); }
+  remove(item: CollectionProduct) { this.api.removeProduct(this.id, item.productId).subscribe({ next: () => { this.members.update(x => x.filter(y => y.productId !== item.productId)); this.loadCardImages(); this.snack.open('Product removed from collection.', undefined, { duration: 2500 }); }, error: () => this.snack.open('Product could not be removed.', 'Dismiss', { duration: 3500 }) }); }
   openProduct(productId: string) { void this.router.navigate(['/products', productId]); }
 }

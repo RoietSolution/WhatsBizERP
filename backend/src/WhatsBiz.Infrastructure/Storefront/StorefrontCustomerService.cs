@@ -47,12 +47,12 @@ public sealed class StorefrontCustomerService(
         await using var connection = await Open(session.TenantId, token);
         await using var command = new SqlCommand("""
             SELECT TOP(100) i.InvoiceId,i.InvoiceNumber,i.InvoiceDate,i.Status,i.GrandTotal,
-              CASE WHEN d.DeliveryStatus=N'UNASSIGNED' AND d.ReadyAt IS NOT NULL THEN N'READY_FOR_PICKUP' ELSE d.DeliveryStatus END,w.TrackingNumber,COALESCE(cp.Provider,w.PaymentType,N'UNKNOWN'),COALESCE(cp.Status,N'PENDING'),
+              CASE WHEN d.DeliveryStatus=N'UNASSIGNED' AND d.ReadyAt IS NOT NULL THEN N'READY_FOR_PICKUP' ELSE d.DeliveryStatus END,w.TrackingNumber,COALESCE(cp.PaymentMethod,w.PaymentType,N'UNKNOWN'),COALESCE(cp.Status,N'PENDING'),
               (SELECT COUNT(1) FROM sales.SalesInvoiceItems x WHERE x.InvoiceId=i.InvoiceId)
             FROM sales.SalesInvoices i
             JOIN integration.WhatsAppCommerceOrders w ON w.TenantId=i.TenantId AND w.InvoiceId=i.InvoiceId AND w.SourceChannel=N'STOREFRONT'
             LEFT JOIN commerce.OrderDeliveries d ON d.TenantId=i.TenantId AND d.OrderId=i.InvoiceId
-            OUTER APPLY(SELECT TOP(1) p.Provider,p.Status FROM commerce.CommercePayments p WHERE p.TenantId=i.TenantId AND p.InvoiceId=i.InvoiceId ORDER BY p.AttemptNumber DESC) cp
+            OUTER APPLY(SELECT TOP(1) p.PaymentMethod,p.Status FROM commerce.CommercePayments p WHERE p.TenantId=i.TenantId AND p.InvoiceId=i.InvoiceId ORDER BY p.AttemptNumber DESC) cp
             WHERE i.TenantId=@tenant AND i.CustomerId=@customer
             ORDER BY i.InvoiceDate DESC;
             """, connection);
@@ -76,11 +76,11 @@ public sealed class StorefrontCustomerService(
         await using var connection = await Open(session.TenantId, token);
         await using var command = new SqlCommand("""
             SELECT i.InvoiceNumber,i.InvoiceDate,i.Status,i.GrandTotal,CASE WHEN d.DeliveryStatus=N'UNASSIGNED' AND d.ReadyAt IS NOT NULL THEN N'READY_FOR_PICKUP' ELSE d.DeliveryStatus END,w.TrackingNumber,
-              COALESCE(cp.Provider,w.PaymentType,N'UNKNOWN'),COALESCE(cp.Status,N'PENDING'),d.ReadyAt,d.OutForDeliveryAt,d.DeliveredAt,d.FailedAt,d.UpdatedAt,i.DeliveryCharge,i.PromotionDiscountAmount,i.AppliedPromotionName,i.Subtotal+i.TaxAmount
+              COALESCE(cp.PaymentMethod,w.PaymentType,N'UNKNOWN'),COALESCE(cp.Status,N'PENDING'),d.ReadyAt,d.OutForDeliveryAt,d.DeliveredAt,d.FailedAt,d.UpdatedAt,i.DeliveryCharge,i.PromotionDiscountAmount,i.AppliedPromotionName,i.Subtotal+i.TaxAmount
             FROM sales.SalesInvoices i
             JOIN integration.WhatsAppCommerceOrders w ON w.TenantId=i.TenantId AND w.InvoiceId=i.InvoiceId AND w.SourceChannel=N'STOREFRONT'
             LEFT JOIN commerce.OrderDeliveries d ON d.TenantId=i.TenantId AND d.OrderId=i.InvoiceId
-            OUTER APPLY(SELECT TOP(1) p.Provider,p.Status FROM commerce.CommercePayments p WHERE p.TenantId=i.TenantId AND p.InvoiceId=i.InvoiceId ORDER BY p.AttemptNumber DESC) cp
+            OUTER APPLY(SELECT TOP(1) p.PaymentMethod,p.Status FROM commerce.CommercePayments p WHERE p.TenantId=i.TenantId AND p.InvoiceId=i.InvoiceId ORDER BY p.AttemptNumber DESC) cp
             WHERE i.TenantId=@tenant AND i.CustomerId=@customer AND i.InvoiceId=@order;
             """, connection);
         command.Parameters.AddWithValue("@tenant", session.TenantId); command.Parameters.AddWithValue("@customer", session.CustomerId); command.Parameters.AddWithValue("@order", orderId);

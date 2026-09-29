@@ -9,6 +9,7 @@ import { WelcomePage } from './pages/welcome.page';
 import { WishlistPage } from './pages/wishlist.page';
 import { CustomerAuthPage } from './pages/customer-auth.page';
 import { AccountPage } from './pages/account.page';
+import { OfferDetailsPage } from './pages/offer-details.page';
 
 export const routes: Routes = [
   { path: '', component: WelcomePage, pathMatch: 'full' },
@@ -18,6 +19,7 @@ export const routes: Routes = [
     children: [
       { path: '', component: StoreHomePage, pathMatch: 'full' },
       { path: 'products/:productId', component: ProductDetailsPage },
+      { path: 'offers/:offerId', component: OfferDetailsPage },
       { path: 'cart', component: CartPage },
       { path: 'orders', component: OrdersPage },
       { path: 'orders/:orderId', component: OrderDetailsPage },

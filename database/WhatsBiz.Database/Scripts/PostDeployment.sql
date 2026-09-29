@@ -91,3 +91,8 @@ GO
 :r .\V39-StorefrontCustomerSessions.sql
 GO
 :r .\V40-StorefrontAllCategoryImage.sql
+GO
+:r .\V41-StorefrontOfferContent.sql
+GO
+:r .\V42-StorefrontPaymentMethods.sql
+GO

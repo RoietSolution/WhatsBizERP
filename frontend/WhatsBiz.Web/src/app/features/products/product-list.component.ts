@@ -33,6 +33,8 @@ import { ProductHistoryDialogComponent } from './product-history-dialog.componen
 })
 export class ProductListComponent implements OnDestroy {
   readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
+  private imageRequest = 0;
+  private readonly masterPage = viewChild(MasterPageComponent);
   readonly items = signal<ProductListItem[]>([]);
   readonly total = signal(0);
   readonly loading = signal(false);
@@ -79,7 +81,6 @@ export class ProductListComponent implements OnDestroy {
       { label: 'Category', key: 'categoryName' },
       { label: 'Brand', key: 'brandName' },
       { label: 'Unit', key: 'unitName' },
-      { label: 'Active', key: 'isActive' },
     ],
     columns: [
       { field: 'productCode', headerName: 'Code' },
@@ -102,10 +103,12 @@ export class ProductListComponent implements OnDestroy {
           const button = document.createElement('button');
           button.type = 'button';
           button.className = 'product-status-toggle';
-          button.style.cssText = 'border:1px solid #cbd5cf;border-radius:999px;padding:4px 9px;background:#fff;color:#145c43;font-weight:700;cursor:pointer';
           if (!row) return button;
-          button.textContent = row.isActive ? '● Active' : '○ Inactive';
-          button.title = `Mark ${row.productName} ${row.isActive ? 'inactive' : 'active'}`;
+          button.style.cssText = `display:inline-flex;align-items:center;gap:6px;min-height:28px;border:0;border-radius:999px;padding:4px 10px;background:${row.isActive ? 'var(--wb-primary-soft)' : 'var(--wb-surface-muted)'};color:${row.isActive ? 'var(--wb-primary)' : 'var(--wb-text-secondary)'};font-size:11px;font-weight:700;cursor:pointer`;
+          button.textContent = row.isActive ? 'Active' : 'Inactive';
+          button.setAttribute('role', 'switch');
+          button.setAttribute('aria-checked', String(row.isActive));
+          button.setAttribute('aria-label', `Mark ${row.productName} ${row.isActive ? 'inactive' : 'active'}`);
           button.disabled = this.statusBusy().has(row.productId);
           button.addEventListener('click', () => this.toggleStatus(row));
           return button;
@@ -133,6 +136,7 @@ export class ProductListComponent implements OnDestroy {
     this.load();
   }
   load() {
+    this.masterPage()?.clearSelection();
     this.loading.set(true);
     this.api
       .search({
@@ -232,6 +236,7 @@ export class ProductListComponent implements OnDestroy {
         next: (result) => {
           const missing = new Set(result.notFoundProductIds);
           this.items.update((items) => items.map((item) => ids.includes(item.productId) && !missing.has(item.productId) ? { ...item, isActive } : item));
+          this.masterPage()?.clearSelection();
           const detail = missing.size ? ` ${missing.size} product(s) were not found for this tenant.` : '';
           this.snack.open(`${result.updatedCount} product(s) marked ${isActive ? 'active' : 'inactive'}.${detail}`, 'Dismiss', { duration: 4500 });
         },
@@ -314,6 +319,7 @@ export class ProductListComponent implements OnDestroy {
   }
   private loadCardImages(rows: ProductListItem[]): void {
     this.releaseCardImages();
+    const request = ++this.imageRequest;
     const requests = rows
       .filter((row) => !!row.imageUrl)
       .map((row) =>
@@ -324,12 +330,14 @@ export class ProductListComponent implements OnDestroy {
       );
     if (!requests.length) return;
     forkJoin(requests).subscribe((images) => {
+      if (request !== this.imageRequest) { for (const image of images) if (image) URL.revokeObjectURL(image.url); return; }
       const next: Record<string, string> = {};
       for (const image of images) if (image) next[image.id] = image.url;
       this.cardImages.set(next);
     });
   }
   private releaseCardImages(): void {
+    this.imageRequest++;
     for (const url of Object.values(this.cardImages())) URL.revokeObjectURL(url);
     this.cardImages.set({});
   }

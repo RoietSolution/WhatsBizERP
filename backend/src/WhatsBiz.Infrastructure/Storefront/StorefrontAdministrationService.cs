@@ -20,14 +20,14 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
         var rows = await db.StorefrontBanners.AsNoTracking().Where(x => x.TenantId == tenant).ToDictionaryAsync(x => x.Slot, token);
         var banners = StorefrontBannerSlots.All.Select(slot => rows.TryGetValue(slot, out var row)
             ? new StorefrontBannerAdminDto(slot, row.IsEnabled, row.StartsAt, row.EndsAt, row.Title, row.Subtitle, row.TargetUrl, row.DisplayOrder,
-                row.MediaId is null ? null : $"/api/storefront-administration/banners/{slot}/image")
+                row.MediaId is null ? null : $"/api/storefront-administration/banners/{slot}/image", row.PromotionId)
             : new StorefrontBannerAdminDto(slot, false, null, null, null, null, null, slot == StorefrontBannerSlots.Primary ? 1 : 2, null)).ToArray();
         var pincodes = await db.StorefrontServiceablePincodes.AsNoTracking().Where(x => x.TenantId == tenant)
             .OrderBy(x => x.Pincode).Select(x => new StorefrontPincodeDto(x.Pincode, x.IsActive)).ToArrayAsync(token);
         var promotions = await db.StorefrontPromotions.AsNoTracking().Where(x => x.TenantId == tenant && !x.IsDeleted)
             .OrderBy(x => x.OfferName).Select(x => new StorefrontPromotionDto(x.PromotionId, x.OfferName, x.OfferType,
                 x.MinimumPurchaseAmount, x.DiscountType, x.DiscountValue, x.MaximumDiscount, x.StartsAt, x.EndsAt,
-                x.IsActive, x.UsageLimitPerCustomer)).ToArrayAsync(token);
+                x.IsActive, x.UsageLimitPerCustomer, x.ShortDescription, x.DetailedDescription, x.TermsAndConditions, x.PromoCode, x.CtaLabel, x.EligibleItemsDescription)).ToArrayAsync(token);
         return new(name, config?.LogoMediaId is null ? null : "/api/storefront-administration/logo",
             config?.DeliveryEnabled ?? false, config?.StandardDeliveryCharge ?? 0, config?.FreeDeliveryEnabled ?? false,
             config?.FreeDeliveryThreshold, config?.ShowProductRatings ?? true, config?.ShowProductReviews ?? true,
@@ -84,7 +84,7 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
         if (string.IsNullOrWhiteSpace(name) || name.Length > 150 || input.OfferType is not ("MINIMUM_PURCHASE" or "FIRST_ORDER")
             || input.DiscountType is not ("FLAT" or "PERCENTAGE") || input.MinimumPurchaseAmount < 0
             || input.DiscountValue <= 0 || input.DiscountType == "PERCENTAGE" && input.DiscountValue > 100
-            || input.MaximumDiscount is <= 0 || input.UsageLimitPerCustomer is <= 0
+            || input.MaximumDiscount is <= 0 || input.UsageLimitPerCustomer is <= 0 || input.ShortDescription?.Length > 300 || input.DetailedDescription?.Length > 5000 || input.TermsAndConditions?.Length > 5000 || input.PromoCode?.Length > 50 || input.CtaLabel?.Length > 40 || input.EligibleItemsDescription?.Length > 500
             || input.StartsAt is not null && input.EndsAt is not null && input.StartsAt >= input.EndsAt)
             throw new BusinessRuleException("Enter valid promotion details.");
         var tenant = Tenant;
@@ -96,10 +96,11 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
         row.MaximumDiscount = input.MaximumDiscount is null ? null : decimal.Round(input.MaximumDiscount.Value, 2);
         row.StartsAt = input.StartsAt; row.EndsAt = input.EndsAt; row.IsActive = input.IsActive;
         row.UsageLimitPerCustomer = input.OfferType == "FIRST_ORDER" ? 1 : input.UsageLimitPerCustomer;
+        row.ShortDescription = Trim(input.ShortDescription, 300); row.DetailedDescription = Trim(input.DetailedDescription, 5000); row.TermsAndConditions = Trim(input.TermsAndConditions, 5000); row.PromoCode = Trim(input.PromoCode, 50); row.CtaLabel = Trim(input.CtaLabel, 40); row.EligibleItemsDescription = Trim(input.EligibleItemsDescription, 500);
         row.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(token);
         return new(row.PromotionId, row.OfferName, row.OfferType, row.MinimumPurchaseAmount, row.DiscountType,
-            row.DiscountValue, row.MaximumDiscount, row.StartsAt, row.EndsAt, row.IsActive, row.UsageLimitPerCustomer);
+            row.DiscountValue, row.MaximumDiscount, row.StartsAt, row.EndsAt, row.IsActive, row.UsageLimitPerCustomer, row.ShortDescription, row.DetailedDescription, row.TermsAndConditions, row.PromoCode, row.CtaLabel, row.EligibleItemsDescription);
     }
 
     public async Task RemovePromotionAsync(Guid id, CancellationToken token)
@@ -115,8 +116,9 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
         var normalized = NormalizeSlot(slot);
         if (input.StartsAt.HasValue && input.EndsAt.HasValue && input.StartsAt > input.EndsAt)
             throw new BusinessRuleException("Banner end time must be after its start time.");
-        var target = NormalizeTarget(input.TargetUrl);
+        var target = input.PromotionId.HasValue ? null : NormalizeTarget(input.TargetUrl);
         var tenant = Tenant;
+        if (input.PromotionId.HasValue && !await db.StorefrontPromotions.AnyAsync(x => x.TenantId == tenant && x.PromotionId == input.PromotionId && !x.IsDeleted, token)) throw new EntityNotFoundException("Promotion was not found.");
         var row = await db.StorefrontBanners.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Slot == normalized, token);
         if (row is null)
         {
@@ -125,7 +127,7 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
         }
         row.IsEnabled = input.IsEnabled; row.StartsAt = input.StartsAt; row.EndsAt = input.EndsAt;
         row.Title = Trim(input.Title, 150); row.Subtitle = Trim(input.Subtitle, 300); row.TargetUrl = target;
-        row.DisplayOrder = Math.Clamp(input.DisplayOrder, 0, 100); row.UpdatedAt = DateTime.UtcNow;
+        row.PromotionId = input.PromotionId; row.DisplayOrder = Math.Clamp(input.DisplayOrder, 0, 100); row.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(token);
     }
 

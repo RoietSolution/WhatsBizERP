@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerOrder, Product, ProductReview, ProductReviewSummary, Store } from '../models/storefront.models';
+import { CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerOrder, Product, ProductReview, ProductReviewSummary, Store, StorefrontOffer } from '../models/storefront.models';
 import { StorefrontDataProvider } from './storefront-data.provider';
 
 const guturgoCategories: Category[] = [
@@ -33,7 +33,7 @@ const demoStore: Store = {
   showProductReviews: true,
   deliveryMessage: 'Free delivery on orders above ₹499',
   banners: [],
-  paymentMethods: [{code:'RAZORPAY',label:'Pay Online',description:'UPI, Credit / Debit Card, Net Banking',isDefault:true,usesHostedPaymentPage:true}],
+  paymentMethods: [{code:'COD',provider:'COD',label:'Cash on Delivery',description:'Pay when your order is delivered',isDefault:false,usesHostedPaymentPage:false},{code:'UPI',provider:'RAZORPAY',label:'UPI',description:' (Powered by Razorpay)',isDefault:true,usesHostedPaymentPage:true},{code:'NET_BANKING',provider:'RAZORPAY',label:'Net Banking',description:' (Powered by Razorpay)',isDefault:false,usesHostedPaymentPage:true}],
 };
 
 /** GuturGo demo data, selected only by the explicit mock build configuration. */
@@ -51,6 +51,7 @@ export class DevelopmentStorefrontDataProvider implements StorefrontDataProvider
     return storeKey.toLowerCase() === demoStore.storeKey ? guturgoProducts : [];
   }
 
+  async getOffer(_storeKey:string,_offerId:string):Promise<StorefrontOffer|null>{return null;}
   async getProduct(storeKey: string, productId: string): Promise<Product | null> {
     if (storeKey.toLowerCase() !== demoStore.storeKey) return null;
     return guturgoProducts.find((product) => product.id === productId) ?? null;
@@ -66,7 +67,7 @@ export class DevelopmentStorefrontDataProvider implements StorefrontDataProvider
   async getReviews(_storeKey:string,productId:string):Promise<ProductReviewSummary>{const ratings=[5,5,4,4,4,3];const comments=['Excellent quality and neatly packed.','Fresh product and quick delivery.','Good value for the pack size.','Product matched the description.','Would order this again.','Good overall, packaging can improve.'];const reviews=ratings.map((rating,i)=>({reviewId:`demo-${productId}-${i}`,reviewerName:`Demo shopper ${i+1}`,rating,reviewText:comments[i],createdAt:'2026-01-01T00:00:00Z',updatedAt:'2026-01-01T00:00:00Z',isOwn:false}));return{averageRating:4.2,ratingCount:reviews.length,reviews};}
   async saveReview(_storeKey:string,productId:string,rating:number,reviewText:string):Promise<ProductReview>{return{reviewId:`demo-own-${productId}`,reviewerName:'Development customer',rating,reviewText,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),isOwn:true};}
 
-  async checkout(_storeKey: string, _customer: CheckoutCustomer, lines: readonly CartLine[], _idempotencyKey: string, paymentProvider: string): Promise<CheckoutResult> {
-    const quote=await this.quote(_storeKey,lines,_customer.pincode);if(!quote?.isPincodeServiceable)throw new Error('Delivery is unavailable at this pincode.');return { orderId: crypto.randomUUID(), orderNumber: 'MOCK-ORDER', amount: quote.finalPayableAmount, currency: 'INR', paymentId: crypto.randomUUID(), paymentProvider, paymentStatus:'PENDING', customerSessionToken:'development-session' };
+  async checkout(_storeKey: string, _customer: CheckoutCustomer, lines: readonly CartLine[], _idempotencyKey: string, paymentMethod: string): Promise<CheckoutResult> {
+    const quote=await this.quote(_storeKey,lines,_customer.pincode);if(!quote?.isPincodeServiceable)throw new Error('Delivery is unavailable at this pincode.');return { orderId: crypto.randomUUID(), orderNumber: 'MOCK-ORDER', amount: quote.finalPayableAmount, currency: 'INR', paymentId: crypto.randomUUID(), paymentProvider: paymentMethod === "COD" ? "COD" : "RAZORPAY", paymentMethod, paymentStatus:'PENDING', customerSessionToken:'development-session' };
   }
 }

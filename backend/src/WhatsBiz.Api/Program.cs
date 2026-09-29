@@ -34,6 +34,7 @@ Log.Logger = new LoggerConfiguration().WriteTo.Console(formatProvider: CultureIn
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+    builder.Services.AddSingleton(new StorefrontOtpPolicy(builder.Environment.EnvironmentName, builder.Configuration));
     var databaseTarget = DatabaseTargetGuard.Validate(builder.Environment.EnvironmentName, builder.Configuration);
     Log.Information("Runtime environment {Environment}; database server {DatabaseServer}; database name {DatabaseName}",
         builder.Environment.EnvironmentName, databaseTarget.DataSource, databaseTarget.InitialCatalog);

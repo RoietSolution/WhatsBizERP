@@ -49,6 +49,7 @@ public sealed class StorefrontBanner
     public string? Title { get; set; }
     public string? Subtitle { get; set; }
     public string? TargetUrl { get; set; }
+    public Guid? PromotionId { get; set; }
     public int DisplayOrder { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -105,6 +106,12 @@ public sealed class StorefrontPromotion
     public bool IsActive { get; set; } = true;
     public bool IsDeleted { get; set; }
     public int? UsageLimitPerCustomer { get; set; }
+    public string? ShortDescription { get; set; }
+    public string? DetailedDescription { get; set; }
+    public string? TermsAndConditions { get; set; }
+    public string? PromoCode { get; set; }
+    public string? CtaLabel { get; set; }
+    public string? EligibleItemsDescription { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

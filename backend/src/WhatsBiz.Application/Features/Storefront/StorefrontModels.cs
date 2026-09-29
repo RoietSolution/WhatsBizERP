@@ -1,18 +1,19 @@
 namespace WhatsBiz.Application.Features.Storefront;
 
-public sealed record StorefrontBannerDto(string Slot, string ImageUrl, string? Title, string? Subtitle, string? TargetUrl, int DisplayOrder);
-public sealed record StorefrontPaymentMethodDto(string Code, string Label, string Description, bool IsDefault, bool UsesHostedPaymentPage);
+public sealed record StorefrontBannerDto(string Slot, string ImageUrl, string? Title, string? Subtitle, string? TargetUrl, int DisplayOrder, Guid? PromotionId = null);
+public sealed record StorefrontPaymentMethodDto(string Code, string Label, string Description, bool IsDefault, bool UsesHostedPaymentPage, string Provider);
 public sealed record StorefrontStoreDto(string StoreKey, string Name, string Tagline, string? LogoUrl, string AccentColor,
     string DeliveryMessage, decimal? FreeDeliveryThreshold, bool ShowProductRatings, bool ShowProductReviews, IReadOnlyCollection<StorefrontBannerDto> Banners, IReadOnlyCollection<StorefrontPaymentMethodDto> PaymentMethods, string? AllCategoryImageUrl = null);
 public sealed record StorefrontCategoryDto(Guid Id, string Name, string? ImageUrl);
 public sealed record StorefrontProductDto(Guid Id, Guid CategoryId, string Name, string Description, string? ImageUrl, decimal SellingPrice, decimal? CompareAtPrice, string Availability, string? PackSize, decimal? AverageRating, int RatingCount);
+public sealed record StorefrontOfferDto(Guid OfferId, string Title, string? BannerImageUrl, string? ShortDescription, string? DetailedDescription, string? PromoCode, string BenefitDescription, DateTimeOffset? ValidFrom, DateTimeOffset? ValidUntil, decimal MinimumOrderAmount, string? EligibleItemsDescription, decimal? MaximumDiscount, int? UsageLimitPerCustomer, string? TermsAndConditions, string? CtaLabel, string Status);
 public sealed record StorefrontImage(string ContentType, byte[] Content);
 public sealed record StorefrontCheckoutItem(Guid ProductId, decimal Quantity);
 public sealed record StorefrontCheckoutInput(string CustomerName, string Mobile, string? Email, string Pincode,
-    string DeliveryAddress, IReadOnlyCollection<StorefrontCheckoutItem> Items, string PaymentProvider = "RAZORPAY");
+    string DeliveryAddress, IReadOnlyCollection<StorefrontCheckoutItem> Items, string PaymentMethod = "");
 public sealed record StorefrontCheckoutResult(Guid OrderId, string OrderNumber, decimal Amount,
     string Currency, Guid PaymentId, string? CheckoutUrl, string PaymentProvider, string PaymentStatus, string? CustomerMessage,
-    string? CustomerSessionToken);
+    string? CustomerSessionToken, string PaymentMethod = "COD");
 
 public interface IStorefrontService
 {
@@ -20,20 +21,21 @@ public interface IStorefrontService
     Task<IReadOnlyCollection<StorefrontCategoryDto>?> GetCategoriesAsync(string storeKey, CancellationToken token);
     Task<IReadOnlyCollection<StorefrontProductDto>?> GetProductsAsync(string storeKey, CancellationToken token);
     Task<StorefrontProductDto?> GetProductAsync(string storeKey, Guid productId, CancellationToken token);
+    Task<StorefrontOfferDto?> GetOfferAsync(string storeKey, Guid offerId, CancellationToken token);
     Task<StorefrontImage?> GetProductImageAsync(string storeKey, Guid productId, CancellationToken token);
     Task<StorefrontImage?> GetPresentationImageAsync(string storeKey, string resource, Guid? categoryId, CancellationToken token);
 }
 
 public sealed record StorefrontBannerAdminDto(string Slot, bool IsEnabled, DateTimeOffset? StartsAt, DateTimeOffset? EndsAt,
-    string? Title, string? Subtitle, string? TargetUrl, int DisplayOrder, string? ImageUrl);
+    string? Title, string? Subtitle, string? TargetUrl, int DisplayOrder, string? ImageUrl, Guid? PromotionId = null);
 public sealed record StorefrontAdminDto(string StoreName, string? LogoUrl, bool DeliveryEnabled, decimal StandardDeliveryCharge, bool FreeDeliveryEnabled, decimal? FreeDeliveryThreshold, bool ShowProductRatings, bool ShowProductReviews, IReadOnlyCollection<StorefrontBannerAdminDto> Banners, IReadOnlyCollection<StorefrontPincodeDto> ServiceablePincodes, IReadOnlyCollection<StorefrontPromotionDto> Promotions, string? AllCategoryImageUrl = null);
 public sealed record UpdateStorefrontReviewSettingsInput(bool ShowProductRatings, bool ShowProductReviews);
 public sealed record UpdateStorefrontDeliverySettingsInput(bool DeliveryEnabled, decimal StandardDeliveryCharge, bool FreeDeliveryEnabled, decimal? FreeDeliveryThreshold);
 public sealed record StorefrontPincodeDto(string Pincode, bool IsActive);
-public sealed record StorefrontPromotionDto(Guid PromotionId, string OfferName, string OfferType, decimal MinimumPurchaseAmount, string DiscountType, decimal DiscountValue, decimal? MaximumDiscount, DateTimeOffset? StartsAt, DateTimeOffset? EndsAt, bool IsActive, int? UsageLimitPerCustomer);
-public sealed record SaveStorefrontPromotionInput(string OfferName, string OfferType, decimal MinimumPurchaseAmount, string DiscountType, decimal DiscountValue, decimal? MaximumDiscount, DateTimeOffset? StartsAt, DateTimeOffset? EndsAt, bool IsActive, int? UsageLimitPerCustomer);
+public sealed record StorefrontPromotionDto(Guid PromotionId, string OfferName, string OfferType, decimal MinimumPurchaseAmount, string DiscountType, decimal DiscountValue, decimal? MaximumDiscount, DateTimeOffset? StartsAt, DateTimeOffset? EndsAt, bool IsActive, int? UsageLimitPerCustomer, string? ShortDescription = null, string? DetailedDescription = null, string? TermsAndConditions = null, string? PromoCode = null, string? CtaLabel = null, string? EligibleItemsDescription = null);
+public sealed record SaveStorefrontPromotionInput(string OfferName, string OfferType, decimal MinimumPurchaseAmount, string DiscountType, decimal DiscountValue, decimal? MaximumDiscount, DateTimeOffset? StartsAt, DateTimeOffset? EndsAt, bool IsActive, int? UsageLimitPerCustomer, string? ShortDescription = null, string? DetailedDescription = null, string? TermsAndConditions = null, string? PromoCode = null, string? CtaLabel = null, string? EligibleItemsDescription = null);
 public sealed record UpdateStorefrontBannerInput(bool IsEnabled, DateTimeOffset? StartsAt, DateTimeOffset? EndsAt,
-    string? Title, string? Subtitle, string? TargetUrl, int DisplayOrder);
+    string? Title, string? Subtitle, string? TargetUrl, int DisplayOrder, Guid? PromotionId = null);
 
 public interface IStorefrontAdministrationService
 {

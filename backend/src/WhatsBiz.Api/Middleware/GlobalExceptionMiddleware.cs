@@ -44,6 +44,11 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
         {
             LogRequest(context, started, 409, exception); await WriteProblemAsync(context, StatusCodes.Status409Conflict, "Business rule violation", [exception.Message]);
         }
+        catch (DbUpdateException exception) when (HasSqlError(exception, 334))
+        {
+            LogRequest(context, started, 500, exception);
+            await WriteProblemAsync(context, StatusCodes.Status500InternalServerError, "Unable to complete request", ["The server could not complete this request. Please try again. If the problem continues, contact your administrator."]);
+        }
         catch (DbUpdateConcurrencyException exception)
         {
             LogRequest(context, started, 409, exception); await WriteProblemAsync(context, StatusCodes.Status409Conflict, "The record was changed by another user", [exception.Message]);
@@ -76,6 +81,13 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
     {
         for (var current = exception; current is not null; current = current.InnerException!)
             if (current is SqlException { Number: 2601 or 2627 }) return true;
+        return false;
+    }
+
+    private static bool HasSqlError(Exception exception, int number)
+    {
+        for (var current = exception; current is not null; current = current.InnerException!)
+            if (current is SqlException sqlException && sqlException.Errors.Cast<SqlError>().Any(error => error.Number == number)) return true;
         return false;
     }
 

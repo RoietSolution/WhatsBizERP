@@ -22,15 +22,15 @@ public sealed class StorefrontPhaseArchitectureTests
     public void CheckoutUsesEffectiveTenantPaymentMethodsAndKeepsAllProvidersUnpaidUntilVerified()
     {
         var checkout = Read("backend/src/WhatsBiz.Infrastructure/Storefront/StorefrontCheckoutService.cs");
-        checkout.Should().Contain("GetEnabledMethodsForTenantAsync").And.Contain("method.Provider != provider")
-            .And.Contain("PaymentProviders.Cod").And.Contain("PaymentProviders.DirectUpi");
+        checkout.Should().Contain("GetEnabledMethodsForTenantAsync").And.Contain("NormalizePaymentMethod")
+            .And.Contain("PaymentProviders.Cod").And.Contain("PaymentProviders.Razorpay");
         checkout.Should().Contain("HELD").And.Contain("PaymentType=@paymentType");
         var payments = Read("backend/src/WhatsBiz.Infrastructure/Payments/CommercePaymentService.cs");
         payments.Should().Contain("PaymentProviders.DirectUpi ? CommercePaymentStatuses.PendingVerification")
             .And.Contain("PaymentProviders.Cod ? CommercePaymentStatuses.CodPending")
             .And.Contain("ApplySuccessfulPayment");
         payments.Should().Contain("GetEnabledMethodsForTenantAsync(Guid trustedTenantId");
-        payments.Should().Contain("settings.Providers.Where(x => x.IsEnabled && x.IsConfigured");
+        payments.Should().Contain("settings.Providers.Single(x => x.Provider == PaymentProviders.Cod)");
     }
 
     [Fact]
@@ -50,9 +50,9 @@ public sealed class StorefrontPhaseArchitectureTests
     public void CustomerCheckoutShowsProblemDetailAndUsesProviderSelection()
     {
         var cart = Read("frontend/KhataDhari.Customer/src/app/pages/cart.page.ts");
-        cart.Should().Contain("body?.detail").And.Contain("paymentMethods()").And.Contain("DIRECT_UPI");
+        cart.Should().Contain("body?.detail").And.Contain("paymentMethods()").And.Contain("paymentMethod").And.NotContain("DIRECT_UPI");
         Read("frontend/KhataDhari.Customer/src/app/data/http-storefront-data.provider.ts")
-            .Should().Contain("/checkout`").And.Contain("paymentProvider");
+            .Should().Contain("/checkout`").And.Contain("paymentMethod");
     }
 
     private static string FindRoot()

@@ -56,6 +56,22 @@ public sealed class PaymentArchitectureTests
         result.PaymentLink.Should().Be("https://rzp.io/i/test");
     }
 
+    [Theory]
+    [InlineData("UPI", true, false)]
+    [InlineData("NET_BANKING", false, true)]
+    public async Task RazorpayPaymentLinkRestrictsCheckoutToSelectedMethod(string method, bool upi, bool netBanking)
+    {
+        var handler=new CaptureHandler("{\"id\":\"plink_test\",\"order_id\":\"order_test\",\"short_url\":\"https://rzp.io/i/test\"}");
+        var gateway=new RazorpayPaymentGateway(new ClientFactory(handler));
+        var result=await gateway.CreatePaymentAsync(new(PaymentProviders.Razorpay,"key","secret","webhook",true,null,null),
+            new(Guid.NewGuid(),Guid.NewGuid(),"KD-1",100m,"INR","KD-REF",null,null,method),default);
+        using var body=JsonDocument.Parse(handler.Body!);
+        var methods=body.RootElement.GetProperty("options").GetProperty("checkout").GetProperty("method");
+        methods.GetProperty("upi").GetBoolean().Should().Be(upi);
+        methods.GetProperty("netbanking").GetBoolean().Should().Be(netBanking);
+        result.ProviderOrderId.Should().Be("order_test");
+        result.ProviderReference.Should().Be("plink_test");
+    }
     [Fact]
     public async Task RazorpayRefundUsesCommittedAmountAndDurableCorrelationNote()
     {
@@ -174,6 +190,36 @@ public sealed class PaymentArchitectureTests
         source.Should().Contain("WHERE p.TenantId=@tenant AND p.PaymentId=@id");
     }
 
+    [Fact]
+    public void StorefrontMethodsAreTenantGatedAndUseRazorpayOnlyForOnlineMethods()
+    {
+        var root = Root();
+        var service = File.ReadAllText(Path.Combine(root, "backend", "src", "WhatsBiz.Infrastructure", "Payments", "CommercePaymentService.cs"));
+        service.Should().Contain("new(\"COD\", PaymentProviders.Cod")
+            .And.Contain("new(\"UPI\", PaymentProviders.Razorpay")
+            .And.Contain("new(\"NET_BANKING\", PaymentProviders.Razorpay")
+            .And.Contain("settings.OnlinePaymentEnabled && razorpay.IsEnabled && razorpay.IsConfigured")
+            .And.Contain("settings.UpiEnabled").And.Contain("settings.NetBankingEnabled");
+        var storefront = File.ReadAllText(Path.Combine(root, "backend", "src", "WhatsBiz.Infrastructure", "Storefront", "StorefrontService.cs"));
+        storefront.Should().Contain("PaymentProviders.Razorpay => new(method.Code")
+            .And.Contain("PaymentProviders.Cod => new(method.Code").And.NotContain("PaymentProviders.DirectUpi =>");
+    }
+
+    [Fact]
+    public void OnlyVerifiedRazorpayWebhookSettlesAndProviderEventsAreIdempotent()
+    {
+        var root = Root();
+        var service = File.ReadAllText(Path.Combine(root, "backend", "src", "WhatsBiz.Infrastructure", "Payments", "CommercePaymentService.cs"));
+        service.Should().Contain("if(!verified.SignatureValid)")
+            .And.Contain("PaymentProviderEvents WITH(UPDLOCK,HOLDLOCK)")
+            .And.Contain("if(added==0)")
+            .And.Contain("if(verified.IsPaid)await ApplySuccessfulPayment")
+            .And.Contain("Status=CASE WHEN Status=N'PAID' THEN Status ELSE N'FAILED' END");
+        var cart = File.ReadAllText(Path.Combine(root, "frontend", "KhataDhari.Customer", "src", "app", "pages", "cart.page.ts"));
+        cart.Should().NotContain("status='PAID'").And.NotContain("paymentStatus='PAID'");
+        var payments = File.ReadAllText(Path.Combine(root, "frontend", "WhatsBiz.Web", "src", "app", "features", "payments", "payment-list.component.html"));
+        payments.Should().Contain("row.provider==='DIRECT_UPI' && row.status==='PENDING_VERIFICATION'");
+    }
     private static string Root(){var d=new DirectoryInfo(AppContext.BaseDirectory);while(d is not null&&!Directory.Exists(Path.Combine(d.FullName,"database")))d=d.Parent;return d?.FullName??throw new InvalidOperationException("Repository root not found.");}
     private sealed class ClientFactory(HttpMessageHandler handler):IHttpClientFactory{public HttpClient CreateClient(string name)=>new(handler,false){BaseAddress=new Uri("https://api.razorpay.com/v1/")};}
     private sealed class CaptureHandler(string response):HttpMessageHandler

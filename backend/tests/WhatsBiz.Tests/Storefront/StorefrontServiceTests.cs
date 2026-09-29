@@ -41,14 +41,19 @@ public sealed class StorefrontServiceTests
         var other = await AddCatalogAsync(db, "OTHER", "Store Two", withStock: false);
         var hidden = await AddProductAsync(db, first, "Hidden", isVisible: false, isActive: true);
         var inactive = await AddProductAsync(db, first, "Inactive", isVisible: true, isActive: false);
+        db.ProductImages.AddRange(
+            new ProductImage { TenantId = first.Tenant.TenantId, ProductId = first.Product.ProductId, IsPrimary = true, ContentType = "image/webp", ImageData = [1] },
+            new ProductImage { TenantId = first.Tenant.TenantId, ProductId = inactive.Product.ProductId, IsPrimary = true, ContentType = "image/webp", ImageData = [2] });
         db.SaveChanges();
-        var service = new StorefrontService(db, new NoProductImages());
+        var service = new StorefrontService(db, new MemoryProductImages());
 
         var products = (await service.GetProductsAsync("FIRST", default))!;
         products.Should().ContainSingle().Which.Id.Should().Be(first.Product.ProductId);
         (await service.GetProductAsync("FIRST", other.Product.ProductId, default)).Should().BeNull();
         (await service.GetProductAsync("FIRST", hidden.Product.ProductId, default)).Should().BeNull();
         (await service.GetProductAsync("FIRST", inactive.Product.ProductId, default)).Should().BeNull();
+        (await service.GetProductImageAsync("FIRST", first.Product.ProductId, default)).Should().NotBeNull();
+        (await service.GetProductImageAsync("FIRST", inactive.Product.ProductId, default)).Should().BeNull();
         (await service.GetCategoriesAsync("FIRST", default))!.Should().ContainSingle().Which.Id.Should().Be(first.Category.ProductCategoryId);
     }
 
@@ -162,16 +167,16 @@ public sealed class StorefrontServiceTests
         await db.SaveChangesAsync();
         var proxy = DispatchProxy.Create<ICommercePaymentService, EnabledMethodsProxy>();
         ((EnabledMethodsProxy)(object)proxy).Resolve = tenantId => tenantId == first.Tenant.TenantId
-            ? [new("RAZORPAY", "Pay Online", true), new("COD", "Cash on Delivery", false)]
-            : [new("DIRECT_UPI", "UPI Transfer", true)];
+            ? [new("UPI", "RAZORPAY", "UPI", true), new("COD", "COD", "Cash on Delivery", false)]
+            : [new("NET_BANKING", "RAZORPAY", "Net Banking", true)];
         var service = new StorefrontService(db, new NoProductImages(), payments: proxy);
 
         var firstMethods = (await service.GetStoreAsync("PAYONE", default))!.PaymentMethods;
-        firstMethods.Select(x => x.Code).Should().Equal("RAZORPAY", "COD");
-        firstMethods.Single(x => x.Code == "RAZORPAY").Label.Should().Be("Pay Online");
+        firstMethods.Select(x => x.Code).Should().Equal("UPI", "COD");
+        firstMethods.Single(x => x.Code == "UPI").Label.Should().Be("UPI");
         var secondMethods = (await service.GetStoreAsync("PAYTWO", default))!.PaymentMethods;
-        secondMethods.Select(x => x.Code).Should().Equal("DIRECT_UPI");
-        secondMethods.Single().Label.Should().Be("UPI");
+        secondMethods.Select(x => x.Code).Should().Equal("NET_BANKING");
+        secondMethods.Single().Label.Should().Be("Net Banking");
     }
 
     [Fact]
@@ -250,6 +255,13 @@ public sealed class StorefrontServiceTests
     private sealed record CatalogFixture(Tenant Tenant, ProductCategory Category, UnitOfMeasure Unit, Brand Brand, Product Product, Warehouse? Warehouse);
     private sealed record ProductFixture(Product Product);
 
+    private sealed class MemoryProductImages : IProductImageStorage
+    {
+        public string ActiveProvider => "DATABASE";
+        public Task<StoredProductImage> StoreAsync(ProductImageStorageWriteRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ProductImageStorageContent?> ReadAsync(ProductImageStorageReadRequest request, CancellationToken cancellationToken) => Task.FromResult<ProductImageStorageContent?>(request.DatabaseContent.Length == 0 ? null : new(request.DatabaseContent, request.ContentType));
+        public Task DeleteAsync(ProductImageStorageDeleteRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
     private sealed class NoProductImages : IProductImageStorage
     {
         public string ActiveProvider => "DATABASE";

@@ -77,7 +77,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
         builder.Entity<ApplicationUser>(entity =>
         {
-            entity.ToTable("Users", "core");
+            entity.ToTable("Users", "core", table => table.UseSqlOutputClause(false));
             entity.Property(x => x.TenantId);
             entity.Property(x => x.AccountType).HasMaxLength(30);
             entity.Property(x => x.CreatedBy).HasMaxLength(256);
@@ -86,7 +86,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(x => x.RowVersion).IsRowVersion();
         });
         builder.Entity<ApplicationRole>().ToTable("Roles", "core");
-        builder.Entity<Microsoft.AspNetCore.Identity.IdentityUserRole<Guid>>().ToTable("UserRoles", "core");
+        builder.Entity<Microsoft.AspNetCore.Identity.IdentityUserRole<Guid>>()
+            .ToTable("UserRoles", "core", table => table.UseSqlOutputClause(false));
         builder.Entity<Microsoft.AspNetCore.Identity.IdentityRoleClaim<Guid>>().ToTable("RoleClaims", "core");
         builder.Entity<Microsoft.AspNetCore.Identity.IdentityUserClaim<Guid>>().ToTable("UserClaims", "core");
         builder.Entity<Microsoft.AspNetCore.Identity.IdentityUserLogin<Guid>>().ToTable("UserLogins", "core");
@@ -242,10 +243,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     {
         b.Entity<StorefrontConfiguration>(e => { e.ToTable("StorefrontConfigurations", "commerce", tb => tb.UseSqlOutputClause(false)); e.HasKey(x => x.TenantId); e.Property(x => x.Tagline).HasMaxLength(250); e.Property(x => x.AccentColor).HasMaxLength(20); e.Property(x => x.DeliveryMessage).HasMaxLength(250); e.Property(x => x.FreeDeliveryThreshold).HasPrecision(18, 2); e.Property(x => x.StandardDeliveryCharge).HasPrecision(18, 2); });
         b.Entity<StorefrontServiceablePincode>(e => { e.ToTable("StorefrontServiceablePincodes", "commerce"); e.HasKey(x => new { x.TenantId, x.Pincode }); e.Property(x => x.Pincode).HasMaxLength(6).IsUnicode(false); });
-        b.Entity<StorefrontPromotion>(e => { e.ToTable("StorefrontPromotions", "commerce"); e.HasKey(x => x.PromotionId); e.Property(x => x.OfferName).HasMaxLength(150); e.Property(x => x.OfferType).HasMaxLength(20).IsUnicode(false); e.Property(x => x.DiscountType).HasMaxLength(12).IsUnicode(false); e.Property(x => x.MinimumPurchaseAmount).HasPrecision(18, 2); e.Property(x => x.DiscountValue).HasPrecision(18, 2); e.Property(x => x.MaximumDiscount).HasPrecision(18, 2); e.HasIndex(x => new { x.TenantId, x.IsActive, x.IsDeleted }); });
+        b.Entity<StorefrontPromotion>(e => { e.ToTable("StorefrontPromotions", "commerce"); e.HasKey(x => x.PromotionId); e.Property(x => x.OfferName).HasMaxLength(150); e.Property(x => x.OfferType).HasMaxLength(20).IsUnicode(false); e.Property(x => x.DiscountType).HasMaxLength(12).IsUnicode(false); e.Property(x => x.MinimumPurchaseAmount).HasPrecision(18, 2); e.Property(x => x.DiscountValue).HasPrecision(18, 2); e.Property(x => x.MaximumDiscount).HasPrecision(18, 2); e.Property(x => x.ShortDescription).HasMaxLength(300); e.Property(x => x.PromoCode).HasMaxLength(50); e.Property(x => x.CtaLabel).HasMaxLength(40); e.Property(x => x.EligibleItemsDescription).HasMaxLength(500); e.HasAlternateKey(x => new { x.TenantId, x.PromotionId }); e.HasIndex(x => new { x.TenantId, x.IsActive, x.IsDeleted }); });
         b.Entity<StorefrontMedia>(e => { e.ToTable("StorefrontMedia", "commerce", tb => tb.UseSqlOutputClause(false)); e.HasKey(x => x.MediaId); e.Property(x => x.ResourceType).HasMaxLength(30); e.Property(x => x.FileName).HasMaxLength(255); e.Property(x => x.ContentType).HasMaxLength(100); e.Property(x => x.ThumbnailContentType).HasMaxLength(100); e.Property(x => x.StorageProvider).HasMaxLength(20); e.Property(x => x.ObjectKey).HasMaxLength(1024); e.Property(x => x.ThumbnailObjectKey).HasMaxLength(1024); e.Property(x => x.ContentHash).HasMaxLength(64).IsUnicode(false); e.HasIndex(x => new { x.TenantId, x.MediaId }); });
         b.Entity<StorefrontProductReview>(e => { e.ToTable("StorefrontProductReviews", "commerce", tb => tb.UseSqlOutputClause(false)); e.HasKey(x => x.ReviewId); e.Property(x => x.ReviewText).HasMaxLength(1000); e.Property(x => x.Status).HasMaxLength(20).IsUnicode(false); e.HasIndex(x => new { x.TenantId, x.CustomerId, x.ProductId }).IsUnique(); e.HasIndex(x => new { x.TenantId, x.ProductId, x.Status }); });
-        b.Entity<StorefrontBanner>(e => { e.ToTable("StorefrontBanners", "commerce", tb => tb.UseSqlOutputClause(false)); e.HasKey(x => x.BannerId); e.Property(x => x.Slot).HasMaxLength(20); e.Property(x => x.Title).HasMaxLength(150); e.Property(x => x.Subtitle).HasMaxLength(300); e.Property(x => x.TargetUrl).HasMaxLength(500); e.HasIndex(x => new { x.TenantId, x.Slot }).IsUnique(); });
+        b.Entity<StorefrontBanner>(e => { e.ToTable("StorefrontBanners", "commerce", tb => tb.UseSqlOutputClause(false)); e.HasKey(x => x.BannerId); e.Property(x => x.Slot).HasMaxLength(20); e.Property(x => x.Title).HasMaxLength(150); e.Property(x => x.Subtitle).HasMaxLength(300); e.Property(x => x.TargetUrl).HasMaxLength(500); e.HasOne<StorefrontPromotion>().WithMany().HasForeignKey(x => new { x.TenantId, x.PromotionId }).HasPrincipalKey(x => new { x.TenantId, x.PromotionId }).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.TenantId, x.Slot }).IsUnique(); });
         b.Entity<StorefrontCategoryImage>(e => { e.ToTable("StorefrontCategoryImages", "commerce", tb => tb.UseSqlOutputClause(false)); e.HasKey(x => new { x.TenantId, x.ProductCategoryId }); e.HasIndex(x => new { x.TenantId, x.MediaId }).IsUnique(); });
     }
 

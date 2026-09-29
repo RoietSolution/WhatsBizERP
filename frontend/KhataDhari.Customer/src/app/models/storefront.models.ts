@@ -13,8 +13,8 @@ export interface Store {
   paymentMethods: StorePaymentMethod[];
 }
 
-export interface StoreBanner { slot: 'PRIMARY' | 'SECONDARY'; imageUrl: string; title?: string; subtitle?: string; targetUrl?: string; displayOrder: number; }
-export interface StorePaymentMethod { code: 'RAZORPAY' | 'DIRECT_UPI' | 'COD'; label: string; description: string; isDefault: boolean; usesHostedPaymentPage: boolean; }
+export interface StoreBanner { slot: 'PRIMARY' | 'SECONDARY'; imageUrl: string; title?: string; subtitle?: string; targetUrl?: string; displayOrder: number; promotionId?: string | null; }
+export interface StorePaymentMethod { code: 'UPI' | 'NET_BANKING' | 'COD'; provider: 'RAZORPAY' | 'COD'; label: string; description: string; isDefault: boolean; usesHostedPaymentPage: boolean; }
 
 export interface Category {
   id: string;
@@ -93,7 +93,10 @@ export interface CheckoutResult {
   paymentStatus: string;
   customerMessage?: string;
   customerSessionToken?: string;
+  paymentMethod: string;
 }
 
 export interface ProductReview { reviewId:string; reviewerName:string; rating:number; reviewText:string; createdAt:string; updatedAt:string; isOwn:boolean; }
 export interface ProductReviewSummary { averageRating?:number; ratingCount:number; reviews:ProductReview[]; }
+
+export interface StorefrontOffer { offerId: string; title: string; bannerImageUrl?: string; shortDescription?: string; detailedDescription?: string; promoCode?: string; benefitDescription: string; validFrom?: string; validUntil?: string; minimumOrderAmount: number; eligibleItemsDescription?: string; maximumDiscount?: number; usageLimitPerCustomer?: number; termsAndConditions?: string; ctaLabel?: string; status: 'ACTIVE' | 'UPCOMING' | 'EXPIRED'; }

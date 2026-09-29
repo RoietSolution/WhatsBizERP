@@ -25,7 +25,7 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
                 && (x.StartsAt == null || x.StartsAt <= now) && (x.EndsAt == null || x.EndsAt >= now))
             .OrderBy(x => x.DisplayOrder).Select(x => new StorefrontBannerDto(x.Slot,
                 $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/banners/{x.Slot.ToLowerInvariant()}",
-                x.Title, x.Subtitle, x.TargetUrl, x.DisplayOrder)).ToArrayAsync(token);
+                x.Title, x.Subtitle, x.PromotionId.HasValue ? null : x.TargetUrl, x.DisplayOrder, x.PromotionId)).ToArrayAsync(token);
         var enabled = payments is null ? [] : await payments.GetEnabledMethodsForTenantAsync(tenant.TenantId, token);
         var methods = enabled.Select(ToPaymentMethod).ToArray();
         return new(tenant.TenantKey.ToLowerInvariant(), tenant.Name,
@@ -70,6 +70,19 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
         return (await MapProductsAsync(tenant.TenantId, tenant.TenantKey, [product], token)).Single();
     }
 
+    public async Task<StorefrontOfferDto?> GetOfferAsync(string storeKey, Guid offerId, CancellationToken token)
+    {
+        var tenant = await ResolveTenantAsync(storeKey, token);
+        if (tenant is null) return null;
+        var offer = await db.StorefrontPromotions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenant.TenantId && x.PromotionId == offerId && !x.IsDeleted && x.IsActive, token);
+        if (offer is null) return null;
+        var now = DateTimeOffset.UtcNow;
+        var bannerSlot = await db.StorefrontBanners.AsNoTracking().Where(x => x.TenantId == tenant.TenantId && x.PromotionId == offerId && x.MediaId != null).OrderBy(x => x.DisplayOrder).Select(x => x.Slot).FirstOrDefaultAsync(token);
+        var status = offer.StartsAt.HasValue && offer.StartsAt.Value > now ? "UPCOMING" : offer.EndsAt.HasValue && offer.EndsAt.Value < now ? "EXPIRED" : "ACTIVE";
+        var benefit = offer.DiscountType == "PERCENTAGE" ? $"{offer.DiscountValue:0.##}% off" : $"₹{offer.DiscountValue:0.00} off";
+        if (offer.MaximumDiscount.HasValue) benefit += $", up to ₹{offer.MaximumDiscount.Value:0.00}";
+        return new(offer.PromotionId, offer.OfferName, bannerSlot is null ? null : $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/banners/{bannerSlot.ToLowerInvariant()}", offer.ShortDescription, offer.DetailedDescription, offer.PromoCode, benefit, offer.StartsAt, offer.EndsAt, offer.MinimumPurchaseAmount, offer.EligibleItemsDescription, offer.MaximumDiscount, offer.UsageLimitPerCustomer, offer.TermsAndConditions, offer.CtaLabel, status);
+    }
     public async Task<StorefrontImage?> GetProductImageAsync(string storeKey, Guid productId, CancellationToken token)
     {
         var tenant = await ResolveTenantAsync(storeKey, token);
@@ -169,9 +182,8 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
 
     private static StorefrontPaymentMethodDto ToPaymentMethod(EnabledPaymentMethod method) => method.Provider switch
     {
-        PaymentProviders.Razorpay => new(method.Provider, "Pay Online", "UPI, Credit / Debit Card, Net Banking", method.IsDefault, true),
-        PaymentProviders.DirectUpi => new(method.Provider, "UPI", "Payment is confirmed by the retailer after verification", method.IsDefault, false),
-        PaymentProviders.Cod => new(method.Provider, "Cash on Delivery", "Pay when your order is delivered", method.IsDefault, false),
-        _ => throw new InvalidOperationException("Unsupported storefront payment method.")
+        PaymentProviders.Razorpay => new(method.Code, method.Label, "Secure online payment", method.IsDefault, true, method.Provider),
+        PaymentProviders.Cod => new(method.Code, method.Label, " (Pay when your order is delivered)", method.IsDefault, false, method.Provider),
+        _ => throw new InvalidOperationException("Unsupported Storefront payment provider.")
     };
 }

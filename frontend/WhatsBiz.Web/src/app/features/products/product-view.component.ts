@@ -1,5 +1,5 @@
 import { CurrencyPipe, DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -65,7 +65,9 @@ import { Product } from './product.models';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ProductViewComponent {
+export class ProductViewComponent implements OnDestroy {
+  private imageObjectUrl?: string;
+  ngOnDestroy(): void { if (this.imageObjectUrl) URL.revokeObjectURL(this.imageObjectUrl); }
   readonly product = signal<Product | null>(null);
   readonly loading = signal(true);
   constructor(api: ProductApiService, route: ActivatedRoute) {
@@ -79,7 +81,7 @@ export class ProductViewComponent {
             .image(item.productId)
             .subscribe((blob) =>
               this.product.update((product) =>
-                product ? { ...product, imageUrl: URL.createObjectURL(blob) } : product,
+                product ? { ...product, imageUrl: (this.imageObjectUrl = URL.createObjectURL(blob)) } : product,
               ),
             );
       });

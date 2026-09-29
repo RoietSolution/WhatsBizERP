@@ -22,16 +22,16 @@ public static class CommercePaymentStatuses
 public sealed record PaymentProviderSetting(string Provider, bool IsEnabled, bool IsDefault,
     bool IsConfigured, string? MaskedKeyId, bool HasKeySecret, bool HasWebhookSecret,
     bool IsTestMode, string? UpiVpa, string? PayeeName);
-public sealed record PaymentSettingsDto(bool OnlinePaymentEnabled, IReadOnlyCollection<PaymentProviderSetting> Providers);
+public sealed record PaymentSettingsDto(bool OnlinePaymentEnabled, IReadOnlyCollection<PaymentProviderSetting> Providers, bool UpiEnabled = true, bool NetBankingEnabled = true);
 public sealed record SaveRazorpayConfiguration(string KeyId, string? KeySecret, string? WebhookSecret,
     bool IsEnabled, bool IsDefault, bool IsTestMode);
 public sealed record SaveDirectUpiConfiguration(string UpiVpa, string PayeeName, bool IsEnabled, bool IsDefault);
 public sealed record SaveCodConfiguration(bool IsEnabled, bool IsDefault);
-public sealed record SavePaymentOptions(bool OnlinePaymentEnabled);
-public sealed record EnabledPaymentMethod(string Provider, string Label, bool IsDefault);
-public sealed record CreatePaymentAttemptInput(Guid OrderId, string Provider);
+public sealed record SavePaymentOptions(bool OnlinePaymentEnabled, bool UpiEnabled = true, bool NetBankingEnabled = true);
+public sealed record EnabledPaymentMethod(string Code, string Provider, string Label, bool IsDefault);
+public sealed record CreatePaymentAttemptInput(Guid OrderId, string Provider, string? PaymentMethod = null);
 public sealed record CommercePaymentDto(Guid PaymentId, Guid TenantId, string TenantName, Guid OrderId, string OrderNumber, string? CustomerName,
-    string Provider, decimal Amount, string Currency, string Status, string? ProviderOrderId,
+    string Provider, string PaymentMethod, decimal Amount, string Currency, string Status, string? ProviderOrderId,
     string? ProviderPaymentId, string? PaymentLink, string? TransactionReference,
     DateTimeOffset CreatedAt, DateTimeOffset? PaidAt, DateTimeOffset? VerifiedAt, string? VerifiedBy);
 public sealed record PaymentAttemptResult(CommercePaymentDto Payment, string? PaymentAction);
@@ -43,7 +43,7 @@ public sealed record VerifyDirectUpiInput(string? Reference);
 public sealed record PaymentGatewayConfiguration(string Provider, string? KeyId, string? KeySecret,
     string? WebhookSecret, bool IsTestMode, string? UpiVpa, string? PayeeName);
 public sealed record GatewayCreateRequest(Guid PaymentId, Guid OrderId, string OrderNumber,
-    decimal Amount, string Currency, string TransactionReference, string? CustomerName, string? CustomerMobile);
+    decimal Amount, string Currency, string TransactionReference, string? CustomerName, string? CustomerMobile, string? PaymentMethod = null);
 public sealed record GatewayCreateResult(string? ProviderOrderId, string? ProviderReference,
     string? PaymentLink, string? PaymentAction);
 public sealed record GatewayStatusResult(string Status, string? ProviderPaymentId);

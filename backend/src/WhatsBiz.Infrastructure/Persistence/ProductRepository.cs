@@ -17,17 +17,30 @@ public sealed class ProductRepository(ApplicationDbContext context, ICurrentUser
     {
         var query = TenantProducts.AsNoTracking().Include(x => x.Category).Include(x => x.Brand).Include(x => x.Unit).Where(x => !x.IsDeleted);
         if (!string.IsNullOrWhiteSpace(search)) { var term = search.Trim(); query = query.Where(x => x.ProductCode.Contains(term) || x.ProductName.Contains(term) || (x.Barcode != null && x.Barcode.Contains(term))); }
-        if (isActive.HasValue) query = query.Where(x => x.IsActive == isActive);
+        if (isActive.HasValue) query = query.Where(x => x.IsActive == isActive.Value);
         if (categoryId.HasValue) query = query.Where(x => x.CategoryId == categoryId);
         if (brandId.HasValue) query = query.Where(x => x.BrandId == brandId);
         query = (sortBy.ToLowerInvariant(), descending) switch { ("createdon", false) => query.OrderBy(x => x.CreatedOn), ("createdon", true) => query.OrderByDescending(x => x.CreatedOn), ("productcode", false) => query.OrderBy(x => x.ProductCode), ("productcode", true) => query.OrderByDescending(x => x.ProductCode), ("sellingprice", false) => query.OrderBy(x => x.SellingPrice), ("sellingprice", true) => query.OrderByDescending(x => x.SellingPrice), ("categoryname", false) => query.OrderBy(x => x.Category.CategoryName), ("categoryname", true) => query.OrderByDescending(x => x.Category.CategoryName), (_, true) => query.OrderByDescending(x => x.ProductName), _ => query.OrderBy(x => x.ProductName) };
         var count = await query.CountAsync(cancellationToken);
         var items = await query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToArrayAsync(cancellationToken);
+        await ResolvePrimaryImageUrls(items, cancellationToken);
         return (items, count);
     }
 
     public async Task<IReadOnlyCollection<Product>> GetManyAsync(IReadOnlyCollection<Guid> ids, bool tracking, CancellationToken cancellationToken) { var query = TenantProducts.Where(x => !x.IsDeleted && ids.Contains(x.ProductId)); if (!tracking) query = query.AsNoTracking(); return await query.ToArrayAsync(cancellationToken); }
-    public Task<Product?> GetAsync(Guid id, bool tracking, CancellationToken cancellationToken) { var query = TenantProducts.Include(x => x.Category).Include(x => x.Brand).Include(x => x.Unit).Include(x => x.Barcodes).Where(x => !x.IsDeleted); if (!tracking) query = query.AsNoTracking(); return query.SingleOrDefaultAsync(x => x.ProductId == id, cancellationToken); }
+    public async Task<Product?> GetAsync(Guid id, bool tracking, CancellationToken cancellationToken) { var query = TenantProducts.Include(x => x.Category).Include(x => x.Brand).Include(x => x.Unit).Include(x => x.Barcodes).Where(x => !x.IsDeleted); if (!tracking) query = query.AsNoTracking(); var product = await query.SingleOrDefaultAsync(x => x.ProductId == id, cancellationToken); if (product is not null && !tracking) await ResolvePrimaryImageUrls([product], cancellationToken); return product; }
+    private async Task ResolvePrimaryImageUrls(IReadOnlyCollection<Product> products, CancellationToken token)
+    {
+        if (products.Count == 0) return;
+        var ids = products.Select(x => x.ProductId).ToArray();
+        var rows = await TenantImages.AsNoTracking().Where(x => ids.Contains(x.ProductId) && !x.IsDeleted && x.IsActive)
+            .OrderByDescending(x => x.IsPrimary).ThenBy(x => x.CreatedOn)
+            .Select(x => new { x.ProductId, x.ProductImageId }).ToArrayAsync(token);
+        var primary = rows.GroupBy(x => x.ProductId).ToDictionary(x => x.Key, x => x.First().ProductImageId);
+        foreach (var product in products)
+            product.ImageUrl = primary.TryGetValue(product.ProductId, out var imageId)
+                ? $"/api/products/{product.ProductId}/images/{imageId}" : null;
+    }
     public async Task<IReadOnlyCollection<ProductHistoryDto>> GetHistoryAsync(Guid id, CancellationToken cancellationToken)
     {
         var rows = new List<ProductHistoryDto>();

@@ -37,7 +37,7 @@ public sealed class StorefrontCheckoutArchitectureTests
         var source = File.ReadAllText(Path.Combine(Root(), "backend", "src", "WhatsBiz.Infrastructure", "Storefront", "StorefrontCheckoutService.cs"));
         source.Should().Contain("p.SellingPrice").And.Contain("p.GSTPercentage");
         source.Should().Contain("QuantityOnHand-b.QuantityReserved");
-        source.Should().Contain("CreateAttemptForTenantAsync").And.Contain("PaymentProviders.Razorpay");
+        source.Should().Contain("CreateAttemptForTenantAsync").And.Contain("PaymentProviders.Razorpay").And.Contain("p.IsActive=1");
         source.Should().NotContain("KeySecret").And.NotContain("WebhookSecret");
     }
 

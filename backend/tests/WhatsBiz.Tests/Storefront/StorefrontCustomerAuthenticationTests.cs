@@ -1,5 +1,6 @@
 using System.Reflection;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.RateLimiting;
 using WhatsBiz.Api.Controllers;
 using WhatsBiz.Application.Features.Storefront;
@@ -105,6 +106,91 @@ public sealed class StorefrontCustomerAuthenticationTests
         typeof(StorefrontOtpVerifyInput).GetProperties().Select(x=>x.Name).Should()
             .BeEquivalentTo(["ChallengeId","MobileNumber","Otp","Name","Email"]);
         typeof(StorefrontOtpVerifyInput).GetProperties().Select(x=>x.Name).Should().NotContain(["TenantId","CustomerId"]);
+    }
+
+    [Fact]
+    public async Task QaTestModeUsesDefaultCodeAndSkipsProvider()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["StorefrontOtp:QaTestModeEnabled"] = "true"
+        }).Build();
+        var policy = new StorefrontOtpPolicy("QA", configuration);
+        policy.CreateCode().Should().Be("123456");
+        policy.SkipDelivery.Should().BeTrue();
+        var sender = new CustomerOtpSender(policy, configuration, new ThrowingClientFactory());
+        await sender.SendAsync("9876543210", policy.CreateCode(), Guid.NewGuid(), CancellationToken.None);
+    }
+
+    [Theory]
+    [InlineData("Development")]
+    [InlineData("Test")]
+    public void ExistingLocalTestModeStillUsesFixedCode(string environmentName)
+    {
+        var policy = new StorefrontOtpPolicy(environmentName, new ConfigurationBuilder().Build());
+        policy.CreateCode().Should().Be("123456");
+        policy.SkipDelivery.Should().BeTrue();
+    }
+    [Fact]
+    public void QaTestModeAcceptsOnlySixDigitOverride()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["StorefrontOtp:QaTestModeEnabled"] = "true",
+            ["StorefrontOtp:QaTestCode"] = "654321"
+        }).Build();
+        new StorefrontOtpPolicy("QA", configuration).CreateCode().Should().Be("654321");
+
+        configuration["StorefrontOtp:QaTestCode"] = "not-six-digits";
+        Action invalid = () => { _ = new StorefrontOtpPolicy("QA", configuration); };
+        invalid.Should().Throw<InvalidOperationException>();
+    }
+
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    [InlineData("Development")]
+    [InlineData("Test")]
+    [InlineData("Qa")]
+    public void QaTestModeFailsStartupOutsideExactQa(string environmentName)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["StorefrontOtp:QaTestModeEnabled"] = "true"
+        }).Build();
+        Action startup = () => { _ = new StorefrontOtpPolicy(environmentName, configuration); };
+        startup.Should().Throw<InvalidOperationException>();
+    }
+
+    [Theory]
+    [InlineData("QA")]
+    [InlineData("Production")]
+    public async Task WithoutQaTestModeRequiresProvider(string environmentName)
+    {
+        var configuration = new ConfigurationBuilder().Build();
+        var policy = new StorefrontOtpPolicy(environmentName, configuration);
+        policy.SkipDelivery.Should().BeFalse();
+        var sender = new CustomerOtpSender(policy, configuration, new ThrowingClientFactory());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sender.SendAsync("9876543210", policy.CreateCode(), Guid.NewGuid(), CancellationToken.None));
+    }
+
+    [Fact]
+    public void ChallengeVerificationRejectsWrongCodeExpiryAndReuse()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var salt = Enumerable.Repeat((byte)7, 16).ToArray();
+        var expected = StorefrontCustomerAuthenticationService.HashOtp("123456", salt);
+        StorefrontCustomerAuthenticationService.OtpMatches(expected, salt, "123456").Should().BeTrue();
+        StorefrontCustomerAuthenticationService.OtpMatches(expected, salt, "000000").Should().BeFalse();
+        StorefrontCustomerAuthenticationService.CanVerifyChallenge(now.AddMinutes(5), null, 0, now).Should().BeTrue();
+        StorefrontCustomerAuthenticationService.CanVerifyChallenge(now, null, 0, now).Should().BeFalse();
+        StorefrontCustomerAuthenticationService.CanVerifyChallenge(now.AddMinutes(5), now, 0, now).Should().BeFalse();
+        StorefrontCustomerAuthenticationService.CanVerifyChallenge(now.AddMinutes(5), null, 5, now).Should().BeFalse();
+    }
+
+    private sealed class ThrowingClientFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => throw new InvalidOperationException("The provider must not be called.");
     }
 
     private static string Read(string relative)=>File.ReadAllText(Path.Combine(Root(),relative.Replace('/',Path.DirectorySeparatorChar)));

@@ -130,6 +130,7 @@ export class DataTableComponent<T extends object> {
   emitSelection(): void {
     this.selectionChange.emit(this.api?.getSelectedRows() ?? []);
   }
+  clearSelection(): void { this.api?.deselectAll(); this.selectionChange.emit([]); }
   emitSort(event: SortChangedEvent<T>): void {
     const column = event.api.getColumnState().find((item) => item.sort);
     this.sortChange.emit({ field: column?.colId ?? '', direction: column?.sort ?? '' });

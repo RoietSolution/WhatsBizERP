@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, OnDestroy, inject, signal, viewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { HttpClient } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -52,7 +54,11 @@ import { finalize } from 'rxjs';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CategoryManagementComponent {
+export class CategoryManagementComponent implements OnDestroy {
+  readonly categoryImages=signal<Record<string,string>>({});
+  private readonly destroyRef=inject(DestroyRef);
+  private imageGeneration=0;
+  ngOnDestroy(){this.imageGeneration++;for(const url of Object.values(this.categoryImages()))URL.revokeObjectURL(url);}
   private readonly fb = inject(FormBuilder);
   readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
   readonly importing = signal(false);
@@ -70,6 +76,7 @@ export class CategoryManagementComponent {
     isActive: [true],
   });
   constructor(
+    private readonly http: HttpClient,
     private readonly api: ProductApiService,
     private readonly snack: MatSnackBar,
     private readonly dialog: MatDialog,
@@ -80,6 +87,7 @@ export class CategoryManagementComponent {
     this.api.categories().subscribe((items) => {
       this.items.set(items);
       this.flat.set(this.flatten(items));
+      this.loadCategoryImages(items);
     });
   }
   save(): void {
@@ -139,7 +147,13 @@ export class CategoryManagementComponent {
       error: () => this.snack.open('Category import failed.', 'Dismiss', { duration: 4000 }),
     });
   }
-  categoryImage(id:string):string{return `/api/storefront-administration/categories/${id}/image?v=${this.imageVersion()}`;}
+  categoryImage(id:string):string|undefined{return this.categoryImages()[id];}
+  private loadCategoryImages(items:Category[]):void{
+    const generation=++this.imageGeneration;
+    for(const url of Object.values(this.categoryImages()))URL.revokeObjectURL(url);
+    this.categoryImages.set({});
+    for(const item of this.flatten(items))this.http.get(`/api/storefront-administration/categories/${item.productCategoryId}/image`,{responseType:"blob"}).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({next:blob=>{const url=URL.createObjectURL(blob);if(generation!==this.imageGeneration){URL.revokeObjectURL(url);return;}this.categoryImages.update(images=>({...images,[item.productCategoryId]:url}));},error:()=>{}});
+  }
   hideBrokenImage(event:Event):void{(event.target as HTMLImageElement).style.display='none';}
   uploadCategoryImage(id:string,event:Event):void{const input=event.target as HTMLInputElement,file=input.files?.[0];if(!file)return;this.api.uploadCategoryStorefrontImage(id,file).subscribe({next:()=>{this.imageVersion.set(Date.now());input.value='';this.snack.open('Category image updated.',undefined,{duration:2000});},error:()=>this.snack.open('Category image could not be uploaded.','Dismiss',{duration:4000})});}
   removeCategoryImage(id:string):void{this.api.removeCategoryStorefrontImage(id).subscribe({next:()=>{this.imageVersion.set(Date.now());this.snack.open('Category image removed.',undefined,{duration:2000});},error:()=>this.snack.open('Category image could not be removed.','Dismiss',{duration:4000})});}

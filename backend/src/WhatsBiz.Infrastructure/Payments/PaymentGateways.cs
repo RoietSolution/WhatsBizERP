@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Application.Features.Payments;
 
@@ -16,6 +17,7 @@ public sealed class PaymentGatewayResolver(IEnumerable<IPaymentGateway> gateways
 
 public sealed class RazorpayPaymentGateway(IHttpClientFactory clients) : IPaymentGateway
 {
+    private static readonly JsonSerializerOptions PaymentLinkJsonOptions = new() { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
     public string Provider => PaymentProviders.Razorpay;
 
     public async Task<GatewayCreateResult> CreatePaymentAsync(PaymentGatewayConfiguration configuration, GatewayCreateRequest request, CancellationToken token)
@@ -33,19 +35,26 @@ public sealed class RazorpayPaymentGateway(IHttpClientFactory clients) : IPaymen
             customer = new { name = request.CustomerName, contact = request.CustomerMobile },
             notify = new { sms = false, email = false },
             reminder_enable = false,
+            options = request.PaymentMethod switch
+            {
+                "UPI" => new { checkout = new { method = new { upi = true, netbanking = false, card = false, wallet = false } } },
+                "NET_BANKING" => new { checkout = new { method = new { upi = false, netbanking = true, card = false, wallet = false } } },
+                _ => null
+            },
             notes = new { payment_id = request.PaymentId.ToString("N"), order_number = request.OrderNumber }
         };
         using var message = new HttpRequestMessage(HttpMethod.Post, "payment_links");
         message.Headers.Authorization = new AuthenticationHeaderValue("Basic",
             Convert.ToBase64String(Encoding.UTF8.GetBytes($"{configuration.KeyId}:{configuration.KeySecret}")));
-        message.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+        message.Content = new StringContent(JsonSerializer.Serialize(payload, PaymentLinkJsonOptions), Encoding.UTF8, "application/json");
         using var response = await clients.CreateClient("Razorpay").SendAsync(message, token);
         var body = await response.Content.ReadAsStringAsync(token);
         if (!response.IsSuccessStatusCode) throw new BusinessRuleException("Razorpay could not create the payment link. Verify the retailer configuration and retry.");
         using var json = JsonDocument.Parse(body); var root = json.RootElement;
         var linkId = root.GetProperty("id").GetString() ?? throw new BusinessRuleException("Razorpay returned an invalid payment-link response.");
+        var providerOrderId = root.TryGetProperty("order_id", out var orderIdElement) ? orderIdElement.GetString() : null;
         var shortUrl = root.GetProperty("short_url").GetString() ?? throw new BusinessRuleException("Razorpay returned no payment URL.");
-        return new(null, linkId, shortUrl, shortUrl);
+        return new(providerOrderId, linkId, shortUrl, shortUrl);
     }
 
     public async Task<GatewayStatusResult> GetPaymentStatusAsync(PaymentGatewayConfiguration configuration, string providerReference, CancellationToken token)
@@ -73,8 +82,9 @@ public sealed class RazorpayPaymentGateway(IHttpClientFactory clients) : IPaymen
         var eventType = root.TryGetProperty("event", out var e) ? e.GetString() : null;
         var payload = root.TryGetProperty("payload", out var p) ? p : default;
         var payment = Entity(payload, "payment"); var link = Entity(payload, "payment_link"); var order = Entity(payload, "order");
-        var providerPaymentId = Text(payment, "id");
-        var providerOrderId = Text(payment, "order_id") ?? Text(order, "id");
+        var linkPayment = link.ValueKind == JsonValueKind.Object && link.TryGetProperty("payments", out var linkPayments) && linkPayments.ValueKind == JsonValueKind.Array && linkPayments.GetArrayLength() > 0 ? linkPayments[0] : default;
+        var providerPaymentId = Text(payment, "id") ?? Text(linkPayment, "payment_id");
+        var providerOrderId = Text(payment, "order_id") ?? Text(order, "id") ?? Text(link, "order_id");
         var providerReference = Text(link, "id");
         var amountMinor = Long(payment, "amount") ?? Long(link, "amount_paid");
         var currency = Text(payment, "currency") ?? Text(link, "currency");

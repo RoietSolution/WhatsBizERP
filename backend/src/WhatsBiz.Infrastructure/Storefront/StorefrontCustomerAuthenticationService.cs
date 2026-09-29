@@ -11,11 +11,39 @@ using WhatsBiz.Application.Features.Storefront;
 
 namespace WhatsBiz.Infrastructure.Storefront;
 
-public sealed class CustomerOtpSender(IHostEnvironment environment, IConfiguration configuration, IHttpClientFactory clients) : ICustomerOtpSender
+public sealed class StorefrontOtpPolicy
+{
+    private readonly string? fixedCode;
+    public bool SkipDelivery { get; }
+
+    public StorefrontOtpPolicy(string environmentName, IConfiguration configuration)
+    {
+        var qaEnabled = configuration.GetValue<bool>("StorefrontOtp:QaTestModeEnabled");
+        if (qaEnabled && !string.Equals(environmentName, "QA", StringComparison.Ordinal))
+            throw new InvalidOperationException("Storefront QA test OTP mode is only allowed in the exact QA environment.");
+
+        if (environmentName is "Development" or "Test")
+        {
+            fixedCode = configuration["StorefrontOtp:DevelopmentCode"] ?? "123456";
+            SkipDelivery = true;
+        }
+        else if (qaEnabled)
+        {
+            fixedCode = configuration["StorefrontOtp:QaTestCode"] ?? "123456";
+            if (fixedCode.Length != 6 || !fixedCode.All(c => c is >= '0' and <= '9'))
+                throw new InvalidOperationException("Storefront QA test OTP code must be six digits.");
+            SkipDelivery = true;
+        }
+    }
+
+    public string CreateCode() => fixedCode ?? RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6", CultureInfo.InvariantCulture);
+}
+
+public sealed class CustomerOtpSender(StorefrontOtpPolicy policy, IConfiguration configuration, IHttpClientFactory clients) : ICustomerOtpSender
 {
     public async Task SendAsync(string normalizedMobile, string otp, Guid challengeId, CancellationToken token)
     {
-        if (environment.IsDevelopment() || environment.IsEnvironment("Test")) return;
+        if (policy.SkipDelivery) return;
         var endpoint = configuration["StorefrontOtp:Endpoint"];
         var accessToken = configuration["StorefrontOtp:AccessToken"];
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(accessToken))
@@ -30,7 +58,7 @@ public sealed class CustomerOtpSender(IHostEnvironment environment, IConfigurati
 
 public sealed partial class StorefrontCustomerAuthenticationService(
     IConfiguration configuration,
-    IHostEnvironment environment,
+    StorefrontOtpPolicy policy,
     ICustomerOtpSender sender,
     IStorefrontCustomerService customers) : IStorefrontCustomerAuthenticationService
 {
@@ -47,7 +75,7 @@ public sealed partial class StorefrontCustomerAuthenticationService(
         if (tenantId is null || mobile is null) return null;
         var now = DateTimeOffset.UtcNow;
         var challengeId = Guid.NewGuid();
-        var otp = DevelopmentOtp() ?? RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6", CultureInfo.InvariantCulture);
+        var otp = policy.CreateCode();
         var salt = RandomNumberGenerator.GetBytes(16);
         var hash = HashOtp(otp, salt);
         await using var connection = await Open(tenantId.Value, token);
@@ -130,10 +158,9 @@ public sealed partial class StorefrontCustomerAuthenticationService(
             if (!await reader.ReadAsync(token)) { await transaction.RollbackAsync(token); return null; }
             expected=(byte[])reader[0];salt=(byte[])reader[1];expires=reader.GetDateTimeOffset(2);attempts=reader.GetInt32(3);consumed=reader.IsDBNull(4)?null:reader.GetDateTimeOffset(4);
         }
-        if (consumed is not null || expires <= DateTimeOffset.UtcNow || attempts >= MaxAttempts)
+        if (!CanVerifyChallenge(expires, consumed, attempts, DateTimeOffset.UtcNow))
         { await transaction.RollbackAsync(token); return null; }
-        var actual = HashOtp(input.Otp!, salt);
-        if (!CryptographicOperations.FixedTimeEquals(expected, actual))
+        if (!OtpMatches(expected, salt, input.Otp!))
         {
             await using var fail = new SqlCommand("UPDATE commerce.StorefrontOtpChallenges SET AttemptCount=AttemptCount+1 WHERE ChallengeId=@id AND TenantId=@tenant;", connection, transaction);
             fail.Parameters.AddWithValue("@id", input.ChallengeId); fail.Parameters.AddWithValue("@tenant", tenantId);
@@ -174,8 +201,10 @@ public sealed partial class StorefrontCustomerAuthenticationService(
         return digits;
     }
     internal static byte[] HashOtp(string otp, byte[] salt) => Rfc2898DeriveBytes.Pbkdf2(otp, salt, 100_000, HashAlgorithmName.SHA256, 32);
-    private string? DevelopmentOtp() => environment.IsDevelopment() || environment.IsEnvironment("Test")
-        ? configuration["StorefrontOtp:DevelopmentCode"] ?? "123456" : null;
+    internal static bool CanVerifyChallenge(DateTimeOffset expires, DateTimeOffset? consumed, int attempts, DateTimeOffset now)
+        => consumed is null && expires > now && attempts < MaxAttempts;
+    internal static bool OtpMatches(byte[] expected, byte[] salt, string otp)
+        => CryptographicOperations.FixedTimeEquals(expected, HashOtp(otp, salt));
     private static string? NormalizeEmail(string? value) => string.IsNullOrWhiteSpace(value) ? null
         : MailAddress.TryCreate(value.Trim(), out var address) && value.Trim().Length <= 256 ? address.Address.ToLowerInvariant() : null;
 

@@ -12,6 +12,8 @@ namespace WhatsBiz.Api.Controllers;
 [Route("api/store/{storeKey}")]
 public sealed partial class StoreController(IStorefrontService storefront, IStorefrontCheckoutService checkout, IStorefrontCustomerService customers, IStorefrontCustomerAuthenticationService customerAuth, IStorefrontReviewService reviews, IStorefrontCancellationService cancellations, ILogger<StoreController> logger) : ControllerBase
 {
+    private const long MaxProfileImageBytes = 5 * 1024 * 1024;
+    private const long MaxProfileImageRequestBytes = 6 * 1024 * 1024;
     [HttpGet]
     public async Task<ActionResult<StorefrontStoreDto>> GetStore(string storeKey, CancellationToken token)
     {
@@ -139,10 +141,11 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         return session is null ? Unauthorized() : Ok(session);
     }
     [HttpPost("session/profile-image")]
-    [RequestSizeLimit(5 * 1024 * 1024)]
+    [RequestSizeLimit(MaxProfileImageRequestBytes)]
     public async Task<ActionResult<StorefrontCustomerDto>> UploadProfileImage(string storeKey, IFormFile file, CancellationToken token)
     {
         if (file is null || file.Length == 0) return BadRequest(new { message = "Choose an image to upload." });
+        if (file.Length > MaxProfileImageBytes) return BadRequest(new { message = "Choose an image up to 5 MB." });
         try { await using var stream = file.OpenReadStream(); var result = await customers.UploadProfileImageAsync(storeKey, CustomerSessionToken(), file.FileName, stream, token); return result is null ? Unauthorized() : Ok(result); }
         catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
         catch (Exception exception) { StorefrontControllerLogs.ProfileUploadFailed(logger, exception, storeKey); return Problem(statusCode: StatusCodes.Status500InternalServerError, title: "Profile image upload failed."); }

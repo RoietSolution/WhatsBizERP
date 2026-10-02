@@ -203,11 +203,22 @@ public sealed class StorefrontCustomerService(
         var database=stored.Provider.Equals(ProductImageStorageProviders.Database,StringComparison.OrdinalIgnoreCase);
         await using var connection=await Open(session.TenantId,token);
         Guid? old=null;StorefrontMediaStorageDeleteRequest? oldStorage=null;
-        await using(var select=new SqlCommand("SELECT c.ProfileMediaId,m.StorageProvider,m.ObjectKey,m.ThumbnailObjectKey FROM sales.Customers c LEFT JOIN commerce.StorefrontMedia m ON m.TenantId=c.TenantId AND m.MediaId=c.ProfileMediaId WHERE c.TenantId=@tenant AND c.CustomerId=@customer;",connection))
-        {select.Parameters.AddWithValue("@tenant",session.TenantId);select.Parameters.AddWithValue("@customer",session.CustomerId);await using var reader=await select.ExecuteReaderAsync(token);if(await reader.ReadAsync(token)){old=reader.IsDBNull(0)?null:reader.GetGuid(0);if(!reader.IsDBNull(1))oldStorage=new(session.TenantId,reader.GetString(1),reader.IsDBNull(2)?null:reader.GetString(2),reader.IsDBNull(3)?null:reader.GetString(3));}}
         await using var transaction=await connection.BeginTransactionAsync(token);
         try
         {
+            // V45 makes customer media unique even when ProfileMediaId is null.
+            // Lock and reuse any existing customer-profile row before considering an insert.
+            await using(var select=new SqlCommand("""
+                SELECT TOP(1) m.MediaId,m.StorageProvider,m.ObjectKey,m.ThumbnailObjectKey
+                FROM commerce.StorefrontMedia m WITH (UPDLOCK,HOLDLOCK)
+                WHERE m.TenantId=@tenant AND m.CustomerId=@customer AND m.ResourceType=N'customer-profile'
+                ORDER BY CASE WHEN m.MediaId=(SELECT ProfileMediaId FROM sales.Customers WHERE TenantId=@tenant AND CustomerId=@customer) THEN 0 ELSE 1 END,m.CreatedAt DESC;
+                """,connection,(SqlTransaction)transaction))
+            {
+                select.Parameters.AddWithValue("@tenant",session.TenantId);select.Parameters.AddWithValue("@customer",session.CustomerId);
+                await using var reader=await select.ExecuteReaderAsync(token);
+                if(await reader.ReadAsync(token)){old=reader.GetGuid(0);oldStorage=new(session.TenantId,reader.GetString(1),reader.IsDBNull(2)?null:reader.GetString(2),reader.IsDBNull(3)?null:reader.GetString(3));}
+            }
             var id=old??Guid.NewGuid();
             await using var command=new SqlCommand(old.HasValue?"UPDATE commerce.StorefrontMedia SET FileName=@file,ContentType=@content,ThumbnailContentType=N'image/webp',StorageProvider=@provider,ObjectKey=@object,ThumbnailObjectKey=@thumb,ImageData=@data,ThumbnailData=@thumbdata,ContentHash=@hash,CreatedAt=SYSUTCDATETIME() WHERE MediaId=@id AND TenantId=@tenant AND CustomerId=@customer AND ResourceType=N'customer-profile';":"INSERT commerce.StorefrontMedia(MediaId,TenantId,CustomerId,ResourceType,FileName,ContentType,ThumbnailContentType,StorageProvider,ObjectKey,ThumbnailObjectKey,ImageData,ThumbnailData,ContentHash,CreatedAt) VALUES(@id,@tenant,@customer,N'customer-profile',@file,@content,N'image/webp',@provider,@object,@thumb,@data,@thumbdata,@hash,SYSUTCDATETIME());",connection,(SqlTransaction)transaction);
             command.Parameters.AddWithValue("@id",id);command.Parameters.AddWithValue("@tenant",session.TenantId);command.Parameters.AddWithValue("@customer",session.CustomerId);command.Parameters.AddWithValue("@file",optimized.FileName);command.Parameters.AddWithValue("@content",optimized.ContentType);command.Parameters.AddWithValue("@provider",stored.Provider);command.Parameters.AddWithValue("@object",(object?)stored.ObjectKey??DBNull.Value);command.Parameters.AddWithValue("@thumb",(object?)stored.ThumbnailObjectKey??DBNull.Value);command.Parameters.AddWithValue("@data",(object?)(database?optimized.CatalogData:null)??DBNull.Value);command.Parameters.AddWithValue("@thumbdata",(object?)(database?optimized.ThumbnailData:null)??DBNull.Value);command.Parameters.AddWithValue("@hash",stored.ContentHash);

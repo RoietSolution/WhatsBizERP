@@ -1,13 +1,13 @@
-import { Injectable } from '@angular/core';
-import { CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerOrder, Product, ProductReview, ProductReviewSummary, Store, StorefrontOffer } from '../models/storefront.models';
+﻿import { Injectable } from '@angular/core';
+import { CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer } from '../models/storefront.models';
 import { StorefrontDataProvider } from './storefront-data.provider';
 
 const guturgoCategories: Category[] = [
   { id: 'all', name: 'All', emoji: '✨' },
-  { id: 'dairy', name: 'Dairy & Eggs', emoji: '🥛' },
-  { id: 'fruits', name: 'Fruits & Veg', emoji: '🥑' },
+  { id: 'dairy', name: 'Dairy & Eggs', emoji: '🥚' },
+  { id: 'fruits', name: 'Fruits & Veg', emoji: '🍎' },
   { id: 'bakery', name: 'Bakery', emoji: '🥐' },
-  { id: 'pantry', name: 'Pantry', emoji: '🫙' },
+  { id: 'pantry', name: 'Pantry', emoji: '🛒' },
   { id: 'snacks', name: 'Snacks', emoji: '🍪' },
 ];
 
@@ -47,9 +47,7 @@ export class DevelopmentStorefrontDataProvider implements StorefrontDataProvider
     return storeKey.toLowerCase() === demoStore.storeKey ? guturgoCategories : [];
   }
 
-  async getProducts(storeKey: string): Promise<Product[]> {
-    return storeKey.toLowerCase() === demoStore.storeKey ? guturgoProducts : [];
-  }
+  async getProducts(storeKey: string, page = 1, pageSize = 24): Promise<ProductPage> { const all = storeKey.toLowerCase() === demoStore.storeKey ? guturgoProducts : []; const items = all.slice((page - 1) * pageSize, page * pageSize); return { items, pageNumber: page, pageSize, totalCount: all.length, hasMore: page * pageSize < all.length }; }
 
   async getOffer(_storeKey:string,_offerId:string):Promise<StorefrontOffer|null>{return null;}
   async getProduct(storeKey: string, productId: string): Promise<Product | null> {
@@ -63,11 +61,18 @@ export class DevelopmentStorefrontDataProvider implements StorefrontDataProvider
 
   async getOrder(_storeKey:string,_orderId:string):Promise<CustomerOrder|null>{return null;}
   async requestCancellation(_storeKey:string,_orderId:string,_reason:string):Promise<void>{return;}
-  async quote(_storeKey:string,lines:readonly CartLine[],pincode:string):Promise<CartQuote|null>{const amount=lines.filter(x=>x.product.available).reduce((sum,x)=>sum+x.product.sellingPrice*x.quantity,0);const threshold=demoStore.freeDeliveryThreshold;const serviceable=/^[0-9]{6}$/.test(pincode);const unlocked=!!threshold&&amount>=threshold;const charge=serviceable&&!unlocked?40:0;return{eligibleAmount:amount,freeDeliveryThreshold:threshold,remainingAmount:Math.max(0,(threshold??0)-amount),progressPercent:threshold?Math.min(100,Math.round(amount/threshold*100)):0,isFreeDeliveryUnlocked:unlocked,isDeliveryEnabled:true,isPincodeServiceable:serviceable,merchandiseAmount:amount,merchandiseTaxAmount:0,standardDeliveryCharge:40,freeDeliveryEnabled:!!threshold,deliveryCharge:charge,promotionDiscount:0,finalPayableAmount:amount+charge};}
+  async quote(_storeKey:string,lines:readonly CartLine[],pincode:string):Promise<CartQuote|null>{const amount=lines.filter(x=>x.product.available).reduce((sum,x)=>sum+x.product.sellingPrice*x.quantity,0);const threshold=demoStore.freeDeliveryThreshold;const serviceable=/^[0-9]{6}$/.test(pincode);const unlocked=!!threshold&&amount>=threshold;const charge=serviceable&&!unlocked?40:0;return{eligibleAmount:amount,freeDeliveryThreshold:threshold,remainingAmount:Math.max(0,(threshold??0)-amount),progressPercent:threshold?Math.min(100,Math.round(amount/threshold*100)):0,isFreeDeliveryUnlocked:unlocked,isDeliveryEnabled:true,isPincodeServiceable:serviceable,merchandiseAmount:amount,merchandiseTaxAmount:0,merchandiseSubtotal:amount,standardDeliveryCharge:40,freeDeliveryEnabled:!!threshold,deliveryCharge:charge,promotionDiscount:0,finalPayableAmount:amount+charge};}
   async getReviews(_storeKey:string,productId:string):Promise<ProductReviewSummary>{const ratings=[5,5,4,4,4,3];const comments=['Excellent quality and neatly packed.','Fresh product and quick delivery.','Good value for the pack size.','Product matched the description.','Would order this again.','Good overall, packaging can improve.'];const reviews=ratings.map((rating,i)=>({reviewId:`demo-${productId}-${i}`,reviewerName:`Demo shopper ${i+1}`,rating,reviewText:comments[i],createdAt:'2026-01-01T00:00:00Z',updatedAt:'2026-01-01T00:00:00Z',isOwn:false}));return{averageRating:4.2,ratingCount:reviews.length,reviews};}
   async saveReview(_storeKey:string,productId:string,rating:number,reviewText:string):Promise<ProductReview>{return{reviewId:`demo-own-${productId}`,reviewerName:'Development customer',rating,reviewText,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),isOwn:true};}
 
+  async getAddresses(_storeKey:string):Promise<CustomerAddress[]>{return[];}
+  async saveAddress(_storeKey:string,address:CustomerAddressInput):Promise<CustomerAddress>{return{...address,addressId:crypto.randomUUID()};}
+  async deleteAddress(_storeKey:string,_addressId:string):Promise<void>{}
+  async setDefaultAddress(_storeKey:string,_addressId:string):Promise<void>{}
+  async uploadProfileImage(_storeKey:string,_file:File):Promise<void>{}
+  async removeProfileImage(_storeKey:string):Promise<void>{}
   async checkout(_storeKey: string, _customer: CheckoutCustomer, lines: readonly CartLine[], _idempotencyKey: string, paymentMethod: string): Promise<CheckoutResult> {
     const quote=await this.quote(_storeKey,lines,_customer.pincode);if(!quote?.isPincodeServiceable)throw new Error('Delivery is unavailable at this pincode.');return { orderId: crypto.randomUUID(), orderNumber: 'MOCK-ORDER', amount: quote.finalPayableAmount, currency: 'INR', paymentId: crypto.randomUUID(), paymentProvider: paymentMethod === "COD" ? "COD" : "RAZORPAY", paymentMethod, paymentStatus:'PENDING', customerSessionToken:'development-session' };
   }
 }
+

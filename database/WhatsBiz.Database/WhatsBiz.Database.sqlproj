@@ -74,8 +74,6 @@
     <None Include="Scripts\V38-StorefrontPresentation.sql"/>
     <None Include="Scripts\V39-StorefrontCustomerSessions.sql"/>
     <None Include="Scripts\V40-StorefrontAllCategoryImage.sql"/>
-    <None Include="Scripts\V41-StorefrontOfferContent.sql"/>
-    <None Include="Scripts\V42-StorefrontPaymentMethods.sql"/>
     <None Include="Scripts\V5-DashboardInventoryAvailability.sql"/>
     <None Include="Scripts\V6-DashboardTenantOwnershipAudit.sql"/>
     <None Include="Scripts\V7-SafeInventoryTenantColumns.sql"/>

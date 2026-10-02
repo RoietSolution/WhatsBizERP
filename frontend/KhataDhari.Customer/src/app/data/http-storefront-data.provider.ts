@@ -2,14 +2,15 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerOrder, Product, ProductReview, ProductReviewSummary, Store, StorefrontOffer } from '../models/storefront.models';
+import { CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer } from '../models/storefront.models';
 import { StorefrontDataProvider } from './storefront-data.provider';
 import { CustomerSessionService } from '../customer-session.service';
 
 interface ApiStore { storeKey: string; name: string; tagline?: string; logoUrl?: string | null; allCategoryImageUrl?: string | null; accentColor?: string; deliveryMessage?: string; freeDeliveryThreshold?:number|null; banners?: Array<{slot:'PRIMARY'|'SECONDARY';imageUrl:string;title?:string;subtitle?:string;targetUrl?:string;displayOrder:number;promotionId?:string|null}>; showProductRatings?:boolean; showProductReviews?:boolean; paymentMethods?: Array<{code:'UPI'|'NET_BANKING'|'COD';provider:'RAZORPAY'|'COD';label:string;description:string;isDefault:boolean;usesHostedPaymentPage:boolean}>; }
 interface ApiCategory { id: string; name: string; imageUrl?: string | null; }
 interface ApiOffer extends StorefrontOffer {}
-interface ApiProduct { id: string; categoryId: string; name: string; description?: string | null; imageUrl?: string | null; sellingPrice: number; compareAtPrice?: number | null; availability: 'IN_STOCK' | 'OUT_OF_STOCK'; packSize?: string | null; averageRating?: number | null; ratingCount?: number; }
+interface ApiProductPage { items: ApiProduct[]; pageNumber: number; pageSize: number; totalCount: number; hasMore: boolean; }
+interface ApiProduct { id: string; categoryId: string; name: string; description?: string | null; imageUrl?: string | null; sellingPrice: number; compareAtPrice?: number | null; availability: 'IN_STOCK' | 'OUT_OF_STOCK'; packSize?: string | null; averageRating?: number | null; ratingCount?: number; returnPolicyMode?: "INHERIT_DEFAULT" | "CUSTOM" | "NON_RETURNABLE"; returnWindowDays?: number | null; isReturnable?: boolean; }
 
 @Injectable({ providedIn: 'root' })
 export class HttpStorefrontDataProvider implements StorefrontDataProvider {
@@ -27,10 +28,7 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
     return categories.map((category) => ({ id: category.id, name: category.name, imageUrl:this.asset(category.imageUrl) }));
   }
 
-  async getProducts(storeKey: string): Promise<Product[]> {
-    const products = await firstValueFrom(this.http.get<ApiProduct[]>(`${this.url(storeKey)}/products`));
-    return products.map((product) => this.mapProduct(product));
-  }
+  async getProducts(storeKey: string, page = 1, pageSize = 24): Promise<ProductPage> { const result = await firstValueFrom(this.http.get<ApiProductPage>(`${this.url(storeKey)}/products`, { params: { page, pageSize } })); return { ...result, items: result.items.map((product) => this.mapProduct(product)) }; }
 
   async getProduct(storeKey: string, productId: string): Promise<Product | null> {
     let product: ApiProduct;
@@ -50,9 +48,16 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
 
   async getOrder(storeKey:string,orderId:string):Promise<CustomerOrder|null>{const token=this.session.token(storeKey);if(!token)return null;try{return await firstValueFrom(this.http.get<CustomerOrder>(`${this.url(storeKey)}/orders/${encodeURIComponent(orderId)}`,{headers:{'X-Customer-Session':token}}));}catch(error){if(error instanceof HttpErrorResponse&&error.status===401)this.session.clear(storeKey);return null;}}
   async requestCancellation(storeKey:string,orderId:string,reason:string):Promise<void>{const token=this.session.token(storeKey);if(!token)throw new Error('Sign in to request cancellation.');await firstValueFrom(this.http.post(`${this.url(storeKey)}/orders/${encodeURIComponent(orderId)}/cancellation-request`, {reason},{headers:{'X-Customer-Session':token}}));}
-  async quote(storeKey:string,lines:readonly CartLine[],pincode:string):Promise<CartQuote|null>{if(!lines.length)return null;const token=this.session.token(storeKey);return await firstValueFrom(this.http.post<CartQuote>(`${this.url(storeKey)}/cart/quote`,{pincode,items:lines.map(x=>({productId:x.product.id,quantity:x.quantity}))},{headers:token?{'X-Customer-Session':token}:{}}));}
+  async quote(storeKey:string,lines:readonly CartLine[],pincode:string,promoCode?:string):Promise<CartQuote|null>{if(!lines.length)return null;const token=this.session.token(storeKey);return await firstValueFrom(this.http.post<CartQuote>(`${this.url(storeKey)}/cart/quote`,{pincode,promoCode:promoCode||null,items:lines.map(x=>({productId:x.product.id,quantity:x.quantity}))},{headers:token?{'X-Customer-Session':token}:{}}));}
   async getReviews(storeKey:string,productId:string):Promise<ProductReviewSummary>{const token=this.session.token(storeKey);return await firstValueFrom(this.http.get<ProductReviewSummary>(`${this.url(storeKey)}/products/${encodeURIComponent(productId)}/reviews`,{headers:token?{'X-Customer-Session':token}:{}}));}
   async saveReview(storeKey:string,productId:string,rating:number,reviewText:string):Promise<ProductReview>{return await firstValueFrom(this.http.put<ProductReview>(`${this.url(storeKey)}/products/${encodeURIComponent(productId)}/reviews/mine`,{rating,reviewText},{headers:{'X-Customer-Session':this.session.token(storeKey)}}));}
+
+  async getAddresses(storeKey:string):Promise<CustomerAddress[]>{return await firstValueFrom(this.http.get<CustomerAddress[]>(this.url(storeKey)+'/addresses',{headers:{'X-Customer-Session':this.session.token(storeKey)??''}}));}
+  async saveAddress(storeKey:string,address:CustomerAddressInput,addressId?:string):Promise<CustomerAddress>{const url=this.url(storeKey)+'/addresses'+(addressId?'/'+encodeURIComponent(addressId):'');const headers={'X-Customer-Session':this.session.token(storeKey)??''};return await firstValueFrom(addressId?this.http.put<CustomerAddress>(url,address,{headers}):this.http.post<CustomerAddress>(url,address,{headers}));}
+  async deleteAddress(storeKey:string,addressId:string):Promise<void>{await firstValueFrom(this.http.delete(this.url(storeKey)+'/addresses/'+encodeURIComponent(addressId),{headers:{'X-Customer-Session':this.session.token(storeKey)??''}}));}
+  async setDefaultAddress(storeKey:string,addressId:string):Promise<void>{await firstValueFrom(this.http.post(this.url(storeKey)+'/addresses/'+encodeURIComponent(addressId)+'/default',{}, {headers:{'X-Customer-Session':this.session.token(storeKey)??''}}));}
+  async uploadProfileImage(storeKey:string,file:File):Promise<void>{const body=new FormData();body.append('file',file,file.name);await firstValueFrom(this.http.post(this.url(storeKey)+'/session/profile-image',body,{headers:{'X-Customer-Session':this.session.token(storeKey)??''}}));await this.session.refresh(storeKey);}
+  async removeProfileImage(storeKey:string):Promise<void>{await firstValueFrom(this.http.delete(this.url(storeKey)+'/session/profile-image',{headers:{'X-Customer-Session':this.session.token(storeKey)??''}}));await this.session.refresh(storeKey);}
 
   async checkout(storeKey: string, customer: CheckoutCustomer, lines: readonly CartLine[], idempotencyKey: string, paymentMethod: string): Promise<CheckoutResult> {
     return await firstValueFrom(this.http.post<CheckoutResult>(`${this.url(storeKey)}/checkout`, {
@@ -75,7 +80,7 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
       available: product.availability === 'IN_STOCK',
       packSize: product.packSize ?? undefined,
       averageRating: product.averageRating ?? undefined,
-      ratingCount: product.ratingCount ?? 0,
+      ratingCount: product.ratingCount ?? 0, returnPolicyMode: product.returnPolicyMode, returnWindowDays: product.returnWindowDays ?? undefined, isReturnable: product.isReturnable,
     };
   }
 

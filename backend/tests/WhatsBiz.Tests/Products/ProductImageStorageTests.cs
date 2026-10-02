@@ -28,6 +28,20 @@ public sealed class ProductImageStorageTests
     }
 
     [Fact]
+    public async Task StorefrontAllCategoryResourceIsAcceptedByDatabaseAndExternalStorage()
+    {
+        var tenant=Guid.NewGuid();var media=Guid.NewGuid();
+        var database=Storage(ProductImageStorageProviders.Database,[]);
+        var databaseResult=await database.StoreStorefrontAsync(new(tenant,"category-all",media,[1,2],[3],"image/webp"),default);
+        databaseResult.Provider.Should().Be(ProductImageStorageProviders.Database);
+        databaseResult.ContentHash.Should().HaveLength(64);
+        (await database.StoreStorefrontAsync(new(tenant,"category",Guid.NewGuid(),[9],[8],"image/webp"),default)).Provider.Should().Be(ProductImageStorageProviders.Database);
+        var external=new RecordingStore();var s3=Storage(ProductImageStorageProviders.S3,[external]);
+        var externalResult=await s3.StoreStorefrontAsync(new(tenant,"category-all",media,[4,5],[6],"image/webp"),default);
+        externalResult.ObjectKey.Should().Contain($"tenants/{tenant:N}/storefront/category-all/{media:N}/");
+        external.Catalog.Should().Equal(4,5);external.Thumbnail.Should().Equal(6);
+    }
+    [Fact]
     public async Task LocalProviderRoundTripsBothVariantsAndRejectsCrossTenantKeys()
     {
         var root=Path.Combine(Path.GetTempPath(),"whatsbiz-product-images-"+Guid.NewGuid().ToString("N"));

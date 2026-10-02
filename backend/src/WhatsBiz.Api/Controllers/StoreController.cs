@@ -27,9 +27,9 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
     }
 
     [HttpGet("products")]
-    public async Task<ActionResult<IReadOnlyCollection<StorefrontProductDto>>> GetProducts(string storeKey, CancellationToken token)
+    public async Task<ActionResult<StorefrontProductPageDto>> GetProducts(string storeKey, [FromQuery] int page = 1, [FromQuery] int pageSize = 24, CancellationToken token = default)
     {
-        var products = await storefront.GetProductsAsync(storeKey, token);
+        page = Math.Clamp(page, 1, 100000); pageSize = Math.Clamp(pageSize, 1, 50); var products = await storefront.GetProductsAsync(storeKey, page, pageSize, token);
         return products is null ? NotFound() : Ok(products);
     }
 
@@ -138,6 +138,34 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         var session = await customers.GetSessionAsync(storeKey, CustomerSessionToken(), token);
         return session is null ? Unauthorized() : Ok(session);
     }
+    [HttpPost("session/profile-image")]
+    [RequestSizeLimit(5 * 1024 * 1024)]
+    public async Task<ActionResult<StorefrontCustomerDto>> UploadProfileImage(string storeKey, IFormFile file, CancellationToken token)
+    {
+        if (file is null || file.Length == 0) return BadRequest(new { message = "Choose an image to upload." });
+        try { await using var stream = file.OpenReadStream(); var result = await customers.UploadProfileImageAsync(storeKey, CustomerSessionToken(), file.FileName, stream, token); return result is null ? Unauthorized() : Ok(result); }
+        catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
+        catch (Exception exception) { StorefrontControllerLogs.ProfileUploadFailed(logger, exception, storeKey); return Problem(statusCode: StatusCodes.Status500InternalServerError, title: "Profile image upload failed."); }
+    }
+    [HttpDelete("session/profile-image")]
+    public async Task<ActionResult<StorefrontCustomerDto>> RemoveProfileImage(string storeKey, CancellationToken token)
+    { var result = await customers.RemoveProfileImageAsync(storeKey, CustomerSessionToken(), token); return result is null ? Unauthorized() : Ok(result); }
+    [HttpGet("session/profile-image")]
+    public async Task<IActionResult> GetProfileImage(string storeKey, CancellationToken token)
+    { var image = await customers.GetProfileImageAsync(storeKey, CustomerSessionToken(), token); return image is null ? Unauthorized() : File(image.Content, image.ContentType); }
+    [HttpGet("addresses")]
+    public async Task<ActionResult<IReadOnlyCollection<StorefrontCustomerAddressDto>>> GetAddresses(string storeKey, CancellationToken token)
+    { var result = await customers.GetAddressesAsync(storeKey, CustomerSessionToken(), token); return result is null ? Unauthorized() : Ok(result); }
+    [HttpPost("addresses")]
+    public async Task<ActionResult<StorefrontCustomerAddressDto>> AddAddress(string storeKey, StorefrontCustomerAddressInput input, CancellationToken token)
+    { try { var result = await customers.SaveAddressAsync(storeKey, CustomerSessionToken(), null, input, token); return result is null ? Unauthorized() : Ok(result); } catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); } }
+    [HttpPut("addresses/{addressId:guid}")]
+    public async Task<ActionResult<StorefrontCustomerAddressDto>> UpdateAddress(string storeKey, Guid addressId, StorefrontCustomerAddressInput input, CancellationToken token)
+    { try { var result = await customers.SaveAddressAsync(storeKey, CustomerSessionToken(), addressId, input, token); return result is null ? NotFound() : Ok(result); } catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); } }
+    [HttpDelete("addresses/{addressId:guid}")]
+    public async Task<IActionResult> DeleteAddress(string storeKey, Guid addressId, CancellationToken token) => await customers.DeleteAddressAsync(storeKey, CustomerSessionToken(), addressId, token) ? NoContent() : NotFound();
+    [HttpPost("addresses/{addressId:guid}/default")]
+    public async Task<IActionResult> SetDefaultAddress(string storeKey, Guid addressId, CancellationToken token) => await customers.SetDefaultAddressAsync(storeKey, CustomerSessionToken(), addressId, token) ? NoContent() : NotFound();
 
     [HttpGet("orders")]
     public async Task<ActionResult<IReadOnlyCollection<StorefrontCustomerOrderDto>>> GetOrders(string storeKey, CancellationToken token)
@@ -259,4 +287,6 @@ internal static partial class StorefrontControllerLogs
 {
     [LoggerMessage(3402, LogLevel.Warning, "Storefront checkout rejected by an unmapped business rule for store {StoreKey}.")]
     public static partial void UnsafeCheckoutRule(ILogger logger, Exception exception, string storeKey);
+    [LoggerMessage(3403, LogLevel.Error, "Storefront customer profile image upload failed for store {StoreKey}.")]
+    public static partial void ProfileUploadFailed(ILogger logger, Exception exception, string storeKey);
 }

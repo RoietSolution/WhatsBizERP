@@ -16,6 +16,7 @@ public sealed class StorefrontConfiguration
     public bool DeliveryChargeIncomePostingEnabled { get; set; }
     public bool ShowProductRatings { get; set; } = true;
     public bool ShowProductReviews { get; set; } = true;
+    public int DefaultReturnWindowDays { get; set; } = 7;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -24,6 +25,7 @@ public sealed class StorefrontMedia
 {
     public Guid MediaId { get; set; }
     public Guid TenantId { get; set; }
+    public Guid? CustomerId { get; set; }
     public string ResourceType { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;

@@ -27,14 +27,14 @@ export class WishlistService {
 
   has(productId: string): boolean { return this.ids().has(productId); }
 
-  async toggle(product: Product): Promise<void> {
+  async toggle(product: Product): Promise<boolean> {
     const next = new Set(this.ids());
     const adding = !next.has(product.id);
     adding ? next.add(product.id) : next.delete(product.id);
     this.ids.set(next);
     this.saveLocal(next);
     const token = this.session.token(this.storeKey);
-    if (!token) return;
+    if (!token) return true;
     try {
       await firstValueFrom(this.http.request(adding ? 'PUT' : 'DELETE', this.url('/wishlist/' + encodeURIComponent(product.id)), {
         headers: { 'X-Customer-Session': token },
@@ -42,8 +42,8 @@ export class WishlistService {
     } catch {
       const rollback = new Set(this.ids());
       adding ? rollback.delete(product.id) : rollback.add(product.id);
-      this.ids.set(rollback); this.saveLocal(rollback);
-    }
+      this.ids.set(rollback); this.saveLocal(rollback); return false; }
+    return true;
   }
 
   async products(): Promise<Product[]> {

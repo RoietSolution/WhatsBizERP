@@ -55,6 +55,27 @@ public sealed class StorefrontPhaseArchitectureTests
             .Should().Contain("/checkout`").And.Contain("paymentMethod");
     }
 
+    [Fact]
+    public void CartServiceabilityGuardsAgainstAddressAndQuoteRaces()
+    {
+        var cart = Read("frontend/KhataDhari.Customer/src/app/pages/cart.page.ts");
+        cart.Should().Contain("if(next===this.pincode)return")
+            .And.Contain("requestedPincode===this.pincode")
+            .And.Contain("Unable to check delivery availability. Please try again.")
+            .And.Contain("sessionStorage")
+            .And.Contain("storeKey,pincode,verified:true,quote");
+    }
+
+    [Fact]
+    public void ProfileMediaReplacementDoesNotViolateCustomerUniqueness()
+    {
+        var service = Read("backend/src/WhatsBiz.Infrastructure/Storefront/StorefrontCustomerService.cs");
+        service.Should().Contain("UPDATE commerce.StorefrontMedia SET")
+            .And.Contain("ResourceType=N'customer-profile'")
+            .And.Contain("BeginTransactionAsync")
+            .And.Contain("ProfileMediaId=@id");
+    }
+
     private static string FindRoot()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

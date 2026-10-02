@@ -336,6 +336,8 @@ export class ProductFormComponent implements OnDestroy {
       isSerialManaged: [false],
       isActive: [true],
       isWhatsAppVisible: [true],
+      returnPolicyMode: ["INHERIT_DEFAULT"],
+      returnWindowDays: [null as number | null, Validators.min(0)],
     },
     {
       validators: (control) =>

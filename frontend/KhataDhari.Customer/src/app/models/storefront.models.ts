@@ -35,8 +35,11 @@ export interface Product {
   packSize?: string;
   averageRating?: number;
   ratingCount?: number;
-  badge?: string;
+  badge?: string; returnPolicyMode?: "INHERIT_DEFAULT" | "CUSTOM" | "NON_RETURNABLE"; returnWindowDays?: number; isReturnable?: boolean;
 }
+
+export interface ProductPage { items: Product[]; pageNumber: number; pageSize: number; totalCount: number; hasMore: boolean; }
+export function discountPercent(product: Product): number | null { const original = product.compareAtPrice; if (!original || original <= 0 || product.sellingPrice >= original) return null; return Math.round(((original - product.sellingPrice) / original) * 100); }
 
 export interface CartLine {
   product: Product;
@@ -67,19 +70,22 @@ export interface CustomerOrder {
   promotionDiscount?: number;
   promotionName?: string;
   merchandiseAmount?: number;
+  merchandiseTaxAmount?: number;
+  merchandiseSubtotal?: number;
   cancellation?: CustomerOrderCancellation;
 }
 
 export interface CustomerOrderCancellation { canRequest:boolean;unavailableReason?:string;requestStatus?:string;reason?:string;refundableAmount:number;refundStatus:string;refundAmount:number;refundedAt?:string;refundNeedsReconciliation?:boolean;decisionNote?:string; }
 export interface CustomerOrderLine { productId:string;productName:string;packSize?:string;quantity:number;lineTotal:number; }
 export interface OrderMilestone { code:string;label:string;state:string;occurredAt?:string; }
-export interface CartQuote { eligibleAmount:number;freeDeliveryThreshold?:number;remainingAmount:number;progressPercent:number;isFreeDeliveryUnlocked:boolean;isDeliveryEnabled:boolean;isPincodeServiceable:boolean;merchandiseAmount:number;merchandiseTaxAmount:number;standardDeliveryCharge:number;freeDeliveryEnabled:boolean;deliveryCharge:number;promotionDiscount:number;promotionName?:string;finalPayableAmount:number; }
+export interface CartQuote { eligibleAmount:number;freeDeliveryThreshold?:number;remainingAmount:number;progressPercent:number;isFreeDeliveryUnlocked:boolean;isDeliveryEnabled:boolean;isPincodeServiceable:boolean;merchandiseAmount:number;merchandiseTaxAmount:number;merchandiseSubtotal:number;standardDeliveryCharge:number;freeDeliveryEnabled:boolean;deliveryCharge:number;promotionDiscount:number;promotionName?:string;promotionId?:string;finalPayableAmount:number; promotionCode?: string; }
 export interface CheckoutCustomer {
   customerName: string;
   mobile: string;
   email?: string;
   deliveryAddress: string;
   pincode: string;
+  promoCode?: string;
 }
 
 export interface CheckoutResult {
@@ -98,5 +104,7 @@ export interface CheckoutResult {
 
 export interface ProductReview { reviewId:string; reviewerName:string; rating:number; reviewText:string; createdAt:string; updatedAt:string; isOwn:boolean; }
 export interface ProductReviewSummary { averageRating?:number; ratingCount:number; reviews:ProductReview[]; }
+export interface CustomerAddress { addressId: string; recipientName: string; mobile: string; addressLine1: string; addressLine2?: string; landmark?: string; city: string; state: string; pincode: string; addressType: 'Home'|'Work'|'Other'; isDefault: boolean; }
+export type CustomerAddressInput = Omit<CustomerAddress, 'addressId'>;
 
 export interface StorefrontOffer { offerId: string; title: string; bannerImageUrl?: string; shortDescription?: string; detailedDescription?: string; promoCode?: string; benefitDescription: string; validFrom?: string; validUntil?: string; minimumOrderAmount: number; eligibleItemsDescription?: string; maximumDiscount?: number; usageLimitPerCustomer?: number; termsAndConditions?: string; ctaLabel?: string; status: 'ACTIVE' | 'UPCOMING' | 'EXPIRED'; }

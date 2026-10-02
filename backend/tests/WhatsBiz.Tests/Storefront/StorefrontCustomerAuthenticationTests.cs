@@ -96,7 +96,7 @@ public sealed class StorefrontCustomerAuthenticationTests
     {
         var source=Read("backend/src/WhatsBiz.Infrastructure/Storefront/StorefrontCheckoutService.cs");
         source.Should().Contain("authenticated?.Id ?? await FindOrCreateCustomer");
-        source.Should().Contain("CustomerMessage(provider), null");
+        source.Should().Contain("CustomerMessage(method), null");
         source.Should().NotContain("IssueSessionAsync");
     }
 
@@ -113,7 +113,8 @@ public sealed class StorefrontCustomerAuthenticationTests
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["StorefrontOtp:QaTestModeEnabled"] = "true"
+            ["StorefrontOtp:QaTestModeEnabled"] = "true",
+            ["StorefrontOtp:QaTestCode"] = "123456"
         }).Build();
         var policy = new StorefrontOtpPolicy("QA", configuration);
         policy.CreateCode().Should().Be("123456");
@@ -127,7 +128,11 @@ public sealed class StorefrontCustomerAuthenticationTests
     [InlineData("Test")]
     public void ExistingLocalTestModeStillUsesFixedCode(string environmentName)
     {
-        var policy = new StorefrontOtpPolicy(environmentName, new ConfigurationBuilder().Build());
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["StorefrontOtp:DevelopmentCode"] = "123456"
+        }).Build();
+        var policy = new StorefrontOtpPolicy(environmentName, configuration);
         policy.CreateCode().Should().Be("123456");
         policy.SkipDelivery.Should().BeTrue();
     }
@@ -144,6 +149,21 @@ public sealed class StorefrontCustomerAuthenticationTests
         configuration["StorefrontOtp:QaTestCode"] = "not-six-digits";
         Action invalid = () => { _ = new StorefrontOtpPolicy("QA", configuration); };
         invalid.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task ConfiguredCustomerFixedOtpWorksInProductionWithoutProvider()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["StorefrontCustomerAuth:FixedOtpEnabled"] = "true",
+            ["StorefrontCustomerAuth:FixedOtp"] = "123456"
+        }).Build();
+        var policy = new StorefrontOtpPolicy("Production", configuration);
+        policy.CreateCode().Should().Be("123456");
+        policy.SkipDelivery.Should().BeTrue();
+        var sender = new CustomerOtpSender(policy, configuration, new ThrowingClientFactory());
+        await sender.SendAsync("9876543210", policy.CreateCode(), Guid.NewGuid(), CancellationToken.None);
     }
 
     [Theory]

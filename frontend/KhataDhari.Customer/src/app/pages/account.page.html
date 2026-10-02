@@ -1,1 +1,21 @@
-<section class="account"><span>MY ACCOUNT</span><h1>Account details</h1>@if(!session.active()){<p>Please <a [routerLink]="['/',storeKey,'auth']">sign in</a> to view your account.</p>}@else{<form (submit)="$event.preventDefault();save()"><label>Verified mobile<input [value]="session.customer()?.mobile||''" readonly></label><label>Name<input [value]="name" (input)="name=($any($event.target).value)" maxlength="250" required></label><label>Email (optional)<input [value]="email" (input)="email=($any($event.target).value)" type="email" maxlength="256"></label><button type="submit" [disabled]="saving()">{{saving()?'Saving...':'Save profile'}}</button></form>@if(message()){<p>{{message()}}</p>}}</section>
+<section class="account-page" aria-labelledby="account-title">
+  <header class="account-titlebar"><div><span class="eyebrow">MY ACCOUNT</span><h1 id="account-title">My Account</h1><p>Manage your profile, orders and delivery preferences.</p></div><a class="mobile-back" [routerLink]="['/',storeKey]">Continue shopping</a></header>
+  @if(session.customer(); as customer){
+    <div class="account-layout">
+      <aside class="account-sidebar" aria-label="Account navigation">
+        <section class="profile-summary"><div class="avatar-wrap">@if(customer.profileImageUrl; as avatar){<img class="profile-avatar" [src]="avatar" alt="Profile photo">}@else{<span class="profile-avatar initials" aria-label="Profile initials">{{initials(customer.name)}}</span>}</div><div class="profile-summary-copy"><h2>{{customer.name}}</h2><p>{{customer.mobile}}</p><span class="verified"><span aria-hidden="true">✓</span> Verified</span></div></section>
+        <nav class="account-nav" aria-label="Customer account sections">
+          <a class="account-nav-item" [routerLink]="['/',storeKey,'account','profile']" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}"><span class="nav-icon">⌂</span><span>My Profile</span><span class="chevron" aria-hidden="true">›</span></a>
+          <a class="account-nav-item" [routerLink]="['/',storeKey,'account','wishlist']" routerLinkActive="active"><span class="nav-icon">♡</span><span>My Wishlist</span><span class="chevron" aria-hidden="true">›</span></a>
+          <a class="account-nav-item" [routerLink]="['/',storeKey,'account','orders']" routerLinkActive="active"><span class="nav-icon">▣</span><span>My Orders</span><span class="chevron" aria-hidden="true">›</span></a>
+          <a class="account-nav-item" [routerLink]="['/',storeKey,'account','addresses']" routerLinkActive="active"><span class="nav-icon">⌖</span><span>Addresses</span><span class="chevron" aria-hidden="true">›</span></a>
+          <a class="account-nav-item" [routerLink]="['/',storeKey,'account','support']" routerLinkActive="active"><span class="nav-icon">?</span><span>Support &amp; FAQs</span><span class="chevron" aria-hidden="true">›</span></a>
+          <a class="account-nav-item" [routerLink]="['/',storeKey,'account','reviews']" routerLinkActive="active"><span class="nav-icon">☆</span><span>Ratings &amp; Reviews</span><span class="chevron" aria-hidden="true">›</span></a>
+          <a class="account-nav-item" [routerLink]="['/',storeKey,'account','terms']" routerLinkActive="active"><span class="nav-icon">≡</span><span>Terms &amp; Conditions</span><span class="chevron" aria-hidden="true">›</span></a>
+          <a class="account-nav-item" [routerLink]="['/',storeKey,'account','privacy']" routerLinkActive="active"><span class="nav-icon">⌑</span><span>Privacy Policy</span><span class="chevron" aria-hidden="true">›</span></a>
+        </nav>
+      </aside>
+      <main class="account-content"><router-outlet /></main>
+    </div>
+  } @else if(!loading()){<div class="account-empty"><h2>Sign in to view your account</h2><a [routerLink]="['/',storeKey,'auth']">Sign in</a></div>} @else {<div class="account-empty" role="status">Loading your account…</div>}
+</section>

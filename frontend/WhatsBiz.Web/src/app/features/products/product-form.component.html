@@ -193,7 +193,7 @@
           ><mat-label>Height</mat-label
           ><input matInput type="number" formControlName="height" min="0"
         /></mat-form-field>
-        <div class="checks">
+        <mat-form-field><mat-label>Return policy</mat-label><mat-select formControlName="returnPolicyMode"><mat-option value="INHERIT_DEFAULT">Use store default</mat-option><mat-option value="CUSTOM">Custom</mat-option><mat-option value="NON_RETURNABLE">Non-returnable</mat-option></mat-select></mat-form-field><mat-form-field><mat-label>Return window (days)</mat-label><input matInput type="number" formControlName="returnWindowDays" min="0" /></mat-form-field><div class="checks">
           <mat-checkbox formControlName="isBatchManaged">Batch managed</mat-checkbox
           ><mat-checkbox formControlName="isSerialManaged">Serial managed</mat-checkbox
           ><mat-checkbox formControlName="isActive">Active</mat-checkbox

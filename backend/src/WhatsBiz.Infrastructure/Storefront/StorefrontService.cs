@@ -51,13 +51,13 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
             .ToArrayAsync(token);
     }
 
-    public async Task<IReadOnlyCollection<StorefrontProductDto>?> GetProductsAsync(string storeKey, CancellationToken token)
+    public async Task<IReadOnlyCollection<StorefrontProductDto>?> GetProductsAsync(string storeKey, CancellationToken token) => (await GetProductsAsync(storeKey, 1, int.MaxValue, token))?.Items;
+
+    public async Task<StorefrontProductPageDto?> GetProductsAsync(string storeKey, int page, int pageSize, CancellationToken token)
     {
         var tenant = await ResolveTenantAsync(storeKey, token);
         if (tenant is null) return null;
-        var products = await EligibleProducts(tenant.TenantId).Include(product => product.Category).Include(product => product.Unit)
-            .OrderBy(product => product.ProductName).ToArrayAsync(token);
-        return await MapProductsAsync(tenant.TenantId, tenant.TenantKey, products, token);
+        var query = EligibleProducts(tenant.TenantId).Include(product => product.Category).Include(product => product.Unit).OrderBy(product => product.ProductName); var total = await query.CountAsync(token); var products = await query.Skip((page - 1) * pageSize).Take(pageSize).ToArrayAsync(token); var items = await MapProductsAsync(tenant.TenantId, tenant.TenantKey, products, token); return new StorefrontProductPageDto(items, page, pageSize, total, page * pageSize < total);
     }
 
     public async Task<StorefrontProductDto?> GetProductAsync(string storeKey, Guid productId, CancellationToken token)
@@ -79,8 +79,8 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
         var now = DateTimeOffset.UtcNow;
         var bannerSlot = await db.StorefrontBanners.AsNoTracking().Where(x => x.TenantId == tenant.TenantId && x.PromotionId == offerId && x.MediaId != null).OrderBy(x => x.DisplayOrder).Select(x => x.Slot).FirstOrDefaultAsync(token);
         var status = offer.StartsAt.HasValue && offer.StartsAt.Value > now ? "UPCOMING" : offer.EndsAt.HasValue && offer.EndsAt.Value < now ? "EXPIRED" : "ACTIVE";
-        var benefit = offer.DiscountType == "PERCENTAGE" ? $"{offer.DiscountValue:0.##}% off" : $"₹{offer.DiscountValue:0.00} off";
-        if (offer.MaximumDiscount.HasValue) benefit += $", up to ₹{offer.MaximumDiscount.Value:0.00}";
+        var benefit = offer.DiscountType == "PERCENTAGE" ? $"{offer.DiscountValue:0.##}% off" : $"ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹{offer.DiscountValue:0.00} off";
+        if (offer.MaximumDiscount.HasValue) benefit += $", up to ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹{offer.MaximumDiscount.Value:0.00}";
         return new(offer.PromotionId, offer.OfferName, bannerSlot is null ? null : $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/banners/{bannerSlot.ToLowerInvariant()}", offer.ShortDescription, offer.DetailedDescription, offer.PromoCode, benefit, offer.StartsAt, offer.EndsAt, offer.MinimumPurchaseAmount, offer.EligibleItemsDescription, offer.MaximumDiscount, offer.UsageLimitPerCustomer, offer.TermsAndConditions, offer.CtaLabel, status);
     }
     public async Task<StorefrontImage?> GetProductImageAsync(string storeKey, Guid productId, CancellationToken token)
@@ -131,7 +131,7 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
 
     private async Task<IReadOnlyCollection<StorefrontProductDto>> MapProductsAsync(Guid tenantId, string storeKey, IReadOnlyCollection<Product> products, CancellationToken token)
     {
-        if (products.Count == 0) return [];
+        if (products.Count == 0) return []; var defaultDays = await db.StorefrontConfigurations.AsNoTracking().Where(x => x.TenantId == tenantId).Select(x => (int?)x.DefaultReturnWindowDays).SingleOrDefaultAsync(token) ?? 7;
         var ids = products.Select(product => product.ProductId).ToArray();
         var stock = await db.InventoryBalances.AsNoTracking()
             .Where(balance => EF.Property<Guid?>(balance, "TenantId") == tenantId
@@ -162,7 +162,7 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
             product.MRP > product.SellingPrice ? product.MRP : null,
             stock.GetValueOrDefault(product.ProductId) ? "IN_STOCK" : "OUT_OF_STOCK",
             product.PackSize, ratings.TryGetValue(product.ProductId, out var rating) ? decimal.Round(rating.Average, 1) : null,
-            ratings.TryGetValue(product.ProductId, out rating) ? rating.Count : 0)).ToArray();
+            ratings.TryGetValue(product.ProductId, out rating) ? rating.Count : 0, product.ReturnPolicyMode, product.ReturnPolicyMode == "NON_RETURNABLE" ? null : product.ReturnPolicyMode == "CUSTOM" ? product.ReturnWindowDays : defaultDays, product.ReturnPolicyMode != "NON_RETURNABLE")).ToArray();
     }
 
     private async Task<WhatsBiz.Domain.Tenants.Tenant?> ResolveTenantAsync(string storeKey, CancellationToken token)

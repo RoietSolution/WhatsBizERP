@@ -88,6 +88,8 @@ public sealed class Product : ProductMasterEntity
     public bool IsBatchManaged { get; set; }
     public bool IsSerialManaged { get; set; }
     public bool IsWhatsAppVisible { get; set; } = true;
+    public string ReturnPolicyMode { get; set; } = "INHERIT_DEFAULT";
+    public int? ReturnWindowDays { get; set; }
     public ProductCategory Category { get; set; } = null!;
     public Brand Brand { get; set; } = null!;
     public UnitOfMeasure Unit { get; set; } = null!;

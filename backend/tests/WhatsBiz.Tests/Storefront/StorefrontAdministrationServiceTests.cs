@@ -98,6 +98,33 @@ public sealed class StorefrontAdministrationServiceTests
         store!.Banners.Select(x => x.Slot).Should().BeEquivalentTo(StorefrontBannerSlots.Primary, StorefrontBannerSlots.Secondary);
     }
 
+    [Fact]
+    public async Task AllCategoryImageUploadsReplacesAndDisplaysWithoutCategoryRecord()
+    {
+        await using var db=CreateDb();
+        var tenant=new Tenant{TenantId=Guid.NewGuid(),TenantKey="GUTURGO",Name="GuturGo",IsActive=true};
+        var other=new Tenant{TenantId=Guid.NewGuid(),TenantKey="OTHER",Name="Other",IsActive=true};
+        db.Tenants.AddRange(tenant,other);await db.SaveChangesAsync();
+        var service=new StorefrontAdministrationService(db,new CurrentUser(tenant.TenantId),new TestOptimizer(),new TestStorage());
+        await service.UploadImageAsync("category-all",null,"all.png",new MemoryStream([1,2,3]),default);
+        var firstConfig=await db.StorefrontConfigurations.SingleAsync(x=>x.TenantId==tenant.TenantId);
+        var firstId=firstConfig.AllCategoryMediaId!.Value;
+        var first=await db.StorefrontMedia.SingleAsync(x=>x.TenantId==tenant.TenantId&&x.MediaId==firstId);
+        first.ResourceType.Should().Be("category-all");first.ImageData.Should().Equal(1,2,3);
+        (await service.GetAsync(default)).AllCategoryImageUrl.Should().Be("/api/storefront-administration/categories/all/image");
+        var publicStorefront=new StorefrontService(db,new NoProductImages(),new TestStorage());
+        (await publicStorefront.GetStoreAsync("GUTURGO",default))!.AllCategoryImageUrl.Should().Be("/api/store/GUTURGO/presentation/categories/all");
+        (await publicStorefront.GetPresentationImageAsync("GUTURGO","category-all",null,default))!.Content.Should().Equal(1,2,3);
+        await service.UploadImageAsync("category-all",null,"all-new.png",new MemoryStream([7,8,9]),default);
+        var secondId=(await db.StorefrontConfigurations.SingleAsync(x=>x.TenantId==tenant.TenantId)).AllCategoryMediaId;
+        secondId.Should().NotBe(firstId);
+        (await db.StorefrontMedia.AnyAsync(x=>x.TenantId==tenant.TenantId&&x.MediaId==firstId)).Should().BeFalse();
+        var replacement=await db.StorefrontMedia.SingleAsync(x=>x.TenantId==tenant.TenantId&&x.MediaId==secondId);
+        replacement.ResourceType.Should().Be("category-all");replacement.ImageData.Should().Equal(7,8,9);
+        (await publicStorefront.GetPresentationImageAsync("GUTURGO","category-all",null,default))!.Content.Should().Equal(7,8,9);
+        var otherService=new StorefrontAdministrationService(db,new CurrentUser(other.TenantId),new TestOptimizer(),new TestStorage());
+        (await otherService.GetImageAsync("category-all",null,default)).Should().BeNull();
+    }
     private static StorefrontMedia Media(Guid tenantId, string type, byte[] data) => new()
     {
         MediaId = Guid.NewGuid(), TenantId = tenantId, ResourceType = type, StorageProvider = "DATABASE",

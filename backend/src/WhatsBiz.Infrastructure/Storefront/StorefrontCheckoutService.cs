@@ -1,5 +1,6 @@
 using System.Net.Mail;
 using System.Text.Json;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
@@ -31,7 +32,7 @@ public sealed partial class StorefrontCheckoutService(
         var (_, lines) = await PriceCart(tenantId.Value, JsonSerializer.Serialize(items), items.Length, token);
         var authenticated = string.IsNullOrWhiteSpace(customerSessionToken) ? null
             : await customers.GetSessionAsync(storeKey, customerSessionToken, token);
-        return await CalculateQuote(tenantId.Value, lines, input.Pincode, authenticated?.Id, token);
+        return await CalculateQuote(tenantId.Value, lines, input.Pincode, authenticated?.Id, input.PromoCode, token);
     }
 
     private static StorefrontCheckoutItem[] NormalizeItems(IReadOnlyCollection<StorefrontCheckoutItem>? source)
@@ -44,9 +45,9 @@ public sealed partial class StorefrontCheckoutService(
     }
 
     private async Task<StorefrontCartQuoteDto> CalculateQuote(Guid tenantId, IReadOnlyCollection<PricedLine> lines,
-        string? pincode, Guid? verifiedCustomerId, CancellationToken token)
+        string? pincode, Guid? verifiedCustomerId, string? promotionCode, CancellationToken token)
     {
-        if (pincode?.Length != 6 || !pincode.All(char.IsAsciiDigit))
+        if (!string.IsNullOrWhiteSpace(pincode) && (pincode.Length != 6 || !pincode.All(char.IsAsciiDigit)))
             throw new BusinessRuleException("Enter a valid six-digit Indian pincode.");
         await using var connection = await Open(tenantId, token);
         StorefrontPricingConfiguration settings;
@@ -58,9 +59,10 @@ public sealed partial class StorefrontCheckoutService(
                 ? new(reader.GetBoolean(0), reader.GetDecimal(1), reader.GetBoolean(2), reader.IsDBNull(3) ? null : reader.GetDecimal(3))
                 : new(false, 0, false, null);
         }
-        bool serviceable;
-        await using (var command = new SqlCommand("SELECT COUNT(1) FROM commerce.StorefrontServiceablePincodes WHERE TenantId=@tenant AND Pincode=@pincode AND IsActive=1", connection))
+        var serviceable = false;
+        if (pincode?.Length == 6 && pincode.All(char.IsAsciiDigit))
         {
+            await using var command = new SqlCommand("SELECT COUNT(1) FROM commerce.StorefrontServiceablePincodes WHERE TenantId=@tenant AND Pincode=@pincode AND IsActive=1", connection);
             command.Parameters.AddWithValue("@tenant", tenantId); command.Parameters.AddWithValue("@pincode", pincode);
             serviceable = (int)(await command.ExecuteScalarAsync(token) ?? 0) == 1;
         }
@@ -85,24 +87,46 @@ public sealed partial class StorefrontCheckoutService(
         var offers = new List<StorefrontPromotionCandidate>();
         await using (var command = new SqlCommand("""
             SELECT p.PromotionId,p.OfferName,p.OfferType,p.MinimumPurchaseAmount,p.DiscountType,p.DiscountValue,p.MaximumDiscount,
-              p.StartsAt,p.EndsAt,p.IsActive,p.UsageLimitPerCustomer,
+              p.StartsAt,p.EndsAt,p.IsActive,p.UsageLimitPerCustomer,p.PromoCode,
               (SELECT COUNT(1) FROM commerce.StorefrontPromotionUses u JOIN sales.SalesInvoices i ON i.InvoiceId=u.InvoiceId AND i.TenantId=u.TenantId
                 OUTER APPLY(SELECT TOP(1) cp.Status FROM commerce.CommercePayments cp WHERE cp.TenantId=i.TenantId AND cp.InvoiceId=i.InvoiceId ORDER BY cp.AttemptNumber DESC) payment
                 WHERE u.TenantId=@tenant AND u.PromotionId=p.PromotionId AND u.CustomerId=@customer AND i.Status NOT IN(N'CANCELLED',N'VOID') AND (i.Status=N'COMPLETED' OR payment.Status IS NULL OR payment.Status<>N'FAILED'))
-            FROM commerce.StorefrontPromotions p WHERE p.TenantId=@tenant AND p.IsDeleted=0 AND p.IsActive=1;
+            FROM commerce.StorefrontPromotions p WHERE p.TenantId=@tenant AND p.IsDeleted=0 AND (@promoCode IS NULL OR p.PromoCode=@promoCode);
             """, connection))
         {
             command.Parameters.AddWithValue("@tenant", tenantId);
             command.Parameters.AddWithValue("@customer", verifiedCustomerId ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@promoCode", string.IsNullOrWhiteSpace(promotionCode) ? DBNull.Value : promotionCode.Trim());
             await using var reader = await command.ExecuteReaderAsync(token);
             while (await reader.ReadAsync(token))
                 offers.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetDecimal(3),
                     reader.GetString(4), reader.GetDecimal(5), reader.IsDBNull(6) ? null : reader.GetDecimal(6),
                     reader.IsDBNull(7) ? null : reader.GetDateTimeOffset(7), reader.IsDBNull(8) ? null : reader.GetDateTimeOffset(8),
-                    reader.GetBoolean(9), reader.IsDBNull(10) ? null : reader.GetInt32(10), reader.GetInt32(11)));
+                    reader.GetBoolean(9), reader.IsDBNull(10) ? null : reader.GetInt32(10), reader.GetInt32(12), reader.IsDBNull(11) ? null : reader.GetString(11)));
         }
-        return StorefrontPricingPolicy.Calculate(lines.Select(x => new StorefrontPricedItem(x.Quantity, x.UnitPrice, x.TaxPercentage)).ToArray(),
-            settings, pincode, serviceable, offers, verifiedCustomerId is not null, hasOrder, DateTimeOffset.UtcNow);
+        var requestedCode = string.IsNullOrWhiteSpace(promotionCode) ? null : promotionCode.Trim();
+        if (requestedCode is not null)
+        {
+            var selected = offers.FirstOrDefault();
+            if (selected is null)
+                throw new BusinessRuleException("Promo code is not valid.");
+            var now = DateTimeOffset.UtcNow;
+            if (!selected.IsActive || selected.EndsAt is not null && selected.EndsAt <= now)
+                throw new BusinessRuleException("This promo code has expired.");
+            if (selected.StartsAt is not null && selected.StartsAt > now)
+                throw new BusinessRuleException("Promo code is not valid.");
+            var merchandise = lines.Sum(x => x.Quantity * x.UnitPrice * (1m + x.TaxPercentage / 100m));
+            if (selected.MinimumPurchaseAmount > merchandise)
+            {
+                var remaining = selected.MinimumPurchaseAmount - merchandise;
+                throw new BusinessRuleException($"Add {remaining.ToString("C0", CultureInfo.GetCultureInfo("en-IN"))} more to use this promo code.");
+            }
+            if (selected.OfferType == "FIRST_ORDER" && (!verifiedCustomerId.HasValue || hasOrder))
+                throw new BusinessRuleException("This promo code is not applicable to this order.");
+            if (selected.UsageLimitPerCustomer is not null && (!verifiedCustomerId.HasValue || selected.PreviousUses >= selected.UsageLimitPerCustomer.Value))
+                throw new BusinessRuleException("This promo code is no longer available.");
+        }        return StorefrontPricingPolicy.Calculate(lines.Select(x => new StorefrontPricedItem(x.Quantity, x.UnitPrice, x.TaxPercentage)).ToArray(),
+            settings, pincode, serviceable, offers, verifiedCustomerId is not null, hasOrder, DateTimeOffset.UtcNow, requestedCode);
     }
     public async Task<StorefrontCheckoutResult> CheckoutAsync(string storeKey, StorefrontCheckoutInput input,
         string idempotencyKey, string? customerSessionToken, CancellationToken token)
@@ -135,7 +159,7 @@ public sealed partial class StorefrontCheckoutService(
         var cartJson = JsonSerializer.Serialize(items);
         var (warehouseId, lines) = await PriceCart(tenantId, cartJson, items.Length, token);
         var authenticated = string.IsNullOrWhiteSpace(customerSessionToken) ? null : await customers.GetSessionAsync(storeKey, customerSessionToken, token);
-        var quote = await CalculateQuote(tenantId, lines, input.Pincode, authenticated?.Id, token);
+        var quote = await CalculateQuote(tenantId, lines, input.Pincode, authenticated?.Id, input.PromoCode, token);
         if (!quote.IsDeliveryEnabled)
             throw new BusinessRuleException("Delivery is not currently available for this store.");
         if (!quote.IsPincodeServiceable)

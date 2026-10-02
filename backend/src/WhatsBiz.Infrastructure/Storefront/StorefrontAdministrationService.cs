@@ -30,7 +30,7 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
                 x.IsActive, x.UsageLimitPerCustomer, x.ShortDescription, x.DetailedDescription, x.TermsAndConditions, x.PromoCode, x.CtaLabel, x.EligibleItemsDescription)).ToArrayAsync(token);
         return new(name, config?.LogoMediaId is null ? null : "/api/storefront-administration/logo",
             config?.DeliveryEnabled ?? false, config?.StandardDeliveryCharge ?? 0, config?.FreeDeliveryEnabled ?? false,
-            config?.FreeDeliveryThreshold, config?.ShowProductRatings ?? true, config?.ShowProductReviews ?? true,
+            config?.FreeDeliveryThreshold, config?.ShowProductRatings ?? true, config?.ShowProductReviews ?? true, config?.DefaultReturnWindowDays ?? 7,
             banners, pincodes, promotions, config?.AllCategoryMediaId is null ? null : "/api/storefront-administration/categories/all/image");
     }
 
@@ -47,7 +47,7 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
 
     public async Task UpdateDeliverySettingsAsync(UpdateStorefrontDeliverySettingsInput input, CancellationToken token)
     {
-        if (input.FreeDeliveryThreshold is < 0 or > 10000000 || input.StandardDeliveryCharge is < 0 or > 1000000) throw new BusinessRuleException("Delivery settings contain an invalid amount.");
+        if (input.DefaultReturnWindowDays < 0 || input.DefaultReturnWindowDays > 3650 || input.FreeDeliveryThreshold is < 0 or > 10000000 || input.StandardDeliveryCharge is < 0 or > 1000000) throw new BusinessRuleException("Delivery settings contain an invalid amount.");
         if (input.FreeDeliveryEnabled && input.FreeDeliveryThreshold is null or <= 0) throw new BusinessRuleException("A positive threshold is required when free delivery is enabled.");
         var tenant = Tenant;
         var row = await db.StorefrontConfigurations.SingleOrDefaultAsync(x => x.TenantId == tenant, token);
@@ -55,7 +55,7 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
         row.DeliveryEnabled = input.DeliveryEnabled;
         row.StandardDeliveryCharge = decimal.Round(input.StandardDeliveryCharge, 2);
         row.FreeDeliveryEnabled = input.FreeDeliveryEnabled;
-        row.FreeDeliveryThreshold = input.FreeDeliveryThreshold is null or 0 ? null : decimal.Round(input.FreeDeliveryThreshold.Value, 2);
+        row.FreeDeliveryThreshold = input.FreeDeliveryThreshold is null or 0 ? null : decimal.Round(input.FreeDeliveryThreshold.Value, 2); row.DefaultReturnWindowDays = input.DefaultReturnWindowDays;
         row.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(token);
     }

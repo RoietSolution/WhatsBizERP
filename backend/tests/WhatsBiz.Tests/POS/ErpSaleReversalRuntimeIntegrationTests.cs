@@ -1206,6 +1206,20 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
             => throw new NotSupportedException();
         public Task<bool> MergeWishlistAsync(string storeKey,string sessionToken,IReadOnlyCollection<Guid> productIds,CancellationToken token)
             => throw new NotSupportedException();
+        public Task<IReadOnlyCollection<StorefrontCustomerAddressDto>?> GetAddressesAsync(string storeKey,string sessionToken,CancellationToken token)
+            => throw new NotSupportedException();
+        public Task<StorefrontCustomerAddressDto?> SaveAddressAsync(string storeKey,string sessionToken,Guid? addressId,StorefrontCustomerAddressInput input,CancellationToken token)
+            => throw new NotSupportedException();
+        public Task<bool> DeleteAddressAsync(string storeKey,string sessionToken,Guid addressId,CancellationToken token)
+            => throw new NotSupportedException();
+        public Task<bool> SetDefaultAddressAsync(string storeKey,string sessionToken,Guid addressId,CancellationToken token)
+            => throw new NotSupportedException();
+        public Task<StorefrontCustomerDto?> UploadProfileImageAsync(string storeKey,string sessionToken,string fileName,Stream content,CancellationToken token)
+            => throw new NotSupportedException();
+        public Task<StorefrontCustomerDto?> RemoveProfileImageAsync(string storeKey,string sessionToken,CancellationToken token)
+            => throw new NotSupportedException();
+        public Task<StorefrontImage?> GetProfileImageAsync(string storeKey,string sessionToken,CancellationToken token)
+            => throw new NotSupportedException();
     }
 
     private sealed record Snapshot(string Status,decimal GrandTotal,decimal PaidAmount,

@@ -20,6 +20,8 @@ export interface ProductListItem {
   gstPercentage: number;
   isActive: boolean;
   isWhatsAppVisible: boolean;
+  returnPolicyMode?: "INHERIT_DEFAULT" | "CUSTOM" | "NON_RETURNABLE";
+  returnWindowDays?: number | null;
   imageUrl?: string;
 }
 export interface Product extends ProductInput {
@@ -68,6 +70,8 @@ export interface ProductInput {
   isSerialManaged: boolean;
   isActive: boolean;
   isWhatsAppVisible: boolean;
+  returnPolicyMode?: "INHERIT_DEFAULT" | "CUSTOM" | "NON_RETURNABLE";
+  returnWindowDays?: number | null;
 }
 export interface ProductBarcodeInput {
   barcode: string;

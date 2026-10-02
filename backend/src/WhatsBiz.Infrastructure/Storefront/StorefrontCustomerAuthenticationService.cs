@@ -18,25 +18,37 @@ public sealed class StorefrontOtpPolicy
 
     public StorefrontOtpPolicy(string environmentName, IConfiguration configuration)
     {
+        // TEMPORARY: fixed Storefront customer OTP remains enabled until an SMS provider is configured.
+        if (configuration.GetValue<bool>("StorefrontCustomerAuth:FixedOtpEnabled"))
+        {
+            fixedCode = ValidateFixedCode(configuration["StorefrontCustomerAuth:FixedOtp"], "Storefront customer fixed OTP");
+            SkipDelivery = true;
+            return;
+        }
+
         var qaEnabled = configuration.GetValue<bool>("StorefrontOtp:QaTestModeEnabled");
         if (qaEnabled && !string.Equals(environmentName, "QA", StringComparison.Ordinal))
             throw new InvalidOperationException("Storefront QA test OTP mode is only allowed in the exact QA environment.");
 
         if (environmentName is "Development" or "Test")
         {
-            fixedCode = configuration["StorefrontOtp:DevelopmentCode"] ?? "123456";
-            SkipDelivery = true;
+            fixedCode = configuration["StorefrontOtp:DevelopmentCode"];
+            SkipDelivery = fixedCode is not null;
         }
         else if (qaEnabled)
         {
-            fixedCode = configuration["StorefrontOtp:QaTestCode"] ?? "123456";
-            if (fixedCode.Length != 6 || !fixedCode.All(c => c is >= '0' and <= '9'))
-                throw new InvalidOperationException("Storefront QA test OTP code must be six digits.");
+            fixedCode = ValidateFixedCode(configuration["StorefrontOtp:QaTestCode"], "Storefront QA test OTP");
             SkipDelivery = true;
         }
     }
 
     public string CreateCode() => fixedCode ?? RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6", CultureInfo.InvariantCulture);
+    private static string ValidateFixedCode(string? value, string description)
+    {
+        if (value?.Length != 6 || !value.All(c => c is >= '0' and <= '9'))
+            throw new InvalidOperationException($"{description} must be six digits.");
+        return value;
+    }
 }
 
 public sealed class CustomerOtpSender(StorefrontOtpPolicy policy, IConfiguration configuration, IHttpClientFactory clients) : ICustomerOtpSender

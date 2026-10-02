@@ -116,6 +116,20 @@ public sealed class StorefrontPricingPolicyTests
     }
 
     [Fact]
+    public void AuthoritativeSubtotalTaxDiscountDeliveryComponentsReconcileToPayable()
+    {
+        var offer=Offer("MINIMUM_PURCHASE","FLAT",5,0);
+        var quote=StorefrontPricingPolicy.Calculate([new(1,112m,6.5625m)],new(true,0,false,null),
+            "226001",true,[offer],false,false,Now);
+        var subtotal=quote.MerchandiseAmount-quote.MerchandiseTaxAmount;
+        subtotal.Should().Be(112m);
+        quote.MerchandiseSubtotal.Should().Be(112m);
+        quote.MerchandiseTaxAmount.Should().Be(7.35m);
+        (subtotal+quote.MerchandiseTaxAmount-quote.PromotionDiscount+quote.DeliveryCharge).Should().Be(quote.FinalPayableAmount);
+        quote.FinalPayableAmount.Should().Be(114.35m);
+    }
+
+    [Fact]
     public void PromotionCannotConsumeUnchangedProductGst()
     {
         var offer = Offer("MINIMUM_PURCHASE", "FLAT", 105, 0);

@@ -67,6 +67,32 @@ public sealed class StorefrontPhaseArchitectureTests
     }
 
     [Fact]
+    public void CartAndWishlistStorageIsOwnedByStoreAndCustomer()
+    {
+        var cart = Read("frontend/KhataDhari.Customer/src/app/cart/cart.service.ts");
+        cart.Should().Contain("storageKey(storeKey, customerId)")
+            .And.Contain("customerId || 'guest'")
+            .And.Contain("switchCustomer(customerId: string | null)")
+            .And.Contain("adoptedGuest");
+        var wishlist = Read("frontend/KhataDhari.Customer/src/app/wishlist.service.ts");
+        wishlist.Should().Contain("localKey(customerId = this.customerId)")
+            .And.Contain("this.storeKey + ':' + (customerId || 'guest')")
+            .And.Contain("switchCustomer(storeKey: string, customerId: string | null)")
+            .And.Contain("if (!token || !this.customerId) return []");
+    }
+
+    [Fact]
+    public void CustomerTransitionsCannotReusePreviousAuthenticatedState()
+    {
+        var shell = Read("frontend/KhataDhari.Customer/src/app/store-shell.ts");
+        shell.Should().Contain("this.cart.switchCustomer(customerId)")
+            .And.Contain("this.wishlist.switchCustomer(key, customerId)");
+        var session = Read("frontend/KhataDhari.Customer/src/app/customer-session.service.ts");
+        session.Should().Contain("this.customer.set(null)").And.Contain("this.active.set(false)");
+        var auth = Read("frontend/KhataDhari.Customer/src/app/customer-auth.service.ts");
+        auth.Should().Contain("this.wishlist.switchCustomer(storeKey,result.customer.id)");
+    }
+    [Fact]
     public void ProfileMediaReplacementDoesNotViolateCustomerUniqueness()
     {
         var service = Read("backend/src/WhatsBiz.Infrastructure/Storefront/StorefrontCustomerService.cs");

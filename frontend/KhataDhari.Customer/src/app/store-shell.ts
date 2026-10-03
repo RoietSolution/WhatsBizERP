@@ -101,7 +101,7 @@ export class StoreShell implements OnInit {
   initials(name:string):string{return name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();}
   private readonly destroyRef = inject(DestroyRef);
 
-  constructor(private readonly route: ActivatedRoute, private readonly router: Router, private readonly data: StorefrontDataService, readonly cart: CartService, readonly session: CustomerSessionService, readonly wishlist: WishlistService, readonly notify: StorefrontNotificationService, readonly pwa: PwaInstallService) { effect(() => { const key = this.cart.storeKey(); const lines = this.cart.lines(); if (key && lines.length && this.shoppingRoute()) void this.refreshShoppingQuote(key, lines); else this.shoppingQuote.set(null); }); }
+  constructor(private readonly route: ActivatedRoute, private readonly router: Router, private readonly data: StorefrontDataService, readonly cart: CartService, readonly session: CustomerSessionService, readonly wishlist: WishlistService, readonly notify: StorefrontNotificationService, readonly pwa: PwaInstallService) { effect(() => { const key = this.cart.storeKey(); const lines = this.cart.lines(); if (key && lines.length && this.shoppingRoute()) void this.refreshShoppingQuote(key, lines); else this.shoppingQuote.set(null); }); effect(() => { const key = this.cart.storeKey(); if (!key) return; const customerId = this.session.customer()?.id ?? null; this.cart.switchCustomer(customerId); void this.wishlist.switchCustomer(key, customerId); }); }
 
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params: ParamMap) => {

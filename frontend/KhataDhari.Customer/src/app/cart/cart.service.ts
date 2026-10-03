@@ -4,15 +4,34 @@ import { CartLine, Product } from '../models/storefront.models';
 @Injectable({ providedIn: 'root' })
 export class CartService {
   private readonly activeStore = signal('');
+  private activeCustomer = '';
   readonly storeKey = computed(() => this.activeStore());
   readonly lines = signal<CartLine[]>([]);
   readonly itemCount = computed(() => this.lines().reduce((sum, line) => sum + line.quantity, 0));
   readonly total = computed(() => this.lines().reduce((sum, line) => sum + line.product.sellingPrice * line.quantity, 0));
 
   useStore(storeKey: string): void {
-    if (this.activeStore() === storeKey) return;
-    this.activeStore.set(storeKey);
-    this.lines.set(this.read(storeKey));
+    const normalized = this.normalizeStore(storeKey);
+    if (this.activeStore() === normalized) return;
+    this.activeStore.set(normalized);
+    this.activeCustomer = '';
+    this.lines.set(this.read(this.storageKey(normalized, '')));
+  }
+
+  switchCustomer(customerId: string | null): void {
+    const storeKey = this.activeStore();
+    if (!storeKey) return;
+    const nextCustomer = customerId?.trim().toLowerCase() ?? '';
+    if (this.activeCustomer === nextCustomer) return;
+    const previousCustomer = this.activeCustomer;
+    const guestLines = previousCustomer ? [] : this.lines();
+    const ownedKey = this.storageKey(storeKey, nextCustomer);
+    const ownedLines = nextCustomer ? this.read(ownedKey) : this.read(this.storageKey(storeKey, ''));
+    const adoptedGuest = nextCustomer && !ownedLines.length ? guestLines : [];
+    this.activeCustomer = nextCustomer;
+    this.lines.set(ownedLines.length ? ownedLines : adoptedGuest);
+    this.persist();
+    if (nextCustomer && adoptedGuest.length) this.removeStorage(this.storageKey(storeKey, ''));
   }
 
   add(product: Product): boolean {
@@ -54,16 +73,16 @@ export class CartService {
     const storeKey = this.activeStore();
     if (!storeKey || typeof localStorage === 'undefined') return;
     try {
-      localStorage.setItem(this.storageKey(storeKey), JSON.stringify(this.lines()));
+      localStorage.setItem(this.storageKey(storeKey, this.activeCustomer), JSON.stringify(this.lines()));
     } catch {
       // Shopping can continue in browsers that block storage or have no quota.
     }
   }
 
-  private read(storeKey: string): CartLine[] {
+  private read(key: string): CartLine[] {
     if (typeof localStorage === 'undefined') return [];
     try {
-      const data: unknown = JSON.parse(localStorage.getItem(this.storageKey(storeKey)) ?? '[]');
+      const data: unknown = JSON.parse(localStorage.getItem(key) ?? '[]');
       if (!Array.isArray(data)) return [];
       return data.filter((line): line is CartLine => this.isCartLine(line));
     } catch {
@@ -79,5 +98,7 @@ export class CartService {
       && typeof line.product.id === 'string' && typeof line.product.sellingPrice === 'number';
   }
 
-  private storageKey(storeKey: string): string { return `khata-dhari-cart:${storeKey}`; }
+  private normalizeStore(storeKey: string): string { return storeKey.trim().toLowerCase(); }
+  private storageKey(storeKey: string, customerId: string): string { return `khata-dhari-cart:${storeKey}:${customerId || 'guest'}`; }
+  private removeStorage(key: string): void { try { localStorage.removeItem(key); } catch {} }
 }

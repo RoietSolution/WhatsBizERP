@@ -553,6 +553,24 @@ if (-not $SkipAngular) {
     }
 
     Require-Path (Join-Path $AngularDist "index.html") "Angular QA build output"
+    foreach ($artifact in @("ngsw.json", "ngsw-worker.js", "manifest.webmanifest", "runtime-config.json")) {
+        Require-Path (Join-Path $AngularDist $artifact) "Angular QA PWA artifact $artifact"
+    }
+    if (-not (Get-ChildItem (Join-Path $AngularDist "icons") -File -ErrorAction SilentlyContinue)) {
+        throw "Angular QA PWA icons were not generated."
+    }
+    $qaRuntimeConfig = Get-Content (Join-Path $AngularDist "runtime-config.json") -Raw | ConvertFrom-Json
+    if ($qaRuntimeConfig.apiBaseUrl -cne $ApiUrl) {
+        throw "Angular QA runtime-config.json does not point to the QA API."
+    }
+    if ($qaRuntimeConfig.apiBaseUrl -match "prod|app\.khatadhari\.com") {
+        throw "Angular QA runtime-config.json contains a production API hostname."
+    }
+    $ngswConfig = Get-Content (Join-Path $AngularDist "ngsw.json") -Raw | ConvertFrom-Json
+    $qaDataGroups = @($ngswConfig.dataGroups | Where-Object { $null -ne $_ })
+    if ($qaDataGroups.Count -ne 0) {
+        throw "Angular QA service-worker configuration contains dataGroups; API responses must not be cached."
+    }
 
     $AngularArchive = Join-Path $Work "ANGULAR-$Stamp.tar.gz"
     Push-Location $AngularDist
@@ -668,6 +686,10 @@ if (-not $SkipApi) {
 }
 if (-not $SkipAngular) {
     Test-Url $AngularUrl
+    foreach ($asset in @("manifest.webmanifest", "ngsw.json", "ngsw-worker.js", "runtime-config.json")) {
+        Test-Url "$AngularUrl/$asset"
+    }
+    Test-Url "$AngularUrl/icons/khatadhari-erp-192.png"
 }
 if (-not $SkipWebsite) {
     Test-Url $WebsiteUrl

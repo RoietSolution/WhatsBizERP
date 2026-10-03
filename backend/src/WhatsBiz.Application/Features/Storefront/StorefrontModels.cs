@@ -25,6 +25,7 @@ public interface IStorefrontService
     Task<StorefrontOfferDto?> GetOfferAsync(string storeKey, Guid offerId, CancellationToken token);
     Task<StorefrontImage?> GetProductImageAsync(string storeKey, Guid productId, CancellationToken token);
     Task<StorefrontImage?> GetPresentationImageAsync(string storeKey, string resource, Guid? categoryId, CancellationToken token);
+    Task<StorefrontImage?> GetPwaIconAsync(string storeKey, int size, CancellationToken token);
 }
 
 public sealed record StorefrontBannerAdminDto(string Slot, bool IsEnabled, DateTimeOffset? StartsAt, DateTimeOffset? EndsAt,

@@ -10,8 +10,8 @@ import { CartQuote } from '../models/storefront.models';
     @if (quote && quote.freeDeliveryEnabled && quote.freeDeliveryThreshold && quote.progressPercent >= 0) {
       <section class="delivery-progress" [class.toast]="mode === 'toast'" role="status" aria-live="polite">
         @if (quote.isFreeDeliveryUnlocked) {
-          <div class="delivery-unlocked"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><strong>FREE DELIVERY UNLOCKED</strong></div>
-          <span>You've unlocked FREE delivery!</span>
+          <div class="delivery-unlocked"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><strong>Free Delivery Unlocked 🎉</strong></div>
+          <span>Free Delivery Unlocked 🎉</span>
         } @else {
           <strong>FREE DELIVERY</strong>
           <div class="progress-row"><div class="progress-track" role="progressbar" [attr.aria-valuenow]="quote.progressPercent" aria-valuemin="0" aria-valuemax="100" aria-label="Free delivery progress"><span [style.width.%]="quote.progressPercent"></span></div><small>{{ quote.progressPercent }}%</small></div>

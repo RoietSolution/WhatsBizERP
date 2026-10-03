@@ -76,6 +76,41 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         return image is null ? NotFound() : File(image.Content, image.ContentType);
     }
 
+    [HttpGet("pwa/manifest.webmanifest")]
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
+    public async Task<IActionResult> GetPwaManifest(string storeKey, [FromQuery] string? shopOrigin, CancellationToken token)
+    {
+        var store = await storefront.GetStoreAsync(storeKey, token);
+        if (store is null) return NotFound();
+        var key = store.StoreKey.ToLowerInvariant();
+        var origin = ValidOrigin(shopOrigin) ?? ValidOrigin(Request.Headers.Referer.ToString());
+        var startUrl = $"{origin?.TrimEnd('/') ?? string.Empty}/{key}/";
+        var shortName = store.Name.Trim();
+        if (shortName.Length > 12) shortName = shortName[..12].TrimEnd();
+        var manifest = new Dictionary<string, object?>
+        {
+            ["name"] = store.Name,
+            ["short_name"] = shortName,
+            ["description"] = store.Tagline,
+            ["start_url"] = startUrl,
+            ["scope"] = startUrl,
+            ["display"] = "standalone",
+            ["orientation"] = "portrait-primary",
+            ["background_color"] = "#f6f7f4",
+            ["theme_color"] = store.AccentColor,
+            ["icons"] = store.LogoUrl is null ? Array.Empty<object>() : new object[]
+            {
+                new { src = $"/api/store/{Uri.EscapeDataString(key)}/pwa/icon/192", sizes = "192x192", type = "image/webp", purpose = "any maskable" },
+                new { src = $"/api/store/{Uri.EscapeDataString(key)}/pwa/icon/512", sizes = "512x512", type = "image/webp", purpose = "any maskable" }
+            }
+        };
+        return new JsonResult(manifest) { ContentType = "application/manifest+json" };
+    }
+
+    [HttpGet("pwa/icon/{size:int}")]
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
+    public async Task<IActionResult> GetPwaIcon(string storeKey, int size, CancellationToken token)
+        => ToImage(await storefront.GetPwaIconAsync(storeKey, size, token));
     [HttpGet("presentation/logo")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
     public async Task<IActionResult> GetLogo(string storeKey, CancellationToken token)
@@ -142,7 +177,7 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
     }
     [HttpPost("session/profile-image")]
     [RequestSizeLimit(MaxProfileImageRequestBytes)]
-    public async Task<ActionResult<StorefrontCustomerDto>> UploadProfileImage(string storeKey, IFormFile file, CancellationToken token)
+    public async Task<ActionResult<StorefrontCustomerDto>> UploadProfileImage(string storeKey, [FromForm(Name = "file")] IFormFile file, CancellationToken token)
     {
         if (file is null || file.Length == 0) return BadRequest(new { message = "Choose an image to upload." });
         if (file.Length > MaxProfileImageBytes) return BadRequest(new { message = "Choose an image up to 5 MB." });
@@ -261,6 +296,12 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
 
     private string CustomerSessionToken() => Request.Headers["X-Customer-Session"].ToString();
 
+    private static string? ValidOrigin(string? value)
+    {
+        return Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https"
+            ? uri.GetLeftPart(UriPartial.Authority)
+            : null;
+    }
     private IActionResult ToImage(StorefrontImage? image) => image is null ? NotFound() : File(image.Content, image.ContentType);
     private static string? SafeCheckoutMessage(string message) => message switch
     {

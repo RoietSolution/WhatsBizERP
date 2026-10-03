@@ -5,7 +5,7 @@
     {
       "name": "app-shell",
       "installMode": "prefetch",
-      "resources": { "files": ["/index.html", "/*.css", "/*.js", "/manifest.webmanifest", "/icons/**", "/images/**"] }
+      "resources": { "files": ["/index.html", "/*.css", "/*.js", "/icons/**", "/images/**"] }
     }
   ],
   "navigationUrls": ["/**", "!/**/*.*", "!/**/*__*"]

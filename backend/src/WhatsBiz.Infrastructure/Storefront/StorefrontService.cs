@@ -1,4 +1,8 @@
 using System.Text.RegularExpressions;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Webp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using Microsoft.EntityFrameworkCore;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Storefront;
@@ -115,6 +119,23 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
         return content is null ? null : new(content.ContentType, content.Content);
     }
 
+    public async Task<StorefrontImage?> GetPwaIconAsync(string storeKey, int size, CancellationToken token)
+    {
+        if (size is not (192 or 512)) return null;
+        var logo = await GetPresentationImageAsync(storeKey, "logo", null, token);
+        if (logo is null) return null;
+        using var icon = Image.Load<Rgba32>(logo.Content);
+        icon.Mutate(context => context.Resize(new ResizeOptions
+        {
+            Size = new Size(size, size),
+            Mode = ResizeMode.Pad,
+            PadColor = Color.White,
+            Sampler = KnownResamplers.Lanczos3
+        }));
+        await using var output = new MemoryStream();
+        await icon.SaveAsWebpAsync(output, new WebpEncoder { Quality = 90, Method = WebpEncodingMethod.BestQuality }, token);
+        return new StorefrontImage("image/webp", output.ToArray());
+    }
     private IQueryable<Guid?> EligibleBannerMedia(Guid tenantId, string slot)
     {
         var now = DateTimeOffset.UtcNow;

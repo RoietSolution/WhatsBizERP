@@ -148,8 +148,9 @@ public sealed partial class StorefrontCustomerAuthenticationService(
         if (tenantId is null || mobile is null || input.ChallengeId == Guid.Empty || !OtpPattern().IsMatch(input.Otp ?? string.Empty)) return null;
         var email = NormalizeEmail(input.Email);
         if (!string.IsNullOrWhiteSpace(input.Email) && email is null) throw new BusinessRuleException("Enter a valid email address.");
-        var name = string.IsNullOrWhiteSpace(input.Name) ? null : input.Name.Trim();
-        if (name?.Length > 250) throw new BusinessRuleException("Enter a valid customer name.");
+        var name = input.Name?.Trim();
+        if (string.IsNullOrWhiteSpace(name)) throw new BusinessRuleException("Name is required.");
+        if (name.Length > 250) throw new BusinessRuleException("Enter a valid customer name.");
 
         await using var connection = await Open(tenantId.Value, token);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, token);

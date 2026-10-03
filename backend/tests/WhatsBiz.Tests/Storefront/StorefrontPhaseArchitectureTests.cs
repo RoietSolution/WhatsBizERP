@@ -86,11 +86,42 @@ public sealed class StorefrontPhaseArchitectureTests
     {
         var shell = Read("frontend/KhataDhari.Customer/src/app/store-shell.ts");
         shell.Should().Contain("this.cart.switchCustomer(customerId)")
-            .And.Contain("this.wishlist.switchCustomer(key, customerId)");
+            .And.Contain("this.wishlist.switchCustomer(key, customerId)")
+            .And.Contain("this.session.restore(storeKey); this.cart.useStore(storeKey)");
         var session = Read("frontend/KhataDhari.Customer/src/app/customer-session.service.ts");
         session.Should().Contain("this.customer.set(null)").And.Contain("this.active.set(false)");
         var auth = Read("frontend/KhataDhari.Customer/src/app/customer-auth.service.ts");
         auth.Should().Contain("this.wishlist.switchCustomer(storeKey,result.customer.id)");
+    }
+    [Fact]
+    public void CustomerSessionRestorePreservesIdentityUntilValidationCompletes()
+    {
+        var session = Read("frontend/KhataDhari.Customer/src/app/customer-session.service.ts");
+        session.Should().Contain("readonly customerId=signal<string|null>(null)")
+            .And.Contain("readonly restoring=signal(false)")
+            .And.Contain("readonly restoreError=signal(false)")
+            .And.Contain("this.active.set(true);this.restoring.set(true)")
+            .And.Contain("this.customerId.set(mapped.id)")
+            .And.Contain("error.status===401")
+            .And.Contain("this.clear(normalized)")
+            .And.Contain("this.restoreError.set(true)")
+            .And.NotContain("else this.clear");
+
+        var guard = Read("frontend/KhataDhari.Customer/src/app/customer-auth.guard.ts");
+        guard.Should().Contain("await session.restore(storeKey)")
+            .And.Contain("session.isAuthenticated(storeKey)");
+
+        var profile = Read("frontend/KhataDhari.Customer/src/app/pages/account-profile.page.ts")
+            + Read("frontend/KhataDhari.Customer/src/app/pages/account-profile.page.html");
+        profile.Should().Contain("await this.session.restore(this.storeKey)")
+            .And.Contain("session.restoring()")
+            .And.Contain("session.restoreError()");
+
+        var shell = Read("frontend/KhataDhari.Customer/src/app/store-shell.ts");
+        shell.Should().Contain("const customerId = this.session.customerId()")
+            .And.Contain("this.cart.switchCustomer(customerId)")
+            .And.Contain("this.wishlist.switchCustomer(key, customerId)")
+            .And.Contain("this.session.restore(storeKey); this.cart.useStore(storeKey)");
     }
     [Fact]
     public void ProfileMediaReplacementDoesNotViolateCustomerUniqueness()

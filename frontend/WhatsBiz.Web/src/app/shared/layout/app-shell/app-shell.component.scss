@@ -1,6 +1,7 @@
 :host {
   display: block;
   height: 100dvh;
+  padding-top: env(safe-area-inset-top);
 }
 mat-sidenav-container {
   height: 100%;
@@ -46,7 +47,7 @@ footer {
   gap: 16px;
   min-height: 48px;
   align-items: center;
-  padding: 8px clamp(16px, 2vw, 32px);
+  padding: 8px max(clamp(16px, 2vw, 32px), env(safe-area-inset-left)) env(safe-area-inset-bottom) max(clamp(16px, 2vw, 32px), env(safe-area-inset-right));
   color: var(--wb-text-secondary);
   border-top: 1px solid var(--wb-border);
   font-size: 0.75rem;

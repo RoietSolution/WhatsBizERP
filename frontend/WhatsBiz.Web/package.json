@@ -32,6 +32,7 @@
     "@angular/material": "^20.2.14",
     "@angular/platform-browser": "^20.3.0",
     "@angular/router": "^20.3.0",
+    "@angular/service-worker": "^20.3.26",
     "@zxing/browser": "^0.1.5",
     "@zxing/library": "^0.21.3",
     "ag-grid-angular": "^36.1.0",

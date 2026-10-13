@@ -7,16 +7,11 @@ import { CartQuote } from '../models/storefront.models';
   standalone: true,
   imports: [CurrencyPipe],
   template: `
-    @if (quote && quote.freeDeliveryEnabled && quote.freeDeliveryThreshold && quote.progressPercent >= 0) {
+    @if (quote && quote.freeDeliveryEnabled && quote.freeDeliveryThreshold && !quote.isFreeDeliveryUnlocked && quote.remainingAmount > 0) {
       <section class="delivery-progress" [class.toast]="mode === 'toast'" role="status" aria-live="polite">
-        @if (quote.isFreeDeliveryUnlocked) {
-          <div class="delivery-unlocked"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><strong>Free Delivery Unlocked 🎉</strong></div>
-        } @else {
-          <strong>FREE DELIVERY</strong>
-          <div class="progress-row"><div class="progress-track" role="progressbar" [attr.aria-valuenow]="quote.progressPercent" aria-valuemin="0" aria-valuemax="100" aria-label="Free delivery progress"><span [style.width.%]="quote.progressPercent"></span></div><small>{{ quote.progressPercent }}%</small></div>
-          <span>Add {{ quote.remainingAmount | currency:'INR':'symbol':'1.0-2' }} more for FREE delivery</span>
-        }
-      </section>
+        <strong>FREE DELIVERY</strong>
+        <div class="progress-row"><div class="progress-track" role="progressbar" [attr.aria-valuenow]="quote.progressPercent" aria-valuemin="0" aria-valuemax="100" aria-label="Free delivery progress"><span [style.width.%]="quote.progressPercent"></span></div><small>{{ quote.progressPercent }}%</small></div>
+        <span>Add {{ quote.remainingAmount | currency:'INR':'symbol':'1.0-2' }} more for FREE delivery</span>      </section>
     }
   `,
   styles: [`

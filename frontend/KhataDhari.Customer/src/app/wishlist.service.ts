@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../environments/environment';
 import { Product } from './models/storefront.models';
 import { CustomerSessionService } from './customer-session.service';
+import { StorefrontActivityService } from './storefront-activity.service';
 
 interface ApiProduct { id:string;categoryId:string;name:string;description?:string;imageUrl?:string;sellingPrice:number;compareAtPrice?:number;availability:'IN_STOCK'|'OUT_OF_STOCK';packSize?:string;averageRating?:number;ratingCount?:number; }
 
@@ -14,7 +15,7 @@ export class WishlistService {
   private customerId = '';
   private loaded = false;
 
-  constructor(private readonly http: HttpClient, private readonly session: CustomerSessionService) {}
+  constructor(private readonly http: HttpClient, private readonly session: CustomerSessionService, private readonly activity: StorefrontActivityService) {}
 
   initialize(storeKey: string): void {
     const normalized = storeKey.trim().toLowerCase();
@@ -54,6 +55,7 @@ export class WishlistService {
       const rollback = new Set(this.ids());
       adding ? rollback.delete(product.id) : rollback.add(product.id);
       this.ids.set(rollback); this.saveLocal(rollback); return false; }
+    this.activity.record(this.storeKey, adding ? 'ADD_TO_WISHLIST' : 'REMOVE_FROM_WISHLIST', product.id);
     return true;
   }
 

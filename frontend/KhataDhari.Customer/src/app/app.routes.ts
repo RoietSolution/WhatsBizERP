@@ -1,4 +1,4 @@
-﻿import { Routes } from '@angular/router';
+import { Routes } from '@angular/router';
 import { CartPage } from './pages/cart.page';
 import { OrdersPage } from './pages/orders.page';
 import { OrderDetailsPage } from './pages/order-details.page';
@@ -14,9 +14,13 @@ import { customerAuthGuard } from './customer-auth.guard';
 import { AddressesPage } from './pages/addresses.page';
 import { StorefrontContentPage } from './pages/storefront-content.page';
 import { AccountProfilePage } from './pages/account-profile.page';
+import { RewardsPage } from './pages/rewards.page';
+import { CustomerReferralLandingPage } from './pages/customer-referral-landing.page';
+import { FeedbackPage } from './pages/feedback.page';
 
 export const routes: Routes = [
   { path: '', component: WelcomePage, pathMatch: 'full' },
+  { path: 'ref/:code', component: CustomerReferralLandingPage },
   {
     path: ':storeKey',
     component: StoreShell,
@@ -30,16 +34,19 @@ export const routes: Routes = [
       { path: 'orders/:orderId', component: OrderDetailsPage, canActivate: [customerAuthGuard] },
       { path: 'wishlist', component: WishlistPage },
       { path: 'auth', component: CustomerAuthPage },
+      { path: 'feedback', component: FeedbackPage },
       { path: 'account', component: AccountPage, canActivate: [customerAuthGuard], children: [
         { path: '', redirectTo: 'profile', pathMatch: 'full' },
         { path: 'profile', component: AccountProfilePage },
         { path: 'wishlist', component: WishlistPage },
         { path: 'orders', component: OrdersPage },
+        { path: 'rewards', component: RewardsPage },
         { path: 'addresses', component: AddressesPage },
         { path: 'support', component: StorefrontContentPage, data: { kind: 'support' } },
         { path: 'reviews', component: StorefrontContentPage, data: { kind: 'reviews' } },
         { path: 'terms', component: StorefrontContentPage, data: { kind: 'terms' } },
         { path: 'privacy', component: StorefrontContentPage, data: { kind: 'privacy' } },
+        { path: 'feedback', component: FeedbackPage },
       ] },
       { path: 'addresses', component: AddressesPage, canActivate: [customerAuthGuard] },
       { path: 'support', component: StorefrontContentPage, canActivate: [customerAuthGuard], data: { kind: 'support' } },

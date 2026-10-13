@@ -37,3 +37,12 @@ img { display: block; max-width: 100%; }
 a { color: inherit; }
 ::selection { color: var(--store-primary-dark); background: var(--store-primary-soft); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+.return-lines { display: grid; gap: 8px; margin-top: 16px; }
+.return-line { display: flex; gap: 9px; align-items: flex-start; border: 1px solid var(--store-border); border-radius: 10px; padding: 9px; background: var(--store-surface-muted); }
+.return-line img, .line-image-fallback { width: 48px; height: 48px; flex: 0 0 48px; border-radius: 7px; object-fit: contain; background: #fff; }
+.line-image-fallback { display: grid; place-items: center; color: var(--store-muted); font-size: 20px; }
+.return-line > div:last-child { min-width: 0; }
+.return-line strong { display: block; font-size: 11px; overflow-wrap: anywhere; }
+.return-line p { margin: 4px 0 0; font-size: 10px; line-height: 1.5; }
+.return-line small { font-size: 10px; line-height: 1.5; }
+@media (max-width: 620px) { .return-line img, .line-image-fallback { width: 42px; height: 42px; flex-basis: 42px; } }

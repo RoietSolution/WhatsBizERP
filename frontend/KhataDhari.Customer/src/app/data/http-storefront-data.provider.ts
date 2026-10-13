@@ -2,15 +2,16 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer } from '../models/storefront.models';
+import { AvailabilityRequest, CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer } from '../models/storefront.models';
 import { StorefrontDataProvider } from './storefront-data.provider';
 import { CustomerSessionService } from '../customer-session.service';
 
-interface ApiStore { storeKey: string; name: string; tagline?: string; logoUrl?: string | null; allCategoryImageUrl?: string | null; accentColor?: string; deliveryMessage?: string; freeDeliveryThreshold?:number|null; banners?: Array<{slot:'PRIMARY'|'SECONDARY';imageUrl:string;title?:string;subtitle?:string;targetUrl?:string;displayOrder:number;promotionId?:string|null}>; showProductRatings?:boolean; showProductReviews?:boolean; paymentMethods?: Array<{code:'UPI'|'NET_BANKING'|'COD';provider:'RAZORPAY'|'COD';label:string;description:string;isDefault:boolean;usesHostedPaymentPage:boolean}>; }
+interface ApiStore { storeKey: string; name: string; tagline?: string; logoUrl?: string | null; allCategoryImageUrl?: string | null; accentColor?: string; deliveryMessage?: string; freeDeliveryThreshold?:number|null; banners?: Array<{slot:'PRIMARY'|'SECONDARY';imageUrl:string;title?:string;subtitle?:string;targetUrl?:string;displayOrder:number;promotionId?:string|null}>; showProductRatings?:boolean; showProductReviews?:boolean; paymentMethods?: Array<{code:'UPI'|'NET_BANKING'|'COD';provider:'RAZORPAY'|'COD';label:string;description:string;isDefault:boolean;usesHostedPaymentPage:boolean}>; customerRewardsEnabled?: boolean; }
 interface ApiCategory { id: string; name: string; imageUrl?: string | null; }
 interface ApiOffer extends StorefrontOffer {}
 interface ApiProductPage { items: ApiProduct[]; pageNumber: number; pageSize: number; totalCount: number; hasMore: boolean; }
-interface ApiProduct { id: string; categoryId: string; name: string; description?: string | null; imageUrl?: string | null; sellingPrice: number; compareAtPrice?: number | null; availability: 'IN_STOCK' | 'OUT_OF_STOCK'; packSize?: string | null; averageRating?: number | null; ratingCount?: number; returnPolicyMode?: "INHERIT_DEFAULT" | "CUSTOM" | "NON_RETURNABLE"; returnWindowDays?: number | null; isReturnable?: boolean; }
+interface ApiProductImage { id: string; url: string; thumbnailUrl: string; isPrimary: boolean; }
+interface ApiProduct { id: string; categoryId: string; name: string; description?: string | null; longDescription?: string | null; specifications?: Array<{name:string;value:string}>; imageUrl?: string | null; images?: ApiProductImage[] | null; sellingPrice: number; compareAtPrice?: number | null; availability: 'IN_STOCK' | 'OUT_OF_STOCK'; packSize?: string | null; averageRating?: number | null; ratingCount?: number; returnPolicyMode?: "INHERIT_DEFAULT" | "CUSTOM" | "NON_RETURNABLE"; returnWindowDays?: number | null; isReturnable?: boolean; returnPolicyDescription?: string | null; }
 
 @Injectable({ providedIn: 'root' })
 export class HttpStorefrontDataProvider implements StorefrontDataProvider {
@@ -20,7 +21,7 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
     let store: ApiStore;
     try { store = await firstValueFrom(this.http.get<ApiStore>(this.url(storeKey))); }
     catch (error) { if (error instanceof HttpErrorResponse && error.status === 404) return null; throw error; }
-    return { storeKey: store.storeKey, name: store.name, tagline: store.tagline ?? 'Good things, close to home.', logoUrl: this.asset(store.logoUrl), allCategoryImageUrl:this.asset(store.allCategoryImageUrl), accentColor: store.accentColor ?? '#145c43', freeDeliveryThreshold:store.freeDeliveryThreshold??undefined, deliveryMessage: store.deliveryMessage ?? 'Fresh picks, close to home.', showProductRatings:store.showProductRatings??true, showProductReviews:store.showProductReviews??true, banners:(store.banners??[]).map(b=>({...b,imageUrl:this.asset(b.imageUrl)!})),paymentMethods:store.paymentMethods??[] };
+    return { storeKey: store.storeKey, name: store.name, tagline: store.tagline ?? 'Good things, close to home.', logoUrl: this.asset(store.logoUrl), allCategoryImageUrl:this.asset(store.allCategoryImageUrl), accentColor: store.accentColor ?? '#145c43', freeDeliveryThreshold:store.freeDeliveryThreshold??undefined, deliveryMessage: store.deliveryMessage ?? 'Fresh picks, close to home.', showProductRatings:store.showProductRatings??true, showProductReviews:store.showProductReviews??true, banners:(store.banners??[]).map(b=>({...b,imageUrl:this.asset(b.imageUrl)!})),paymentMethods:store.paymentMethods??[],customerRewardsEnabled:store.customerRewardsEnabled===true };
   }
 
   async getCategories(storeKey: string): Promise<Category[]> {
@@ -48,6 +49,8 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
 
   async getOrder(storeKey:string,orderId:string):Promise<CustomerOrder|null>{const token=this.session.token(storeKey);if(!token)return null;try{return await firstValueFrom(this.http.get<CustomerOrder>(`${this.url(storeKey)}/orders/${encodeURIComponent(orderId)}`,{headers:{'X-Customer-Session':token}}));}catch(error){if(error instanceof HttpErrorResponse&&error.status===401)this.session.clear(storeKey);return null;}}
   async requestCancellation(storeKey:string,orderId:string,reason:string):Promise<void>{const token=this.session.token(storeKey);if(!token)throw new Error('Sign in to request cancellation.');await firstValueFrom(this.http.post(`${this.url(storeKey)}/orders/${encodeURIComponent(orderId)}/cancellation-request`, {reason},{headers:{'X-Customer-Session':token}}));}
+  async requestReturn(storeKey:string,orderId:string,invoiceItemId:string,quantity:number,reason:string,explanation?:string):Promise<import('../models/storefront.models').StorefrontReturnRequest>{const token=this.session.token(storeKey);if(!token)throw new Error('Sign in to request a return.');return await firstValueFrom(this.http.post<import('../models/storefront.models').StorefrontReturnRequest>(`${this.url(storeKey)}/orders/${encodeURIComponent(orderId)}/items/${encodeURIComponent(invoiceItemId)}/return-request`,{quantity,reason,explanation:explanation||null},{headers:{'X-Customer-Session':token}}));}
+  async checkDelivery(storeKey:string,pincode:string):Promise<{deliveryEnabled:boolean;isPincodeServiceable:boolean}>{return await firstValueFrom(this.http.get<{deliveryEnabled:boolean;isPincodeServiceable:boolean}>(`${this.url(storeKey)}/delivery/availability`,{params:{pincode}}));}
   async quote(storeKey:string,lines:readonly CartLine[],pincode:string,promoCode?:string):Promise<CartQuote|null>{if(!lines.length)return null;const token=this.session.token(storeKey);return await firstValueFrom(this.http.post<CartQuote>(`${this.url(storeKey)}/cart/quote`,{pincode,promoCode:promoCode||null,items:lines.map(x=>({productId:x.product.id,quantity:x.quantity}))},{headers:token?{'X-Customer-Session':token}:{}}));}
   async getReviews(storeKey:string,productId:string):Promise<ProductReviewSummary>{const token=this.session.token(storeKey);return await firstValueFrom(this.http.get<ProductReviewSummary>(`${this.url(storeKey)}/products/${encodeURIComponent(productId)}/reviews`,{headers:token?{'X-Customer-Session':token}:{}}));}
   async saveReview(storeKey:string,productId:string,rating:number,reviewText:string):Promise<ProductReview>{return await firstValueFrom(this.http.put<ProductReview>(`${this.url(storeKey)}/products/${encodeURIComponent(productId)}/reviews/mine`,{rating,reviewText},{headers:{'X-Customer-Session':this.session.token(storeKey)}}));}
@@ -67,6 +70,9 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
       items: lines.map((line) => ({ productId: line.product.id, quantity: line.quantity })),
     }, { headers: { 'Idempotency-Key': idempotencyKey, ...(this.session.token(storeKey) ? { 'X-Customer-Session': this.session.token(storeKey) } : {}) } }));
   }
+  async requestAvailability(storeKey:string,productId:string,mobile?:string,consentGiven=false):Promise<AvailabilityRequest>{const token=this.session.token(storeKey);return await firstValueFrom(this.http.post<AvailabilityRequest>(`${this.url(storeKey)}/products/${productId}/availability-request`,{mobile:mobile||null,preferredChannel:'WHATSAPP',consentGiven},{headers:token?{'X-Customer-Session':token}:{}}));}
+  async cancelAvailability(storeKey:string,productId:string):Promise<void>{const token=this.session.token(storeKey);await firstValueFrom(this.http.delete(`${this.url(storeKey)}/products/${productId}/availability-request`,{headers:token?{'X-Customer-Session':token}:{}}));}
+  async requestMissingProduct(storeKey:string,keyword:string,mobile?:string,remarks?:string):Promise<void>{const token=this.session.token(storeKey);await firstValueFrom(this.http.post(`${this.url(storeKey)}/missing-product-requests`,{keyword,mobile:mobile||null,remarks:remarks||null,anonymousSessionId:null},{headers:token?{'X-Customer-Session':token}:{}}));}
 
   private mapProduct(product: ApiProduct): Product {
     return {
@@ -74,13 +80,16 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
       categoryId: product.categoryId,
       name: product.name,
       description: product.description ?? '',
+      longDescription: product.longDescription ?? undefined,
+      specifications: product.specifications ?? [],
       imageUrl: product.imageUrl ? `${environment.apiBaseUrl}${product.imageUrl}` : '/images/product-placeholder.svg',
+      images: (product.images ?? []).map(image => ({ id: image.id, url: `${environment.apiBaseUrl}${image.url}`, thumbnailUrl: `${environment.apiBaseUrl}${image.thumbnailUrl}`, isPrimary: image.isPrimary })),
       sellingPrice: product.sellingPrice,
       compareAtPrice: product.compareAtPrice ?? undefined,
       available: product.availability === 'IN_STOCK',
       packSize: product.packSize ?? undefined,
       averageRating: product.averageRating ?? undefined,
-      ratingCount: product.ratingCount ?? 0, returnPolicyMode: product.returnPolicyMode, returnWindowDays: product.returnWindowDays ?? undefined, isReturnable: product.isReturnable,
+      ratingCount: product.ratingCount ?? 0, returnPolicyMode: product.returnPolicyMode, returnWindowDays: product.returnWindowDays ?? undefined, isReturnable: product.isReturnable, returnPolicyDescription: product.returnPolicyDescription ?? undefined,
     };
   }
 

@@ -1,0 +1,40 @@
+<section class="account-section rewards-page" aria-labelledby="rewards-title">
+@if (loading()) {
+    <div class="account-state" role="status"><span class="state-icon">◎</span><h3>Loading your rewards</h3><p>Please wait while we load your referral and coin history.</p></div>
+  } @else if (error()) {
+    <div class="account-state"><span class="state-icon">!</span><h3>Rewards are temporarily unavailable</h3><p>We couldn't load your rewards right now.</p><button class="secondary-button" type="button" (click)="load()">Try again</button></div>
+  } @else if (data(); as rewards) {
+    @if (!rewards.enabled) {
+      <div class="account-state"><span class="state-icon">◎</span><h3>Refer &amp; Earn is unavailable</h3><p>This retailer has not enabled customer referral rewards.</p></div>
+    } @else {
+      <header class="section-header"><div><span class="eyebrow">KHATADHARI REWARDS</span><h2 id="rewards-title">My Rewards</h2><p>Invite friends and earn coins for qualifying referrals.</p></div></header>
+      <div class="reward-balance"><span class="balance-label">Available coins</span><strong>{{rewards.wallet?.availableCoins ?? 0}}</strong><span class="balance-note">Server-authoritative balance</span></div>
+      <article class="reward-card referral-card">
+        <div><span class="eyebrow">REFER &amp; EARN</span><h3>Share your referral</h3><p>Invite another customer using your personal KhataDhari link.</p></div>
+        <div class="referral-value"><span>Referral code</span><strong>{{rewards.referralCode?.code}}</strong><div class="button-row"><button class="secondary-button" type="button" (click)="copy(rewards.referralCode?.code ?? '', 'Referral code')">Copy code</button><button class="primary-button" type="button" (click)="share()">Share on WhatsApp</button></div></div>
+        <div class="link-row"><span>{{rewards.referralCode?.referralUrl}}</span><button class="secondary-button" type="button" (click)="copy(rewards.referralCode?.referralUrl ?? '', 'Referral link')">Copy link</button></div>
+      </article>
+      <article class="reward-card"><div class="card-heading"><h3>How it works</h3></div><ol class="steps"><li>Share your referral link</li><li>Your friend registers through the invitation</li><li>Their first qualifying action is completed</li><li>Configured rewards are credited automatically</li></ol><p class="terms">{{rewards.terms}}</p></article>
+      <article class="reward-card">
+        <div class="card-heading"><h3>Your referrals</h3><span>{{rewards.referrals.length}}</span></div>
+        @if (rewards.referrals.length) {
+          <div class="history-list">
+            @for (referral of rewards.referrals; track referral.referralId) {
+              <div class="history-row"><div><strong>{{referral.referredCustomerDisplay}}</strong><small>{{referral.qualificationType}}</small></div><span class="status" [class]="statusClass(referral.status)">{{referral.status}}</span><time>{{referral.createdAt | date:'mediumDate'}}</time></div>
+            }
+          </div>
+        } @else { <p class="empty-copy">Your referral history will appear here.</p> }
+      </article>
+      <article class="reward-card">
+        <div class="card-heading"><h3>Coin history</h3><span>{{rewards.wallet?.transactions?.length ?? 0}}</span></div>
+        @if (rewards.wallet?.transactions?.length) {
+          <div class="history-list">
+            @for (transaction of rewards.wallet?.transactions ?? []; track transaction.coinTransactionId) {
+              <div class="history-row"><div><strong>{{transaction.description || transaction.transactionType}}</strong><small>@if (transaction.expiresAt) { Expires {{transaction.expiresAt | date:'mediumDate'}} }</small></div><span class="coin-amount" [class.debit]="transaction.coins < 0">{{transaction.coins > 0 ? '+' : ''}}{{transaction.coins}}</span><time>{{transaction.createdOn | date:'mediumDate'}}</time></div>
+            }
+          </div>
+        } @else { <p class="empty-copy">Your coin transactions will appear here.</p> }
+      </article>
+    }
+  }
+</section>

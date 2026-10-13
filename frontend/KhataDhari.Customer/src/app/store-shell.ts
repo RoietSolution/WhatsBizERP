@@ -10,6 +10,8 @@ import { StorefrontNotificationService } from './storefront-notification.service
 import { WishlistService } from './wishlist.service';
 import { PwaInstallService } from './pwa-install.service';
 import { FreeDeliveryProgressComponent } from './shared/free-delivery-progress.component';
+import { CustomerRewardsService } from './customer-rewards.service';
+import { StorefrontActivityService } from './storefront-activity.service';
 
 @Component({
   selector: 'shop-store-shell',
@@ -30,7 +32,7 @@ import { FreeDeliveryProgressComponent } from './shared/free-delivery-progress.c
             <a class="brand" [routerLink]="['/', currentStore.storeKey]" aria-label="Store home">
               @if (currentStore.logoUrl) { <img [src]="currentStore.logoUrl" alt="" /> }
               @else { <span class="brand-mark">{{ currentStore.name.slice(0, 1) }}</span> }
-              <span class="brand-copy"><strong>{{ currentStore.name }}</strong><small>Powered by KhataDhari</small></span>
+              <span class="brand-copy"><strong>{{ currentStore.displayName || currentStore.name }}</strong><small>Powered by KhataDhari</small></span>
             </a>
             <form class="search-wrap" (submit)="search($event)">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3m2.3-5.2a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
@@ -49,9 +51,10 @@ import { FreeDeliveryProgressComponent } from './shared/free-delivery-progress.c
                   <div class="account-dropdown-summary">@if(session.customer()?.profileImageUrl; as avatar){<img class="header-avatar" [src]="avatar" alt="">} @else {<span class="header-avatar initials">{{initials(session.customer()?.name||'')}}</span>}<span><strong>{{session.customer()?.name}}</strong><small>{{session.customer()?.mobile}}</small><em>✓ Verified</em></span></div>
                   <a role="menuitem" [routerLink]="['/',currentStore.storeKey,'account','profile']" (click)="closeAccountMenu()">My Profile <span>›</span></a>
                   <a role="menuitem" [routerLink]="['/',currentStore.storeKey,'account','wishlist']" (click)="closeAccountMenu()">My Wishlist <span>›</span></a>
-                  <a role="menuitem" [routerLink]="['/',currentStore.storeKey,'account','orders']" (click)="closeAccountMenu()">My Orders <span>›</span></a>
+                  <a role="menuitem" [routerLink]="['/',currentStore.storeKey,'account','orders']" (click)="closeAccountMenu()">My Orders <span>›</span></a>@if(rewards.enabled()){<a role="menuitem" [routerLink]="['/',currentStore.storeKey,'account','rewards']" (click)="closeAccountMenu()">My Rewards <span>›</span></a>}
                   <a role="menuitem" [routerLink]="['/',currentStore.storeKey,'account','addresses']" (click)="closeAccountMenu()">Addresses <span>›</span></a>
                   <a role="menuitem" [routerLink]="['/',currentStore.storeKey,'account','support']" (click)="closeAccountMenu()">Support &amp; FAQs <span>›</span></a>
+                  <a role="menuitem" [routerLink]="['/',currentStore.storeKey,'feedback']" (click)="closeAccountMenu()">Help &amp; Feedback <span>›</span></a>
                   <a role="menuitem" [routerLink]="['/',currentStore.storeKey,'account','reviews']" (click)="closeAccountMenu()">Ratings &amp; Reviews <span>›</span></a>
                   <a role="menuitem" [routerLink]="['/',currentStore.storeKey,'account','terms']" (click)="closeAccountMenu()">Terms &amp; Conditions <span>›</span></a>
                   <a role="menuitem" [routerLink]="['/',currentStore.storeKey,'account','privacy']" (click)="closeAccountMenu()">Privacy Policy <span>›</span></a>
@@ -101,7 +104,7 @@ export class StoreShell implements OnInit {
   initials(name:string):string{return name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();}
   private readonly destroyRef = inject(DestroyRef);
 
-  constructor(private readonly route: ActivatedRoute, private readonly router: Router, private readonly data: StorefrontDataService, readonly cart: CartService, readonly session: CustomerSessionService, readonly wishlist: WishlistService, readonly notify: StorefrontNotificationService, readonly pwa: PwaInstallService) { effect(() => { const key = this.cart.storeKey(); const lines = this.cart.lines(); if (key && lines.length && this.shoppingRoute()) void this.refreshShoppingQuote(key, lines); else this.shoppingQuote.set(null); }); effect(() => { const key = this.cart.storeKey(); if (!key) return; const customerId = this.session.customerId(); this.cart.switchCustomer(customerId); void this.wishlist.switchCustomer(key, customerId); }); }
+  constructor(private readonly route: ActivatedRoute, private readonly router: Router, private readonly data: StorefrontDataService, readonly cart: CartService, readonly session: CustomerSessionService, readonly wishlist: WishlistService, readonly notify: StorefrontNotificationService, readonly pwa: PwaInstallService, readonly rewards: CustomerRewardsService, readonly activity: StorefrontActivityService) { effect(() => { const key = this.cart.storeKey(); const lines = this.cart.lines(); if (key && lines.length && this.shoppingRoute()) void this.refreshShoppingQuote(key, lines); else this.shoppingQuote.set(null); }); effect(() => { const key = this.cart.storeKey(); if (!key) return; const customerId = this.session.customerId(); this.cart.switchCustomer(customerId); void this.wishlist.switchCustomer(key, customerId); if(customerId) { void this.rewards.get(key).catch(()=>{}); void this.rewards.capturePending(key); } }); }
 
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params: ParamMap) => {
@@ -118,12 +121,12 @@ export class StoreShell implements OnInit {
   goCart(): void { const key = this.store()?.storeKey; if (key) void this.router.navigate(['/', key, 'cart']); }
   toggleAccountMenu():void{this.accountMenuOpen.update(open=>!open);}
   closeAccountMenu():void{this.accountMenuOpen.set(false);}
-  signOut(storeKey:string):void{this.closeAccountMenu();this.session.signOut(storeKey);}
+  signOut(storeKey:string):void{this.closeAccountMenu();this.activity.record(storeKey,'CUSTOMER_SIGN_OUT');this.session.signOut(storeKey);}
   installApp(): void { void this.pwa.install(); }
   @HostListener('document:keydown.escape') closeAccountMenuOnEscape():void{this.closeAccountMenu();}
   @HostListener('document:click',['$event']) closeAccountMenuOnOutsideClick(event:MouseEvent):void{const target=event.target as Element|null;if(target&&!target.closest('.account-menu-wrap'))this.closeAccountMenu();}
   retry(): void { const key = this.route.snapshot.paramMap.get('storeKey') ?? ''; this.loading.set(true); this.loadFailed.set(false); void this.load(key); }
   private updateShoppingRoute(url: string): void { const segments = url.split('?')[0].split('/').filter(Boolean); const hidden = ['cart','checkout','account','auth','wishlist','orders']; this.shoppingRoute.set(segments.length > 0 && !hidden.includes(segments[1] ?? '')); }
   private async refreshShoppingQuote(key: string, lines: readonly CartLine[]): Promise<void> { const request = ++this.quoteRequest; let pincode = ''; try { const raw=sessionStorage.getItem('khata-dhari-storefront-serviceability:'+key); const state=raw?JSON.parse(raw) as {pincode?:string;verified?:boolean}:null; if(state?.verified&&state.pincode) pincode=state.pincode; } catch {} try { const quote = await this.data.quote(key, lines, pincode); if (request === this.quoteRequest) this.shoppingQuote.set(quote); } catch { if (request === this.quoteRequest) this.shoppingQuote.set(null); } }  private navigateSearch(): void { const key = this.store()?.storeKey; if (key) void this.router.navigate(['/', key], { queryParams: { q: this.searchText.trim() || null } }); }
-  private async load(storeKey: string): Promise<void> { try { const loaded = await this.data.getStore(storeKey); this.store.set(loaded); if (loaded) this.pwa.configure(loaded); } catch { this.store.set(null); this.loadFailed.set(true); } finally { this.loading.set(false); } }
+  private async load(storeKey: string): Promise<void> { try { const loaded = await this.data.getStore(storeKey); this.store.set(loaded); if (loaded) { this.pwa.configure(loaded); this.activity.record(storeKey, 'STORE_VISIT'); } } catch { this.store.set(null); this.loadFailed.set(true); } finally { this.loading.set(false); } }
 }

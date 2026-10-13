@@ -1,8 +1,10 @@
 import { computed, Injectable, signal } from '@angular/core';
 import { CartLine, Product } from '../models/storefront.models';
+import { StorefrontActivityService } from '../storefront-activity.service';
 
 @Injectable({ providedIn: 'root' })
 export class CartService {
+  constructor(private readonly activity: StorefrontActivityService) {}
   private readonly activeStore = signal('');
   private activeCustomer = '';
   readonly storeKey = computed(() => this.activeStore());
@@ -43,6 +45,7 @@ export class CartService {
         : [...lines, { product, quantity: 1 }];
     });
     this.persist();
+    this.activity.record(this.activeStore(), 'ADD_TO_CART', product.id);
     return true;
   }
 
@@ -65,6 +68,7 @@ export class CartService {
   remove(productId: string): void {
     this.lines.update((lines) => lines.filter((line) => line.product.id !== productId));
     this.persist();
+    this.activity.record(this.activeStore(), 'REMOVE_FROM_CART', productId);
   }
 
   clear(): void { this.lines.set([]); this.persist(); }

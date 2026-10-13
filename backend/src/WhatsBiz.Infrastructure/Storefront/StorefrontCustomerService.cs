@@ -1,11 +1,15 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Globalization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using WhatsBiz.Application.Features.Storefront;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Common.Exceptions;
+using WhatsBiz.Application.Common.Features;
+using WhatsBiz.Application.Features.Loyalty;
+using WhatsBiz.Application.Features.Referrals;
 
 namespace WhatsBiz.Infrastructure.Storefront;
 
@@ -14,7 +18,10 @@ public sealed class StorefrontCustomerService(
     IDataProtectionProvider dataProtection,
     IStorefrontService storefront,
     IProductImageOptimizer optimizer,
-    IStorefrontMediaStorage mediaStorage) : IStorefrontCustomerService
+    IStorefrontMediaStorage mediaStorage,
+    ICustomerReferralService referrals,
+    ILoyaltyService loyalty,
+    IFeatureService features) : IStorefrontCustomerService, IStorefrontCustomerRewardsService
 {
     private static readonly Regex StoreKeyPattern = new("^[A-Z0-9_-]{1,100}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private readonly IDataProtector protector = dataProtection.CreateProtector("WhatsBiz.Storefront.CustomerSession.v1");
@@ -44,6 +51,32 @@ public sealed class StorefrontCustomerService(
         return await reader.ReadAsync(token) ? new(reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3), reader.IsDBNull(4) ? null : $"/api/store/{Uri.EscapeDataString(storeKey)}/session/profile-image") : null;
     }
 
+    public async Task<StorefrontCustomerRewardsDto?> GetRewardsAsync(string storeKey, string sessionToken, int take, CancellationToken token)
+    {
+        var session = await Resolve(storeKey, sessionToken, token);
+        if (session is null) return null;
+        var enabled = await features.IsEnabledAsync(session.TenantId, FeatureKeys.CustomerReferralRewards, token);
+        var configuration = await referrals.GetConfigurationAsync(session.TenantId, token);
+        if (!enabled || !configuration.IsEnabled)
+            return new(false, null, null, Array.Empty<StorefrontCustomerReferralDto>(), "This retailer's referral rewards are not currently available.", configuration.CoinValidityDays);
+        var code = await referrals.GetOrCreateCodeAsync(session.TenantId, session.CustomerId, "STOREFRONT", token);
+        var wallet = await loyalty.GetWalletAsync(session.TenantId, session.CustomerId, Math.Clamp(take, 1, 500), token);
+        var history = (await referrals.GetHistoryAsync(session.TenantId, session.CustomerId, Math.Clamp(take, 1, 500), token)).Select(x => new StorefrontCustomerReferralDto(x.ReferralId, x.Status, x.QualificationType, x.QualifiedAt, x.RewardedAt, x.ReversedAt, x.CreatedAt, x.ReferredCustomerDisplay)).ToArray();
+        var qualification = configuration.QualificationType.Replace('_', ' ').ToLowerInvariant();
+        var terms = $"Invite a customer using your referral link. Rewards are credited after {qualification}. " +
+                    $"Referrer reward: {configuration.ReferrerRewardCoins} coins; welcome reward: {configuration.ReferredRewardCoins} coins." +
+                    (configuration.CoinValidityDays > 0 ? $" Coins are valid for {configuration.CoinValidityDays} days." : string.Empty);
+        return new(true, wallet, code, history, terms, configuration.CoinValidityDays);
+    }
+
+    public async Task<bool> CaptureReferralAsync(string storeKey, string sessionToken, StorefrontReferralCaptureInput input, CancellationToken token)
+    {
+        var session = await Resolve(storeKey, sessionToken, token);
+        if (session is null || string.IsNullOrWhiteSpace(input.Code)) return false;
+        if (!await features.IsEnabledAsync(session.TenantId, FeatureKeys.CustomerReferralRewards, token)) return false;
+        await referrals.CaptureAsync(session.TenantId, new ReferralCaptureInput(input.Code, session.CustomerId, input.Source), "STOREFRONT", token);
+        return true;
+    }
     public async Task<IReadOnlyCollection<StorefrontCustomerOrderDto>?> GetOrdersAsync(string storeKey, string sessionToken, CancellationToken token)
     {
         var session = await Resolve(storeKey, sessionToken, token);
@@ -99,11 +132,29 @@ public sealed class StorefrontCustomerService(
             cancelled=StorefrontOrderPresentation.Status(invoiceStatus,delivery)=="Cancelled"&&!reader.IsDBNull(12)?reader.GetDateTimeOffset(12):null;
             deliveryCharge=reader.GetDecimal(13);promotionDiscount=reader.GetDecimal(14);promotionName=reader.IsDBNull(15)?null:reader.GetString(15);merchandiseAmount=reader.GetDecimal(16);merchandiseTaxAmount=reader.GetDecimal(17);merchandiseSubtotal=reader.GetDecimal(18);
         }
+        var defaultReturnDays = 7;
+        await using (var defaults = new SqlCommand("SELECT COALESCE((SELECT DefaultReturnWindowDays FROM commerce.StorefrontConfigurations WHERE TenantId=@tenant),7);", connection))
+        { defaults.Parameters.AddWithValue("@tenant", session.TenantId); defaultReturnDays = Convert.ToInt32(await defaults.ExecuteScalarAsync(token), CultureInfo.InvariantCulture); }
+        var requestInfo = new Dictionary<Guid,(Guid Id, decimal Requested, string Status)>();
+        await using (var requests = new SqlCommand("""
+            WITH ranked AS (SELECT r.InvoiceItemId,r.ReturnRequestId,r.Quantity,r.Status,ROW_NUMBER() OVER(PARTITION BY r.InvoiceItemId ORDER BY r.RequestedAtUtc DESC) rn,
+              SUM(r.Quantity) OVER(PARTITION BY r.InvoiceItemId) RequestedTotal
+            FROM commerce.StorefrontReturnRequests r WHERE r.TenantId=@tenant AND r.InvoiceId=@order AND r.Status<>N'REJECTED')
+            SELECT InvoiceItemId,ReturnRequestId,RequestedTotal,Status FROM ranked WHERE rn=1;
+            """, connection))
+        { requests.Parameters.AddWithValue("@tenant",session.TenantId); requests.Parameters.AddWithValue("@order",orderId); await using var rr=await requests.ExecuteReaderAsync(token); while(await rr.ReadAsync(token)) requestInfo[rr.GetGuid(0)]=(rr.GetGuid(1),rr.GetDecimal(2),rr.GetString(3)); }
         var lines = new List<StorefrontCustomerOrderLineDto>();
-        await using (var items = new SqlCommand("""SELECT x.ProductId,p.ProductName,p.PackSize,x.Quantity,x.LineTotal FROM sales.SalesInvoiceItems x JOIN master.Products p ON p.ProductId=x.ProductId AND p.TenantId=@tenant WHERE x.InvoiceId=@order ORDER BY p.ProductName;""", connection))
+        await using (var items = new SqlCommand("""SELECT x.InvoiceItemId,x.ProductId,p.ProductName,p.PackSize,x.Quantity,x.ReturnedQuantity,x.LineTotal,COALESCE(x.ReturnPolicyModeSnapshot,p.ReturnPolicyMode),CASE WHEN COALESCE(x.ReturnPolicyModeSnapshot,p.ReturnPolicyMode)=N'NON_RETURNABLE' THEN NULL ELSE COALESCE(x.ReturnWindowDaysSnapshot,CASE WHEN p.ReturnPolicyMode=N'CUSTOM' THEN p.ReturnWindowDays ELSE @defaultDays END) END,COALESCE(x.ReturnPolicyDescriptionSnapshot,p.ReturnPolicyDescription) FROM sales.SalesInvoiceItems x JOIN master.Products p ON p.ProductId=x.ProductId AND p.TenantId=@tenant WHERE x.InvoiceId=@order ORDER BY p.ProductName;""", connection))
         {
-            items.Parameters.AddWithValue("@tenant",session.TenantId);items.Parameters.AddWithValue("@order",orderId);
-            await using var reader=await items.ExecuteReaderAsync(token);while(await reader.ReadAsync(token))lines.Add(new(reader.GetGuid(0),reader.GetString(1),reader.IsDBNull(2)?null:reader.GetString(2),reader.GetDecimal(3),reader.GetDecimal(4)));
+            items.Parameters.AddWithValue("@tenant",session.TenantId);items.Parameters.AddWithValue("@order",orderId);items.Parameters.AddWithValue("@defaultDays",defaultReturnDays);
+            await using var reader=await items.ExecuteReaderAsync(token);while(await reader.ReadAsync(token))
+            {
+                var itemId=reader.GetGuid(0);var mode=reader.GetString(7);var days=reader.IsDBNull(8)?(int?)null:reader.GetInt32(8);var eligible=!mode.Equals("NON_RETURNABLE",StringComparison.OrdinalIgnoreCase)&&days is >=0;
+                var deadline=eligible&&delivered.HasValue?new DateTimeOffset(delivered.Value.Date.AddDays(days!.Value),delivered.Value.Offset):(DateTimeOffset?)null;
+                var lineStatus=!eligible?"NOT_ELIGIBLE":!delivered.HasValue?"PENDING_DELIVERY":deadline!.Value.Date>=DateTimeOffset.UtcNow.Date?"ELIGIBLE":"EXPIRED";
+                requestInfo.TryGetValue(itemId,out var request);var returnable=Math.Max(0,reader.GetDecimal(4)-reader.GetDecimal(5)-(request.Requested==0?0:request.Requested));
+                lines.Add(new(reader.GetGuid(1),reader.GetString(2),reader.IsDBNull(3)?null:reader.GetString(3),reader.GetDecimal(4),reader.GetDecimal(6),eligible,days,delivered,deadline,lineStatus,reader.IsDBNull(9)?null:reader.GetString(9),itemId,reader.GetDecimal(5),returnable,request.Requested==0?0:request.Requested,request.Status==null?null:request.Status,request.Id==Guid.Empty?null:request.Id));
+            }
         }
         var status=StorefrontOrderPresentation.Status(invoiceStatus,delivery);
         return new(orderId,number,placed,status,total,delivery,tracking,paymentMethod,paymentStatus,lines.Count,lines,
@@ -177,7 +228,27 @@ public sealed class StorefrontCustomerService(
         var session = await Resolve(storeKey, sessionToken, token); if (session is null) return null;
         var recipient = input.RecipientName?.Trim(); var mobile = input.Mobile?.Trim(); var line1 = input.AddressLine1?.Trim(); var city = input.City?.Trim(); var state = input.State?.Trim(); var pincode = input.Pincode?.Trim(); var type = input.AddressType?.Trim();
         if (string.IsNullOrWhiteSpace(recipient) || recipient.Length > 250 || string.IsNullOrWhiteSpace(mobile) || mobile.Length > 18 || string.IsNullOrWhiteSpace(line1) || line1.Length > 250 || string.IsNullOrWhiteSpace(city) || city.Length > 100 || string.IsNullOrWhiteSpace(state) || state.Length > 100 || !Regex.IsMatch(pincode ?? "", "^[0-9]{6}$") || type is not ("Home" or "Work" or "Other")) throw new BusinessRuleException("Enter complete valid delivery address details.");
-        await using var connection = await Open(session.TenantId, token); await using var transaction = await connection.BeginTransactionAsync(token);
+        await using var connection = await Open(session.TenantId, token);
+        await using (var availability = new SqlCommand("""
+            SELECT CONVERT(bit, CASE WHEN s.DeliveryEnabled=1 AND d.DeliveryEnabled=1 THEN 1 ELSE 0 END),
+                   CONVERT(bit, CASE WHEN EXISTS (
+                       SELECT 1 FROM commerce.StorefrontServiceablePincodes p
+                       WHERE p.TenantId=@tenant AND p.Pincode=@pincode AND p.IsActive=1
+                   ) THEN 1 ELSE 0 END)
+            FROM commerce.StorefrontConfigurations s
+            LEFT JOIN commerce.TenantDeliverySettings d ON d.TenantId=s.TenantId
+            WHERE s.TenantId=@tenant;
+            """, connection))
+        {
+            availability.Parameters.AddWithValue("@tenant", session.TenantId);
+            availability.Parameters.AddWithValue("@pincode", pincode);
+            await using var reader = await availability.ExecuteReaderAsync(token);
+            if (!await reader.ReadAsync(token) || !reader.GetBoolean(0))
+                throw new BusinessRuleException("This store is not currently offering delivery.");
+            if (!reader.GetBoolean(1))
+                throw new BusinessRuleException("This store does not deliver to this PIN code.");
+        }
+        await using var transaction = await connection.BeginTransactionAsync(token);
         if (input.IsDefault) { await using var clear = new SqlCommand("UPDATE sales.CustomerAddresses SET IsDefault=0 WHERE CustomerId=@customer;",connection,(SqlTransaction)transaction); clear.Parameters.AddWithValue("@customer",session.CustomerId); await clear.ExecuteNonQueryAsync(token); }
         var id = addressId ?? Guid.NewGuid();
         await using var command = new SqlCommand(addressId.HasValue ? "UPDATE sales.CustomerAddresses SET RecipientName=@name,Mobile=@mobile,AddressLine1=@line1,AddressLine2=@line2,Landmark=@landmark,City=@city,State=@state,PostalCode=@postal,AddressType=@type,IsDefault=@default WHERE AddressId=@id AND CustomerId=@customer;" : "INSERT sales.CustomerAddresses(AddressId,CustomerId,RecipientName,Mobile,AddressLine1,AddressLine2,Landmark,City,State,PostalCode,AddressType,IsDefault) VALUES(@id,@customer,@name,@mobile,@line1,@line2,@landmark,@city,@state,@postal,@type,@default);",connection,(SqlTransaction)transaction);

@@ -47,6 +47,7 @@ public sealed record ReferralMetricsDto(int TotalReferrals, int PendingReferrals
     IReadOnlyCollection<TopReferrerDto> TopReferrers);
 public sealed record TopReferrerDto(Guid CustomerId, string CustomerName, int SuccessfulReferrals, int CoinsEarned);
 public sealed record RewardAdjustmentInput(Guid CustomerId, int Coins, string Reason);
+public sealed record CustomerReferralAdministrationDto(Guid TenantId, bool FeatureEntitled, ReferralConfigurationDto Configuration);
 
 public interface ICustomerReferralService
 {

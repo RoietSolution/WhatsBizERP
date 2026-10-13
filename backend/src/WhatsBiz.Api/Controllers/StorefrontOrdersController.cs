@@ -15,9 +15,18 @@ public sealed record RetailerStorefrontOrderDto(Guid Id, string OrderNumber, Dat
     string? CancellationRequestStatus, string? CancellationReason, string RefundStatus, decimal RefundAmount, DateTimeOffset? RefundedAt, decimal RefundableAmount,
     Guid? RefundId, string? RefundAttemptStatus);
 
+public sealed record StorefrontShippingLabelDto(
+    Guid Id, string OrderNumber, DateTimeOffset OrderDate, string CustomerName, string? CustomerMobile,
+    string DeliveryAddress, string? DeliveryPincode, string PaymentMethod, string PaymentStatus,
+    bool PaymentDue, decimal DueAmount, string StoreName, string SenderAddress, string? SenderPhone, string? SenderEmail,
+    string? SenderLogoUrl, string? RetailerDisplayName, string? DeliveryLocality, string? DeliveryCity, string? DeliveryDistrict,
+    string? DeliveryState, string? QrCodeUrl, string? BarcodeUrl, IReadOnlyCollection<StorefrontShippingLabelItemDto> Items,
+    bool ShowProductDetails);
+public sealed record StorefrontShippingLabelItemDto(string ProductName, string? Sku, string? Variant, decimal Quantity);
+
 [ApiController, Authorize, Route("api/storefront-orders")]
 [HasPermission(Permissions.POS.View)]
-public sealed class StorefrontOrdersController(IConfiguration configuration, ICurrentUserService current, IStorefrontCancellationService cancellations) : ControllerBase
+public sealed class StorefrontOrdersController(IConfiguration configuration, ICurrentUserService current, IStorefrontCancellationService cancellations, IStorefrontReturnService returns, IPrintingService printing) : ControllerBase
 {
     [HttpPost("{orderId:guid}/cancellation/approve"), HasPermission(Permissions.POS.Void)]
     public async Task<ActionResult<StorefrontCancellationDto>> ApproveCancellation(
@@ -115,5 +124,63 @@ public sealed class StorefrontOrdersController(IConfiguration configuration, ICu
                 reader.IsDBNull(22)?null:reader.GetGuid(22),reader.IsDBNull(23)?null:reader.GetString(23)));
         }
         return Ok(rows);
+    }
+
+    [HttpGet("return-requests")]
+    public async Task<ActionResult<IReadOnlyCollection<StorefrontReturnRequestDto>>> ReturnRequests(CancellationToken token)
+        => Ok(await returns.RetailerRequestsAsync(current.TenantId ?? throw new UnauthorizedAccessException("A tenant context is required."), token));
+
+    [HttpPost("return-requests/{requestId:guid}/decision"), HasPermission(Permissions.POS.Return)]
+    public async Task<ActionResult<StorefrontReturnRequestDto>> DecideReturn(Guid requestId, StorefrontReturnDecisionInput input, CancellationToken token)
+    { try { return Ok(await returns.DecideAsync(current.TenantId ?? throw new UnauthorizedAccessException("A tenant context is required."), requestId, current.UserId ?? throw new UnauthorizedAccessException(), input, token)); } catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); } }
+
+    [HttpGet("{orderId:guid}/shipping-label")]
+    public async Task<ActionResult<StorefrontShippingLabelDto>> ShippingLabel(Guid orderId, CancellationToken token)
+    {
+        var tenant = current.TenantId ?? throw new UnauthorizedAccessException("A tenant context is required.");
+        var connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(token);
+        await using (var context = new SqlCommand("EXEC sys.sp_set_session_context @key=N'TenantId',@value=@tenant", connection))
+        { context.Parameters.AddWithValue("@tenant", tenant); await context.ExecuteNonQueryAsync(token); }
+        await using var command = new SqlCommand("""
+            SELECT i.InvoiceId,i.InvoiceNumber,i.InvoiceDate,cu.CustomerName,cu.Mobile,
+              COALESCE(NULLIF(d.DeliveryAddressSnapshot,N''),NULLIF(w.DeliveryAddress,N''),N'Address not provided'),
+              i.ServicePincode,COALESCE(cp.Provider,w.PaymentType,N'UNKNOWN'),COALESCE(cp.Status,N'PENDING'),
+              CONVERT(bit,CASE WHEN COALESCE(d.CodRequired,CASE WHEN w.PaymentType=N'COD' THEN 1 ELSE 0 END)=1 AND i.BalanceAmount>0 THEN 1 ELSE 0 END),
+              CASE WHEN COALESCE(d.CodRequired,CASE WHEN w.PaymentType=N'COD' THEN 1 ELSE 0 END)=1 THEN i.BalanceAmount ELSE 0 END,
+              co.CompanyName,CONCAT_WS(N', ',co.AddressLine1,co.AddressLine2,co.City,co.State,co.PostalCode),co.Phone,co.Email,
+              t.TenantKey,COALESCE(NULLIF(t.DisplayName,N''),t.Name),s.ShowProductDetailsOnShippingLabel
+            FROM sales.SalesInvoices i
+            JOIN integration.WhatsAppCommerceOrders w ON w.TenantId=i.TenantId AND w.InvoiceId=i.InvoiceId AND w.SourceChannel=N'STOREFRONT'
+            JOIN sales.Customers cu ON cu.TenantId=i.TenantId AND cu.CustomerId=i.CustomerId
+            LEFT JOIN commerce.OrderDeliveries d ON d.TenantId=i.TenantId AND d.OrderId=i.InvoiceId
+            OUTER APPLY(SELECT TOP(1) p.Provider,p.Status FROM commerce.CommercePayments p WHERE p.TenantId=i.TenantId AND p.InvoiceId=i.InvoiceId ORDER BY p.AttemptNumber DESC) cp
+            JOIN admin.Companies co ON co.TenantId=i.TenantId AND co.IsActive=1
+            JOIN core.Tenants t ON t.TenantId=i.TenantId AND t.IsActive=1
+            LEFT JOIN commerce.StorefrontConfigurations s ON s.TenantId=i.TenantId
+            WHERE i.TenantId=@tenant AND i.InvoiceId=@order
+              AND i.Status NOT IN(N'CANCELLED',N'VOID')
+              AND COALESCE(d.DeliveryStatus,N'')<>N'CANCELLED'
+            ORDER BY co.CreatedOn;
+            """, connection);
+        command.Parameters.AddWithValue("@tenant", tenant); command.Parameters.AddWithValue("@order", orderId);
+        await using var reader = await command.ExecuteReaderAsync(token);
+        if (!await reader.ReadAsync(token)) return NotFound();
+        var label = new StorefrontShippingLabelDto(reader.GetGuid(0), reader.GetString(1), reader.GetDateTimeOffset(2), reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4), reader.GetString(5), reader.IsDBNull(6) ? null : reader.GetString(6), reader.GetString(7), reader.GetString(8), reader.GetBoolean(9), reader.GetDecimal(10), reader.GetString(11), reader.IsDBNull(12) ? "" : reader.GetString(12), reader.IsDBNull(13) ? null : reader.GetString(13), reader.IsDBNull(14) ? null : reader.GetString(14), null, reader.IsDBNull(16) ? null : reader.GetString(16), null, null, null, null, null, null, [], reader.IsDBNull(17) || reader.GetBoolean(17));
+        var tenantKey = reader.IsDBNull(15) ? null : reader.GetString(15);
+        var items = new List<StorefrontShippingLabelItemDto>();
+        await reader.CloseAsync();
+        await using (var itemCommand = new SqlCommand("""SELECT p.ProductName,p.ProductCode,CAST(NULL AS nvarchar(200)),x.Quantity FROM sales.SalesInvoiceItems x JOIN sales.SalesInvoices i ON i.InvoiceId=x.InvoiceId AND i.TenantId=@tenant JOIN master.Products p ON p.ProductId=x.ProductId AND p.TenantId=@tenant WHERE x.InvoiceId=@order ORDER BY x.InvoiceItemId;""", connection))
+        {
+            itemCommand.Parameters.AddWithValue("@tenant", tenant); itemCommand.Parameters.AddWithValue("@order", orderId);
+            await using var itemsReader = await itemCommand.ExecuteReaderAsync(token);
+            while (await itemsReader.ReadAsync(token)) items.Add(new(itemsReader.GetString(0), itemsReader.IsDBNull(1) ? null : itemsReader.GetString(1), null, itemsReader.GetDecimal(3)));
+        }
+        var showProducts = label.ShowProductDetails;
+        var codeValue = label.OrderNumber;
+        var qr = Convert.ToBase64String(printing.QrCode(new(codeValue)).Data);
+        var barcode = Convert.ToBase64String(printing.Barcode(new(codeValue)).Data);
+        return Ok(label with { SenderLogoUrl = tenantKey is null ? null : $"/api/store/{Uri.EscapeDataString(tenantKey)}/presentation/logo", QrCodeUrl = $"data:image/svg+xml;base64,{qr}", BarcodeUrl = $"data:image/svg+xml;base64,{barcode}", Items = items, ShowProductDetails = showProducts });
     }
 }

@@ -10,7 +10,7 @@ namespace WhatsBiz.Api.Controllers;
 [ApiController]
 [AllowAnonymous]
 [Route("api/store/{storeKey}")]
-public sealed partial class StoreController(IStorefrontService storefront, IStorefrontCheckoutService checkout, IStorefrontCustomerService customers, IStorefrontCustomerAuthenticationService customerAuth, IStorefrontReviewService reviews, IStorefrontCancellationService cancellations, ILogger<StoreController> logger) : ControllerBase
+public sealed partial class StoreController(IStorefrontService storefront, IStorefrontCheckoutService checkout, IStorefrontCustomerService customers, IStorefrontCustomerRewardsService rewards, IStorefrontCustomerAuthenticationService customerAuth, IStorefrontReviewService reviews, IStorefrontActivityService activity, ICustomerDemandService demand, IStorefrontCancellationService cancellations, IStorefrontReturnService returns, IStorefrontFeedbackService feedback, ILogger<StoreController> logger) : ControllerBase
 {
     private const long MaxProfileImageBytes = 5 * 1024 * 1024;
     private const long MaxProfileImageRequestBytes = 6 * 1024 * 1024;
@@ -70,14 +70,14 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
     }
     [HttpGet("products/{productId:guid}/image")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
-    public async Task<IActionResult> GetProductImage(string storeKey, Guid productId, CancellationToken token)
+    public async Task<IActionResult> GetProductImage(string storeKey, Guid productId, [FromQuery] Guid? imageId, [FromQuery] bool thumbnail, CancellationToken token)
     {
-        var image = await storefront.GetProductImageAsync(storeKey, productId, token);
+        var image = await storefront.GetProductImageAsync(storeKey, productId, imageId, thumbnail, token);
         return image is null ? NotFound() : File(image.Content, image.ContentType);
     }
 
     [HttpGet("pwa/manifest.webmanifest")]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
+    [ResponseCache(Duration = 60, Location = ResponseCacheLocation.Any)]
     public async Task<IActionResult> GetPwaManifest(string storeKey, [FromQuery] string? shopOrigin, CancellationToken token)
     {
         var store = await storefront.GetStoreAsync(storeKey, token);
@@ -100,15 +100,17 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
             ["theme_color"] = store.AccentColor,
             ["icons"] = store.LogoUrl is null ? Array.Empty<object>() : new object[]
             {
-                new { src = $"/api/store/{Uri.EscapeDataString(key)}/pwa/icon/192", sizes = "192x192", type = "image/webp", purpose = "any maskable" },
-                new { src = $"/api/store/{Uri.EscapeDataString(key)}/pwa/icon/512", sizes = "512x512", type = "image/webp", purpose = "any maskable" }
+                new { src = $"/api/store/{Uri.EscapeDataString(key)}/pwa/icon/192", sizes = "192x192", type = "image/webp", purpose = "any" },
+                new { src = $"/api/store/{Uri.EscapeDataString(key)}/pwa/icon/512", sizes = "512x512", type = "image/webp", purpose = "any" },
+                new { src = $"/api/store/{Uri.EscapeDataString(key)}/pwa/icon/192", sizes = "192x192", type = "image/webp", purpose = "maskable" },
+                new { src = $"/api/store/{Uri.EscapeDataString(key)}/pwa/icon/512", sizes = "512x512", type = "image/webp", purpose = "maskable" }
             }
         };
         return new JsonResult(manifest) { ContentType = "application/manifest+json" };
     }
 
     [HttpGet("pwa/icon/{size:int}")]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
+    [ResponseCache(Duration = 60, Location = ResponseCacheLocation.Any)]
     public async Task<IActionResult> GetPwaIcon(string storeKey, int size, CancellationToken token)
         => ToImage(await storefront.GetPwaIconAsync(storeKey, size, token));
     [HttpGet("presentation/logo")]
@@ -117,7 +119,7 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         => ToImage(await storefront.GetPresentationImageAsync(storeKey, "logo", null, token));
 
     [HttpGet("presentation/banners/{slot}")]
-    [ResponseCache(Duration = 60, Location = ResponseCacheLocation.Any)]
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
     public async Task<IActionResult> GetBanner(string storeKey, string slot, CancellationToken token)
         => ToImage(await storefront.GetPresentationImageAsync(storeKey, $"banner-{slot}", null, token));
 
@@ -158,6 +160,29 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
     }
 
+    [HttpPost("customer-auth/password/signin")]
+    [EnableRateLimiting("StorefrontOtpVerify")]
+    public async Task<ActionResult<StorefrontAuthenticationDto>> SignInWithPassword(string storeKey, StorefrontPasswordSignInInput input, CancellationToken token)
+    {
+        var result = await customerAuth.SignInPasswordAsync(storeKey, input, token);
+        return result is null ? Unauthorized(new { message = "The mobile number or password is incorrect." }) : Ok(result);
+    }
+
+    [HttpPost("customer-auth/password/reset")]
+    [EnableRateLimiting("StorefrontOtpVerify")]
+    public async Task<IActionResult> ResetPassword(string storeKey, StorefrontPasswordResetInput input, CancellationToken token)
+    {
+        try { return await customerAuth.ResetPasswordAsync(storeKey, input, token) ? NoContent() : Unauthorized(new { message = "The verification code is invalid or expired." }); }
+        catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
+    }
+
+    [HttpPost("session/password/change")]
+    [EnableRateLimiting("StorefrontOtpVerify")]
+    public async Task<IActionResult> ChangePassword(string storeKey, StorefrontChangePasswordInput input, CancellationToken token)
+    {
+        try { return await customerAuth.ChangePasswordAsync(storeKey, CustomerSessionToken(), input, token) ? NoContent() : Unauthorized(new { message = "The current password is incorrect." }); }
+        catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
+    }
     [HttpPut("session/profile")]
     [EnableRateLimiting("StorefrontOtpVerify")]
     public async Task<ActionResult<StorefrontCustomerDto>> UpdateCustomerProfile(string storeKey, UpdateStorefrontCustomerInput input, CancellationToken token)
@@ -169,11 +194,42 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         }
         catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
     }
+    [HttpPost("activity")]
+    public async Task<IActionResult> Activity(string storeKey, StorefrontActivityInput input, CancellationToken token) { await activity.RecordAsync(storeKey, CustomerSessionTokenOrNull(), input, token); return NoContent(); }
+    [HttpPost("feedback"), EnableRateLimiting("StorefrontCheckout")]
+    public async Task<IActionResult> SubmitFeedback(string storeKey, StorefrontFeedbackInput input, CancellationToken token)
+    { try { return Ok(await feedback.SubmitAsync(storeKey, CustomerSessionTokenOrNull(), input, token)); } catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); } }
+    [HttpGet("feedback")]
+    public async Task<IActionResult> MyFeedback(string storeKey, CancellationToken token)
+    { var result = await feedback.CustomerTicketsAsync(storeKey, CustomerSessionToken(), token); return result is null ? Unauthorized() : Ok(result); }
+    [HttpGet("feedback/{ticketId:guid}")]
+    public async Task<IActionResult> MyFeedbackTicket(string storeKey, Guid ticketId, CancellationToken token)
+    { var result = await feedback.CustomerTicketAsync(storeKey, CustomerSessionToken(), ticketId, token); return result is null ? NotFound() : Ok(result); }
+    [HttpPost("search-events")]
+    public async Task<CustomerDemandSummaryDto> SearchEvent(string storeKey, StorefrontSearchEventInput input, CancellationToken token) => await demand.RecordSearchAsync(storeKey, CustomerSessionTokenOrNull(), input, token);
+    [HttpPost("products/{productId:guid}/availability-request")]
+    public Task<StorefrontAvailabilityRequestDto> Availability(string storeKey, Guid productId, StorefrontAvailabilityRequestInput input, CancellationToken token) => demand.RequestAvailabilityAsync(storeKey, productId, CustomerSessionTokenOrNull(), input, token);
+    [HttpDelete("products/{productId:guid}/availability-request")]
+    public async Task<IActionResult> CancelAvailability(string storeKey, Guid productId, CancellationToken token) { var tokenValue=CustomerSessionTokenOrNull(); if (tokenValue is null) return Unauthorized(); return (await demand.CancelAvailabilityAsync(storeKey, productId, tokenValue, token)) ? NoContent() : NotFound(); }
+    [HttpPost("missing-product-requests")]
+    public Task<CustomerDemandMissingDto> MissingProduct(string storeKey, StorefrontMissingProductRequestInput input, CancellationToken token) => demand.RequestMissingProductAsync(storeKey, CustomerSessionTokenOrNull(), input, token);
     [HttpGet("session")]
     public async Task<ActionResult<StorefrontCustomerDto>> GetSession(string storeKey, CancellationToken token)
     {
         var session = await customers.GetSessionAsync(storeKey, CustomerSessionToken(), token);
         return session is null ? Unauthorized() : Ok(session);
+    }
+    [HttpGet("rewards")]
+    public async Task<ActionResult<StorefrontCustomerRewardsDto>> GetRewards(string storeKey, [FromQuery] int take = 100, CancellationToken token = default)
+    {
+        var result = await rewards.GetRewardsAsync(storeKey, CustomerSessionToken(), take, token);
+        return result is null ? Unauthorized() : Ok(result);
+    }
+    [HttpPost("customer-referral")]
+    public async Task<IActionResult> CaptureCustomerReferral(string storeKey, StorefrontReferralCaptureInput input, CancellationToken token)
+    {
+        try { return await rewards.CaptureReferralAsync(storeKey, CustomerSessionToken(), input, token) ? NoContent() : Unauthorized(); }
+        catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
     }
     [HttpPost("session/profile-image")]
     [RequestSizeLimit(MaxProfileImageRequestBytes)]
@@ -231,6 +287,20 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
             var result = await cancellations.RequestAsync(storeKey, CustomerSessionToken(), orderId, input.Reason, token);
             return result is null ? Unauthorized() : Ok(result);
         }
+        catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
+    }
+    [HttpPost("orders/{orderId:guid}/items/{invoiceItemId:guid}/return-request")]
+    [EnableRateLimiting("StorefrontCheckout")]
+    public async Task<ActionResult<StorefrontReturnRequestDto>> RequestReturn(string storeKey, Guid orderId, Guid invoiceItemId, StorefrontReturnRequestInput input, CancellationToken token)
+    { try { return Ok(await returns.RequestAsync(storeKey, CustomerSessionToken(), orderId, invoiceItemId, input, token)); } catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); } }
+
+    [HttpGet("orders/{orderId:guid}/return-requests")]
+    public async Task<ActionResult<IReadOnlyCollection<StorefrontReturnRequestDto>>> CustomerReturnRequests(string storeKey, Guid orderId, CancellationToken token)
+    { var result=await returns.CustomerRequestsAsync(storeKey,CustomerSessionToken(),orderId,token);return result is null?Unauthorized():Ok(result); }
+    [HttpGet("delivery/availability")]
+    public async Task<ActionResult<StorefrontDeliveryAvailabilityDto>> CheckDelivery(string storeKey, [FromQuery] string pincode, CancellationToken token)
+    {
+        try { var result = await checkout.CheckDeliveryAsync(storeKey, pincode, token); return result is null ? NotFound() : Ok(result); }
         catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
     }
     [HttpPost("cart/quote")]
@@ -294,6 +364,7 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         }
     }
 
+    private string? CustomerSessionTokenOrNull() => Request.Headers["X-Customer-Session"].FirstOrDefault();
     private string CustomerSessionToken() => Request.Headers["X-Customer-Session"].ToString();
 
     private static string? ValidOrigin(string? value)

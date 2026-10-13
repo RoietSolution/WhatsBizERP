@@ -285,6 +285,7 @@ public sealed class AlwaysOnFeatures : IFeatureService
     public Task<TenantFeatureConfiguration> GetTenantConfigurationAsync(Guid tenantId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<IReadOnlyCollection<FeatureTenantSummary>> GetTenantsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<TenantFeatureConfiguration> UpdateTenantConfigurationAsync(Guid tenantId, IReadOnlyCollection<TenantFeatureUpdate> updates, string? changedBy, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public Task<TenantFeatureConfiguration> UpdateTenantDisplayNameAsync(Guid tenantId, string? displayName, string? changedBy, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public void InvalidateTenant(Guid tenantId) { }
     public void InvalidateAll() { }
 }
@@ -301,6 +302,7 @@ public sealed class DisabledFeatures : IFeatureService
     public Task<TenantFeatureConfiguration> GetTenantConfigurationAsync(Guid tenantId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<IReadOnlyCollection<FeatureTenantSummary>> GetTenantsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<TenantFeatureConfiguration> UpdateTenantConfigurationAsync(Guid tenantId, IReadOnlyCollection<TenantFeatureUpdate> updates, string? changedBy, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public Task<TenantFeatureConfiguration> UpdateTenantDisplayNameAsync(Guid tenantId, string? displayName, string? changedBy, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public void InvalidateTenant(Guid tenantId) { }
     public void InvalidateAll() { }
 }

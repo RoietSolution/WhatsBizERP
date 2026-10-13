@@ -104,8 +104,18 @@ public sealed class StorefrontCustomerAuthenticationTests
     public void OtpVerificationDerivesIdentityWithoutBrowserTenantOrCustomer()
     {
         typeof(StorefrontOtpVerifyInput).GetProperties().Select(x=>x.Name).Should()
-            .BeEquivalentTo(["ChallengeId","MobileNumber","Otp","Name","Email"]);
+            .BeEquivalentTo(["ChallengeId","MobileNumber","Otp","Name","Email","IsRegistration","Password","ConfirmPassword","ReplacePassword"]);
         typeof(StorefrontOtpVerifyInput).GetProperties().Select(x=>x.Name).Should().NotContain(["TenantId","CustomerId"]);
+    }
+
+    [Fact]
+    public void PasswordResetAndOtpLoginCannotCreateCustomersImplicitly()
+    {
+        var source=Read("backend/src/WhatsBiz.Infrastructure/Storefront/StorefrontCustomerAuthenticationService.cs");
+        source.Should().Contain("if (!allowCreate) return null;")
+            .And.Contain("input.IsRegistration, token")
+            .And.Contain("MobileNormalized IS NULL AND RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(Mobile")
+            .And.NotContain("CustomerExists(tenantId.Value, mobile, token)");
     }
 
     [Fact]

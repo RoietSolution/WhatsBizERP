@@ -15,7 +15,9 @@ public interface IProductRepository
     Task<bool> ReferencesExistAsync(Guid categoryId, Guid brandId, Guid unitId, CancellationToken cancellationToken);
     void Add(Product product);
     void Add(ProductBarcode barcode);
+    void Add(ProductSpecification specification);
     Task<IReadOnlyCollection<ProductCategory>> GetCategoriesAsync(CancellationToken cancellationToken);
+    Task<IReadOnlySet<Guid>> GetStorefrontImageCategoryIdsAsync(CancellationToken cancellationToken);
     Task<ProductCategory?> GetCategoryAsync(Guid id, bool tracking, CancellationToken cancellationToken);
     Task<bool> CategoryCodeExistsAsync(string code, Guid? excludingId, CancellationToken cancellationToken);
     Task<bool> CategoryHasChildrenOrProductsAsync(Guid id, CancellationToken cancellationToken);

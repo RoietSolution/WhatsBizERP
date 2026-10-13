@@ -1,10 +1,9 @@
 using System.Text.RegularExpressions;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using ImageMagick;
 using Microsoft.EntityFrameworkCore;
+using WhatsBiz.Application.Common.Features;
 using WhatsBiz.Application.Common.Interfaces;
+using WhatsBiz.Infrastructure.Products;
 using WhatsBiz.Application.Features.Storefront;
 using WhatsBiz.Application.Features.Payments;
 using WhatsBiz.Domain.Commerce;
@@ -14,7 +13,7 @@ using WhatsBiz.Infrastructure.Persistence;
 namespace WhatsBiz.Infrastructure.Storefront;
 
 public sealed class StorefrontService(ApplicationDbContext db, IProductImageStorage images,
-    IStorefrontMediaStorage? presentationImages = null, ICommercePaymentService? payments = null) : IStorefrontService
+    IStorefrontMediaStorage? presentationImages = null, ICommercePaymentService? payments = null, IFeatureService? features = null) : IStorefrontService
 {
     private static readonly Regex StoreKeyPattern = new("^[A-Z0-9_-]{1,100}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
@@ -32,11 +31,12 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
                 x.Title, x.Subtitle, x.PromotionId.HasValue ? null : x.TargetUrl, x.DisplayOrder, x.PromotionId)).ToArrayAsync(token);
         var enabled = payments is null ? [] : await payments.GetEnabledMethodsForTenantAsync(tenant.TenantId, token);
         var methods = enabled.Select(ToPaymentMethod).ToArray();
-        return new(tenant.TenantKey.ToLowerInvariant(), tenant.Name,
+        var customerRewardsEnabled = features is not null && await features.IsEnabledAsync(tenant.TenantId, FeatureKeys.CustomerReferralRewards, token);
+        return new(tenant.TenantKey.ToLowerInvariant(), string.IsNullOrWhiteSpace(tenant.DisplayName) ? tenant.Name : tenant.DisplayName.Trim(),
             configuration?.Tagline ?? "Good things, close to home.", configuration?.LogoMediaId is null ? null : $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/logo",
             configuration?.AccentColor ?? "#145c43", configuration?.DeliveryMessage ?? "Fresh picks, close to home.", configuration?.FreeDeliveryThreshold,
             configuration?.ShowProductRatings ?? true, configuration?.ShowProductReviews ?? true, banners, methods,
-            configuration?.AllCategoryMediaId is null ? null : $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/categories/all");
+            configuration?.AllCategoryMediaId is null ? null : $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/categories/all", customerRewardsEnabled, string.IsNullOrWhiteSpace(tenant.DisplayName) ? tenant.Name : tenant.DisplayName.Trim());
     }
 
     public async Task<IReadOnlyCollection<StorefrontCategoryDto>?> GetCategoriesAsync(string storeKey, CancellationToken token)
@@ -61,17 +61,17 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
     {
         var tenant = await ResolveTenantAsync(storeKey, token);
         if (tenant is null) return null;
-        var query = EligibleProducts(tenant.TenantId).Include(product => product.Category).Include(product => product.Unit).OrderBy(product => product.ProductName); var total = await query.CountAsync(token); var products = await query.Skip((page - 1) * pageSize).Take(pageSize).ToArrayAsync(token); var items = await MapProductsAsync(tenant.TenantId, tenant.TenantKey, products, token); return new StorefrontProductPageDto(items, page, pageSize, total, page * pageSize < total);
+        var query = EligibleProducts(tenant.TenantId).Include(product => product.Category).Include(product => product.Unit).Include(product => product.Specifications).OrderBy(product => product.ProductName); var total = await query.CountAsync(token); var products = await query.Skip((page - 1) * pageSize).Take(pageSize).ToArrayAsync(token); var items = await MapProductsAsync(tenant.TenantId, tenant.TenantKey, products, false, token); return new StorefrontProductPageDto(items, page, pageSize, total, page * pageSize < total);
     }
 
     public async Task<StorefrontProductDto?> GetProductAsync(string storeKey, Guid productId, CancellationToken token)
     {
         var tenant = await ResolveTenantAsync(storeKey, token);
         if (tenant is null) return null;
-        var product = await EligibleProducts(tenant.TenantId).Include(item => item.Category).Include(item => item.Unit)
+        var product = await EligibleProducts(tenant.TenantId).Include(item => item.Category).Include(item => item.Unit).Include(item => item.Specifications)
             .SingleOrDefaultAsync(item => item.ProductId == productId, token);
         if (product is null) return null;
-        return (await MapProductsAsync(tenant.TenantId, tenant.TenantKey, [product], token)).Single();
+        return (await MapProductsAsync(tenant.TenantId, tenant.TenantKey, [product], true, token)).Single();
     }
 
     public async Task<StorefrontOfferDto?> GetOfferAsync(string storeKey, Guid offerId, CancellationToken token)
@@ -87,15 +87,15 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
         if (offer.MaximumDiscount.HasValue) benefit += $", up to ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹{offer.MaximumDiscount.Value:0.00}";
         return new(offer.PromotionId, offer.OfferName, bannerSlot is null ? null : $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/banners/{bannerSlot.ToLowerInvariant()}", offer.ShortDescription, offer.DetailedDescription, offer.PromoCode, benefit, offer.StartsAt, offer.EndsAt, offer.MinimumPurchaseAmount, offer.EligibleItemsDescription, offer.MaximumDiscount, offer.UsageLimitPerCustomer, offer.TermsAndConditions, offer.CtaLabel, status);
     }
-    public async Task<StorefrontImage?> GetProductImageAsync(string storeKey, Guid productId, CancellationToken token)
+    public async Task<StorefrontImage?> GetProductImageAsync(string storeKey, Guid productId, Guid? imageId, bool thumbnail, CancellationToken token)
     {
         var tenant = await ResolveTenantAsync(storeKey, token);
         if (tenant is null || !await EligibleProducts(tenant.TenantId).AnyAsync(product => product.ProductId == productId, token)) return null;
         var image = await db.ProductImages.AsNoTracking()
-            .Where(row => row.TenantId == tenant.TenantId && row.ProductId == productId && row.IsActive && !row.IsDeleted)
+            .Where(row => row.TenantId == tenant.TenantId && row.ProductId == productId && row.IsActive && !row.IsDeleted && (!imageId.HasValue || row.ProductImageId == imageId.Value))
             .OrderByDescending(row => row.IsPrimary).ThenBy(row => row.CreatedOn).FirstOrDefaultAsync(token);
         if (image is null) return null;
-        var content = await images.ReadAsync(new(image.TenantId, image.StorageProvider, image.ObjectKey, image.ImageData, image.ContentType), token);
+        var content = await images.ReadAsync(new(image.TenantId, image.StorageProvider, thumbnail ? image.ThumbnailObjectKey : image.ObjectKey, thumbnail ? image.ThumbnailData : image.ImageData, thumbnail ? image.ThumbnailContentType : image.ContentType), token);
         return content is null ? null : new(content.ContentType, content.Content);
     }
 
@@ -124,17 +124,22 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
         if (size is not (192 or 512)) return null;
         var logo = await GetPresentationImageAsync(storeKey, "logo", null, token);
         if (logo is null) return null;
-        using var icon = Image.Load<Rgba32>(logo.Content);
-        icon.Mutate(context => context.Resize(new ResizeOptions
+        if (logo.Content.Length == 0 || logo.Content.Length > ProductImageOptimizer.MaxUploadBytes) return null;
+        ImageMagickSafety.EnsureInitialized();
+        try
         {
-            Size = new Size(size, size),
-            Mode = ResizeMode.Pad,
-            PadColor = Color.White,
-            Sampler = KnownResamplers.Lanczos3
-        }));
-        await using var output = new MemoryStream();
-        await icon.SaveAsWebpAsync(output, new WebpEncoder { Quality = 90, Method = WebpEncodingMethod.BestQuality }, token);
-        return new StorefrontImage("image/webp", output.ToArray());
+            var info = new MagickImageInfo(logo.Content);
+            if (info.Format is not (MagickFormat.Jpeg or MagickFormat.Png or MagickFormat.WebP)) return null;
+            using var icon = new MagickImage(logo.Content);
+            icon.AutoOrient();
+            icon.Resize(new MagickGeometry((uint)size, (uint)size));
+            icon.BackgroundColor = MagickColors.White;
+            icon.Extent((uint)size, (uint)size, Gravity.Center, MagickColors.White);
+            icon.Quality = 90;
+            token.ThrowIfCancellationRequested();
+            return new StorefrontImage("image/webp", icon.ToByteArray(MagickFormat.WebP));
+        }
+        catch (MagickException) { return null; }
     }
     private IQueryable<Guid?> EligibleBannerMedia(Guid tenantId, string slot)
     {
@@ -150,7 +155,7 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
             && db.Set<TenantUnitOfMeasure>().Any(link => link.TenantId == tenantId && link.UnitId == product.UnitId)
             && db.UnitsOfMeasure.Any(unit => unit.UnitId == product.UnitId && unit.IsActive && !unit.IsDeleted));
 
-    private async Task<IReadOnlyCollection<StorefrontProductDto>> MapProductsAsync(Guid tenantId, string storeKey, IReadOnlyCollection<Product> products, CancellationToken token)
+    private async Task<IReadOnlyCollection<StorefrontProductDto>> MapProductsAsync(Guid tenantId, string storeKey, IReadOnlyCollection<Product> products, bool includeGallery, CancellationToken token)
     {
         if (products.Count == 0) return []; var defaultDays = await db.StorefrontConfigurations.AsNoTracking().Where(x => x.TenantId == tenantId).Select(x => (int?)x.DefaultReturnWindowDays).SingleOrDefaultAsync(token) ?? 7;
         var ids = products.Select(product => product.ProductId).ToArray();
@@ -170,20 +175,23 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
         var imageRows = await db.ProductImages.AsNoTracking()
             .Where(image => image.TenantId == tenantId && ids.Contains(image.ProductId) && image.IsActive && !image.IsDeleted)
             .OrderByDescending(image => image.IsPrimary).ThenBy(image => image.CreatedOn)
-            .Select(image => new { image.ProductId, image.ProductImageId }).ToArrayAsync(token);
-        var imageIds = imageRows.GroupBy(image => image.ProductId).ToDictionary(group => group.Key, group => group.First().ProductImageId);
+            .Select(image => new { image.ProductId, image.ProductImageId, image.IsPrimary }).ToArrayAsync(token);
+        var imageIds = imageRows.GroupBy(image => image.ProductId).ToDictionary(group => group.Key, group => group.ToArray());
 
         return products.Select(product => new StorefrontProductDto(
             product.ProductId,
             product.CategoryId,
             product.ProductName,
             product.ShortDescription ?? string.Empty,
-            imageIds.ContainsKey(product.ProductId) ? $"/api/store/{Uri.EscapeDataString(storeKey)}/products/{product.ProductId}/image" : null,
+            product.LongDescription,
+            product.Specifications.Where(x => x.IsActive && !x.IsDeleted).OrderBy(x => x.DisplayOrder).Select(x => new StorefrontProductSpecificationDto(x.Name, x.Value)).ToArray(),
+            imageIds.TryGetValue(product.ProductId, out var gallery) ? $"/api/store/{Uri.EscapeDataString(storeKey)}/products/{product.ProductId}/image" : null,
             product.SellingPrice,
             product.MRP > product.SellingPrice ? product.MRP : null,
             stock.GetValueOrDefault(product.ProductId) ? "IN_STOCK" : "OUT_OF_STOCK",
             product.PackSize, ratings.TryGetValue(product.ProductId, out var rating) ? decimal.Round(rating.Average, 1) : null,
-            ratings.TryGetValue(product.ProductId, out rating) ? rating.Count : 0, product.ReturnPolicyMode, product.ReturnPolicyMode == "NON_RETURNABLE" ? null : product.ReturnPolicyMode == "CUSTOM" ? product.ReturnWindowDays : defaultDays, product.ReturnPolicyMode != "NON_RETURNABLE")).ToArray();
+            ratings.TryGetValue(product.ProductId, out rating) ? rating.Count : 0, product.ReturnPolicyMode, product.ReturnPolicyMode == "NON_RETURNABLE" ? null : product.ReturnPolicyMode == "CUSTOM" ? product.ReturnWindowDays : defaultDays, product.ReturnPolicyMode != "NON_RETURNABLE",
+            includeGallery && gallery is not null ? gallery.Select(image => new StorefrontProductImageDto(image.ProductImageId, $"/api/store/{Uri.EscapeDataString(storeKey)}/products/{product.ProductId}/image?imageId={image.ProductImageId}", $"/api/store/{Uri.EscapeDataString(storeKey)}/products/{product.ProductId}/image?imageId={image.ProductImageId}&thumbnail=true", image.IsPrimary)).ToArray() : null, product.ReturnPolicyDescription)).ToArray();
     }
 
     private async Task<WhatsBiz.Domain.Tenants.Tenant?> ResolveTenantAsync(string storeKey, CancellationToken token)

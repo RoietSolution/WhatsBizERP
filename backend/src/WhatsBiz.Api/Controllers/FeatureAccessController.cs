@@ -47,5 +47,13 @@ public sealed class FeatureAccessController(IFeatureService features, ITenantEnr
         catch (InvalidOperationException ex) { return Conflict(Problem(ex.Message, statusCode: 409, title: "Subscription does not allow feature")); }
     }
 
+    [HttpPut("administration/tenants/{tenantId:guid}/display-name"), PlatformAuthorize, HasPermission(Permissions.Features.Manage)]
+    public async Task<ActionResult<TenantFeatureConfiguration>> UpdateDisplayName(Guid tenantId, TenantDisplayNameInput input, CancellationToken token)
+    {
+        try { return Ok(await features.UpdateTenantDisplayNameAsync(tenantId, input.DisplayName, currentUser.Username, token)); }
+        catch (ArgumentException ex) { return BadRequest(Problem(ex.Message, statusCode: 400, title: "Invalid display name")); }
+        catch (KeyNotFoundException ex) { return NotFound(Problem(ex.Message, statusCode: 404, title: "Tenant not found")); }
+    }
+
     private Guid CurrentTenant() => currentUser.TenantId ?? throw new UnauthorizedAccessException("A tenant context is required.");
 }

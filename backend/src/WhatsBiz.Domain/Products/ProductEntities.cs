@@ -90,10 +90,22 @@ public sealed class Product : ProductMasterEntity
     public bool IsWhatsAppVisible { get; set; } = true;
     public string ReturnPolicyMode { get; set; } = "INHERIT_DEFAULT";
     public int? ReturnWindowDays { get; set; }
+    public string? ReturnPolicyDescription { get; set; }
     public ProductCategory Category { get; set; } = null!;
     public Brand Brand { get; set; } = null!;
     public UnitOfMeasure Unit { get; set; } = null!;
     public ICollection<ProductBarcode> Barcodes { get; set; } = [];
+    public ICollection<ProductSpecification> Specifications { get; set; } = [];
+}
+
+public sealed class ProductSpecification : ProductMasterEntity
+{
+    public Guid ProductSpecificationId { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ProductId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Value { get; set; } = string.Empty;
+    public int DisplayOrder { get; set; }
 }
 
 public sealed class ProductImage : ProductMasterEntity

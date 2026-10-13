@@ -15,7 +15,7 @@ public sealed record CoinConfigurationInput(bool IsEnabled, decimal PurchaseAmou
 public sealed record ProductCoinRuleInput(Guid ProductId, bool IsEnabled, int CoinsPerUnit);
 public sealed record CategoryCoinRuleInput(Guid ProductCategoryId, bool IsEnabled, int CoinsPerUnit);
 public sealed record CoinTransactionDto(Guid CoinTransactionId, string TransactionType, int Coins,
-    string SourceType, Guid? SourceId, decimal? RupeeValue, string? Description, DateTimeOffset CreatedOn);
+    string SourceType, Guid? SourceId, decimal? RupeeValue, string? Description, DateTimeOffset CreatedOn, DateTimeOffset? ExpiresAt = null);
 public sealed record CoinWalletDto(Guid CustomerId, int AvailableCoins, int TotalEarned, int TotalRedeemed,
     IReadOnlyCollection<CoinTransactionDto> Transactions);
 public sealed record CoinRedemptionQuote(int RequestedCoins, decimal Discount, int BalanceAfterRedemption);

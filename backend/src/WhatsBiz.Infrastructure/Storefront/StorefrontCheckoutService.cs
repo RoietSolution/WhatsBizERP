@@ -18,11 +18,25 @@ public sealed partial class StorefrontCheckoutService(
     IPOSEngine pos,
     ICommercePaymentService payments,
     IStorefrontCustomerService customers,
+    IStorefrontCustomerBlacklistService blacklist,
     ILogger<StorefrontCheckoutService> logger) : IStorefrontCheckoutService
 {
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection")
         ?? throw new InvalidOperationException("Database connection unavailable.");
 
+    public async Task<StorefrontDeliveryAvailabilityDto?> CheckDeliveryAsync(string storeKey, string pincode, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(pincode) || pincode.Length != 6 || !pincode.All(char.IsAsciiDigit)) throw new BusinessRuleException("Enter a valid six-digit Indian pincode.");
+        var tenantId = await ResolveTenant(storeKey, token);
+        if (tenantId is null) return null;
+        await using var connection = await Open(tenantId.Value, token);
+        await using var settings = new SqlCommand("SELECT CONVERT(bit,CASE WHEN s.DeliveryEnabled=1 AND d.DeliveryEnabled=1 THEN 1 ELSE 0 END) FROM commerce.StorefrontConfigurations s LEFT JOIN commerce.TenantDeliverySettings d ON d.TenantId=s.TenantId WHERE s.TenantId=@tenant", connection);
+        settings.Parameters.AddWithValue("@tenant", tenantId.Value);
+        var enabled = Convert.ToBoolean(await settings.ExecuteScalarAsync(token) ?? false, CultureInfo.InvariantCulture);
+        await using var serviceable = new SqlCommand("SELECT COUNT(1) FROM commerce.StorefrontServiceablePincodes WHERE TenantId=@tenant AND Pincode=@pincode AND IsActive=1", connection);
+        serviceable.Parameters.AddWithValue("@tenant", tenantId.Value); serviceable.Parameters.AddWithValue("@pincode", pincode);
+        return new(enabled, Convert.ToInt32(await serviceable.ExecuteScalarAsync(token), CultureInfo.InvariantCulture) == 1);
+    }
     public async Task<StorefrontCartQuoteDto?> QuoteAsync(string storeKey, StorefrontCartQuoteInput input,
         string? customerSessionToken, CancellationToken token)
     {
@@ -159,6 +173,8 @@ public sealed partial class StorefrontCheckoutService(
         var cartJson = JsonSerializer.Serialize(items);
         var (warehouseId, lines) = await PriceCart(tenantId, cartJson, items.Length, token);
         var authenticated = string.IsNullOrWhiteSpace(customerSessionToken) ? null : await customers.GetSessionAsync(storeKey, customerSessionToken, token);
+        if (await blacklist.IsBlockedAsync(tenantId, authenticated?.Mobile ?? mobile, token))
+            throw new BusinessRuleException("Orders are temporarily unavailable for this phone number. You may continue to browse and contact the store for assistance.");
         var quote = await CalculateQuote(tenantId, lines, input.Pincode, authenticated?.Id, input.PromoCode, token);
         if (!quote.IsDeliveryEnabled)
             throw new BusinessRuleException("Delivery is not currently available for this store.");

@@ -31,7 +31,7 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
         return new(name, config?.LogoMediaId is null ? null : "/api/storefront-administration/logo",
             config?.DeliveryEnabled ?? false, config?.StandardDeliveryCharge ?? 0, config?.FreeDeliveryEnabled ?? false,
             config?.FreeDeliveryThreshold, config?.ShowProductRatings ?? true, config?.ShowProductReviews ?? true, config?.DefaultReturnWindowDays ?? 7,
-            banners, pincodes, promotions, config?.AllCategoryMediaId is null ? null : "/api/storefront-administration/categories/all/image");
+            banners, pincodes, promotions, config?.AllCategoryMediaId is null ? null : "/api/storefront-administration/categories/all/image", config?.ShowProductDetailsOnShippingLabel ?? true);
     }
 
     public async Task UpdateReviewSettingsAsync(UpdateStorefrontReviewSettingsInput input, CancellationToken token)
@@ -41,6 +41,16 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
         if (row is null) { row = new() { TenantId = tenant, CreatedAt = DateTime.UtcNow }; db.StorefrontConfigurations.Add(row); }
         row.ShowProductRatings = input.ShowProductRatings;
         row.ShowProductReviews = input.ShowProductReviews;
+        row.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(token);
+    }
+
+    public async Task UpdateShippingLabelSettingsAsync(UpdateStorefrontShippingLabelSettingsInput input, CancellationToken token)
+    {
+        var tenant = Tenant;
+        var row = await db.StorefrontConfigurations.SingleOrDefaultAsync(x => x.TenantId == tenant, token);
+        if (row is null) { row = new() { TenantId = tenant, CreatedAt = DateTime.UtcNow }; db.StorefrontConfigurations.Add(row); }
+        row.ShowProductDetailsOnShippingLabel = input.ShowProductDetailsOnShippingLabel;
         row.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(token);
     }

@@ -22,7 +22,7 @@ public sealed partial class TenantEnrollmentService(
         var plans = await db.Database.SqlQueryRaw<PlanOption>(
             "SELECT PlanKey,Name PlanName FROM core.Plans WHERE IsActive=1 ORDER BY Name").ToListAsync(cancellationToken);
         var featureOptions = await db.Database.SqlQueryRaw<FeatureOption>(
-            "SELECT FeatureKey,Name FeatureName FROM core.Features WHERE IsActive=1 ORDER BY Version,SortOrder,Name").ToListAsync(cancellationToken);
+            "SELECT FeatureKey,Name FeatureName FROM core.Features WHERE IsActive=1 AND FeatureKey<>N'RETAILER_REFERRAL_REWARDS' ORDER BY Version,SortOrder,Name").ToListAsync(cancellationToken);
 
         using var book = new XLWorkbook();
         var instructions = book.AddWorksheet("Instructions");
@@ -40,7 +40,7 @@ public sealed partial class TenantEnrollmentService(
         for (var index = 0; index < notes.Length; index++) instructions.Cell(index + 3, 1).Value = notes[index];
         instructions.Column(1).Width = 110;
 
-        var tenant = Sheet(book, "Tenant", ["Tenant Key", "Tenant Name"]);
+        var tenant = Sheet(book, "Tenant", ["Tenant Key", "Tenant Name", "Display Name (Optional)"]);
         PrepareInputRow(tenant);
 
         var administrator = Sheet(book, "Administrator", ["Username", "Email", "Temporary Password"]);
@@ -107,7 +107,7 @@ public sealed partial class TenantEnrollmentService(
             SELECT f.FeatureId,f.FeatureKey,f.Name FeatureName,pf.IsEnabled SubscriptionAllowed
             FROM core.Features f
             LEFT JOIN core.PlanFeatures pf ON pf.FeatureId=f.FeatureId AND pf.PlanId={planId}
-            WHERE f.IsActive=1
+            WHERE f.IsActive=1 AND f.FeatureKey<>N'RETAILER_REFERRAL_REWARDS'
             ORDER BY f.Version,f.SortOrder,f.Name
             """).ToListAsync(cancellationToken);
         if (planFeatures.Any(x => x.SubscriptionAllowed is null))
@@ -125,8 +125,8 @@ public sealed partial class TenantEnrollmentService(
         try
         {
             await db.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT core.Tenants(TenantId,TenantKey,Name,IsActive,CreatedBy)
-                VALUES({tenantId},{input.TenantKey},{input.TenantName},1,{changedBy})
+                INSERT core.Tenants(TenantId,TenantKey,Name,DisplayName,IsActive,CreatedBy)
+                VALUES({tenantId},{input.TenantKey},{input.TenantName},{input.DisplayName},1,{changedBy})
                 """, cancellationToken);
             await db.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT admin.Companies(CompanyId,CompanyCode,CompanyName,LegalName,Country,IsActive,CreatedOn,TenantId)
@@ -175,7 +175,7 @@ public sealed partial class TenantEnrollmentService(
         var tenant = RequiredSheet(book, "Tenant");
         var administrator = RequiredSheet(book, "Administrator");
         var subscription = RequiredSheet(book, "Subscription");
-        var tenantCells = DataCells(tenant, ["Tenant Key", "Tenant Name"]);
+        var tenantCells = DataCells(tenant, ["Tenant Key", "Tenant Name", "Display Name (Optional)"]);
         var administratorCells = DataCells(administrator, ["Username", "Email", "Temporary Password"]);
         var subscriptionCells = DataCells(subscription, ["Plan Key", "Start Date", "End Date (Optional)"]);
         var overrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
@@ -191,6 +191,7 @@ public sealed partial class TenantEnrollmentService(
         return new(
             tenantCells["Tenant Key"].GetString().Trim().ToUpperInvariant(),
             tenantCells["Tenant Name"].GetString().Trim(),
+            tenantCells["Display Name (Optional)"].GetString().Trim() is { Length: > 0 } displayName ? displayName : null,
             administratorCells["Username"].GetString().Trim(),
             administratorCells["Email"].GetString().Trim(),
             administratorCells["Temporary Password"].GetString(),
@@ -205,6 +206,7 @@ public sealed partial class TenantEnrollmentService(
         if (!TenantKeyPattern().IsMatch(input.TenantKey)) throw new BusinessRuleException("Tenant Key must contain only A-Z, 0-9, underscore, or hyphen.");
         if (input.TenantKey.Length > 100) throw new BusinessRuleException("Tenant Key cannot exceed 100 characters.");
         if (input.TenantName.Length is 0 or > 200) throw new BusinessRuleException("Tenant Name is required and cannot exceed 200 characters.");
+        if (input.DisplayName?.Length > 200) throw new BusinessRuleException("Display Name cannot exceed 200 characters.");
         if (input.Username.Length == 0) throw new BusinessRuleException("Administrator Username is required.");
         if (input.Email.Length == 0) throw new BusinessRuleException("Administrator Email is required.");
         if (input.Password.Length == 0) throw new BusinessRuleException("Administrator Temporary Password is required.");
@@ -272,7 +274,7 @@ public sealed partial class TenantEnrollmentService(
 
     [GeneratedRegex("^[A-Z0-9_-]+$", RegexOptions.CultureInvariant)]
     private static partial Regex TenantKeyPattern();
-    private sealed record EnrollmentInput(string TenantKey, string TenantName, string Username, string Email, string Password, string PlanKey, DateTimeOffset StartDate, DateTimeOffset? EndDate, IReadOnlyDictionary<string, bool> FeatureOverrides);
+    private sealed record EnrollmentInput(string TenantKey, string TenantName, string? DisplayName, string Username, string Email, string Password, string PlanKey, DateTimeOffset StartDate, DateTimeOffset? EndDate, IReadOnlyDictionary<string, bool> FeatureOverrides);
     private sealed class PlanOption { public string PlanKey { get; set; } = ""; public string PlanName { get; set; } = ""; }
     private sealed class FeatureOption { public string FeatureKey { get; set; } = ""; public string FeatureName { get; set; } = ""; }
     private sealed class PlanFeatureRow { public Guid FeatureId { get; set; } public string FeatureKey { get; set; } = ""; public string FeatureName { get; set; } = ""; public bool? SubscriptionAllowed { get; set; } }

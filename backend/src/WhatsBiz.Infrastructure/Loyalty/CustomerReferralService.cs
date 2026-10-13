@@ -22,6 +22,8 @@ public sealed class CustomerReferralService(IConfiguration configuration, IFeatu
 
     public async Task<ReferralConfigurationDto> SaveConfigurationAsync(Guid tenantId, ReferralConfigurationInput input, string? actor, CancellationToken token)
     {
+        if (!await features.IsEnabledAsync(tenantId, FeatureKeys.CustomerReferralRewards, token))
+            throw new BusinessRuleException("Customer referral rewards are not entitled for this tenant.");
         Validate(input); await using var c=new SqlConnection(Cs); await c.OpenAsync(token);
         await using var q=new SqlCommand("""
 MERGE loyalty.ReferralConfigurations t USING(SELECT @tenant TenantId)s ON t.TenantId=s.TenantId
@@ -75,7 +77,7 @@ WHEN NOT MATCHED THEN INSERT(TenantId,IsEnabled,QualificationType,MinimumQualify
     public async Task<int> ExpireAsync(Guid? tenantId,int batchSize,string? actor,CancellationToken token)
     {await using var c=new SqlConnection(Cs);await c.OpenAsync(token);await using var q=new SqlCommand("loyalty.ExpireCustomerRewards",c){CommandType=CommandType.StoredProcedure};Add(q,"@TenantId",tenantId);Add(q,"@BatchSize",Math.Clamp(batchSize,1,5000));Add(q,"@CreatedBy",actor);return Convert.ToInt32(await q.ExecuteScalarAsync(token),System.Globalization.CultureInfo.InvariantCulture);}
 
-    private ReferralCodeDto ToCode(CodeRow x){var configured=configuration["App:PublicBaseUrl"]??configuration["WhatsApp:PublicBaseUrl"];if(!Uri.TryCreate(configured,UriKind.Absolute,out var root)||root.Scheme is not("http" or "https"))throw new InvalidOperationException("App:PublicBaseUrl must be an absolute HTTP(S) URL before referral links can be generated.");return new(x.Id,x.CustomerId,x.Code,new Uri(root,$"ref/{Uri.EscapeDataString(x.Code)}").ToString(),x.Active,x.Created);}
+    private ReferralCodeDto ToCode(CodeRow x){var configured=configuration["Storefront:PublicBaseUrl"]??configuration["App:PublicBaseUrl"];if(!Uri.TryCreate(configured,UriKind.Absolute,out var root)||root.Scheme is not("http" or "https"))throw new InvalidOperationException("Storefront:PublicBaseUrl must be an absolute HTTP(S) URL before referral links can be generated.");return new(x.Id,x.CustomerId,x.Code,new Uri(root,$"ref/{Uri.EscapeDataString(x.Code)}").ToString(),x.Active,x.Created);}
     private static async Task<CodeRow?> ReadCode(SqlConnection c,Guid tenant,Guid customer,CancellationToken token){await using var q=new SqlCommand("SELECT CustomerReferralCodeId,CustomerId,ReferralCode,IsActive,CreatedOn FROM loyalty.CustomerReferralCodes WHERE TenantId=@tenant AND CustomerId=@customer",c);Add(q,"@tenant",tenant);Add(q,"@customer",customer);await using var r=await q.ExecuteReaderAsync(token);return await r.ReadAsync(token)?new(r.GetGuid(0),r.GetGuid(1),r.GetString(2),r.GetBoolean(3),r.GetDateTimeOffset(4)):null;}
     private async Task ExecuteProcedure(string name,Guid tenant,Guid order,string? status,string? reason,string? actor,CancellationToken token)
     {

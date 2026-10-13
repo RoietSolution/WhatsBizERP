@@ -31,6 +31,7 @@ public sealed class ProductMappingProfileTests
         Assert.Equal("Category", detail.CategoryName);
         Assert.Equal("Brand", detail.BrandName);
         Assert.Equal("Unit", detail.UnitName);
+        Assert.Single(detail.Specifications);
     }
 
     [Fact]
@@ -45,6 +46,7 @@ public sealed class ProductMappingProfileTests
     {
         Category = new ProductCategory { CategoryName = "Category" },
         Brand = new Brand { BrandName = "Brand" },
-        Unit = new UnitOfMeasure { UnitName = "Unit" }
+        Unit = new UnitOfMeasure { UnitName = "Unit" },
+        Specifications = [new ProductSpecification { Name = "Material", Value = "Cotton", DisplayOrder = 0 }]
     };
 }

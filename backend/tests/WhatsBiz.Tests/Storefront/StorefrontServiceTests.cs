@@ -52,9 +52,33 @@ public sealed class StorefrontServiceTests
         (await service.GetProductAsync("FIRST", other.Product.ProductId, default)).Should().BeNull();
         (await service.GetProductAsync("FIRST", hidden.Product.ProductId, default)).Should().BeNull();
         (await service.GetProductAsync("FIRST", inactive.Product.ProductId, default)).Should().BeNull();
-        (await service.GetProductImageAsync("FIRST", first.Product.ProductId, default)).Should().NotBeNull();
-        (await service.GetProductImageAsync("FIRST", inactive.Product.ProductId, default)).Should().BeNull();
+        (await service.GetProductImageAsync("FIRST", first.Product.ProductId, null, false, default)).Should().NotBeNull();
+        (await service.GetProductImageAsync("FIRST", inactive.Product.ProductId, null, false, default)).Should().BeNull();
+        var details = (await service.GetProductAsync("FIRST", first.Product.ProductId, default))!;
+        details.Images.Should().ContainSingle().Which.IsPrimary.Should().BeTrue();
+        (await service.GetProductsAsync("FIRST", 1, 20, default))!.Items.Single().Images.Should().BeNull();
         (await service.GetCategoriesAsync("FIRST", default))!.Should().ContainSingle().Which.Id.Should().Be(first.Category.ProductCategoryId);
+    }
+
+    [Fact]
+    public async Task ProductDetailsPreserveLegacyAndRichDescriptionsAndReturnTenantSpecifications()
+    {
+        await using var db = CreateDb();
+        var first = await AddCatalogAsync(db, "DETAILS", "Details Store", withStock: false);
+        first.Product.ShortDescription = "Legacy summary";
+        first.Product.LongDescription = "<h2>Details</h2><p><strong>Fresh</strong></p>";
+        first.Product.Specifications.Add(new ProductSpecification { TenantId = first.Tenant.TenantId, ProductId = first.Product.ProductId, Name = "Material", Value = "Cotton", DisplayOrder = 0 });
+        var other = await AddCatalogAsync(db, "DETAILS2", "Other Details Store", withStock: false);
+        other.Product.Specifications.Add(new ProductSpecification { TenantId = other.Tenant.TenantId, ProductId = other.Product.ProductId, Name = "Material", Value = "Wool", DisplayOrder = 0 });
+        await db.SaveChangesAsync();
+
+        var service = new StorefrontService(db, new NoProductImages());
+        var details = (await service.GetProductAsync("DETAILS", first.Product.ProductId, default))!;
+
+        details.Description.Should().Be("Legacy summary");
+        details.LongDescription.Should().Contain("<strong>Fresh</strong>");
+        details.Specifications.Should().ContainSingle().Which.Value.Should().Be("Cotton");
+        (await service.GetProductAsync("DETAILS", other.Product.ProductId, default)).Should().BeNull();
     }
 
     [Fact]

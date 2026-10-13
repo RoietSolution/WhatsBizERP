@@ -34,6 +34,10 @@ public sealed class ProductInputValidator : AbstractValidator<ProductInput>
             code.RuleFor(x => x.BarcodeType).NotEmpty().Must(type => BarcodeTypes.All.Contains(type.Trim())).WithMessage("Barcode type is not supported.");
         });
         RuleFor(x => x.ProductName).NotEmpty().MaximumLength(250);
+        RuleFor(x => x.ShortDescription).MaximumLength(10000);
+        RuleFor(x => x.LongDescription).MaximumLength(100000);
+        RuleFor(x => x.Specifications).Must(x => (x?.Count ?? 0) <= 50).WithMessage("A product can have at most 50 specifications.");
+        RuleForEach(x => x.Specifications).ChildRules(specification => { specification.RuleFor(x => x.Name).NotEmpty().MaximumLength(100); specification.RuleFor(x => x.Value).NotEmpty().MaximumLength(1000); });
         RuleFor(x => x.CategoryId).NotEmpty();
         RuleFor(x => x.BrandId).NotEmpty();
         RuleFor(x => x.UnitId).NotEmpty();
@@ -49,6 +53,10 @@ public sealed class ProductInputValidator : AbstractValidator<ProductInput>
         RuleFor(x => x.Length).GreaterThanOrEqualTo(0).When(x => x.Length.HasValue);
         RuleFor(x => x.Width).GreaterThanOrEqualTo(0).When(x => x.Width.HasValue);
         RuleFor(x => x.Height).GreaterThanOrEqualTo(0).When(x => x.Height.HasValue);
+        RuleFor(x => x.ReturnPolicyMode).Must(x => x is "INHERIT_DEFAULT" or "CUSTOM" or "NON_RETURNABLE").WithMessage("Return policy mode is invalid.");
+        RuleFor(x => x.ReturnWindowDays).InclusiveBetween(0, 3650).When(x => x.ReturnWindowDays.HasValue);
+        RuleFor(x => x.ReturnWindowDays).NotNull().When(x => x.ReturnPolicyMode == "CUSTOM").WithMessage("Custom return policies require return days.");
+        RuleFor(x => x.ReturnPolicyDescription).MaximumLength(1000);
     }
 }
 

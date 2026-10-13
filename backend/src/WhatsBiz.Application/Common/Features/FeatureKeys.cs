@@ -33,11 +33,14 @@ public static class FeatureKeys
     public const string Integrations = "INTEGRATIONS";
     public const string CustomerReferralRewards = "CUSTOMER_REFERRAL_REWARDS";
     public const string DeliveryManagement = "DELIVERY_MANAGEMENT";
+    public const string CustomerDemand = "CUSTOMER_DEMAND";
+    public const string StorefrontFeedback = "STOREFRONT_FEEDBACK";
+    public const string StorefrontCustomerBlacklist = "STOREFRONT_CUSTOMER_BLACKLIST";
 
     public static readonly IReadOnlyCollection<string> All =
         [V1, Dashboard, Pos, Products, Customers, Purchase, Inventory, Finance, Reports,
          UsersRoles, Suppliers, Warehouses, Printing, Gst, Analytics, Administration,
          V2, WhatsAppCommerce, WhatsAppConfiguration, WhatsAppCommerceDemo,
          CommerceProductSearch, CommerceCollections, CommerceOrders, CommerceAnalytics,
-         MetaWhatsAppIntegration, WebhookDiagnostics, AdvancedWarehouse, AiAssistant, Integrations, CustomerReferralRewards, DeliveryManagement];
+         MetaWhatsAppIntegration, WebhookDiagnostics, AdvancedWarehouse, AiAssistant, Integrations, CustomerReferralRewards, DeliveryManagement, CustomerDemand, StorefrontFeedback, StorefrontCustomerBlacklist];
 }

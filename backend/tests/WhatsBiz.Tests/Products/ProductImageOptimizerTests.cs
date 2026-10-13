@@ -1,8 +1,6 @@
 using FluentAssertions;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Formats.Png;
+using ImageMagick;
+using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Infrastructure.Products;
 
 namespace WhatsBiz.Tests.Products;
@@ -29,25 +27,38 @@ public sealed class ProductImageOptimizerTests
     public async Task PngIsAcceptedAndLargeImagePreservesAspectRatio()
     {
         var result = await optimizer.OptimizeAsync("photo.png", "image/png", CreateImage(2400, 1200, jpeg: false), CancellationToken.None);
-        using var catalog = Image.Load(result.CatalogData);
+        using var catalog = new MagickImage(result.CatalogData);
         catalog.Width.Should().Be(1200);
         catalog.Height.Should().Be(600);
     }
 
     [Fact]
+    public async Task WebpIsAcceptedAndRemainsTransparentAfterOptimization()
+    {
+        using var source = new MagickImage(MagickColors.Transparent, 240, 120);
+        source.Settings.BackgroundColor = MagickColors.Transparent;
+        var result = await optimizer.OptimizeAsync("transparent.webp", "image/webp", source.ToByteArray(MagickFormat.WebP), CancellationToken.None);
+
+        result.ContentType.Should().Be("image/webp");
+        result.Width.Should().Be(240);
+        result.Height.Should().Be(120);
+        using var catalog = new MagickImage(result.CatalogData);
+        catalog.Format.Should().Be(MagickFormat.WebP);
+        catalog.HasAlpha.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task UnsupportedCorruptAndOversizedFilesAreRejected()
     {
-        await FluentActions.Awaiting(() => optimizer.OptimizeAsync("x.gif", "image/gif", [1, 2, 3], CancellationToken.None)).Should().ThrowAsync<Exception>();
-        await FluentActions.Awaiting(() => optimizer.OptimizeAsync("x.jpg", "image/jpeg", [1, 2, 3], CancellationToken.None)).Should().ThrowAsync<Exception>();
-        await FluentActions.Awaiting(() => optimizer.OptimizeAsync("x.jpg", "image/jpeg", new byte[5 * 1024 * 1024 + 1], CancellationToken.None)).Should().ThrowAsync<Exception>();
+        await FluentActions.Awaiting(() => optimizer.OptimizeAsync("x.gif", "image/gif", [1, 2, 3], CancellationToken.None)).Should().ThrowAsync<BusinessRuleException>();
+        await FluentActions.Awaiting(() => optimizer.OptimizeAsync("x.jpg", "image/jpeg", [1, 2, 3], CancellationToken.None)).Should().ThrowAsync<BusinessRuleException>();
+        await FluentActions.Awaiting(() => optimizer.OptimizeAsync("x.jpg", "image/jpeg", new byte[5 * 1024 * 1024 + 1], CancellationToken.None)).Should().ThrowAsync<BusinessRuleException>();
     }
 
     private static byte[] CreateImage(int width, int height, bool jpeg)
     {
-        using var image = new Image<Rgba32>(width, height, new Rgba32(30, 120, 80));
-        using var stream = new MemoryStream();
-        if (jpeg) image.SaveAsJpeg(stream, new JpegEncoder { Quality = 85 });
-        else image.SaveAsPng(stream, new PngEncoder());
-        return stream.ToArray();
+        using var image = new MagickImage(new MagickColor(30, 120, 80), (uint)width, (uint)height);
+        image.Quality = 85;
+        return image.ToByteArray(jpeg ? MagickFormat.Jpeg : MagickFormat.Png);
     }
 }

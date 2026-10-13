@@ -40,8 +40,10 @@ public sealed class CreateProductCommandHandler(IProductRepository repository, I
         await EnsureValidAsync(request.Input, additional, null, cancellationToken);
         var product = new Product { TenantId = tenantId };
         Apply(product, request.Input);
+        SyncSpecifications(product, request.Input, currentUser.Username);
         product.CreatedBy = currentUser.Username;
         repository.Add(product);
+        foreach (var specification in product.Specifications) repository.Add(specification);
         foreach (var code in additional)
             repository.Add(new ProductBarcode { TenantId = tenantId, ProductId = product.ProductId, Barcode = code.Barcode, BarcodeType = code.BarcodeType, CreatedBy = currentUser.Username });
         await repository.SaveChangesAsync(cancellationToken);
@@ -57,7 +59,25 @@ public sealed class CreateProductCommandHandler(IProductRepository repository, I
         }
         if (!await repository.ReferencesExistAsync(input.CategoryId, input.BrandId, input.UnitId, token)) throw new BusinessRuleException("Category, brand, or unit is invalid or inactive.");
     }
-    internal static void Apply(Product product, ProductInput input) { product.ProductCode = input.ProductCode.Trim(); product.Barcode = string.IsNullOrWhiteSpace(input.Barcode) ? null : input.Barcode; product.BarcodeType = input.BarcodeType.Trim().ToUpperInvariant(); product.ProductName = input.ProductName.Trim(); product.ShortDescription = input.ShortDescription?.Trim(); product.LongDescription = input.LongDescription?.Trim(); product.CategoryId = input.CategoryId; product.BrandId = input.BrandId; product.UnitId = input.UnitId; product.HSNCode = input.HSNCode?.Trim(); product.SACCode = input.SACCode?.Trim(); product.GSTPercentage = input.GSTPercentage; product.PurchasePrice = input.PurchasePrice; product.SellingPrice = input.SellingPrice; product.MRP = input.MRP; product.MinimumStock = input.MinimumStock; product.MaximumStock = input.MaximumStock; product.ReorderLevel = input.ReorderLevel; product.Weight = input.Weight; product.PackSize = string.IsNullOrWhiteSpace(input.PackSize) ? null : input.PackSize.Trim(); product.Length = input.Length; product.Width = input.Width; product.Height = input.Height; product.IsBatchManaged = input.IsBatchManaged; product.IsSerialManaged = input.IsSerialManaged; product.IsActive = input.IsActive; product.IsWhatsAppVisible = input.IsWhatsAppVisible; product.ReturnPolicyMode = input.ReturnPolicyMode.Trim().ToUpperInvariant(); product.ReturnWindowDays = input.ReturnWindowDays; }
+    internal static void Apply(Product product, ProductInput input) { product.ProductCode = input.ProductCode.Trim(); product.Barcode = string.IsNullOrWhiteSpace(input.Barcode) ? null : input.Barcode; product.BarcodeType = input.BarcodeType.Trim().ToUpperInvariant(); product.ProductName = input.ProductName.Trim(); product.ShortDescription = ProductDescriptionSanitizer.Sanitize(input.ShortDescription, 10000); product.LongDescription = ProductDescriptionSanitizer.Sanitize(input.LongDescription, 100000); product.CategoryId = input.CategoryId; product.BrandId = input.BrandId; product.UnitId = input.UnitId; product.HSNCode = input.HSNCode?.Trim(); product.SACCode = input.SACCode?.Trim(); product.GSTPercentage = input.GSTPercentage; product.PurchasePrice = input.PurchasePrice; product.SellingPrice = input.SellingPrice; product.MRP = input.MRP; product.MinimumStock = input.MinimumStock; product.MaximumStock = input.MaximumStock; product.ReorderLevel = input.ReorderLevel; product.Weight = input.Weight; product.PackSize = string.IsNullOrWhiteSpace(input.PackSize) ? null : input.PackSize.Trim(); product.Length = input.Length; product.Width = input.Width; product.Height = input.Height; product.IsBatchManaged = input.IsBatchManaged; product.IsSerialManaged = input.IsSerialManaged; product.IsActive = input.IsActive; product.IsWhatsAppVisible = input.IsWhatsAppVisible; product.ReturnPolicyMode = input.ReturnPolicyMode.Trim().ToUpperInvariant(); product.ReturnWindowDays = input.ReturnWindowDays; product.ReturnPolicyDescription = string.IsNullOrWhiteSpace(input.ReturnPolicyDescription) ? null : input.ReturnPolicyDescription.Trim(); }
+    internal static void SyncSpecifications(Product product, ProductInput input, string? user, Action<ProductSpecification>? add = null)
+    {
+        var requested = (input.Specifications ?? []).Where(x => !string.IsNullOrWhiteSpace(x.Name) && !string.IsNullOrWhiteSpace(x.Value)).Select((x, index) => new { Name = x.Name.Trim(), Value = x.Value.Trim(), DisplayOrder = index }).GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase).Select(x => x.First()).ToArray();
+        foreach (var existing in product.Specifications.Where(x => !x.IsDeleted))
+        {
+            if (existing.ProductId != product.ProductId || existing.TenantId != product.TenantId)
+                throw new BusinessRuleException("The product specification does not belong to this product.");
+            var match = requested.FirstOrDefault(x => string.Equals(x.Name, existing.Name, StringComparison.OrdinalIgnoreCase));
+            if (match is null) { existing.IsDeleted = true; existing.IsActive = false; existing.ModifiedOn = DateTimeOffset.UtcNow; existing.ModifiedBy = user; continue; }
+            existing.Name = match.Name; existing.Value = match.Value; existing.DisplayOrder = match.DisplayOrder; existing.ModifiedOn = DateTimeOffset.UtcNow; existing.ModifiedBy = user;
+        }
+        foreach (var item in requested.Where(x => !product.Specifications.Any(s => !s.IsDeleted && string.Equals(s.Name, x.Name, StringComparison.OrdinalIgnoreCase))))
+        {
+            var specification = new ProductSpecification { TenantId = product.TenantId, ProductId = product.ProductId, Name = item.Name, Value = item.Value, DisplayOrder = item.DisplayOrder, CreatedBy = user };
+            product.Specifications.Add(specification);
+            add?.Invoke(specification);
+        }
+    }
 }
 
 public sealed class UpdateProductCommandHandler(IProductRepository repository, ICurrentUserService currentUser, IMapper mapper) : IRequestHandler<UpdateProductCommand, ProductDto>
@@ -75,6 +95,7 @@ public sealed class UpdateProductCommandHandler(IProductRepository repository, I
         if (!await repository.ReferencesExistAsync(request.Input.CategoryId, request.Input.BrandId, request.Input.UnitId, cancellationToken)) throw new BusinessRuleException("Category, brand, or unit is invalid or inactive.");
 
         CreateProductCommandHandler.Apply(product, request.Input);
+        CreateProductCommandHandler.SyncSpecifications(product, request.Input, currentUser.Username, repository.Add);
         SyncAdditional(product, additional);
         product.ModifiedOn = DateTimeOffset.UtcNow;
         product.ModifiedBy = currentUser.Username;

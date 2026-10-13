@@ -49,14 +49,23 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
             LogRequest(context, started, 500, exception);
             await WriteProblemAsync(context, StatusCodes.Status500InternalServerError, "Unable to complete request", ["The server could not complete this request. Please try again. If the problem continues, contact your administrator."]);
         }
+        catch (DbUpdateException exception) when (HasSqlError(exception, 208) && context.Request.Path.StartsWithSegments("/api/products"))
+        {
+            LogRequest(context, started, 503, exception);
+            await WriteProblemAsync(context, StatusCodes.Status503ServiceUnavailable, "Product schema is not ready", ["Product specifications are not available in this environment yet. Apply the V49 database migration and try again."]);
+        }
         catch (DbUpdateConcurrencyException exception)
         {
-            LogRequest(context, started, 409, exception); await WriteProblemAsync(context, StatusCodes.Status409Conflict, "The record was changed by another user", [exception.Message]);
+            LogRequest(context, started, 409, exception); await WriteProblemAsync(context, StatusCodes.Status409Conflict, "The record was changed by another user", ["This record was changed or removed before it could be saved. Refresh the product and try again."]);
         }
         catch (DbUpdateException exception)
         {
             LogRequest(context, started, 409, exception);
-            var detail = IsUniqueConstraint(exception)
+            var detail = IsUniqueConstraint(exception) && context.Request.Path.StartsWithSegments("/api/products")
+                ? "A product with the same product code, barcode, or additional barcode already exists for this retailer."
+                : IsUniqueConstraint(exception) && context.Request.Path.StartsWithSegments("/api/warehouses")
+                ? "A warehouse with the same code, name, or default setting already exists for this retailer."
+                : IsUniqueConstraint(exception)
                 ? "A record with the same unique value already exists. Check the supplier code or GSTIN and try again."
                 : context.Request.Path.StartsWithSegments("/api/suppliers")
                     ? "The supplier could not be saved because its data conflicts with the current database. Verify the supplier details and try again."

@@ -9,6 +9,7 @@ public interface IFeatureService
     Task<TenantFeatureConfiguration> GetTenantConfigurationAsync(Guid tenantId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<FeatureTenantSummary>> GetTenantsAsync(CancellationToken cancellationToken = default);
     Task<TenantFeatureConfiguration> UpdateTenantConfigurationAsync(Guid tenantId, IReadOnlyCollection<TenantFeatureUpdate> updates, string? changedBy, CancellationToken cancellationToken = default);
+    Task<TenantFeatureConfiguration> UpdateTenantDisplayNameAsync(Guid tenantId, string? displayName, string? changedBy, CancellationToken cancellationToken = default);
     void InvalidateTenant(Guid tenantId);
     void InvalidateAll();
 }

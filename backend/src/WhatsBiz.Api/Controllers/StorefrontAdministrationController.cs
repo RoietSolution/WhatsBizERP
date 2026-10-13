@@ -13,6 +13,7 @@ public sealed class StorefrontAdministrationController(IStorefrontAdministration
     private const long MaxImageBytes = 5 * 1024 * 1024;
     [HttpGet] public Task<StorefrontAdminDto> Get(CancellationToken token) => service.GetAsync(token);
     [HttpPut("review-settings")] public async Task<IActionResult> UpdateReviewSettings(UpdateStorefrontReviewSettingsInput input, CancellationToken token) { await service.UpdateReviewSettingsAsync(input, token); return NoContent(); }
+    [HttpPut("shipping-label-settings")] public async Task<IActionResult> UpdateShippingLabelSettings(UpdateStorefrontShippingLabelSettingsInput input, CancellationToken token) { await service.UpdateShippingLabelSettingsAsync(input, token); return NoContent(); }
     [HttpPut("delivery-settings")] public async Task<IActionResult> UpdateDeliverySettings(UpdateStorefrontDeliverySettingsInput input, CancellationToken token) { await service.UpdateDeliverySettingsAsync(input, token); return NoContent(); }
     [HttpPut("pincodes")]
     public async Task<IActionResult> SavePincode(StorefrontPincodeDto input, CancellationToken token) { await service.SavePincodeAsync(input, token); return NoContent(); }

@@ -16,6 +16,7 @@ public sealed class StorefrontConfiguration
     public bool DeliveryChargeIncomePostingEnabled { get; set; }
     public bool ShowProductRatings { get; set; } = true;
     public bool ShowProductReviews { get; set; } = true;
+    public bool ShowProductDetailsOnShippingLabel { get; set; } = true;
     public int DefaultReturnWindowDays { get; set; } = 7;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

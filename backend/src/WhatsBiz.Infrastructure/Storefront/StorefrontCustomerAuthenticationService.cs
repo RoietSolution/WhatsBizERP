@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using WhatsBiz.Application.Common.Exceptions;
@@ -77,6 +78,7 @@ public sealed partial class StorefrontCustomerAuthenticationService(
     private const int ExpiryMinutes = 5;
     private const int CooldownSeconds = 45;
     private const int MaxAttempts = 5;
+    private static readonly PasswordHasher<object> Passwords = new();
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection")
         ?? throw new InvalidOperationException("Database connection unavailable.");
 
@@ -149,8 +151,9 @@ public sealed partial class StorefrontCustomerAuthenticationService(
         var email = NormalizeEmail(input.Email);
         if (!string.IsNullOrWhiteSpace(input.Email) && email is null) throw new BusinessRuleException("Enter a valid email address.");
         var name = input.Name?.Trim();
-        if (string.IsNullOrWhiteSpace(name)) throw new BusinessRuleException("Name is required.");
-        if (name.Length > 250) throw new BusinessRuleException("Enter a valid customer name.");
+        if (input.IsRegistration && string.IsNullOrWhiteSpace(name)) throw new BusinessRuleException("Name is required.");
+        if (!string.IsNullOrWhiteSpace(name) && name.Length > 250) throw new BusinessRuleException("Enter a valid customer name.");
+        if (input.ReplacePassword || (!string.IsNullOrWhiteSpace(input.Password) || !string.IsNullOrWhiteSpace(input.ConfirmPassword))) ValidatePassword(input.Password, input.ConfirmPassword);
 
         await using var connection = await Open(tenantId.Value, token);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, token);
@@ -181,11 +184,65 @@ public sealed partial class StorefrontCustomerAuthenticationService(
         }
         await using (var consume = new SqlCommand("UPDATE commerce.StorefrontOtpChallenges SET ConsumedAt=SYSUTCDATETIME() WHERE ChallengeId=@id AND TenantId=@tenant AND ConsumedAt IS NULL;", connection, transaction))
         { consume.Parameters.AddWithValue("@id",input.ChallengeId);consume.Parameters.AddWithValue("@tenant",tenantId);if(await consume.ExecuteNonQueryAsync(token)!=1){await transaction.RollbackAsync(token);return null;} }
-        var customerId = await ResolveCustomer(connection, transaction, tenantId.Value, mobile, name, email, token);
+        var passwordHash = !string.IsNullOrWhiteSpace(input.Password) ? Passwords.HashPassword(new object(), input.Password) : null;
+        // OTP login must authenticate an existing customer; only the explicit signup
+        // flow may create one. This also prevents a password-reset OTP from creating
+        // a new account when the supplied mobile number is unknown.
+        var customerId = await ResolveCustomer(connection, transaction, tenantId.Value, mobile, name, email, passwordHash, input.ReplacePassword, input.IsRegistration, token);
+        if (customerId is null)
+        {
+            await transaction.RollbackAsync(token);
+            return null;
+        }
         await transaction.CommitAsync(token);
+        var session = await customers.IssueSessionAsync(storeKey, tenantId.Value, customerId.Value, token);
+        var customer = await customers.GetSessionAsync(storeKey, session, token);
+        return customer is null ? null : new(session, customer);
+    }
+
+    public async Task<StorefrontAuthenticationDto?> SignInPasswordAsync(string storeKey, StorefrontPasswordSignInInput input, CancellationToken token)
+    {
+        var tenantId = await ResolveTenant(storeKey, token);
+        var mobile = NormalizeMobile(input.MobileNumber);
+        if (tenantId is null || mobile is null || string.IsNullOrWhiteSpace(input.Password)) return null;
+        await using var connection = await Open(tenantId.Value, token);
+        await using var command = new SqlCommand("""
+            SELECT TOP(1) CustomerId,StorefrontPasswordHash
+            FROM sales.Customers
+            WHERE TenantId=@tenant AND IsActive=1 AND IsDeleted=0
+              AND (MobileNormalized=@mobile OR (MobileNormalized IS NULL AND RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(Mobile,N' ',N''),N'+',N''),N'-',N''),N'(',N''),10)=@mobile));
+            """, connection);
+        command.Parameters.AddWithValue("@tenant", tenantId.Value); command.Parameters.AddWithValue("@mobile", mobile);
+        await using var reader = await command.ExecuteReaderAsync(token);
+        if (!await reader.ReadAsync(token) || reader.IsDBNull(1)) return null;
+        var customerId = reader.GetGuid(0); var hash = reader.GetString(1);
+        if (Passwords.VerifyHashedPassword(new object(), hash, input.Password) == PasswordVerificationResult.Failed) return null;
         var session = await customers.IssueSessionAsync(storeKey, tenantId.Value, customerId, token);
         var customer = await customers.GetSessionAsync(storeKey, session, token);
         return customer is null ? null : new(session, customer);
+    }
+
+    public async Task<bool> ResetPasswordAsync(string storeKey, StorefrontPasswordResetInput input, CancellationToken token)
+    {
+        ValidatePassword(input.NewPassword, input.ConfirmPassword);
+        var tenantId = await ResolveTenant(storeKey, token); var mobile = NormalizeMobile(input.MobileNumber);
+        if (tenantId is null || mobile is null) return false;
+        var result = await VerifyOtpAsync(storeKey, new StorefrontOtpVerifyInput(input.ChallengeId, input.MobileNumber, input.Otp, null, null, false, input.NewPassword, input.ConfirmPassword, true), token);
+        return result is not null;
+    }
+
+    public async Task<bool> ChangePasswordAsync(string storeKey, string sessionToken, StorefrontChangePasswordInput input, CancellationToken token)
+    {
+        ValidatePassword(input.NewPassword, input.ConfirmPassword);
+        var current = await customers.GetSessionAsync(storeKey, sessionToken, token); if (current is null) return false;
+        var tenantId = await ResolveTenant(storeKey, token); if (tenantId is null) return false;
+        await using var connection = await Open(tenantId.Value, token);
+        await using var read = new SqlCommand("SELECT StorefrontPasswordHash FROM sales.Customers WHERE TenantId=@tenant AND CustomerId=@customer AND IsActive=1 AND IsDeleted=0;", connection);
+        read.Parameters.AddWithValue("@tenant",tenantId.Value); read.Parameters.AddWithValue("@customer",current.Id);
+        var hash = await read.ExecuteScalarAsync(token) as string;
+        if (hash is null || Passwords.VerifyHashedPassword(new object(), hash, input.CurrentPassword) == PasswordVerificationResult.Failed) return false;
+        await using var update = new SqlCommand("UPDATE sales.Customers SET StorefrontPasswordHash=@hash,ModifiedOn=SYSUTCDATETIME(),ModifiedBy=N'STOREFRONT_PASSWORD' WHERE TenantId=@tenant AND CustomerId=@customer;", connection);
+        update.Parameters.AddWithValue("@hash",Passwords.HashPassword(new object(),input.NewPassword)); update.Parameters.AddWithValue("@tenant",tenantId.Value); update.Parameters.AddWithValue("@customer",current.Id); await update.ExecuteNonQueryAsync(token); return true;
     }
 
     public async Task<StorefrontCustomerDto?> UpdateProfileAsync(string storeKey, string sessionToken, UpdateStorefrontCustomerInput input, CancellationToken token)
@@ -205,6 +262,12 @@ public sealed partial class StorefrontCustomerAuthenticationService(
         return new(current.Id,name,email,current.Mobile);
     }
 
+    private static void ValidatePassword(string? password, string? confirmation)
+    {
+        if (string.IsNullOrWhiteSpace(password) || password.Length < 8 || password.Length > 128 || password.Any(char.IsWhiteSpace) || !password.Any(char.IsLetter) || !password.Any(char.IsDigit))
+            throw new BusinessRuleException("Password must be at least 8 characters and include a letter and a number.");
+        if (!string.Equals(password, confirmation, StringComparison.Ordinal)) throw new BusinessRuleException("Passwords do not match.");
+    }
     internal static string? NormalizeMobile(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
@@ -221,7 +284,7 @@ public sealed partial class StorefrontCustomerAuthenticationService(
     private static string? NormalizeEmail(string? value) => string.IsNullOrWhiteSpace(value) ? null
         : MailAddress.TryCreate(value.Trim(), out var address) && value.Trim().Length <= 256 ? address.Address.ToLowerInvariant() : null;
 
-    private static async Task<Guid> ResolveCustomer(SqlConnection connection, SqlTransaction transaction, Guid tenantId, string mobile, string? name, string? email, CancellationToken token)
+    private static async Task<Guid?> ResolveCustomer(SqlConnection connection, SqlTransaction transaction, Guid tenantId, string mobile, string? name, string? email, string? passwordHash, bool replacePassword, bool allowCreate, CancellationToken token)
     {
         await using var find = new SqlCommand("""
             SELECT TOP(1) CustomerId FROM sales.Customers WITH(UPDLOCK,HOLDLOCK)
@@ -232,16 +295,17 @@ public sealed partial class StorefrontCustomerAuthenticationService(
         find.Parameters.AddWithValue("@tenant",tenantId);find.Parameters.AddWithValue("@mobile",mobile);
         if(await find.ExecuteScalarAsync(token) is Guid existing)
         {
-            await using var update = new SqlCommand("UPDATE sales.Customers SET MobileNormalized=@mobile,CustomerName=COALESCE(NULLIF(@name,N''),CustomerName),Email=COALESCE(@email,Email),ModifiedOn=SYSUTCDATETIME(),ModifiedBy=N'STOREFRONT_OTP' WHERE CustomerId=@id AND TenantId=@tenant;",connection,transaction);
-            update.Parameters.AddWithValue("@mobile",mobile);update.Parameters.AddWithValue("@name",name??(object)DBNull.Value);update.Parameters.AddWithValue("@email",email??(object)DBNull.Value);update.Parameters.AddWithValue("@id",existing);update.Parameters.AddWithValue("@tenant",tenantId);await update.ExecuteNonQueryAsync(token);
+            await using var update = new SqlCommand("UPDATE sales.Customers SET MobileNormalized=@mobile,CustomerName=COALESCE(NULLIF(@name,N''),CustomerName),Email=COALESCE(@email,Email),StorefrontPasswordHash=CASE WHEN @replacePassword=1 THEN @password ELSE StorefrontPasswordHash END,ModifiedOn=SYSUTCDATETIME(),ModifiedBy=N'STOREFRONT_OTP' WHERE CustomerId=@id AND TenantId=@tenant;",connection,transaction);
+            update.Parameters.AddWithValue("@mobile",mobile);update.Parameters.AddWithValue("@name",name??(object)DBNull.Value);update.Parameters.AddWithValue("@password",passwordHash??(object)DBNull.Value);update.Parameters.AddWithValue("@replacePassword",replacePassword);update.Parameters.AddWithValue("@email",email??(object)DBNull.Value);update.Parameters.AddWithValue("@id",existing);update.Parameters.AddWithValue("@tenant",tenantId);await update.ExecuteNonQueryAsync(token);
             return existing;
         }
+        if (!allowCreate) return null;
         var id=Guid.NewGuid();
         await using var insert=new SqlCommand("""
-            INSERT sales.Customers(CustomerId,TenantId,CustomerCode,CustomerName,CustomerType,Email,Mobile,MobileNormalized,Currency,CreditLimit,OpeningBalance,IsGSTRegistered,IsActive,IsDeleted,Remarks,CreatedBy)
-            VALUES(@id,@tenant,@code,@name,N'RETAIL',@email,@mobile,@mobile,N'INR',0,0,0,1,0,N'Verified storefront customer',N'STOREFRONT_OTP');
+            INSERT sales.Customers(CustomerId,TenantId,CustomerCode,CustomerName,CustomerType,Email,Mobile,MobileNormalized,StorefrontPasswordHash,Currency,CreditLimit,OpeningBalance,IsGSTRegistered,IsActive,IsDeleted,Remarks,CreatedBy)
+            VALUES(@id,@tenant,@code,@name,N'RETAIL',@email,@mobile,@mobile,@password,N'INR',0,0,0,1,0,N'Verified storefront customer',N'STOREFRONT_OTP');
             """,connection,transaction);
-        insert.Parameters.AddWithValue("@id",id);insert.Parameters.AddWithValue("@tenant",tenantId);insert.Parameters.AddWithValue("@code",$"WEB-{id:N}"[..16]);insert.Parameters.AddWithValue("@name",name??$"Customer {mobile[^4..]}");insert.Parameters.AddWithValue("@email",email??(object)DBNull.Value);insert.Parameters.AddWithValue("@mobile",mobile);await insert.ExecuteNonQueryAsync(token);return id;
+        insert.Parameters.AddWithValue("@id",id);insert.Parameters.AddWithValue("@tenant",tenantId);insert.Parameters.AddWithValue("@code",$"WEB-{id:N}"[..16]);insert.Parameters.AddWithValue("@name",name??$"Customer {mobile[^4..]}");insert.Parameters.AddWithValue("@email",email??(object)DBNull.Value);insert.Parameters.AddWithValue("@mobile",mobile);insert.Parameters.AddWithValue("@password",passwordHash??(object)DBNull.Value);await insert.ExecuteNonQueryAsync(token);return id;
     }
 
     private async Task<Guid?> ResolveTenant(string storeKey,CancellationToken token)

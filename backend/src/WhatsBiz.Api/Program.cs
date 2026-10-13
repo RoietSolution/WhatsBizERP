@@ -103,9 +103,18 @@ try
     builder.Services.AddScoped<IStorefrontService, StorefrontService>();
     builder.Services.AddScoped<IStorefrontCheckoutService, StorefrontCheckoutService>();
     builder.Services.AddScoped<IStorefrontCustomerService, StorefrontCustomerService>();
+    builder.Services.AddScoped<IStorefrontCustomerRewardsService, StorefrontCustomerService>();
     builder.Services.AddScoped<IStorefrontCancellationService, StorefrontCancellationService>();
+    builder.Services.AddScoped<IStorefrontReturnService, StorefrontReturnService>();
     builder.Services.AddScoped<IStorefrontReviewService, StorefrontReviewService>();
     builder.Services.AddScoped<IStorefrontCustomerAuthenticationService, StorefrontCustomerAuthenticationService>();
+    builder.Services.AddScoped<IStorefrontActivityService, StorefrontActivityService>();
+    builder.Services.AddScoped<IStorefrontCustomerManagementService, StorefrontCustomerManagementService>();
+    builder.Services.AddScoped<IStorefrontFeedbackService, StorefrontFeedbackService>();
+    builder.Services.AddScoped<IStorefrontCustomerBlacklistService, StorefrontCustomerBlacklistService>();
+builder.Services.AddScoped<CustomerDemandService>();
+builder.Services.AddScoped<ICustomerDemandService, CustomerDemandReportingService>();
+builder.Services.AddScoped<ICustomerDemandManagementService, CustomerDemandManagementService>();
     builder.Services.AddSingleton<ICustomerOtpSender, CustomerOtpSender>();
     builder.Services.AddHttpClient("StorefrontOtp", client => client.Timeout = TimeSpan.FromSeconds(15));
     builder.Services.AddScoped<IStorefrontAdministrationService, StorefrontAdministrationService>();

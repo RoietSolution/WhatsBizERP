@@ -85,6 +85,7 @@ public sealed class FeatureAccessTests
         public Task<TenantFeatureConfiguration> GetTenantConfigurationAsync(Guid tenantId,CancellationToken cancellationToken=default){SelectedTenant=tenantId;return Task.FromResult(new TenantFeatureConfiguration(tenantId,"Selected Retailer",null,null,[]));}
         public Task<IReadOnlyCollection<FeatureTenantSummary>> GetTenantsAsync(CancellationToken cancellationToken=default)=>throw new NotSupportedException();
         public Task<TenantFeatureConfiguration> UpdateTenantConfigurationAsync(Guid tenantId,IReadOnlyCollection<TenantFeatureUpdate> updates,string? changedBy,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
+        public Task<TenantFeatureConfiguration> UpdateTenantDisplayNameAsync(Guid tenantId,string? displayName,string? changedBy,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
         public void InvalidateTenant(Guid tenantId){} public void InvalidateAll(){}
     }
     private sealed class EnrollmentStub : ITenantEnrollmentService

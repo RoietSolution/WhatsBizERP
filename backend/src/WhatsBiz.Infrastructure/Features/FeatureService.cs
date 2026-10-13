@@ -48,14 +48,26 @@ public sealed class FeatureService(ApplicationDbContext db, IMemoryCache cache, 
     public async Task<IReadOnlyCollection<FeatureTenantSummary>> GetTenantsAsync(CancellationToken cancellationToken = default)
     {
         var rows = await db.Database.SqlQueryRaw<FeatureTenantSummaryRow>("""
-            SELECT t.TenantId,t.TenantKey,t.Name TenantName,p.PlanKey,p.Name PlanName
+            SELECT t.TenantId,t.TenantKey,t.Name TenantName,p.PlanKey,p.Name PlanName,t.DisplayName
             FROM core.Tenants t OUTER APPLY
               (SELECT TOP(1) p.PlanKey,p.Name FROM core.Subscriptions s JOIN core.Plans p ON p.PlanId=s.PlanId
                WHERE s.TenantId=t.TenantId AND s.IsActive=1 AND s.StartDate<=SYSUTCDATETIME()
                  AND (s.EndDate IS NULL OR s.EndDate>=SYSUTCDATETIME()) ORDER BY s.StartDate DESC) p
             WHERE t.IsActive=1 ORDER BY t.Name
             """).ToListAsync(cancellationToken);
-        return rows.Select(x => new FeatureTenantSummary(x.TenantId, x.TenantKey, x.TenantName, x.PlanKey, x.PlanName)).ToArray();
+        return rows.Select(x => new FeatureTenantSummary(x.TenantId, x.TenantKey, x.TenantName, x.PlanKey, x.PlanName, x.DisplayName)).ToArray();
+    }
+
+    public async Task<TenantFeatureConfiguration> UpdateTenantDisplayNameAsync(Guid tenantId, string? displayName, string? changedBy, CancellationToken cancellationToken = default)
+    {
+        var tenant = await db.Tenants.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.IsActive, cancellationToken)
+            ?? throw new KeyNotFoundException("Tenant was not found.");
+        var value = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
+        if (value?.Length > 200) throw new ArgumentException("Display Name cannot exceed 200 characters.");
+        tenant.DisplayName = value;
+        await db.SaveChangesAsync(cancellationToken);
+        InvalidateTenant(tenantId);
+        return await GetTenantConfigurationCoreAsync(tenantId, cancellationToken);
     }
 
     public async Task<TenantFeatureConfiguration> UpdateTenantConfigurationAsync(Guid tenantId, IReadOnlyCollection<TenantFeatureUpdate> updates, string? changedBy, CancellationToken cancellationToken = default)
@@ -93,7 +105,7 @@ public sealed class FeatureService(ApplicationDbContext db, IMemoryCache cache, 
         var rows = await db.Database.SqlQueryRaw<FeatureRow>("""
             SELECT f.FeatureId,f.FeatureKey,f.Name FeatureName,f.FeatureType,parent.FeatureKey ParentFeatureKey,f.Version,f.SortOrder,
                    CAST(ISNULL(tf.IsEnabled,0) AS bit) ConfiguredEnabled,CAST(ISNULL(planf.IsEnabled,0) AS bit) SubscriptionAllowed,
-                   t.Name TenantName,subscriptionPlan.PlanKey,subscriptionPlan.Name PlanName,f.IsActive,f.ReleaseState
+                   t.Name TenantName,t.DisplayName,subscriptionPlan.PlanKey,subscriptionPlan.Name PlanName,f.IsActive,f.ReleaseState
             FROM core.Features f JOIN core.Tenants t ON t.TenantId={0} AND t.IsActive=1
             LEFT JOIN core.Features parent ON parent.FeatureId=f.ParentFeatureId
             OUTER APPLY (SELECT TOP(1) s.PlanId,p.PlanKey,p.Name FROM core.Subscriptions s JOIN core.Plans p ON p.PlanId=s.PlanId AND p.IsActive=1
@@ -104,7 +116,7 @@ public sealed class FeatureService(ApplicationDbContext db, IMemoryCache cache, 
                          WHERE tf.TenantId=t.TenantId AND tf.FeatureId=f.FeatureId AND tf.IsActive=1
                            AND (tf.StartDate IS NULL OR tf.StartDate<=SYSUTCDATETIME()) AND (tf.EndDate IS NULL OR tf.EndDate>=SYSUTCDATETIME())
                          ORDER BY tf.ModifiedOn DESC,tf.CreatedOn DESC) tf
-            WHERE f.IsActive=1 ORDER BY f.Version,f.SortOrder,f.Name
+            WHERE f.IsActive=1 AND f.FeatureKey<>N'RETAILER_REFERRAL_REWARDS' ORDER BY f.Version,f.SortOrder,f.Name
             """, tenantId).ToListAsync(cancellationToken);
         if (rows.Count == 0) throw new KeyNotFoundException("Tenant was not found or has no active feature definitions.");
         var options = globalOptions.Value;
@@ -114,15 +126,15 @@ public sealed class FeatureService(ApplicationDbContext db, IMemoryCache cache, 
             row.IsActive && row.ReleaseState != "DISABLED",Dependencies.TryGetValue(row.FeatureKey, out var deps) ? deps : [])).ToArray();
         var states = FeatureAccessEvaluator.Evaluate(inputs);
         var first = rows[0];
-        return new(tenantId, first.TenantName, first.PlanKey, first.PlanName, states);
+        return new(tenantId, first.TenantName, first.PlanKey, first.PlanName, states, first.DisplayName);
     }
 
     private sealed class FeatureRow
     {
         public Guid FeatureId { get; set; } public string FeatureKey { get; set; } = ""; public string FeatureName { get; set; } = "";
         public string FeatureType { get; set; } = ""; public string? ParentFeatureKey { get; set; } public string Version { get; set; } = ""; public int SortOrder { get; set; }
-        public bool ConfiguredEnabled { get; set; } public bool SubscriptionAllowed { get; set; } public string TenantName { get; set; } = "";
+        public bool ConfiguredEnabled { get; set; } public bool SubscriptionAllowed { get; set; } public string TenantName { get; set; } = ""; public string? DisplayName { get; set; }
         public string? PlanKey { get; set; } public string? PlanName { get; set; } public bool IsActive { get; set; } public string ReleaseState { get; set; } = "";
     }
-    private sealed class FeatureTenantSummaryRow { public Guid TenantId { get; set; } public string TenantKey { get; set; } = ""; public string TenantName { get; set; } = ""; public string? PlanKey { get; set; } public string? PlanName { get; set; } }
+    private sealed class FeatureTenantSummaryRow { public Guid TenantId { get; set; } public string TenantKey { get; set; } = ""; public string TenantName { get; set; } = ""; public string? PlanKey { get; set; } public string? PlanName { get; set; } public string? DisplayName { get; set; } }
 }

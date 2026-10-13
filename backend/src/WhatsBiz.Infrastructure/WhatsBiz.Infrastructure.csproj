@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><NoWarn>$(NoWarn);CA1859</NoWarn></PropertyGroup>
   <ItemGroup>
+    <Compile Remove="Storefront\CustomerDemandService.cs" />
     <InternalsVisibleTo Include="WhatsBiz.Tests" />
   </ItemGroup>
   <ItemGroup>
@@ -9,7 +10,7 @@
     <PackageReference Include="AWSSDK.S3" />
     <PackageReference Include="QRCoder" />
     <PackageReference Include="ZXing.Net" />
-    <PackageReference Include="SixLabors.ImageSharp" />
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools"><PrivateAssets>all</PrivateAssets></PackageReference>

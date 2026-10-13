@@ -16,8 +16,11 @@ public sealed class ProductMappingProfile : Profile
             .ForCtorParam(nameof(ProductDto.CategoryName), options => options.MapFrom(source => source.Category.CategoryName))
             .ForCtorParam(nameof(ProductDto.BrandName), options => options.MapFrom(source => source.Brand.BrandName))
             .ForCtorParam(nameof(ProductDto.UnitName), options => options.MapFrom(source => source.Unit.UnitName))
-            .ForCtorParam(nameof(ProductDto.AdditionalBarcodes), options => options.MapFrom(source => source.Barcodes.Where(x => x.IsActive && !x.IsDeleted && !x.IsPrimary && x.Barcode != source.Barcode)));
+            .ForCtorParam(nameof(ProductDto.ReturnPolicyDescription), options => options.MapFrom(source => source.ReturnPolicyDescription))
+            .ForCtorParam(nameof(ProductDto.AdditionalBarcodes), options => options.MapFrom(source => source.Barcodes.Where(x => x.IsActive && !x.IsDeleted && !x.IsPrimary && x.Barcode != source.Barcode)))
+            .ForCtorParam(nameof(ProductDto.Specifications), options => options.MapFrom(source => source.Specifications.Where(x => x.IsActive && !x.IsDeleted).OrderBy(x => x.DisplayOrder)));
         CreateMap<ProductBarcode, ProductBarcodeDto>();
+        CreateMap<ProductSpecification, ProductSpecificationDto>();
         CreateMap<ProductCategory, ProductCategoryDto>()
             .ForCtorParam(nameof(ProductCategoryDto.Children), options => options.MapFrom(_ => Array.Empty<ProductCategoryDto>()));
         CreateMap<Brand, BrandDto>();

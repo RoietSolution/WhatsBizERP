@@ -27,15 +27,37 @@ function Get-SshCapture([string]$Command){
  if($LASTEXITCODE -ne 0){throw 'Established QA deployment SSH operation failed.'}
  return ($v -join [Environment]::NewLine)
 }
+function Get-DpapiTypes {
+ $protectedType=$null
+ foreach($assemblyName in @('System.Security.Cryptography.ProtectedData','System.Security')){try{Add-Type -AssemblyName $assemblyName -ErrorAction Stop}catch{}}
+ foreach($assembly in [AppDomain]::CurrentDomain.GetAssemblies()){ $candidate=$assembly.GetType('System.Security.Cryptography.ProtectedData',$false); if($null -ne $candidate){$protectedType=$candidate;break} }
+ if($null -eq $protectedType){throw 'DPAPI support is unavailable. Load System.Security.Cryptography.ProtectedData or System.Security before running QA database deployment.'}
+ $scopeType=$protectedType.Assembly.GetType('System.Security.Cryptography.DataProtectionScope',$false);if($null -eq $scopeType){$scopeType=[Type]::GetType('System.Security.Cryptography.DataProtectionScope, System.Security',$false)}
+ if($null -eq $scopeType){throw 'DPAPI protection scope is unavailable in the current PowerShell runtime.'}
+ [pscustomobject]@{ProtectedDataType=$protectedType;ScopeType=$scopeType}
+}
+function Unprotect-DeploymentConnection([byte[]]$ProtectedBytes) {
+ $dpapi=Get-DpapiTypes;$scope=[Enum]::Parse($dpapi.ScopeType,'CurrentUser');$unprotectMethod=@($dpapi.ProtectedDataType.GetMethods([Reflection.BindingFlags]::Public -bor [Reflection.BindingFlags]::Static)|Where-Object{$_.Name -eq 'Unprotect' -and $_.GetParameters().Count -eq 3})[0];return $unprotectMethod.Invoke($null,@($ProtectedBytes,$null,$scope))
+}
+function Get-QaDeploymentConnection {
+ $override=[Environment]::GetEnvironmentVariable('WHATSBIZ_QA_SQL_CONNECTION')
+ if(-not [string]::IsNullOrWhiteSpace($override)){return $override}
+ $root=[Environment]::GetFolderPath('LocalApplicationData')
+ if([string]::IsNullOrWhiteSpace($root)){throw 'QA DATABASE DEPLOYMENT CONFIGURATION INVALID. Local application data storage is unavailable. Run .\deployment\setup-database-deployment-principal.ps1 -Environment QA.'}
+ $path=Join-Path (Join-Path $root 'WhatsBiz\DatabaseDeployment') 'qa.connection.dpapi'
+ if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw "QA DATABASE DEPLOYMENT CONFIGURATION INVALID. Dedicated deployment connection is not configured. Run .\deployment\setup-database-deployment-principal.ps1 -Environment QA. Expected protected configuration: $path"}
+ try{
+  $protected=[Convert]::FromBase64String(([IO.File]::ReadAllText($path)).Trim())
+   $bytes=Unprotect-DeploymentConnection $protected
+  try{return [Text.Encoding]::UTF8.GetString($bytes)}finally{[Array]::Clear($bytes,0,$bytes.Length)}
+ }catch{throw 'QA DATABASE DEPLOYMENT CONFIGURATION INVALID. The protected dedicated deployment connection cannot be read by this Windows user. Run .\deployment\setup-database-deployment-principal.ps1 -Environment QA as the deployment operator.'}
+}
 function Connect-Target {
  if($Environment -eq 'QA'){
   if(-not(Test-Path -LiteralPath $QaSshKey -PathType Leaf)){throw 'Established QA SSH key not found.'}
-  $files=Get-SshCapture 'systemctl show whatsbiz-qa --property=EnvironmentFiles --value'
-  if($files -notlike '*/etc/whatsbiz/qa.env*'){throw 'QA service is not configured with /etc/whatsbiz/qa.env.'}
-  $raw=Get-SshCapture "sed -n 's/^ConnectionStrings__DefaultConnection=//p' /etc/whatsbiz/qa.env | tail -n 1"
-  if([string]::IsNullOrWhiteSpace($raw)){throw 'QA SQL configuration is unavailable.'}
+  $raw=Get-QaDeploymentConnection
   $b=New-DatabaseSqlConnectionStringBuilder -ConnectionString $raw
-  if($b['Initial Catalog'] -cne 'WhatsBizERP_QA'){throw 'Configured QA database is not WhatsBizERP_QA.'}
+  if($b['Initial Catalog'] -cne 'WhatsBizERP_QA'){throw 'Configured QA deployment database must be exactly WhatsBizERP_QA.'}
   $server=([string]$b['Data Source']) -replace '^(?i)tcp:','';$port=1433
   if($server -match '^(.*),([0-9]+)$'){$server=$Matches[1];$port=[int]$Matches[2]}
   $listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0);$listener.Start();$localPort=([Net.IPEndPoint]$listener.LocalEndpoint).Port;$listener.Stop()
@@ -50,14 +72,13 @@ function Connect-Target {
   $raw=[Environment]::GetEnvironmentVariable('WHATSBIZ_PROD_SQL_CONNECTION')
   if([string]::IsNullOrWhiteSpace($raw)){throw 'Set WHATSBIZ_PROD_SQL_CONNECTION in the process environment; no tracked credential file is read.'}
   $b=New-DatabaseSqlConnectionStringBuilder -ConnectionString $raw
-  if($b['Initial Catalog'] -cne 'WhatsBizERP_PROD'){throw 'Configured production database is not WhatsBizERP_PROD.'}
+  Assert-DatabaseMigrationConnectionPolicy -Environment PROD -DataSource ([string]$b['Data Source']) -DatabaseName ([string]$b['Initial Catalog']) -Encrypt ([bool]$b.Encrypt) -TrustServerCertificate ([bool]$b.TrustServerCertificate)
   $script:TargetBuilder=$b
  }
  $script:Connection=[System.Data.SqlClient.SqlConnection]::new($script:TargetBuilder.ConnectionString)
- try{$script:Connection.Open()}catch{$detail=Format-SafeSqlConnectionException -Exception $_.Exception -SensitiveValues @($raw,$script:TargetBuilder.ConnectionString);throw "Could not connect to the selected $Environment SQL database. $detail"}
+ try{$script:Connection.Open()}catch{$detail=Format-SafeSqlConnectionException -Exception $_.Exception -SensitiveValues @($raw,$script:TargetBuilder.ConnectionString);if($Environment -eq 'QA'){throw "QA DATABASE DEPLOYMENT CONFIGURATION INVALID. The dedicated deployment SQL principal could not authenticate. Run .\deployment\setup-database-deployment-principal.ps1 -Environment QA. $detail"};throw "Could not connect to the selected $Environment SQL database. $detail"}
  $cmd=$script:Connection.CreateCommand();$cmd.CommandText='SELECT @@SERVERNAME,DB_NAME(),@@VERSION;';$r=$cmd.ExecuteReader()
- try{if(-not $r.Read()){throw 'SQL identity query returned no row.'};$serverName=[string]$r.GetValue(0);$dbName=[string]$r.GetValue(1);$sqlVersion=[string]$r.GetValue(2)}
- finally{$r.Dispose();$cmd.Dispose()}
+ try{if(-not $r.Read()){throw 'SQL identity query returned no row.'};$serverName=[string]$r.GetValue(0);$dbName=[string]$r.GetValue(1);$sqlVersion=[string]$r.GetValue(2)}finally{$r.Dispose();$cmd.Dispose()}
  Assert-DatabaseMigrationIdentity -Environment $Environment -ServerName $serverName -DatabaseName $dbName
  Assert-TargetMetadataVisibility
  Write-Host "Environment: $Environment";Write-Host "Server: $serverName";Write-Host "Database: $dbName"
@@ -125,6 +146,21 @@ function Get-BackupMetadata([string]$Path,[string]$Name){
    $r=$cmd.ExecuteReader();try{if(-not $r.Read()){throw 'Backup verification failed: no successfully completed backup-history row matches the requested database, backup name, and media path.'};$metadata=ConvertTo-DatabaseBackupMetadata -BackupSetGuid $r.GetValue(0) -BackupSize $r.GetValue(1) -BackupFinishDate $r.GetValue(2) -HasChecksum $r.GetValue(3) -IsCopyOnly $r.GetValue(4);$metadata|Add-Member -NotePropertyName Path -NotePropertyValue $Path;$metadata|Add-Member -NotePropertyName Name -NotePropertyValue $Name;return $metadata}finally{$r.Dispose();$cmd.Dispose()}
  }finally{$c.Dispose()}
 }
+function Convert-SqlPermissionResult([object]$Value){
+ if($null -eq $Value -or $Value -is [DBNull]){return $false}
+ try{return [int]$Value -eq 1}catch{return $false}
+}
+function Invoke-DeploymentPreflight {
+$cmd=$script:Connection.CreateCommand();$cmd.CommandText="SELECT SUSER_SNAME(),COALESCE(CONVERT(int,HAS_PERMS_BY_NAME(DB_NAME(),N'DATABASE',N'BACKUP DATABASE')),0),COALESCE(CONVERT(int,HAS_PERMS_BY_NAME(NULL,NULL,N'CREATE ANY DATABASE')),0),COALESCE(CONVERT(int,HAS_PERMS_BY_NAME(DB_NAME(),N'DATABASE',N'CONTROL')),0);"
+ try{$r=$cmd.ExecuteReader();try{if(-not $r.Read()){throw 'Deployment permission preflight returned no row.'};$principal=if($r.IsDBNull(0)){'<unknown>'}else{[string]$r.GetValue(0)};$canBackup=Convert-SqlPermissionResult $r.GetValue(1);$canVerify=Convert-SqlPermissionResult $r.GetValue(2);$canMigrate=Convert-SqlPermissionResult $r.GetValue(3)}finally{$r.Dispose()}}finally{$cmd.Dispose()}
+ $result=Assert-DatabaseDeploymentPreflight -Principal $principal -CanBackup:$canBackup -CanVerifyBackup:$canVerify -CanMigrate:$canMigrate
+ Write-Host "Deployment principal: $principal";Write-Host 'Backup permission: PASS';Write-Host 'Backup verification capability: PASS';Write-Host 'Migration permission: PASS'
+ return $result
+}
+function Invoke-RestoreVerifyOnly([string]$Path){
+ $b=[System.Data.SqlClient.SqlConnectionStringBuilder]::new($script:TargetBuilder.ConnectionString);$b['Initial Catalog']='master';$c=[System.Data.SqlClient.SqlConnection]::new($b.ConnectionString)
+ try{$c.Open();$cmd=$c.CreateCommand();$cmd.CommandTimeout=0;$cmd.CommandText="RESTORE VERIFYONLY FROM DISK=N'$($Path.Replace("'","''"))' WITH CHECKSUM;";try{$null=$cmd.ExecuteNonQuery()}finally{$cmd.Dispose()}}finally{$c.Dispose()}
+}
 function Invoke-SqlBackup([string]$Path,[string]$Name){
  $b=[System.Data.SqlClient.SqlConnectionStringBuilder]::new($script:TargetBuilder.ConnectionString);$b['Initial Catalog']='master';$c=[System.Data.SqlClient.SqlConnection]::new($b.ConnectionString)
  try{$c.Open();$cmd=$c.CreateCommand();$cmd.CommandTimeout=0;$cmd.CommandText="BACKUP DATABASE [$($script:ExpectedDatabase)] TO DISK=N'$($Path.Replace("'","''"))' WITH COPY_ONLY,CHECKSUM,NOINIT,NAME=N'$($Name.Replace("'","''"))';";try{$null=$cmd.ExecuteNonQuery()}finally{$cmd.Dispose()}}finally{$c.Dispose()}
@@ -139,27 +175,29 @@ function Invoke-BackupGate([object[]]$Migrations,[string]$Purpose){
   $m.State='ADMIN_VERIFIED';$m.AdminVerificationReference=$AdminVerificationReference;$m.VerifiedAtUtc=[DateTime]::UtcNow.ToString('o');$m|ConvertTo-Json|Set-Content -LiteralPath $script:PendingManifest -Encoding UTF8
   Write-Host "Administrator verification reference recorded: $AdminVerificationReference";return $metadata
  }
+ if(Test-Path -LiteralPath $script:PendingManifest -PathType Leaf){
+  $rawRecord=Get-Content -LiteralPath $script:PendingManifest -Raw|ConvertFrom-Json
+  $m=ConvertTo-DatabaseBackupResumeRecord -Record $rawRecord
+  if($m.Environment -cne $Environment -or $m.Server -cne $script:ExpectedServer -or $m.Database -cne $script:ExpectedDatabase -or $m.Purpose -cne $Purpose -or $m.PlanFingerprint -cne (Get-BackupFingerprint $Migrations $Purpose)){throw 'A pending backup-verification record exists for a different target or migration plan; inspect it and use the controlled resume process.'}
+  $metadata=Get-BackupMetadata $m.BackupPath $m.BackupName
+  if($metadata.BackupSetGuid -cne $m.BackupSetGuid -or $metadata.BackupSize -ne [long]$m.BackupSize -or $metadata.BackupFinishDate -cne $m.BackupFinishDate -or -not $metadata.HasChecksum -or -not $metadata.IsCopyOnly){throw 'The pending backup media metadata is incomplete, changed, or not COPY_ONLY with CHECKSUM; automatic resume is blocked.'}
+  try{Invoke-RestoreVerifyOnly $m.BackupPath}catch{throw "Automatic RESTORE VERIFYONLY failed for the existing pending backup. No migration/history write occurred. Use the emergency -ResumeAfterBackupVerification process after an authorized administrator verifies the exact backup. $($_.Exception.Message)"}
+  Remove-Item -LiteralPath $script:PendingManifest -Force
+  Write-Host "Existing pending backup verified automatically: $($m.BackupPath)";Write-Host 'RESTORE VERIFYONLY: SUCCESS';return $metadata
+ }
  $range=if($Migrations.Count){$sorted=@($Migrations|Sort-Object Version);"V$($sorted[0].Version)_V$($sorted[-1].Version)"}else{$Purpose}
  $stamp=[DateTime]::UtcNow.ToString('yyyyMMdd_HHmmss');$suffix=[Guid]::NewGuid().ToString('N').Substring(0,8)
  $path=$BackupDirectory.TrimEnd([char[]]@('/','\'))+'/'+$($script:ExpectedDatabase)+'_pre_'+$range+'_'+$stamp+'_'+$suffix+'.bak'
  if($path.Contains("'")){throw 'Backup path cannot contain a single quote.'}
  $name="$($script:ExpectedDatabase) pre $range $stamp"
- Write-Host "Creating COPY_ONLY CHECKSUM backup: $path"
- Invoke-SqlBackup $path $name
-  try{$metadata=Get-BackupMetadata $path $name}catch{throw "BACKUP DATABASE completed, but backup metadata verification failed. A backup file may exist and was not deleted. No baseline/history or migration changes occurred. Path: $path. $($_.Exception.Message)"}
-  if(-not $metadata.IsCopyOnly){throw "Backup is not recorded as COPY_ONLY; no changes will run. Backup path: $path"}
+ Write-Host "Creating COPY_ONLY CHECKSUM backup: $path";Invoke-SqlBackup $path $name
+ try{$metadata=Get-BackupMetadata $path $name}catch{throw "BACKUP DATABASE completed, but backup metadata verification failed. A backup file may exist and was not deleted. No baseline/history or migration changes occurred. Path: $path. $($_.Exception.Message)"}
+ if(-not $metadata.IsCopyOnly){throw "Backup is not recorded as COPY_ONLY; no changes will run. Backup path: $path"}
  if(-not $metadata.HasChecksum){throw "Backup is recorded without CHECKSUM; no changes will run. Backup path: $path"}
- try{
-  $b=[System.Data.SqlClient.SqlConnectionStringBuilder]::new($script:TargetBuilder.ConnectionString);$b['Initial Catalog']='master';$c=[System.Data.SqlClient.SqlConnection]::new($b.ConnectionString)
-  try{$c.Open();$cmd=$c.CreateCommand();$cmd.CommandTimeout=0;$cmd.CommandText="RESTORE VERIFYONLY FROM DISK=N'$($path.Replace("'","''"))' WITH CHECKSUM;";try{$null=$cmd.ExecuteNonQuery()}finally{$cmd.Dispose()}}finally{$c.Dispose()}
-  Write-Host "Backup: SUCCESS ($path)";Write-Host 'RESTORE VERIFYONLY: SUCCESS'
-  if(Test-Path -LiteralPath $script:PendingManifest){Remove-Item -LiteralPath $script:PendingManifest -Force}
-  return $metadata
- }catch{
+ try{Invoke-RestoreVerifyOnly $path;Write-Host "Backup: SUCCESS ($path)";Write-Host 'RESTORE VERIFYONLY: SUCCESS';if(Test-Path -LiteralPath $script:PendingManifest){Remove-Item -LiteralPath $script:PendingManifest -Force};return $metadata}catch{
   $token=[Guid]::NewGuid().ToString('N');New-Item -ItemType Directory -Path $script:StateDirectory -Force|Out-Null
   [pscustomobject]@{Environment=$Environment;Server=$script:ExpectedServer;Database=$script:ExpectedDatabase;Purpose=$Purpose;PlanFingerprint=(Get-BackupFingerprint $Migrations $Purpose);BackupPath=$path;BackupName=$name;BackupSetGuid=$metadata.BackupSetGuid;BackupSize=$metadata.BackupSize;BackupFinishDate=$metadata.BackupFinishDate;HasChecksum=$metadata.HasChecksum;IsCopyOnly=$metadata.IsCopyOnly;Token=$token;State='AWAITING_ADMIN_VERIFYONLY';AdminVerificationReference=$null;VerifiedAtUtc=$null}|ConvertTo-Json|Set-Content -LiteralPath $script:PendingManifest -Encoding UTF8
-  Write-Host "Backup path: $path";Write-Host "Verification token: $token"
-  throw "RESTORE VERIFYONLY failed. No migration/history write occurred. Administrator: RESTORE VERIFYONLY FROM DISK=N'$path' WITH CHECKSUM;. Resume with -ResumeAfterBackupVerification -VerifiedBackupPath '$path' -VerificationToken '$token' -AdminVerificationReference '<operator, UTC time, and output reference>'."
+  Write-Host "Backup path: $path";Write-Host "Verification token: $token";throw "RESTORE VERIFYONLY failed. No migration/history write occurred. Administrator: RESTORE VERIFYONLY FROM DISK=N'$path' WITH CHECKSUM;. Resume with -ResumeAfterBackupVerification -VerifiedBackupPath '$path' -VerificationToken '$token' -AdminVerificationReference '<operator, UTC time, and output reference>'."
  }
 }
 function Initialize-BaselineHistory {
@@ -207,7 +245,7 @@ try{
  if($InitializeBaseline){
   if($state.Initialized){throw 'Baseline is already initialized.'};Assert-DatabaseMigrationSequence -Migrations $catalog -BaselineVersion $script:BaselineVersion
   Acquire-MigrationLock;$state=Get-DbState;if($state.Initialized){throw 'Another operator initialized the baseline while this command was starting.'};Invoke-BaselineCheck
-  $null=Invoke-BackupGate @() 'baseline_V40';Initialize-BaselineHistory;Write-Host 'V40 BASELINE INITIALIZED';return
+  $null=Invoke-DeploymentPreflight;$null=Invoke-BackupGate @() 'baseline_V40';Initialize-BaselineHistory;Write-Host 'V40 BASELINE INITIALIZED';return
  }
  if(-not $state.Initialized){throw 'Explicit -InitializeBaseline is required before deployment.'}
  Acquire-MigrationLock
@@ -215,13 +253,13 @@ try{
  if($AdoptExisting){
   $adopt=@($plan|Where-Object{$_.Status -eq 'PENDING' -and $_.Version -le $ThroughVersion}|Sort-Object Version);if(-not $adopt.Count){throw 'No unapplied migrations are eligible for adoption.'}
   foreach($m in $adopt){if(-not $m.ValidatorPath){throw "V$($m.Version) cannot be adopted without a read-only validator."};Invoke-SqlFile $m.ValidatorPath -ReadOnly}
-  $meta=Invoke-BackupGate $adopt 'adoption';$tx=$script:Connection.BeginTransaction([System.Data.IsolationLevel]::Serializable)
+  $null=Invoke-DeploymentPreflight;$meta=Invoke-BackupGate $adopt 'adoption';$tx=$script:Connection.BeginTransaction([System.Data.IsolationLevel]::Serializable)
   try{foreach($m in $adopt){Write-MigrationRecord $m $true $meta.Path $tx};$tx.Commit()}catch{try{$tx.Rollback()}catch{};throw}finally{$tx.Dispose()}
   foreach($m in $adopt){Write-Host "V$($m.Version) $($m.Name) ADOPTED AND HASH-REGISTERED"}
  }else{
   $pending=@($plan|Where-Object Status -eq 'PENDING')
   if($pending.Count){
-   $meta=Invoke-BackupGate $pending 'deployment';$script:BackupPathForHistory=$meta.Path
+   $null=Invoke-DeploymentPreflight;$meta=Invoke-BackupGate $pending 'deployment';$script:BackupPathForHistory=$meta.Path
    foreach($m in $pending){
     Invoke-OneMigration $m
     try{

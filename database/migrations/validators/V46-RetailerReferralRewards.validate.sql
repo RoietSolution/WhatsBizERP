@@ -1,0 +1,17 @@
+SET NOCOUNT ON;
+IF DB_NAME() NOT IN(N'WhatsBizERP_QA',N'WhatsBizERP_PROD') THROW 51319,N'Unexpected database for V46 validation.',1;
+IF OBJECT_ID(N'loyalty.RetailerReferralConfigurations',N'U') IS NULL OR OBJECT_ID(N'loyalty.RetailerRewardWallets',N'U') IS NULL OR OBJECT_ID(N'loyalty.RetailerReferralCodes',N'U') IS NULL OR OBJECT_ID(N'loyalty.RetailerReferrals',N'U') IS NULL OR OBJECT_ID(N'loyalty.RetailerCoinLedger',N'U') IS NULL THROW 51320,N'V46 retailer referral objects are missing.',1;
+IF (SELECT COUNT(*) FROM loyalty.RetailerReferralConfigurations WHERE ConfigurationId=1)<>1 THROW 51321,N'Retailer referral configuration singleton is missing.',1;
+IF EXISTS(SELECT 1 FROM core.Tenants t WHERE t.IsActive=1 AND (SELECT COUNT(*) FROM loyalty.RetailerRewardWallets w WHERE w.TenantId=t.TenantId)<>1) THROW 51322,N'An active tenant does not have exactly one retailer reward wallet.',1;
+IF EXISTS(SELECT 1 FROM loyalty.RetailerReferrals WHERE ReferrerTenantId=ReferredTenantId) THROW 51323,N'Retailer self-referral exists.',1;
+IF EXISTS(SELECT 1 FROM loyalty.RetailerCoinLedger WHERE Coins=0) THROW 51324,N'A zero-value retailer ledger transaction exists.',1;
+IF NOT EXISTS(SELECT 1 FROM core.Features WHERE FeatureKey=N'RETAILER_REFERRAL_REWARDS' AND IsActive=1) THROW 51325,N'Retailer referral feature entitlement is missing.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_ID(N'loyalty.RetailerRewardWallets') AND name=N'UQ_RetailerRewardWallets_Tenant') THROW 51326,N'Retailer wallet uniqueness constraint is missing.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_ID(N'loyalty.RetailerReferralCodes') AND name=N'UQ_RetailerReferralCodes_Code') THROW 51327,N'Retailer referral code uniqueness constraint is missing.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_ID(N'loyalty.RetailerReferralCodes') AND name=N'UQ_RetailerReferralCodes_Tenant') THROW 51328,N'Retailer tenant code uniqueness constraint is missing.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_ID(N'loyalty.RetailerReferrals') AND name=N'UQ_RetailerReferrals_Referred') THROW 51329,N'Referred tenant attribution uniqueness constraint is missing.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_ID(N'loyalty.RetailerCoinLedger') AND name=N'UQ_RetailerCoinLedger_Event') THROW 51330,N'Retailer ledger EventKey uniqueness constraint is missing.',1;
+IF EXISTS(SELECT 1 FROM loyalty.RetailerReferrals WHERE Status NOT IN(N'PENDING',N'QUALIFIED',N'REWARDED',N'REJECTED',N'CANCELLED',N'REVERSED')) THROW 51331,N'An invalid retailer referral status exists.',1;
+IF EXISTS(SELECT 1 FROM loyalty.RetailerCoinLedger l LEFT JOIN loyalty.RetailerRewardWallets w ON w.WalletId=l.WalletId WHERE w.WalletId IS NULL OR w.TenantId<>l.TenantId) THROW 51332,N'Retailer ledger wallet ownership is inconsistent.',1;
+IF EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id IN(OBJECT_ID(N'loyalty.RetailerReferralConfigurations'),OBJECT_ID(N'loyalty.RetailerReferrals'),OBJECT_ID(N'loyalty.RetailerCoinLedger')) AND is_not_trusted=1) THROW 51333,N'A V46 check constraint is not trusted.',1;
+SELECT N'V46_VALID' AS ValidationResult;

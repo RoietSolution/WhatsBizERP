@@ -57,7 +57,7 @@ The **ThroughVersion** is an operator-specified upper bound, not runner logic. A
 .\deployment\deploy-database.ps1 -Environment QA -Status
 ~~~
 
-QA connectivity reuses the existing SSH tunnel and **/etc/whatsbiz/qa.env** deployment configuration. The configured and live targets must be **WhatsBizERP_QA** on **srv1930195**.
+QA connectivity uses the existing SSH tunnel and a dedicated deployment connection. The configured and live targets must be **WhatsBizERP_QA** on **srv1930195**. It never falls back to `/etc/whatsbiz/qa.env` or `ConnectionStrings__DefaultConnection`.
 
 ## PROD workflow
 
@@ -117,6 +117,12 @@ A failed migration or validator is not recorded and later migrations are not att
 
 **database/migrations/** is outside **WhatsBiz.Database.sqlproj**, so managed migration files are not DACPAC build inputs. V41/V42 references were removed from **Scripts/PostDeployment.sql**; this prevents DACPAC publishing from applying them a second time. The existing historical PostDeployment chain remains unchanged through V40. Repeatable seed/configuration scripts remain in PostDeployment. The migration runner is the sole owner of V41+ versioned migrations.
 
+The recommended deployment workflow is now **only** `deployment/deploy-database.ps1` for incremental QA and PROD database releases. `deployment/deploy-prod-database.ps1` remains a reviewed legacy DACPAC fallback while the V40 baseline is reconciled; it is not called by the runner and must never be run in the same release window as the runner. The DACPAC fallback must not be used to apply V41 or later migrations.
+
+V48 (`V48-TenantScopedWarehouseUniqueness.sql`) is discovered automatically with its read-only validator. It is applied only after V41 through V47 are recorded, unless an operator adopts already-applied versions after their validators pass. The V48 migration checks for tenant-local conflicts before replacing the legacy warehouse indexes and records its script and validator hashes in migration history.
+
+For an existing DACPAC-managed database, use `-Status` and `-DryRun` first. If the V40 validator passes and the migration tables are absent, run `-InitializeBaseline`; this records only the verified V40 baseline and does not replay V1-V40. If later schema changes are already present, use `-AdoptExisting -ThroughVersion N` only for the explicitly verified range. Adoption records immutable hashes and does not execute migration SQL. Do not edit historical rows to make a plan pass.
+
 ## Focused tests
 
 Run the standalone PowerShell tests:
@@ -127,3 +133,58 @@ Run the standalone PowerShell tests:
 
 They exercise numeric ordering, integrity/gaps, identity and PROD confirmation, dry-run/status write barriers, backup failure, sequential failure/resume, validation-before-recording, adoption and future-version discovery without database access.
 
+
+## Deployment principal and automatic backup verification
+
+The migration runner uses a dedicated deployment SQL principal. It must not use the API/runtime SQL login. QA resolves its deployment connection in this order: `WHATSBIZ_QA_SQL_CONNECTION` environment override, encrypted per-user DPAPI configuration at `%LOCALAPPDATA%\WhatsBiz\DatabaseDeployment\qa.connection.dpapi`, then an actionable configuration error. PROD continues to use `WHATSBIZ_PROD_SQL_CONNECTION`. Neither value is tracked or printed. The API service keeps its existing restricted connection separately.
+
+The runner performs a preflight before creating a backup and reports only the principal name and pass/fail capability checks. The deployment principal requires:
+
+- `BACKUP DATABASE` permission on the target database;
+- `CREATE ANY DATABASE` at server scope. SQL Server requires the corresponding `CREATE DATABASE` capability for `RESTORE VERIFYONLY`/backup-set inspection, even when the target database already exists;
+- `CONTROL` on the target database. The current managed migration set can create/alter schemas, tables, procedures, indexes, validators, and migration history, so `db_owner` is the practical least-privilege fixed role for the dedicated deployment principal unless a separately reviewed custom role is maintained for the complete migration set.
+
+Do not grant these permissions to the API login and do not grant `sysadmin`.
+
+### One-time administrator setup
+
+Run the secure wrapper once for each target database. It prompts for the deployment-login password twice, optionally prompts for SQL administrator credentials, invokes the SQL bootstrap with a short-lived temporary script, rotates the existing login password safely, and saves the deployment connection encrypted with Windows DPAPI for the same operator account. It never prints a password. The underlying SQL script is also idempotent and contains no password. If SQL bootstrap succeeds but local DPAPI persistence fails, the wrapper reports that the SQL login/user may already exist and the same setup command can be retried safely. Setup and the migration runner use the same Base64-wrapped Windows DPAPI CurrentUser format; the scripts load the required ProtectedData assembly at runtime for Windows PowerShell 5.1 and PowerShell 7. For QA:
+
+~~~powershell
+.\deployment\setup-database-deployment-principal.ps1 -Environment QA
+
+# Add -AdminUser '<approved SQL administrator>' only when Windows integrated administrator authentication is unavailable.
+~~~
+
+The setup must be repeated explicitly against `WhatsBizERP_PROD` by an administrator before production use. This repository task does not execute the setup or modify SQL permissions.
+
+After setup, the normal runner automatically reads the encrypted per-user QA connection. `WHATSBIZ_QA_SQL_CONNECTION` remains an optional environment override and must contain `Initial Catalog=WhatsBizERP_QA` with the `WhatsBizDatabaseDeployment` credential. Do not point the API service at it. Run the wrapper as the same Windows deployment operator who runs the migration command so DPAPI can decrypt the configuration.
+
+### Normal workflow
+
+~~~powershell
+.\deployment\deploy-database.ps1 -Environment QA -Status
+.\deployment\deploy-database.ps1 -Environment QA -DryRun
+.\deployment\deploy-database.ps1 -Environment QA
+
+.\deployment\deploy-database.ps1 -Environment PROD -Status
+.\deployment\deploy-database.ps1 -Environment PROD -DryRun
+.\deployment\deploy-database.ps1 -Environment PROD -ConfirmProduction
+~~~
+
+A normal write automatically performs preflight, `COPY_ONLY,CHECKSUM` backup, `RESTORE VERIFYONLY WITH CHECKSUM`, migration execution, read-only validator, and history recording. A preflight failure occurs before the backup is created. VERIFYONLY remains mandatory; a failed verification never continues to migrations.
+
+If a previous run left a pending verification manifest, the next normal write first validates the exact recorded backup metadata and automatically runs `RESTORE VERIFYONLY`. It then clears the manifest only after successful verification and continues. This makes the existing pending V47 backup eligible for safe automatic verification after the deployment principal is configured; no new backup is silently substituted.
+
+### Emergency manual resume
+
+The existing controlled fallback remains available when the deployment principal is unavailable or an administrator deliberately performs verification outside the runner. Run `RESTORE VERIFYONLY ... WITH CHECKSUM` against the exact path and then resume with the exact path/token and an audit reference:
+
+~~~powershell
+.\deployment\deploy-database.ps1 -Environment QA -ResumeAfterBackupVerification `
+  -VerifiedBackupPath '<exact pending path>' `
+  -VerificationToken '<exact token>' `
+  -AdminVerificationReference '<operator, UTC time, and result reference>'
+~~~
+
+The runner still checks the pending manifest, plan fingerprint, SQL backup history, media ID, size, completion time, checksum, and COPY_ONLY flags. It never treats a failed VERIFYONLY as permission to continue.

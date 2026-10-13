@@ -1,0 +1,3 @@
+IF OBJECT_ID(N'commerce.StorefrontReturnRequests',N'U') IS NULL THROW 52154,N'V54 customer return-request table is missing.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'commerce.StorefrontReturnRequests') AND name=N'CK_StorefrontReturnRequests_Status' AND is_disabled=0 AND is_not_trusted=0) THROW 52155,N'V54 return-request status constraint is missing or untrusted.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'commerce.StorefrontReturnRequests') AND name=N'UX_StorefrontReturnRequests_ActiveItem' AND is_unique=1) THROW 52156,N'V54 active return-request uniqueness index is missing.',1;

@@ -18,7 +18,7 @@ GO
 CREATE UNIQUE INDEX [UX_UnitsOfMeasure_UnitCode] ON [master].[UnitsOfMeasure]([UnitCode]) WHERE [IsDeleted] = 0;
 GO
 CREATE TABLE [master].[Products] (
-    [ProductId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, [ProductCode] NVARCHAR(50) NOT NULL, [Barcode] NVARCHAR(100) NULL, [BarcodeType] NVARCHAR(20) NOT NULL CONSTRAINT [DF_Products_BarcodeType] DEFAULT ('CODE128'), [ProductName] NVARCHAR(250) NOT NULL, [ShortDescription] NVARCHAR(500) NULL, [LongDescription] NVARCHAR(MAX) NULL,
+    [ProductId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, [ProductCode] NVARCHAR(50) NOT NULL, [Barcode] NVARCHAR(100) NULL, [BarcodeType] NVARCHAR(20) NOT NULL CONSTRAINT [DF_Products_BarcodeType] DEFAULT ('CODE128'), [ProductName] NVARCHAR(250) NOT NULL, [ShortDescription] NVARCHAR(MAX) NULL, [LongDescription] NVARCHAR(MAX) NULL,
     [CategoryId] UNIQUEIDENTIFIER NOT NULL, [BrandId] UNIQUEIDENTIFIER NOT NULL, [UnitId] UNIQUEIDENTIFIER NOT NULL, [HSNCode] NVARCHAR(20) NULL, [SACCode] NVARCHAR(20) NULL, [GSTPercentage] DECIMAL(5,2) NOT NULL,
     [PurchasePrice] DECIMAL(18,4) NOT NULL, [SellingPrice] DECIMAL(18,4) NOT NULL, [MRP] DECIMAL(18,4) NOT NULL, [MinimumStock] DECIMAL(18,4) NOT NULL, [MaximumStock] DECIMAL(18,4) NOT NULL, [ReorderLevel] DECIMAL(18,4) NOT NULL,
     [Weight] DECIMAL(18,4) NULL, [PackSize] NVARCHAR(50) NULL, [Length] DECIMAL(18,4) NULL, [Width] DECIMAL(18,4) NULL, [Height] DECIMAL(18,4) NULL, [ImageUrl] NVARCHAR(500) NULL, [IsBatchManaged] BIT NOT NULL, [IsSerialManaged] BIT NOT NULL, [IsWhatsAppVisible] BIT NOT NULL CONSTRAINT [DF_Products_IsWhatsAppVisible] DEFAULT (1),

@@ -26,11 +26,11 @@ CREATE TABLE [inventory].[Warehouses] (
     CONSTRAINT [CK_Warehouses_Capacity] CHECK ([Capacity] >= 0)
 );
 GO
-CREATE UNIQUE INDEX [UX_Warehouses_Code] ON [inventory].[Warehouses]([WarehouseCode]) WHERE [IsDeleted] = 0;
+CREATE UNIQUE INDEX [UX_Warehouses_Code] ON [inventory].[Warehouses]([TenantId],[WarehouseCode]) WHERE [TenantId] IS NOT NULL AND [IsDeleted] = 0;
 GO
-CREATE UNIQUE INDEX [UX_Warehouses_Name] ON [inventory].[Warehouses]([WarehouseName]) WHERE [IsDeleted] = 0;
+CREATE UNIQUE INDEX [UX_Warehouses_Name] ON [inventory].[Warehouses]([TenantId],[WarehouseName]) WHERE [TenantId] IS NOT NULL AND [IsDeleted] = 0;
 GO
-CREATE UNIQUE INDEX [UX_Warehouses_Default] ON [inventory].[Warehouses]([IsDefault]) WHERE [IsDefault] = 1 AND [IsDeleted] = 0;
+CREATE UNIQUE INDEX [UX_Warehouses_Default] ON [inventory].[Warehouses]([TenantId],[IsDefault]) WHERE [TenantId] IS NOT NULL AND [IsDefault] = 1 AND [IsDeleted] = 0;
 GO
 CREATE INDEX [IX_Warehouses_Search] ON [inventory].[Warehouses]([WarehouseName],[WarehouseTypeId],[IsActive]);
 GO

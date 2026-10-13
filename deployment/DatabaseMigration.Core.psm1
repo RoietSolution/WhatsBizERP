@@ -193,6 +193,27 @@ function Assert-DatabaseMigrationIdentity {
     if ($ServerName -cne 'srv1930195') { throw "Identity guard rejected server '$ServerName'; expected 'srv1930195'." }
 }
 
+function Assert-DatabaseMigrationConnectionPolicy {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][ValidateSet('QA','PROD')][string]$Environment,
+        [Parameter(Mandatory)][string]$DataSource,
+        [Parameter(Mandatory)][string]$DatabaseName,
+        [Parameter(Mandatory)][bool]$Encrypt,
+        [Parameter(Mandatory)][bool]$TrustServerCertificate
+    )
+    $expectedDatabase = if ($Environment -ceq 'QA') { 'WhatsBizERP_QA' } else { 'WhatsBizERP_PROD' }
+    if ($DatabaseName -cne $expectedDatabase) { throw "Connection policy rejected database '$DatabaseName'; expected '$expectedDatabase'." }
+    if ($Environment -ceq 'PROD') {
+        if ($DataSource -ine 'sql.khatadhari.com,14330') {
+            throw 'Production SQL connections must use the approved sql.khatadhari.com,14330 tunnel endpoint.'
+        }
+        if (-not $Encrypt -or $TrustServerCertificate) {
+            throw 'Production SQL connections must use Encrypt=True and TrustServerCertificate=False.'
+        }
+    }
+}
+
 
 function Assert-DatabaseMigrationValidatorReadOnly {
     [CmdletBinding()]
@@ -248,6 +269,19 @@ function Format-SafeSqlConnectionException {
         $current=$current.InnerException
     }
     return $parts -join ' --> '
+}
+function Assert-DatabaseDeploymentPreflight {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Principal,
+        [Parameter(Mandatory)][bool]$CanBackup,
+        [Parameter(Mandatory)][bool]$CanVerifyBackup,
+        [Parameter(Mandatory)][bool]$CanMigrate
+    )
+    if (-not $CanBackup) { throw 'Database deployment preflight failed: deployment principal lacks BACKUP DATABASE permission on the target database.' }
+    if (-not $CanVerifyBackup) { throw 'Database deployment preflight failed: deployment principal lacks CREATE ANY DATABASE/CREATE DATABASE permission required by RESTORE VERIFYONLY. Run the one-time deployment-principal bootstrap as a SQL administrator.' }
+    if (-not $CanMigrate) { throw 'Database deployment preflight failed: deployment principal lacks CONTROL-equivalent permission on the target database required for managed migrations and validators.' }
+    [pscustomobject]@{ Principal = $Principal; Backup = 'PASS'; BackupVerification = 'PASS'; Migration = 'PASS' }
 }
 function Assert-DatabaseMigrationMetadataVisibility {
     [CmdletBinding()]
@@ -306,5 +340,5 @@ function Invoke-DatabaseMigrationAdoption {
     return
 }
 
-Export-ModuleMember -Function ConvertTo-DatabaseBackupMetadata,ConvertTo-DatabaseBackupResumeRecord,Assert-DatabaseBackupResumeEvidence,ConvertTo-DatabaseMigrationHistoryRows,Get-DatabaseMigrationStatusSummary,Get-DatabaseMigrationCatalog,Get-DatabaseMigrationHash,Assert-DatabaseMigrationSequence,Get-DatabaseMigrationPlan,Assert-DatabaseMigrationIdentity,Assert-ProductionConfirmation,Assert-DatabaseMigrationBaselineVersion,Assert-DatabaseMigrationBaselineInitialized,Assert-DatabaseMigrationValidatorReadOnly,Assert-DatabaseMigrationModes,Assert-DatabaseMigrationMetadataVisibility,New-DatabaseSqlConnectionStringBuilder,Format-SafeSqlConnectionException,Invoke-DatabaseMigrationWorkflow,Invoke-DatabaseMigrationAdoption
+Export-ModuleMember -Function ConvertTo-DatabaseBackupMetadata,ConvertTo-DatabaseBackupResumeRecord,Assert-DatabaseBackupResumeEvidence,ConvertTo-DatabaseMigrationHistoryRows,Get-DatabaseMigrationStatusSummary,Get-DatabaseMigrationCatalog,Get-DatabaseMigrationHash,Assert-DatabaseMigrationSequence,Get-DatabaseMigrationPlan,Assert-DatabaseMigrationIdentity,Assert-DatabaseMigrationConnectionPolicy,Assert-ProductionConfirmation,Assert-DatabaseMigrationBaselineVersion,Assert-DatabaseMigrationBaselineInitialized,Assert-DatabaseMigrationValidatorReadOnly,Assert-DatabaseMigrationModes,Assert-DatabaseMigrationMetadataVisibility,Assert-DatabaseDeploymentPreflight,New-DatabaseSqlConnectionStringBuilder,Format-SafeSqlConnectionException,Invoke-DatabaseMigrationWorkflow,Invoke-DatabaseMigrationAdoption
 

@@ -22,6 +22,7 @@ export interface ProductListItem {
   isWhatsAppVisible: boolean;
   returnPolicyMode?: "INHERIT_DEFAULT" | "CUSTOM" | "NON_RETURNABLE";
   returnWindowDays?: number | null;
+  returnPolicyDescription?: string | null;
   imageUrl?: string;
 }
 export interface Product extends ProductInput {
@@ -31,6 +32,9 @@ export interface Product extends ProductInput {
   unitName: string;
   imageUrl?: string;
 }
+
+export interface ProductSpecification { name: string; value: string; displayOrder: number; }
+export interface ProductSpecificationInput { name: string; value: string; displayOrder?: number; }
 export interface ProductImage { productImageId: string; productId: string; fileName: string; contentType: string; isPrimary: boolean; url: string; }
 export interface ProductHistory {
   id: number;
@@ -48,6 +52,7 @@ export interface ProductInput {
   productName: string;
   shortDescription: string | null;
   longDescription: string | null;
+  specifications?: ProductSpecificationInput[];
   categoryId: string;
   brandId: string;
   unitId: string;
@@ -72,6 +77,7 @@ export interface ProductInput {
   isWhatsAppVisible: boolean;
   returnPolicyMode?: "INHERIT_DEFAULT" | "CUSTOM" | "NON_RETURNABLE";
   returnWindowDays?: number | null;
+  returnPolicyDescription?: string | null;
 }
 export interface ProductBarcodeInput {
   barcode: string;
@@ -89,6 +95,7 @@ export interface Category {
   parentCategoryId?: string;
   isActive: boolean;
   children: Category[];
+  hasStorefrontImage?: boolean;
 }
 export interface Brand {
   brandId: string;

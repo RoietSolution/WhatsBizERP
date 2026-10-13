@@ -12,9 +12,30 @@
     <select id="tenant" [ngModel]="selectedTenantId()" (ngModelChange)="select($event)" [disabled]="loading()">
       @for (tenant of tenants(); track tenant.tenantId) { <option [value]="tenant.tenantId">{{ tenant.tenantName }} — {{ tenant.planName || tenant.planKey || 'No active plan' }}</option> }
     </select>
-    @if (configuration(); as config) { <p><strong>Plan:</strong> {{ config.planName || config.planKey || 'No active plan' }}</p> }
+    @if (configuration(); as config) { <p><strong>Plan:</strong> {{ config.planName || config.planKey || 'No active plan' }}</p><div class="display-name-editor"><label for="displayName">Customer Display Name</label><input id="displayName" maxlength="200" [(ngModel)]="displayName" placeholder="Defaults to the company name"><button mat-stroked-button type="button" (click)="saveDisplayName()" [disabled]="saving() || loading()">Save Display Name</button><small>Used only for storefront branding. The registered company name remains unchanged.</small></div> }
   </mat-card>
-  @if (capacity(); as value) {
+  @if (referral(); as rewards) {
+    <mat-card class="tenant-card referral-card">
+      <div class="feature-row"><div><h2>Customer Referral Rewards</h2><p>Customer-to-customer rewards for the selected retailer.</p><small>Feature entitlement: {{ rewards.featureEntitled ? 'Enabled' : 'Not entitled' }}</small></div><mat-slide-toggle [ngModel]="rewards.configuration.isEnabled" (ngModelChange)="updateReferral('isEnabled', $event)" [disabled]="!rewards.featureEntitled || referralSaving()"></mat-slide-toggle></div>
+      @if (!rewards.featureEntitled) { <p class="message error">Enable CUSTOMER_REFERRAL_REWARDS in Tenant Features before configuring this program.</p> }
+      <div class="referral-grid" [class.disabled]="!rewards.featureEntitled">
+        <label>Qualification mode<select [ngModel]="rewards.configuration.qualificationType" (ngModelChange)="updateReferral('qualificationType', $event)" [disabled]="!rewards.featureEntitled"><option value="CUSTOMER_REGISTERED">Customer registered</option><option value="FIRST_ORDER_PLACED">First order placed</option><option value="FIRST_PAID_ORDER">First paid order</option><option value="FIRST_COMPLETED_ORDER">First completed order</option><option value="FIRST_COMPLETED_ORDER_MIN_AMOUNT">First completed order above minimum</option><option value="MANUAL_APPROVAL">Manual approval</option></select></label>
+        <label>Referrer reward coins<input type="number" min="0" [ngModel]="rewards.configuration.referrerRewardCoins" (ngModelChange)="updateReferral('referrerRewardCoins', $event)" [disabled]="!rewards.featureEntitled"></label>
+        <label>New customer reward coins<input type="number" min="0" [ngModel]="rewards.configuration.referredRewardCoins" (ngModelChange)="updateReferral('referredRewardCoins', $event)" [disabled]="!rewards.featureEntitled"></label>
+        <label>Coin validity (days)<input type="number" min="1" [ngModel]="rewards.configuration.coinValidityDays" (ngModelChange)="updateReferral('coinValidityDays', $event)" [disabled]="!rewards.featureEntitled"></label>
+        <label>Minimum qualifying amount<input type="number" min="0" [ngModel]="rewards.configuration.minimumQualifyingAmount" (ngModelChange)="updateReferral('minimumQualifyingAmount', $event)" [disabled]="!rewards.featureEntitled"></label>
+        <label>Monthly referral limit<input type="number" min="1" [ngModel]="rewards.configuration.maximumRewardedReferralsPerCustomerMonth" (ngModelChange)="updateReferral('maximumRewardedReferralsPerCustomerMonth', $event)" [disabled]="!rewards.featureEntitled"></label>
+        <label>Monthly coin limit<input type="number" min="1" [ngModel]="rewards.configuration.maximumCoinsPerCustomerMonth" (ngModelChange)="updateReferral('maximumCoinsPerCustomerMonth', $event)" [disabled]="!rewards.featureEntitled"></label>
+        <label>Redemption coins<input type="number" min="1" [ngModel]="rewards.configuration.redemptionCoins" (ngModelChange)="updateReferral('redemptionCoins', $event)" [disabled]="!rewards.featureEntitled"></label>
+        <label>Redemption value<input type="number" min="0" [ngModel]="rewards.configuration.redemptionValue" (ngModelChange)="updateReferral('redemptionValue', $event)" [disabled]="!rewards.featureEntitled"></label>
+        <label>Minimum redemption coins<input type="number" min="0" [ngModel]="rewards.configuration.minimumRedemptionCoins" (ngModelChange)="updateReferral('minimumRedemptionCoins', $event)" [disabled]="!rewards.featureEntitled"></label>
+        <label>Maximum order percentage<input type="number" min="0" max="100" [ngModel]="rewards.configuration.maximumOrderPercentage" (ngModelChange)="updateReferral('maximumOrderPercentage', $event)" [disabled]="!rewards.featureEntitled"></label>
+      </div>
+      <div class="referral-options"><label><input type="checkbox" [ngModel]="rewards.configuration.reverseOnRefund" (ngModelChange)="updateReferral('reverseOnRefund', $event)" [disabled]="!rewards.featureEntitled"> Reverse on refund</label><label><input type="checkbox" [ngModel]="rewards.configuration.allowWithCoupons" (ngModelChange)="updateReferral('allowWithCoupons', $event)" [disabled]="!rewards.featureEntitled"> Allow with coupons</label><label><input type="checkbox" [ngModel]="rewards.configuration.allowDiscountedProducts" (ngModelChange)="updateReferral('allowDiscountedProducts', $event)" [disabled]="!rewards.featureEntitled"> Allow discounted products</label><label><input type="checkbox" [ngModel]="rewards.configuration.allowTax" (ngModelChange)="updateReferral('allowTax', $event)" [disabled]="!rewards.featureEntitled"> Allow tax</label><label><input type="checkbox" [ngModel]="rewards.configuration.allowDelivery" (ngModelChange)="updateReferral('allowDelivery', $event)" [disabled]="!rewards.featureEntitled"> Allow delivery</label></div>
+      <p><small>Terms and redemption behavior remain governed by the existing customer referral configuration and service.</small></p>
+      <button mat-flat-button color="primary" type="button" (click)="saveCustomerReferralConfiguration()" [disabled]="!rewards.featureEntitled || referralSaving()">{{ referralSaving() ? 'Saving…' : 'Save customer referral configuration' }}</button>
+    </mat-card>
+  }  @if (capacity(); as value) {
     <mat-card class="tenant-card">
       <h2>Subscription &amp; Capacity</h2>
       <div class="capacity-grid">

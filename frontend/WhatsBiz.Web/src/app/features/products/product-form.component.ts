@@ -9,6 +9,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { HttpErrorResponse } from '@angular/common/http';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { catchError, finalize, forkJoin, map, of } from 'rxjs';
@@ -23,7 +24,9 @@ import {
   ProductImage,
   ProductInput,
   UnitOfMeasure,
+  ProductSpecificationInput,
 } from './product.models';
+import { RichTextEditorComponent } from '../../shared/rich-text-editor.component';
 
 @Component({
   selector: 'app-product-form',
@@ -40,6 +43,7 @@ import {
     MatProgressSpinnerModule,
     MatSelectModule,
     BarcodeScannerComponent,
+    RichTextEditorComponent,
   ],
   templateUrl: './product-form.component.html',
   styles: [
@@ -70,6 +74,17 @@ import {
         color: #b42318;
         font-weight: 700;
       }
+      .rich-field { display: grid; gap: 0.35rem; }
+      .rich-field > label { font-size: 0.85rem; font-weight: 600; }
+      .rich-field small, .spec-help { color: var(--mat-sys-on-surface-variant); }
+      .rich-preview { border: 1px dashed var(--mat-sys-outline); border-radius: 0.5rem; padding: 0.65rem; background: var(--mat-sys-surface-container-low); line-height: 1.5; }
+      .rich-preview > span { display: block; margin-bottom: 0.35rem; color: var(--mat-sys-on-surface-variant); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+      .rich-preview :where(p) { margin: 0 0 0.4rem; }
+      .rich-preview :where(table) { max-width: 100%; overflow: auto; border-collapse: collapse; }
+      .rich-preview :where(th, td) { border: 1px solid var(--mat-sys-outline-variant); padding: 0.25rem 0.4rem; }
+      .spec-list { display: grid; gap: 0.5rem; }
+      .spec-entry { display: grid; grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr) auto; gap: 0.75rem; align-items: center; }
+      .spec-actions { display: flex; gap: 0.1rem; }
       .grid {
         padding-top: 1rem;
         display: grid;
@@ -99,6 +114,10 @@ import {
       }
       .gallery { display:flex; gap:12px; flex-wrap:wrap; }
       .gallery > div { display:flex; flex-direction:column; gap:4px; align-items:center; }
+      .image-tile { position:relative; padding:6px; border:1px solid var(--mat-sys-outline-variant); border-radius:10px; }
+      .image-tile img { width:112px; height:112px; object-fit:contain; }
+      .image-tile.primary { border:2px solid var(--mat-sys-primary); }
+      .image-tile small { display:block; color:var(--mat-sys-primary); font-weight:700; }
       .loading {
         display: grid;
         place-items: center;
@@ -232,6 +251,8 @@ import {
           align-items: flex-start;
           flex-direction: column;
         }
+        .spec-entry { grid-template-columns: 1fr; gap: 0; }
+        .spec-actions { justify-content: flex-end; margin-bottom: 0.5rem; }
         .media img {
           width: min(160px, 100%);
           height: auto;
@@ -287,9 +308,11 @@ export class ProductFormComponent implements OnDestroy {
   readonly units = signal<UnitOfMeasure[]>([]);
   readonly flatCategories = signal<Category[]>([]);
   readonly imagePreview = signal<string | null>(null);
+  readonly selectedImagePreviews = signal<string[]>([]);
   readonly images = signal<ProductImage[]>([]);
   private imageObjectUrls: string[] = [];
   readonly additionalBarcodes = signal<ProductBarcodeInput[]>([]);
+  readonly specifications = signal<ProductSpecificationInput[]>([]);
   readonly scannerOpen = signal(false);
   readonly scanTarget = signal<'primary' | 'additional'>('additional');
   readonly additionalCodeError = signal('');
@@ -315,6 +338,7 @@ export class ProductFormComponent implements OnDestroy {
       productName: ['', [Validators.required, Validators.maxLength(250)]],
       shortDescription: [''],
       longDescription: [''],
+      specifications: [[] as ProductSpecificationInput[]],
       categoryId: ['', Validators.required],
       brandId: ['', Validators.required],
       unitId: ['', Validators.required],
@@ -338,6 +362,7 @@ export class ProductFormComponent implements OnDestroy {
       isWhatsAppVisible: [true],
       returnPolicyMode: ["INHERIT_DEFAULT"],
       returnWindowDays: [null as number | null, Validators.min(0)],
+      returnPolicyDescription: ['', Validators.maxLength(1000)],
     },
     {
       validators: (control) =>
@@ -377,6 +402,7 @@ export class ProductFormComponent implements OnDestroy {
                 : data.product,
             );
             this.additionalBarcodes.set(this.copySourceId ? [] : (data.product.additionalBarcodes ?? []));
+            this.specifications.set(this.copySourceId ? [] : (data.product.specifications ?? []).map((x) => ({ name: x.name, value: x.value, displayOrder: x.displayOrder })));
             if (!this.copySourceId) this.loadImages(data.product.productId);
           }
         },
@@ -393,6 +419,7 @@ export class ProductFormComponent implements OnDestroy {
     const raw = this.form.getRawValue();
     const input = {
       ...raw,
+      specifications: this.specifications().map((x, index) => ({ ...x, displayOrder: index })),
       barcode: raw.barcode || null,
       additionalBarcodes: this.additionalBarcodes(),
     } as ProductInput;
@@ -411,16 +438,24 @@ export class ProductFormComponent implements OnDestroy {
           });
         else this.finish(product.productId);
       },
-      error: () => {
+      error: (error: unknown) => {
         this.saving.set(false);
-        this.snackBar.open(
-          'Product could not be saved. Check unique codes and required fields.',
-          'Dismiss',
-          { duration: 5000 },
-        );
+        this.snackBar.open(this.saveError(error), 'Dismiss', { duration: 6000 });
       },
     });
   }
+  private saveError(error: unknown): string {
+    if (!(error instanceof HttpErrorResponse)) return 'Product could not be saved. Please try again.';
+    const detail = typeof error.error?.detail === 'string' ? error.error.detail : '';
+    if (error.status === 400) return detail || 'Check the required fields, description formatting, and specification values.';
+    if (error.status === 409) return detail || 'A product code or barcode is already used by this retailer.';
+    if (error.status === 503) return detail || 'The product database migration is not ready in this environment.';
+    return detail || 'The product could not be saved due to a server error. Please try again or contact an administrator.';
+  }
+  addSpecification(): void { this.specifications.update(items => [...items, { name: '', value: '', displayOrder: items.length }]); }
+  updateSpecification(index: number, field: 'name' | 'value', value: string): void { this.specifications.update(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item)); }
+  removeSpecification(index: number): void { this.specifications.update(items => items.filter((_, itemIndex) => itemIndex !== index)); }
+  moveSpecification(index: number, direction: -1 | 1): void { const target = index + direction; if (target < 0 || target >= this.specifications().length) return; this.specifications.update(items => { const copy = [...items]; [copy[index], copy[target]] = [copy[target], copy[index]]; return copy; }); }
   selectImage(event: Event): void {
     const files = Array.from((event.target as HTMLInputElement).files ?? []);
     if (!files.length) return;
@@ -432,9 +467,7 @@ export class ProductFormComponent implements OnDestroy {
     }
     if ((this.images().length + this.selectedImages.length + files.length) > 5) { this.snackBar.open('A product can have a maximum of 5 images.', 'Dismiss', { duration: 4000 }); return; }
     this.selectedImages.push(...files);
-    const reader = new FileReader();
-    reader.onload = () => this.imagePreview.set(reader.result as string);
-    reader.readAsDataURL(files[0]);
+    this.selectedImagePreviews.update(previews => [...previews, ...files.map(file => URL.createObjectURL(file))]);
   }
   deleteImage(image: ProductImage): void {
     if (!this.productId) return;
@@ -448,6 +481,13 @@ export class ProductFormComponent implements OnDestroy {
       },
       error: () => this.snackBar.open('Image could not be deleted.', 'Dismiss', { duration: 4000 }),
     });
+  }
+  removeSelectedImage(index: number): void {
+    const previews = this.selectedImagePreviews();
+    const preview = previews[index];
+    if (preview) URL.revokeObjectURL(preview);
+    this.selectedImagePreviews.set(previews.filter((_, i) => i !== index));
+    this.selectedImages = this.selectedImages.filter((_, i) => i !== index);
   }
   ngOnDestroy(): void {
     this.releaseImageObjectUrls();
@@ -480,6 +520,8 @@ export class ProductFormComponent implements OnDestroy {
   private releaseImageObjectUrls(): void {
     for (const url of this.imageObjectUrls) URL.revokeObjectURL(url);
     this.imageObjectUrls = [];
+    for (const url of this.selectedImagePreviews()) URL.revokeObjectURL(url);
+    this.selectedImagePreviews.set([]);
   }
   openScanner(target: 'primary' | 'additional'): void {
     this.scanTarget.set(target);

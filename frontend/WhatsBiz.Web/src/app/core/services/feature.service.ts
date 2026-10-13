@@ -9,8 +9,8 @@ export interface FeatureAccessState {
   effectiveEnabled: boolean; disabledReason?: string; subscriptionAllowed: boolean; globalAllowed: boolean;
   dependencies: string[];
 }
-export interface TenantFeatureConfiguration { tenantId: string; tenantName: string; planKey?: string; planName?: string; features: FeatureAccessState[]; }
-export interface FeatureTenantSummary { tenantId: string; tenantKey: string; tenantName: string; planKey?: string; planName?: string; }
+export interface TenantFeatureConfiguration { tenantId: string; tenantName: string; displayName?: string | null; planKey?: string; planName?: string; features: FeatureAccessState[]; }
+export interface FeatureTenantSummary { tenantId: string; tenantKey: string; tenantName: string; displayName?: string | null; planKey?: string; planName?: string; }
 export interface TenantEnrollmentResult { tenantId: string; tenantKey: string; tenantName: string; planKey: string; administratorUsername: string; administratorEmail: string; configuredFeatureCount: number; }
 export interface ResourceCapacity { resourceType: string; current: number; limit?: number; configured: boolean; unlimited: boolean; overLimit: boolean; canCreate: boolean; source: string; }
 export interface TenantCapacitySummary { tenantId: string; tenantName: string; users: ResourceCapacity; branches: ResourceCapacity; }
@@ -47,6 +47,9 @@ export class FeatureService {
   update(tenantId: string, updates: { featureKey: string; configuredEnabled: boolean }[]): Observable<TenantFeatureConfiguration> {
     return this.http.put<TenantFeatureConfiguration>(`/api/features/administration/tenants/${tenantId}`, updates).pipe(
       tap(x => { if (x.tenantId === this.currentUser.user()?.tenantId) this.configurationState.set(x); }));
+  }
+  updateDisplayName(tenantId: string, displayName: string): Observable<TenantFeatureConfiguration> {
+    return this.http.put<TenantFeatureConfiguration>(`/api/features/administration/tenants/${tenantId}/display-name`, { displayName });
   }
   capacity(tenantId: string): Observable<TenantCapacitySummary> { return this.http.get<TenantCapacitySummary>(`/api/system/tenants/${tenantId}/capacity`); }
   updateCapacity(tenantId: string, users: ResourceLimitInput, branches: ResourceLimitInput): Observable<TenantCapacitySummary> {

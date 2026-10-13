@@ -58,15 +58,11 @@
           >
           <button mat-button type="button" (click)="openMasterDialog('unit')">+ Add Unit</button>
         </div>
-        <mat-form-field class="wide"
-          ><mat-label>Short description</mat-label
-          ><textarea matInput formControlName="shortDescription"></textarea>
-        </mat-form-field>
-        <mat-form-field class="wide"
-          ><mat-label>Long description</mat-label
-          ><textarea matInput formControlName="longDescription" rows="4"></textarea>
-        </mat-form-field> </mat-card-content
+        <div class="wide rich-field"><label>Short description</label><app-rich-text-editor formControlName="shortDescription" label="Short description" placeholder="A concise product summary"></app-rich-text-editor><small>Supports paragraphs, bold, italic, and lists.</small><div class="rich-preview"><span>Storefront preview</span><div [innerHTML]="form.controls.shortDescription.value || 'Your short description will appear here.'"></div></div></div>
+        <div class="wide rich-field"><label>Long description</label><app-rich-text-editor formControlName="longDescription" label="Long description" placeholder="Describe this product for customers"></app-rich-text-editor><small>Supports headings, lists, links, and tables. The storefront preview uses the sanitized content.</small><div class="rich-preview"><span>Storefront preview</span><div [innerHTML]="form.controls.longDescription.value || 'Your detailed product description will appear here.'"></div></div></div>
+      </mat-card-content
     ></mat-card>
+    <mat-card><mat-card-header><mat-card-title>Product specifications</mat-card-title></mat-card-header><mat-card-content><p class="spec-help">Optional attributes shown separately on the storefront.</p><div class="spec-list">@for (spec of specifications(); track $index) { <div class="spec-entry"><mat-form-field><mat-label>Name</mat-label><input matInput [value]="spec.name" (input)="updateSpecification($index, 'name', $any($event.target).value)" maxlength="100" /></mat-form-field><mat-form-field><mat-label>Value</mat-label><input matInput [value]="spec.value" (input)="updateSpecification($index, 'value', $any($event.target).value)" maxlength="1000" /></mat-form-field><div class="spec-actions"><button mat-icon-button type="button" (click)="moveSpecification($index, -1)" aria-label="Move specification up"><mat-icon>arrow_upward</mat-icon></button><button mat-icon-button type="button" (click)="moveSpecification($index, 1)" aria-label="Move specification down"><mat-icon>arrow_downward</mat-icon></button><button mat-icon-button type="button" (click)="removeSpecification($index)" aria-label="Remove specification"><mat-icon>delete</mat-icon></button></div></div> } @empty { <p>No specifications added.</p> }<button mat-stroked-button type="button" (click)="addSpecification()"><mat-icon>add</mat-icon>Add specification</button></div></mat-card-content></mat-card>
     <mat-card>
       <mat-card-header><mat-card-title>Product Codes / Barcodes</mat-card-title></mat-card-header>
       <mat-card-content>
@@ -193,7 +189,7 @@
           ><mat-label>Height</mat-label
           ><input matInput type="number" formControlName="height" min="0"
         /></mat-form-field>
-        <mat-form-field><mat-label>Return policy</mat-label><mat-select formControlName="returnPolicyMode"><mat-option value="INHERIT_DEFAULT">Use store default</mat-option><mat-option value="CUSTOM">Custom</mat-option><mat-option value="NON_RETURNABLE">Non-returnable</mat-option></mat-select></mat-form-field><mat-form-field><mat-label>Return window (days)</mat-label><input matInput type="number" formControlName="returnWindowDays" min="0" /></mat-form-field><div class="checks">
+        <mat-card class="wide"><mat-card-header><mat-card-title>Return policy</mat-card-title></mat-card-header><mat-card-content><mat-form-field><mat-label>Policy</mat-label><mat-select formControlName="returnPolicyMode"><mat-option value="INHERIT_DEFAULT">Use store default</mat-option><mat-option value="CUSTOM">Custom</mat-option><mat-option value="NON_RETURNABLE">Non-returnable</mat-option></mat-select></mat-form-field><mat-form-field><mat-label>Return window (days)</mat-label><input matInput type="number" formControlName="returnWindowDays" min="0" max="3650" /></mat-form-field><mat-form-field class="wide"><mat-label>Policy conditions (optional)</mat-label><textarea matInput formControlName="returnPolicyDescription" maxlength="1000" rows="2" placeholder="Example: Unused items in original packaging"></textarea></mat-form-field><p class="wide">Zero days means returns are accepted only on the delivery date. Non-returnable products cannot be returned.</p></mat-card-content></mat-card><div class="checks">
           <mat-checkbox formControlName="isBatchManaged">Batch managed</mat-checkbox
           ><mat-checkbox formControlName="isSerialManaged">Serial managed</mat-checkbox
           ><mat-checkbox formControlName="isActive">Active</mat-checkbox
@@ -207,7 +203,7 @@
     <mat-card
       ><mat-card-header><mat-card-title>Product images (up to 5)</mat-card-title></mat-card-header
       ><mat-card-content class="media">
-        <div class="gallery">@for (image of images(); track image.productImageId) {<div><img [src]="image.url" [alt]="image.fileName" /><button type="button" mat-button color="warn" (click)="deleteImage(image)">Delete</button></div>} @if (imagePreview() && !images().length) {<img [src]="imagePreview()" alt="Product image preview" />}</div>
+        <div class="gallery">@for (image of images(); track image.productImageId) {<div class="image-tile" [class.primary]="image.isPrimary"><img [src]="image.url" [alt]="image.fileName" /><small>{{ image.isPrimary ? 'Primary image' : 'Saved image' }}</small><button type="button" mat-button color="warn" (click)="deleteImage(image)">Delete</button></div>} @for (preview of selectedImagePreviews(); track preview; let i = $index) {<div class="image-tile"><img [src]="preview" alt="Selected product image preview" /><small>Selected image</small><button type="button" mat-button color="warn" (click)="removeSelectedImage(i)">Remove</button></div>} @if (!images().length && !selectedImagePreviews().length) {<span>No images selected.</span>}</div>
         <div>
           <button type="button" mat-stroked-button (click)="imageInput.click()">
             Add images</button
@@ -219,7 +215,7 @@
             accept="image/png,image/jpeg,image/webp"
             (change)="selectImage($event)"
           />
-          <p>Choose up to {{ 5 - images().length - selectedImagesCount() }} more images. The first image is used as the primary catalog image.</p>
+          <p>{{ images().length + selectedImagesCount() }} of 5 images. The first uploaded image is used as the primary catalog image.</p>
         </div></mat-card-content
       ></mat-card
     >

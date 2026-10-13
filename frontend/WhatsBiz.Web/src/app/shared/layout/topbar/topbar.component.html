@@ -8,6 +8,10 @@
   >
     <span class="material-symbols-rounded">menu</span>
   </button>
+  <div class="mobile-brand" aria-label="KhataDhari ERP">
+    <img src="/assets/images/khatadhari-logo.png" alt="" />
+    <span>KhataDhari</span>
+  </div>
   <div class="global-search">
     <app-search-box placeholder="Search products, customers and suppliers" ariaLabel="Global search" (searchChange)="onSearch($event)" />
     @if (globalSearch.results().length || globalSearch.loading()) {

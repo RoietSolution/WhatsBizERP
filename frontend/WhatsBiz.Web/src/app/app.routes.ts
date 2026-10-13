@@ -238,6 +238,17 @@ export const routes: Routes = [
           import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
       },
       {
+        path: 'storefront/activity',
+        canActivate: [permissionGuard],
+        data: { ...analyticsView, title: 'Storefront Activity' },
+        loadComponent: () => import('./features/dashboard/storefront-activity-integrated.component').then((m) => m.StorefrontActivityIntegratedComponent),
+      },
+      { path: 'storefront/customer-demand', canActivate: [permissionGuard], data: { permission: 'analytics.view', title: 'Customer Demand' }, loadComponent: () => import('./features/dashboard/customer-demand-dashboard.component').then(m => m.CustomerDemandDashboardComponent) },
+      { path: 'storefront/search-analytics', canActivate: [permissionGuard, featureGuard], data: { permission: 'analytics.view', feature: 'CUSTOMER_DEMAND', title: 'Search Analytics' }, loadComponent: () => import('./features/dashboard/storefront-search-analytics.component').then(m => m.StorefrontSearchAnalyticsComponent) },
+      { path: 'storefront/customers', canActivate: [permissionGuard, featureGuard], data: { permission: 'customer.view', feature: 'CUSTOMER_DEMAND', title: 'Storefront Customers' }, loadComponent: () => import('./features/customers/storefront-customer-list-integrated.component').then(m => m.StorefrontCustomerListIntegratedComponent) },
+      { path: 'storefront/feedback', canActivate: [permissionGuard, featureGuard], data: { permission: 'customer.feedback.manage', feature: 'STOREFRONT_FEEDBACK', title: 'Feedback & Complaints' }, loadComponent: () => import('./features/customers/storefront-feedback-management.component').then(m => m.StorefrontFeedbackManagementComponent) },
+      { path: 'storefront/blocked-customers', canActivate: [permissionGuard, featureGuard], data: { permission: 'customer.blacklist.manage', feature: 'STOREFRONT_CUSTOMER_BLACKLIST', title: 'Blocked Customers' }, loadComponent: () => import('./features/customers/storefront-blacklist.component').then(m => m.StorefrontBlacklistComponent) },
+      {
         path: 'analytics/sales',
         canActivate: [permissionGuard],
         data: { ...analyticsView, mode: 'sales', title: 'Sales Analytics' },

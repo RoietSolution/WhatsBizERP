@@ -105,7 +105,7 @@ export class DashboardComponent {
   readonly businessSummary = computed(() => {
     const value = this.summary();
     return value
-      ? `Today’s sales are ${this.money(value.todaySales)} with net collections of ${this.money(value.netCollection)}.`
+      ? `Todayâ€™s sales are ${this.money(value.todaySales)} with net collections of ${this.money(value.netCollection)}.`
       : 'Your latest sales, purchases, inventory and cash position in one place.';
   });
   readonly kpis = computed<Kpi[]>(() => {
@@ -222,8 +222,8 @@ export class DashboardComponent {
     horizontal: true,
     height: 300,
   }));
-  readonly topProductLabel = computed(() => this.sales()?.topProducts?.[0]?.label ?? '—');
-  readonly slowProductLabel = computed(() => this.sales()?.leastProducts?.[0]?.label ?? '—');
+  readonly topProductLabel = computed(() => this.sales()?.topProducts?.[0]?.label ?? 'â€”');
+  readonly slowProductLabel = computed(() => this.sales()?.leastProducts?.[0]?.label ?? 'â€”');
   readonly activities = computed<Activity[]>(() => {
     const s = this.summary();
     if (!s) return [];

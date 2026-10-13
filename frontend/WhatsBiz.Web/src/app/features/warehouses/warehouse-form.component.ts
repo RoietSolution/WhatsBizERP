@@ -177,9 +177,10 @@ export class WarehouseFormComponent {
         this.snack.open('Warehouse saved.', undefined, { duration: 2500 });
         void this.router.navigate(['/warehouses', x.warehouseId]);
       },
-      error: () => {
+      error: (error: { error?: { detail?: string; message?: string } }) => {
         this.saving.set(false);
-        this.snack.open('Warehouse could not be saved.', 'Dismiss', { duration: 5000 });
+        const message = error?.error?.detail || error?.error?.message || 'Warehouse could not be saved.';
+        this.snack.open(message, 'Dismiss', { duration: 7000 });
       },
     });
   }

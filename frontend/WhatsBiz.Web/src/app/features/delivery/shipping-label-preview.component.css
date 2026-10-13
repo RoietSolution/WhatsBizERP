@@ -1,0 +1,13 @@
+@media print {
+  .shipping-print-root.a5 .shipping-label,
+  .shipping-print-root.a4-single .shipping-label,
+  .shipping-print-root.thermal-80 .shipping-label,
+  .shipping-print-root.thermal-58 .shipping-label { break-after: page; page-break-after: always; }
+  .shipping-print-root.a5 .shipping-label:last-child,
+  .shipping-print-root.a4-single .shipping-label:last-child,
+  .shipping-print-root.thermal-80 .shipping-label:last-child,
+  .shipping-print-root.thermal-58 .shipping-label:last-child,
+  .shipping-print-root.a4-double .shipping-label:nth-child(2n) { break-after: page; page-break-after: always; }
+  .shipping-print-root .shipping-label:last-child { break-after: auto; page-break-after: auto; }
+  .shipping-print-root.a4-double .shipping-label:nth-child(2n):last-child { break-after: auto; page-break-after: auto; }
+}

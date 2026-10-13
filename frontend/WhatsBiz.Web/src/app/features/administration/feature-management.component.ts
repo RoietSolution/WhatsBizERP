@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { FeatureAccessState, FeatureService, FeatureTenantSummary, TenantCapacitySummary, TenantEnrollmentResult, TenantFeatureConfiguration } from '../../core/services/feature.service';
+import { CustomerReferralAdministration, ReferralConfiguration, ReferralRewardsApiService, QualificationType } from './referral-rewards-api.service';
 
 @Component({
   selector: 'app-feature-management',
@@ -16,12 +17,17 @@ import { FeatureAccessState, FeatureService, FeatureTenantSummary, TenantCapacit
 })
 export class FeatureManagementComponent implements OnInit {
   private readonly api = inject(FeatureService);
+  private readonly referralApi = inject(ReferralRewardsApiService);
   readonly tenants = signal<FeatureTenantSummary[]>([]);
   readonly configuration = signal<TenantFeatureConfiguration | null>(null);
   readonly capacity = signal<TenantCapacitySummary | null>(null);
   userLimit: number | null = null; branchLimit: number | null = null; usersUnlimited = false; branchesUnlimited = false;
   readonly selectedTenantId = signal('');
+  displayName = '';
   readonly loading = signal(false); readonly saving = signal(false); readonly importing = signal(false); readonly message = signal(''); readonly error = signal('');
+  readonly referral = signal<CustomerReferralAdministration | null>(null);
+  readonly referralSaving = signal(false);
+  readonly qualificationTypes: QualificationType[] = ['CUSTOMER_REGISTERED','FIRST_ORDER_PLACED','FIRST_PAID_ORDER','FIRST_COMPLETED_ORDER','FIRST_COMPLETED_ORDER_MIN_AMOUNT','MANUAL_APPROVAL'];
   private original = new Map<string, boolean>();
   readonly versions = computed(() => (this.configuration()?.features ?? []).filter(x => x.featureType === 'VERSION'));
   ngOnInit(): void {
@@ -30,8 +36,15 @@ export class FeatureManagementComponent implements OnInit {
   }
   select(tenantId: string): void {
     this.selectedTenantId.set(tenantId); this.loading.set(true); this.error.set(''); this.message.set('');
-    this.api.tenant(tenantId).subscribe({ next: x => { this.configuration.set(x); this.original = new Map(x.features.map(f => [f.featureKey, f.configuredEnabled])); this.loading.set(false); }, error: () => { this.error.set('Unable to load tenant feature configuration.'); this.loading.set(false); } });
+    this.referral.set(null);
+    this.referralApi.administrationConfiguration(tenantId).subscribe({ next: x => this.referral.set(x), error: () => this.error.set('Unable to load customer referral configuration.') });
+    this.api.tenant(tenantId).subscribe({ next: x => { this.configuration.set(x); this.displayName = x.displayName ?? ''; this.original = new Map(x.features.map(f => [f.featureKey, f.configuredEnabled])); this.loading.set(false); }, error: () => { this.error.set('Unable to load tenant feature configuration.'); this.loading.set(false); } });
     this.api.capacity(tenantId).subscribe({next:x=>{this.capacity.set(x);this.userLimit=x.users.limit??null;this.branchLimit=x.branches.limit??null;this.usersUnlimited=x.users.unlimited||!x.users.configured;this.branchesUnlimited=x.branches.unlimited||!x.branches.configured;},error:()=>this.error.set('Unable to load tenant capacity.')});
+  }
+  saveDisplayName(): void {
+    const config = this.configuration(); if (!config) return;
+    this.saving.set(true); this.error.set(''); this.message.set('');
+    this.api.updateDisplayName(config.tenantId, this.displayName.trim()).subscribe({ next: x => { this.configuration.set(x); this.displayName = x.displayName ?? ''; this.tenants.update(rows => rows.map(row => row.tenantId === x.tenantId ? { ...row, displayName: x.displayName } : row)); this.saving.set(false); this.message.set('Customer-facing Display Name saved.'); }, error: e => { this.saving.set(false); this.error.set(e?.error?.detail ?? 'Display Name could not be saved.'); } });
   }
   children(version: FeatureAccessState): FeatureAccessState[] { return (this.configuration()?.features ?? []).filter(x => x.parentFeatureKey === version.featureKey); }
   save(): void {
@@ -40,6 +53,21 @@ export class FeatureManagementComponent implements OnInit {
     if (!updates.length) { this.message.set('No configuration changes to save.'); return; }
     this.saving.set(true); this.error.set(''); this.message.set('');
     this.api.update(config.tenantId, updates).subscribe({ next: x => { this.configuration.set(x); this.original = new Map(x.features.map(f => [f.featureKey, f.configuredEnabled])); this.message.set('Feature configuration saved. Effective access has been refreshed.'); this.saving.set(false); }, error: e => { this.error.set(e?.error?.detail ?? 'Feature configuration could not be saved.'); this.saving.set(false); } });
+  }
+  updateReferral<K extends keyof ReferralConfiguration>(key: K, value: ReferralConfiguration[K]): void {
+    const current = this.referral();
+    if (!current) return;
+    this.referral.set({ ...current, configuration: { ...current.configuration, [key]: value } });
+  }
+  saveCustomerReferralConfiguration(): void {
+    const selected = this.selectedTenantId();
+    const value = this.referral();
+    if (!selected || !value || !value.featureEntitled) return;
+    this.referralSaving.set(true); this.error.set(''); this.message.set('');
+    this.referralApi.saveAdministrationConfiguration(selected, value.configuration).subscribe({
+      next: result => { this.referral.set(result); this.referralSaving.set(false); this.message.set('Customer referral rewards configuration saved.'); },
+      error: e => { this.referralSaving.set(false); this.error.set(e?.error?.detail ?? 'Customer referral configuration could not be saved.'); }
+    });
   }
   saveCapacity(): void {
     if ((!this.usersUnlimited && (!this.userLimit || this.userLimit < 1)) || (!this.branchesUnlimited && (!this.branchLimit || this.branchLimit < 1))) { this.error.set('Finite limits must be at least 1.'); return; }

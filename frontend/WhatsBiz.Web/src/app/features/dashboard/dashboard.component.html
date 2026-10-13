@@ -2,7 +2,7 @@
   ><section class="dashboard">
     <app-loading-overlay
       [visible]="coreLoading()"
-      message="Preparing your business overview…"
+      message="Preparing your business overviewÃ¢â‚¬Â¦"
     /><app-page-header
       eyebrow="Executive Overview"
       [title]="greeting() + `, ` + userName()"
@@ -78,10 +78,10 @@
           @defer (on viewport) {
             <app-chart [config]="salesChart()" [ariaLabel]="salesPeriod() + ` sales trend`" />
           } @placeholder {
-            <div class="chart-loading">Preparing sales chart…</div>
+            <div class="chart-loading">Preparing sales chartÃ¢â‚¬Â¦</div>
           }
         } @else {
-          <div class="chart-loading">Loading sales analytics…</div>
+          <div class="chart-loading">Loading sales analyticsÃ¢â‚¬Â¦</div>
         }</app-statistics-card
       ><app-statistics-card
         class="payment-chart"
@@ -92,10 +92,10 @@
           @defer (on viewport) {
             <app-chart [config]="paymentChart()" ariaLabel="Payment mode distribution" />
           } @placeholder {
-            <div class="chart-loading">Preparing payment chart…</div>
+            <div class="chart-loading">Preparing payment chartÃ¢â‚¬Â¦</div>
           }
         } @else {
-          <div class="chart-loading">Loading payment modes…</div>
+          <div class="chart-loading">Loading payment modesÃ¢â‚¬Â¦</div>
         }</app-statistics-card
       ><app-statistics-card
         class="purchase-chart"
@@ -106,10 +106,10 @@
           @defer (on viewport) {
             <app-chart [config]="purchaseChart()" ariaLabel="Monthly purchase trend" />
           } @placeholder {
-            <div class="chart-loading">Preparing purchase chart…</div>
+            <div class="chart-loading">Preparing purchase chartÃ¢â‚¬Â¦</div>
           }
         } @else {
-          <div class="chart-loading">Loading purchase analytics…</div>
+          <div class="chart-loading">Loading purchase analyticsÃ¢â‚¬Â¦</div>
         }</app-statistics-card
       ><app-statistics-card
         class="supplier-chart"
@@ -120,10 +120,10 @@
           @defer (on viewport) {
             <app-chart [config]="supplierChart()" ariaLabel="Supplier performance" />
           } @placeholder {
-            <div class="chart-loading">Preparing supplier chart…</div>
+            <div class="chart-loading">Preparing supplier chartÃ¢â‚¬Â¦</div>
           }
         } @else {
-          <div class="chart-loading">Loading supplier performance…</div>
+          <div class="chart-loading">Loading supplier performanceÃ¢â‚¬Â¦</div>
         }</app-statistics-card
       ><app-statistics-card
         class="inventory-widget"
@@ -267,7 +267,7 @@
               >
               <div>
                 <strong>{{ activity.title }}</strong
-                ><small>{{ activity.detail }} · {{ activity.date | date: `short` }}</small>
+                ><small>{{ activity.detail }} Ã‚Â· {{ activity.date | date: `short` }}</small>
               </div>
               @if (activity.amount !== undefined) {
                 <b>{{ activity.amount | currency: `INR` : `symbol` : `1.0-0` }}</b>
@@ -309,7 +309,7 @@
             </article>
           } @empty {
             <app-empty-state
-              title="You’re all caught up"
+              title="YouÃ¢â‚¬â„¢re all caught up"
               description="There are no active business alerts."
               icon="notifications_off"
             />

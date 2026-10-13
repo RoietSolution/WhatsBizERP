@@ -41,5 +41,5 @@
   ><mat-form-field class="wide"
     ><mat-label>Remarks</mat-label
     ><textarea matInput formControlName="remarks"></textarea></mat-form-field
-  ><button mat-flat-button type="submit" [disabled]="form.invalid">Post adjustment</button>
+  ><button mat-flat-button type="submit" [disabled]="form.invalid || saving()">{{ saving() ? 'Posting…' : 'Post adjustment' }}</button>
 </form>

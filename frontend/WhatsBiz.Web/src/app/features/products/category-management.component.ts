@@ -152,11 +152,14 @@ export class CategoryManagementComponent implements OnDestroy {
     const generation=++this.imageGeneration;
     for(const url of Object.values(this.categoryImages()))URL.revokeObjectURL(url);
     this.categoryImages.set({});
-    for(const item of this.flatten(items))this.http.get(`/api/storefront-administration/categories/${item.productCategoryId}/image`,{responseType:"blob"}).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({next:blob=>{const url=URL.createObjectURL(blob);if(generation!==this.imageGeneration){URL.revokeObjectURL(url);return;}this.categoryImages.update(images=>({...images,[item.productCategoryId]:url}));},error:()=>{}});
+    for(const item of this.flatten(items)) {
+      if (!item.hasStorefrontImage) continue;
+      this.http.get(`/api/storefront-administration/categories/${item.productCategoryId}/image`,{responseType:"blob"}).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({next:blob=>{const url=URL.createObjectURL(blob);if(generation!==this.imageGeneration){URL.revokeObjectURL(url);return;}this.categoryImages.update(images=>({...images,[item.productCategoryId]:url}));},error:error=>{if (error.status !== 404) this.snack.open('A category image could not be loaded.', 'Dismiss', { duration: 4000 });}});
+    }
   }
   hideBrokenImage(event:Event):void{(event.target as HTMLImageElement).style.display='none';}
-  uploadCategoryImage(id:string,event:Event):void{const input=event.target as HTMLInputElement,file=input.files?.[0];if(!file)return;this.api.uploadCategoryStorefrontImage(id,file).subscribe({next:()=>{this.imageVersion.set(Date.now());input.value='';this.snack.open('Category image updated.',undefined,{duration:2000});},error:()=>this.snack.open('Category image could not be uploaded.','Dismiss',{duration:4000})});}
-  removeCategoryImage(id:string):void{this.api.removeCategoryStorefrontImage(id).subscribe({next:()=>{this.imageVersion.set(Date.now());this.snack.open('Category image removed.',undefined,{duration:2000});},error:()=>this.snack.open('Category image could not be removed.','Dismiss',{duration:4000})});}
+  uploadCategoryImage(id:string,event:Event):void{const input=event.target as HTMLInputElement,file=input.files?.[0];if(!file)return;this.api.uploadCategoryStorefrontImage(id,file).subscribe({next:()=>{this.imageVersion.set(Date.now());input.value='';this.snack.open('Category image updated.',undefined,{duration:2000});this.load();},error:()=>this.snack.open('Category image could not be uploaded.','Dismiss',{duration:4000})});}
+  removeCategoryImage(id:string):void{this.api.removeCategoryStorefrontImage(id).subscribe({next:()=>{this.imageVersion.set(Date.now());this.snack.open('Category image removed.',undefined,{duration:2000});this.load();},error:()=>this.snack.open('Category image could not be removed.','Dismiss',{duration:4000})});}
   private flatten(items: Category[]): Category[] {
     return items.flatMap((item) => [item, ...this.flatten(item.children)]);
   }

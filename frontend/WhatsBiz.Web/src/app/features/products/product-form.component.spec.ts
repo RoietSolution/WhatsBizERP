@@ -16,6 +16,7 @@ describe('ProductFormComponent manufacturer codes', () => {
       'brands',
       'units',
       'get',
+      'nextCode',
       'images',
       'imageByUrl',
       'create',
@@ -28,6 +29,7 @@ describe('ProductFormComponent manufacturer codes', () => {
     api.categories.and.returnValue(of([]));
     api.brands.and.returnValue(of([]));
     api.units.and.returnValue(of([]));
+    api.nextCode.and.returnValue(of('P-TEST'));
     const route = {
       snapshot: {
         paramMap: { get: () => null },

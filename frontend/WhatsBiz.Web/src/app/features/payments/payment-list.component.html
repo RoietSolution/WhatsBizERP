@@ -1,5 +1,6 @@
 <app-page-container><app-page-header eyebrow="WhatsApp Commerce" title="Payments" description="Retailer-owned ecommerce payment attempts and verified collections." />
 @if(error()){<p class="error" role="alert">{{error()}}</p>}
+@if(applicationOwner){<section class="paid-summary card" aria-live="polite"><div><span class="summary-label">Total Paid</span><strong>₹{{totalPaid() | number:'1.2-2'}}</strong></div><span>{{successfulCollectionCount()}} successful collection{{successfulCollectionCount()===1?'':'s'}}</span></section>}
 <section class="filters">
   @if(applicationOwner){<label>Retailer<select [(ngModel)]="tenantId"><option value="">All Retailers</option>@for(tenant of tenants();track tenant.tenantId){<option [value]="tenant.tenantId">{{tenant.tenantName}}</option>}</select></label>}
   <label>Date From<input type="date" [(ngModel)]="dateFrom"></label><label>Date To<input type="date" [(ngModel)]="dateTo"></label>

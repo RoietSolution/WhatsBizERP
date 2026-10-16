@@ -2,7 +2,9 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
-import { StorefrontCustomerApiService, StorefrontCustomerDetail, StorefrontCustomerRow } from './storefront-customer-api.service';
+import { StorefrontBlacklistEntry, StorefrontCustomerApiService, StorefrontCustomerDetail, StorefrontCustomerRow } from './storefront-customer-api.service';
+import { PermissionService } from '../../core/services/permission.service';
+import { FeatureService } from '../../core/services/feature.service';
 
 @Component({
   selector: 'app-storefront-customer-list-integrated',
@@ -41,14 +43,22 @@ import { StorefrontCustomerApiService, StorefrontCustomerDetail, StorefrontCusto
 export class StorefrontCustomerListIntegratedComponent {
   readonly items = signal<StorefrontCustomerRow[]>([]);
   readonly detail = signal<StorefrontCustomerDetail | null>(null);
+  readonly blacklist = signal<StorefrontBlacklistEntry[]>([]);
+  readonly blacklistLoading = signal(false);
+  blacklistReason = '';
   readonly loading = signal(false);
   readonly error = signal('');
   search = ''; page = 1; readonly size = 20; readonly sortBy = 'name'; readonly descending = false; total = 0;
-  constructor(private readonly api: StorefrontCustomerApiService) { this.load(); }
+  get canManageBlacklist(): boolean { return this.permissions.has('customer.blacklist.manage') && this.features.hasFeature('STOREFRONT_CUSTOMER_BLACKLIST'); }
+  constructor(private readonly api: StorefrontCustomerApiService, private readonly permissions: PermissionService, private readonly features: FeatureService) { this.load(); }
   pageCount(): number { return Math.max(1, Math.ceil(this.total / this.size)); }
   searchPage(event: Event): void { event.preventDefault(); this.page = 1; this.load(); }
   move(delta: number): void { this.page += delta; this.load(); }
   load(): void { this.loading.set(true); this.error.set(''); this.api.search(this.search.trim(), this.sortBy, this.descending, this.page, this.size).pipe(finalize(() => this.loading.set(false))).subscribe({ next: value => { this.items.set(value.items); this.total = value.totalCount; }, error: () => this.error.set('Unable to load storefront customers. Try again.') }); }
-  open(id: string): void { this.api.get(id).subscribe({ next: value => this.detail.set(value), error: () => this.error.set('Unable to load this customer.') }); }
+  open(id: string): void { this.api.get(id).subscribe({ next: value => { this.detail.set(value); this.blacklistReason = ''; this.loadBlacklist(value.customer.mobile); }, error: () => this.error.set('Unable to load this customer.') }); }
+  activeBlacklist(): StorefrontBlacklistEntry | undefined { return this.blacklist().find(x => x.isActive); }
+  loadBlacklist(phone?: string): void { if (!this.canManageBlacklist || !phone) { this.blacklist.set([]); return; } this.blacklistLoading.set(true); this.api.blacklistForPhone(phone).pipe(finalize(() => this.blacklistLoading.set(false))).subscribe({ next: value => this.blacklist.set(value.items), error: () => this.error.set('Unable to load blacklist status.') }); }
+  blockCustomer(phone: string): void { const reason = this.blacklistReason.trim(); if (!reason || !confirm('Block new storefront orders for this customer?')) return; this.api.block(phone, reason).subscribe({ next: () => { this.blacklistReason = ''; this.loadBlacklist(phone); }, error: (error) => this.error.set(error?.error?.message ?? 'Unable to blacklist this customer.') }); }
+  unblock(entry: StorefrontBlacklistEntry): void { if (!confirm('Allow new storefront orders for this customer?')) return; this.api.unblock(entry.blacklistId).subscribe({ next: () => this.loadBlacklist(entry.normalizedPhone), error: () => this.error.set('Unable to unblacklist this customer.') }); }
   activityOf(detail: StorefrontCustomerDetail, types: string[]) { return detail.recentActivity.filter(activity => types.includes(activity.eventType)); }
 }

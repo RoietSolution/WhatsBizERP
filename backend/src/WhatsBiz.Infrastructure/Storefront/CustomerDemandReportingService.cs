@@ -9,6 +9,7 @@ public sealed class CustomerDemandReportingService(IConfiguration configuration,
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
     public Task<CustomerDemandSummaryDto> RecordSearchAsync(string storeKey, string? sessionToken, StorefrontSearchEventInput input, CancellationToken token) => requests.RecordSearchAsync(storeKey, sessionToken, input, token);
     public Task<StorefrontAvailabilityRequestDto> RequestAvailabilityAsync(string storeKey, Guid productId, string? sessionToken, StorefrontAvailabilityRequestInput input, CancellationToken token) => requests.RequestAvailabilityAsync(storeKey, productId, sessionToken, input, token);
+    public Task<StorefrontAvailabilityRequestDto?> GetAvailabilityAsync(string storeKey, Guid productId, string sessionToken, CancellationToken token) => requests.GetAvailabilityAsync(storeKey, productId, sessionToken, token);
     public Task<bool> CancelAvailabilityAsync(string storeKey, Guid productId, string sessionToken, CancellationToken token) => requests.CancelAvailabilityAsync(storeKey, productId, sessionToken, token);
     public Task<CustomerDemandMissingDto> RequestMissingProductAsync(string storeKey, string? sessionToken, StorefrontMissingProductRequestInput input, CancellationToken token) => requests.RequestMissingProductAsync(storeKey, sessionToken, input, token);
 

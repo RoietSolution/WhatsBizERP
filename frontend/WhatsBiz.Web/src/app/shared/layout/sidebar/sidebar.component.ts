@@ -175,11 +175,11 @@ export const navigation: NavigationItem[] = [
     children: [
       { label: 'Storefront Dashboard', icon: 'space_dashboard', route: '/dashboard', permission: 'dashboard.view', feature: 'DASHBOARD' },
       { label: 'Storefront Customers', icon: 'people', route: '/storefront/customers', permission: 'customer.view', feature: 'CUSTOMER_DEMAND' },
-      { label: 'Feedback & Complaints', icon: 'feedback', route: '/storefront/feedback', permission: 'customer.feedback.manage', feature: 'STOREFRONT_FEEDBACK' },
-      { label: 'Blocked Customers', icon: 'block', route: '/storefront/blocked-customers', permission: 'customer.blacklist.manage', feature: 'STOREFRONT_CUSTOMER_BLACKLIST' },
       { label: 'Visitors & Customer Activity', icon: 'visibility', route: '/storefront/activity', permission: 'analytics.view', feature: 'ANALYTICS' },
       { label: 'Search Analytics', icon: 'manage_search', route: '/storefront/search-analytics', permission: 'analytics.view', feature: 'CUSTOMER_DEMAND' },
       { label: 'Storefront Orders', icon: 'shopping_cart', route: '/orders/storefront', permission: 'pos.view' },
+      { label: 'Feedback & Complaints', icon: 'feedback', route: '/storefront/feedback', permission: 'customer.feedback.manage', feature: 'STOREFRONT_FEEDBACK' },
+      { label: 'Blocked Customers', icon: 'block', route: '/storefront/blocked-customers', permission: 'customer.blacklist.manage', feature: 'STOREFRONT_CUSTOMER_BLACKLIST' },
       { label: 'Customer Demand', icon: 'search', route: '/storefront/customer-demand', permission: 'analytics.view', feature: 'CUSTOMER_DEMAND' },
     ],
   },

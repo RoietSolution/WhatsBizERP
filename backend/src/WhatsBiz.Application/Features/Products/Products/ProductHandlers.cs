@@ -1,10 +1,12 @@
 using AutoMapper;
+using System.Collections.Concurrent;
 using MediatR;
 using WhatsBiz.Application.Common.Exceptions;
 using UnauthorizedAccessException = System.UnauthorizedAccessException;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Products.DTOs;
 using WhatsBiz.Domain.Products;
+using WhatsBiz.Application.Features.Storefront;
 
 namespace WhatsBiz.Application.Features.Products.Products;
 
@@ -218,9 +220,46 @@ public sealed class ImportProductsCommandHandler(IProductRepository repository, 
     }
 }
 
-public sealed class UploadProductImageCommandHandler(IProductRepository repository, ICurrentUserService currentUser, IProductImageOptimizer optimizer,IProductImageStorage storage) : IRequestHandler<UploadProductImageCommand, ProductImageDto>
+public sealed class UploadProductImageCommandHandler(IProductRepository repository, ICurrentUserService currentUser, IProductImageOptimizer optimizer,IProductImageStorage storage, IStorefrontFeedbackAttachmentScanner scanner) : IRequestHandler<UploadProductImageCommand, ProductImageDto>
 {
-    public async Task<ProductImageDto> Handle(UploadProductImageCommand request, CancellationToken cancellationToken) { var tenantId = currentUser.TenantId ?? throw new UnauthorizedAccessException("A tenant context is required."); var product = await repository.GetAsync(request.ProductId, true, cancellationToken) ?? throw new EntityNotFoundException("Product was not found."); var images = await repository.GetImagesAsync(request.ProductId, false, cancellationToken); if (images.Count >= 5) throw new BusinessRuleException("A product can have a maximum of 5 images."); var optimized = await optimizer.OptimizeAsync(request.FileName, request.ContentType, request.Content, cancellationToken);var imageId=Guid.NewGuid();var stored=await storage.StoreAsync(new(tenantId,request.ProductId,imageId,optimized.CatalogData,optimized.ThumbnailData,optimized.ContentType),cancellationToken); var database=stored.Provider==ProductImageStorageProviders.Database;var image = new ProductImage { ProductImageId=imageId,TenantId = tenantId, ProductId = request.ProductId, CreatedBy = currentUser.Username, IsPrimary = images.Count == 0, FileName = optimized.FileName, ContentType = optimized.ContentType, ImageData = database?optimized.CatalogData:[], ThumbnailData = database?optimized.ThumbnailData:[],StorageProvider=stored.Provider,ObjectKey=stored.ObjectKey,ThumbnailObjectKey=stored.ThumbnailObjectKey,CatalogSizeBytes=stored.CatalogSizeBytes,ThumbnailSizeBytes=stored.ThumbnailSizeBytes,ContentHash=stored.ContentHash, ThumbnailContentType = "image/webp", Width = optimized.Width, Height = optimized.Height, ThumbnailWidth = optimized.ThumbnailWidth, ThumbnailHeight = optimized.ThumbnailHeight }; repository.Add(image); product.ImageUrl = $"/api/products/{request.ProductId}/image"; try{await repository.SaveChangesAsync(cancellationToken);}catch{await storage.DeleteAsync(new(tenantId,stored.Provider,stored.ObjectKey,stored.ThumbnailObjectKey),CancellationToken.None);throw;} return new ProductImageDto(image.ProductImageId, image.ProductId, image.FileName, image.ContentType, image.IsPrimary, $"/api/products/{request.ProductId}/images/{image.ProductImageId}"); }
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> ProductGates = new(StringComparer.Ordinal);
+
+    public async Task<ProductImageDto> Handle(UploadProductImageCommand request, CancellationToken cancellationToken)
+    {
+        var tenantId = currentUser.TenantId ?? throw new UnauthorizedAccessException("A tenant context is required.");
+        var gate = ProductGates.GetOrAdd($"{tenantId:N}:{request.ProductId:N}", _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            _ = await repository.GetAsync(request.ProductId, false, cancellationToken) ?? throw new EntityNotFoundException("Product was not found.");
+            var images = await repository.GetImagesAsync(request.ProductId, false, cancellationToken);
+            if (images.Count >= 5) throw new BusinessRuleException("A product can have a maximum of 5 images.");
+            StorefrontProductImageScanGuard.RequireClean(await ScanOriginalAsync(scanner, request.Content, cancellationToken));
+            var optimized = await optimizer.OptimizeAsync(request.FileName, request.ContentType, request.Content, cancellationToken);
+            var imageId = Guid.NewGuid();
+            var stored = await storage.StoreAsync(new(tenantId, request.ProductId, imageId, optimized.CatalogData, optimized.ThumbnailData, optimized.ContentType), cancellationToken);
+            var database = stored.Provider == ProductImageStorageProviders.Database;
+            var image = new ProductImage { ProductImageId = imageId, TenantId = tenantId, ProductId = request.ProductId, CreatedBy = currentUser.Username, IsPrimary = images.Count == 0, FileName = optimized.FileName, ContentType = optimized.ContentType, ImageData = database ? optimized.CatalogData : [], ThumbnailData = database ? optimized.ThumbnailData : [], StorageProvider = stored.Provider, ObjectKey = stored.ObjectKey, ThumbnailObjectKey = stored.ThumbnailObjectKey, CatalogSizeBytes = stored.CatalogSizeBytes, ThumbnailSizeBytes = stored.ThumbnailSizeBytes, ContentHash = stored.ContentHash, ThumbnailContentType = "image/webp", Width = optimized.Width, Height = optimized.Height, ThumbnailWidth = optimized.ThumbnailWidth, ThumbnailHeight = optimized.ThumbnailHeight };
+            repository.Add(image);
+            try { await repository.SaveChangesAsync(cancellationToken); }
+            catch { await storage.DeleteAsync(new(tenantId, stored.Provider, stored.ObjectKey, stored.ThumbnailObjectKey), CancellationToken.None); throw; }
+            return new ProductImageDto(image.ProductImageId, image.ProductId, image.FileName, image.ContentType, image.IsPrimary, $"/api/products/{request.ProductId}/images/{image.ProductImageId}");
+        }
+        finally { gate.Release(); }
+    }
+    private static async Task<StorefrontAttachmentScanResult> ScanOriginalAsync(IStorefrontFeedbackAttachmentScanner scanner, byte[] content, CancellationToken token)
+    { try { return await scanner.ScanAsync(content, token); } catch (Exception exception) when (exception is not OperationCanceledException) { throw new BusinessRuleException("The image could not be security-scanned and was not published."); } }
+}
+
+public static class StorefrontProductImageScanGuard
+{
+    public static void RequireClean(StorefrontAttachmentScanResult result)
+    {
+        if (result != StorefrontAttachmentScanResult.Clean)
+            throw new BusinessRuleException(result == StorefrontAttachmentScanResult.Infected
+                ? "The image was rejected by the malware scanner."
+                : "The image could not be security-scanned and was not published.");
+    }
 }
 
 public sealed class GetProductImageQueryHandler(IProductRepository repository,IProductImageStorage storage) : IRequestHandler<GetProductImageQuery, ProductImageFile?> { public async Task<ProductImageFile?> Handle(GetProductImageQuery request, CancellationToken cancellationToken) { var image = await repository.GetImageAsync(request.ProductId, false, cancellationToken);if(image is null)return null;var content=await storage.ReadAsync(new(image.TenantId,image.StorageProvider,request.Thumbnail?image.ThumbnailObjectKey:image.ObjectKey,request.Thumbnail?image.ThumbnailData:image.ImageData,request.Thumbnail?image.ThumbnailContentType:image.ContentType),cancellationToken);return content is null?null:new(image.FileName,content.ContentType,content.Content); } }

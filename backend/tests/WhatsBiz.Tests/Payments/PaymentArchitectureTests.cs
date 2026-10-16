@@ -56,6 +56,18 @@ public sealed class PaymentArchitectureTests
         result.PaymentLink.Should().Be("https://rzp.io/i/test");
     }
 
+    [Fact]
+    public async Task RazorpayPaymentLinkCarriesTheConfiguredReturnUrl()
+    {
+        var handler = new CaptureHandler("{\"id\":\"plink_test\",\"short_url\":\"https://rzp.io/i/test\"}");
+        var gateway = new RazorpayPaymentGateway(new ClientFactory(handler));
+        await gateway.CreatePaymentAsync(new(PaymentProviders.Razorpay, "key", "secret", "webhook", true, null, null),
+            new(Guid.NewGuid(), Guid.NewGuid(), "KD-1042", 100m, "INR", "KD-REF", null, null, "UPI", "https://store.example/guturgo/payment-return?orderId=abc"), default);
+        using var body = JsonDocument.Parse(handler.Body!);
+        body.RootElement.GetProperty("callback_url").GetString().Should().Contain("payment-return");
+        body.RootElement.GetProperty("callback_method").GetString().Should().Be("get");
+    }
+
     [Theory]
     [InlineData("UPI", true, false)]
     [InlineData("NET_BANKING", false, true)]
@@ -188,6 +200,7 @@ public sealed class PaymentArchitectureTests
         source.Should().Contain("p.TenantId=@tenant").And.Contain("p.CreatedAt>=@from").And.Contain("p.CreatedAt<DATEADD(day,1,@to)");
         source.Should().Contain("COUNT_BIG(*)").And.Contain("OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY").And.Contain("ORDER BY p.CreatedAt DESC,p.PaymentId DESC");
         source.Should().Contain("WHERE p.TenantId=@tenant AND p.PaymentId=@id");
+        source.Should().Contain("commerce.PaymentApplications").And.Contain("p.Status IN(N'PAID',N'CAPTURED')").And.Contain("GROUP BY p.PaymentId").And.Contain("totalPaid");
     }
 
     [Fact]

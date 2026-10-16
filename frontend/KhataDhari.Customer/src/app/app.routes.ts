@@ -17,6 +17,7 @@ import { AccountProfilePage } from './pages/account-profile.page';
 import { RewardsPage } from './pages/rewards.page';
 import { CustomerReferralLandingPage } from './pages/customer-referral-landing.page';
 import { FeedbackPage } from './pages/feedback.page';
+import { PaymentReturnPage } from './pages/payment-return.page';
 
 export const routes: Routes = [
   { path: '', component: WelcomePage, pathMatch: 'full' },
@@ -34,6 +35,7 @@ export const routes: Routes = [
       { path: 'orders/:orderId', component: OrderDetailsPage, canActivate: [customerAuthGuard] },
       { path: 'wishlist', component: WishlistPage },
       { path: 'auth', component: CustomerAuthPage },
+      { path: 'payment-return', component: PaymentReturnPage },
       { path: 'feedback', component: FeedbackPage },
       { path: 'account', component: AccountPage, canActivate: [customerAuthGuard], children: [
         { path: '', redirectTo: 'profile', pathMatch: 'full' },

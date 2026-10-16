@@ -1,5 +1,5 @@
 import { InjectionToken } from '@angular/core';
-import { AvailabilityRequest, CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer, StorefrontReturnRequest } from '../models/storefront.models';
+import { AvailabilityRequest, CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer, StorefrontPaymentReturn, StorefrontReturnRequest } from '../models/storefront.models';
 
 export interface StorefrontDataProvider {
   getStore(storeKey: string): Promise<Store | null>;
@@ -22,7 +22,10 @@ export interface StorefrontDataProvider {
   uploadProfileImage(storeKey: string, file: File): Promise<void>;
   removeProfileImage(storeKey: string): Promise<void>;
   checkout(storeKey: string, customer: CheckoutCustomer, lines: readonly CartLine[], idempotencyKey: string, paymentMethod: string): Promise<CheckoutResult>;
+  getPaymentReturn(storeKey: string, orderId: string): Promise<StorefrontPaymentReturn | null>;
+  retryPayment(storeKey:string,orderId:string):Promise<CheckoutResult|null>;
   requestAvailability(storeKey:string, productId:string, mobile?:string, consentGiven?:boolean): Promise<AvailabilityRequest>;
+  getAvailability(storeKey:string, productId:string): Promise<AvailabilityRequest|null>;
   cancelAvailability(storeKey:string, productId:string): Promise<void>;
   requestMissingProduct(storeKey:string, keyword:string, mobile?:string, remarks?:string): Promise<void>;
 }

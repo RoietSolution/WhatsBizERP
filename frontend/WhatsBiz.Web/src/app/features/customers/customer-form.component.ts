@@ -45,7 +45,14 @@ import { WhatsAppApiService } from '../whatsapp/whatsapp-api.service';
       footer {
         display: flex;
         justify-content: flex-end;
+        align-items: center;
+        gap: 1rem;
         padding: 1rem;
+      }
+      .save-error {
+        margin: 0;
+        color: #b42318;
+        font-size: 0.9rem;
       }
       @media (max-width: 800px) {
         .grid {
@@ -66,6 +73,8 @@ export class CustomerFormComponent {
   readonly whatsappContactId: string | null;
   readonly terms = signal<PaymentTerm[]>([]);
   readonly groups = signal<CustomerGroup[]>([]);
+  readonly saving = signal(false);
+  readonly saveError = signal('');
   readonly form = this.fb.group({
     customerCode: ['', Validators.required],
     customerName: ['', Validators.required],
@@ -139,7 +148,9 @@ export class CustomerFormComponent {
     );
   }
   save() {
-    if (this.form.invalid) return;
+    if (this.form.invalid || this.saving()) return;
+    this.saveError.set('');
+    this.saving.set(true);
     const v = this.form.getRawValue();
     const clean = (x: string | null | undefined) => x || undefined;
     const input = {
@@ -160,11 +171,16 @@ export class CustomerFormComponent {
     } as unknown as CustomerInput;
     (this.id ? this.api.update(this.id, input) : this.api.create(input)).subscribe({
       next: (x) => {
+        this.saving.set(false);
         this.snack.open('Customer saved.', undefined, { duration: 2500 });
         if(this.whatsappContactId)this.whatsappApi.linkContact(this.whatsappContactId,x.customerId).subscribe({next:()=>void this.router.navigate(['/customers/whatsapp-contacts']),error:()=>{this.snack.open('Customer was created, but the WhatsApp contact could not be linked. Link it manually from WhatsApp Contacts.','Dismiss',{duration:6000});void this.router.navigate(['/customers',x.customerId]);}});
         else void this.router.navigate(['/customers', x.customerId]);
       },
-      error: () => this.snack.open('Customer could not be saved.', 'Dismiss', { duration: 5000 }),
+      error: (e) => {
+        this.saving.set(false);
+        this.saveError.set(e?.error?.detail ?? e?.error?.message ?? 'Customer could not be saved. Review the highlighted values and try again.');
+        this.snack.open(this.saveError(), 'Dismiss', { duration: 5000 });
+      },
     });
   }
 }

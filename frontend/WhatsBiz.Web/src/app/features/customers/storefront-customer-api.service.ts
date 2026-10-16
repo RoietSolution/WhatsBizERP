@@ -14,6 +14,7 @@ export interface StorefrontCustomerDetail {
   searchHistory?: { keyword: string; outcome: string; createdAtUtc: string }[];
   wishlist?: { productId: string; productName: string; sellingPrice: number; savedAt: string }[];
 }
+export interface StorefrontBlacklistEntry { blacklistId: string; normalizedPhone: string; reason: string; isActive: boolean; blockedBy?: string; blockedAtUtc: string; unblockedBy?: string; unblockedAtUtc?: string; }
 
 @Injectable({ providedIn: 'root' })
 export class StorefrontCustomerApiService {
@@ -23,4 +24,7 @@ export class StorefrontCustomerApiService {
     return this.http.get<StorefrontCustomerPage>('/api/storefront-customers', { params });
   }
   get(id: string) { return this.http.get<StorefrontCustomerDetail>(`/api/storefront-customers/${id}`); }
+  blacklistForPhone(phone: string) { return this.http.get<{ items: StorefrontBlacklistEntry[] }>('/api/storefront-customer-blacklist', { params: new HttpParams().set('activeOnly', false).set('search', phone).set('pageNumber', 1).set('pageSize', 20) }); }
+  block(phone: string, reason: string) { return this.http.post<StorefrontBlacklistEntry>('/api/storefront-customer-blacklist', { phone, reason }); }
+  unblock(id: string) { return this.http.post<void>(`/api/storefront-customer-blacklist/${id}/unblock`, {}); }
 }

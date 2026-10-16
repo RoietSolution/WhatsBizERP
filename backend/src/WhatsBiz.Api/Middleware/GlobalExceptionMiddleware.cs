@@ -56,7 +56,11 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
         }
         catch (DbUpdateConcurrencyException exception)
         {
-            LogRequest(context, started, 409, exception); await WriteProblemAsync(context, StatusCodes.Status409Conflict, "The record was changed by another user", ["This record was changed or removed before it could be saved. Refresh the product and try again."]);
+            LogRequest(context, started, 409, exception);
+            var detail = context.Request.Path.StartsWithSegments("/api/customers")
+                ? "This customer was changed by another user. Refresh the customer and try again."
+                : "This record was changed or removed before it could be saved. Refresh the record and try again.";
+            await WriteProblemAsync(context, StatusCodes.Status409Conflict, "The record was changed by another user", [detail]);
         }
         catch (DbUpdateException exception)
         {
@@ -65,6 +69,8 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
                 ? "A product with the same product code, barcode, or additional barcode already exists for this retailer."
                 : IsUniqueConstraint(exception) && context.Request.Path.StartsWithSegments("/api/warehouses")
                 ? "A warehouse with the same code, name, or default setting already exists for this retailer."
+                : IsUniqueConstraint(exception) && context.Request.Path.StartsWithSegments("/api/customers")
+                ? "A customer with the same mobile, code, name, or GSTIN already exists for this retailer."
                 : IsUniqueConstraint(exception)
                 ? "A record with the same unique value already exists. Check the supplier code or GSTIN and try again."
                 : context.Request.Path.StartsWithSegments("/api/suppliers")

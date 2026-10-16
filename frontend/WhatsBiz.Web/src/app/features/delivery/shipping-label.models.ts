@@ -1,4 +1,4 @@
-export type ShippingLabelFormat = 'COURIER_4X6' | 'A5' | 'A4_SINGLE' | 'A4_DOUBLE' | 'THERMAL_80' | 'THERMAL_58';
+export type ShippingLabelFormat = 'COURIER_4X6' | 'A5' | 'A4_SINGLE' | 'A4_4UP' | 'A4_DOUBLE' | 'THERMAL_80' | 'THERMAL_58';
 export interface StorefrontShippingLabelItem { productName: string; sku?: string; variant?: string; quantity: number; }
 
 export interface StorefrontShippingLabel {
@@ -17,6 +17,10 @@ export interface StorefrontShippingLabel {
   senderAddress: string;
   senderPhone?: string;
   senderEmail?: string;
+  fulfillmentMethod?: string;
+  courierName?: string;
+  trackingNumber?: string;
+  deliveryAgentName?: string;
   senderLogoUrl?: string;
   retailerDisplayName?: string;
   deliveryLocality?: string;

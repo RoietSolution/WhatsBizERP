@@ -16,10 +16,13 @@ public sealed record StorefrontOfferDto(Guid OfferId, string Title, string? Bann
 public sealed record StorefrontImage(string ContentType, byte[] Content);
 public sealed record StorefrontCheckoutItem(Guid ProductId, decimal Quantity);
 public sealed record StorefrontCheckoutInput(string CustomerName, string Mobile, string? Email, string Pincode,
-    string DeliveryAddress, IReadOnlyCollection<StorefrontCheckoutItem> Items, string PaymentMethod = "", string? PromoCode = null);
+    string DeliveryAddress, IReadOnlyCollection<StorefrontCheckoutItem> Items, string PaymentMethod = "", string? PromoCode = null,
+    string? RecipientName = null, string? AddressLine1 = null, string? AddressLine2 = null, string? Landmark = null,
+    string? City = null, string? District = null, string? State = null, string? Country = "India");
 public sealed record StorefrontCheckoutResult(Guid OrderId, string OrderNumber, decimal Amount,
     string Currency, Guid PaymentId, string? CheckoutUrl, string PaymentProvider, string PaymentStatus, string? CustomerMessage,
     string? CustomerSessionToken, string PaymentMethod = "COD");
+public sealed record StorefrontPaymentReturnDto(Guid OrderId, string OrderNumber, Guid PaymentId, string PaymentStatus, string CustomerMessage, string? RetryUrl = null);
 
 public interface IStorefrontService
 {
@@ -35,11 +38,12 @@ public interface IStorefrontService
 
 public sealed record StorefrontBannerAdminDto(string Slot, bool IsEnabled, DateTimeOffset? StartsAt, DateTimeOffset? EndsAt,
     string? Title, string? Subtitle, string? TargetUrl, int DisplayOrder, string? ImageUrl, Guid? PromotionId = null);
-public sealed record StorefrontAdminDto(string StoreName, string? LogoUrl, bool DeliveryEnabled, decimal StandardDeliveryCharge, bool FreeDeliveryEnabled, decimal? FreeDeliveryThreshold, bool ShowProductRatings, bool ShowProductReviews, int DefaultReturnWindowDays, IReadOnlyCollection<StorefrontBannerAdminDto> Banners, IReadOnlyCollection<StorefrontPincodeDto> ServiceablePincodes, IReadOnlyCollection<StorefrontPromotionDto> Promotions, string? AllCategoryImageUrl = null, bool ShowProductDetailsOnShippingLabel = true);
+public sealed record StorefrontAdminDto(string StoreName, string? LogoUrl, bool DeliveryEnabled, decimal StandardDeliveryCharge, bool FreeDeliveryEnabled, decimal? FreeDeliveryThreshold, bool ShowProductRatings, bool ShowProductReviews, int DefaultReturnWindowDays, IReadOnlyCollection<StorefrontBannerAdminDto> Banners, IReadOnlyCollection<StorefrontPincodeDto> ServiceablePincodes, IReadOnlyCollection<StorefrontPromotionDto> Promotions, string? AllCategoryImageUrl = null, bool ShowProductDetailsOnShippingLabel = true, bool NewOrderEmailNotificationsEnabled = false, string? NewOrderNotificationEmail = null, bool RestockWhatsAppNotificationsEnabled = false, string? RestockWhatsAppTemplateName = null, string DeliveryCoverageMode = "ALLOWLIST", string AutomatedEmailMode = "KHATADHARI_DEFAULT", string? NotificationSenderDisplayName = null, string? NotificationReplyToEmail = null, string? CustomSmtpHost = null, int? CustomSmtpPort = null, string? CustomSmtpSecurityMode = null, string? CustomSmtpUsername = null, string? CustomSmtpFromEmail = null, bool HasCustomSmtpPassword = false);
+public sealed record UpdateAutomatedNotificationSettingsInput(bool NewOrderEmailNotificationsEnabled, string? NewOrderNotificationEmail, bool RestockWhatsAppNotificationsEnabled, string? RestockWhatsAppTemplateName, string AutomatedEmailMode = "KHATADHARI_DEFAULT", string? NotificationSenderDisplayName = null, string? NotificationReplyToEmail = null, string? CustomSmtpHost = null, int? CustomSmtpPort = null, string? CustomSmtpSecurityMode = null, string? CustomSmtpUsername = null, string? CustomSmtpPassword = null, string? CustomSmtpFromEmail = null, bool RemoveCustomSmtpPassword = false);
 public sealed record UpdateStorefrontReviewSettingsInput(bool ShowProductRatings, bool ShowProductReviews);
 public sealed record UpdateStorefrontShippingLabelSettingsInput(bool ShowProductDetailsOnShippingLabel);
-public sealed record UpdateStorefrontDeliverySettingsInput(bool DeliveryEnabled, decimal StandardDeliveryCharge, bool FreeDeliveryEnabled, decimal? FreeDeliveryThreshold, int DefaultReturnWindowDays = 7);
-public sealed record StorefrontPincodeDto(string Pincode, bool IsActive);
+public sealed record UpdateStorefrontDeliverySettingsInput(bool DeliveryEnabled, decimal StandardDeliveryCharge, bool FreeDeliveryEnabled, decimal? FreeDeliveryThreshold, int DefaultReturnWindowDays = 7, string DeliveryCoverageMode = "ALLOWLIST");
+public sealed record StorefrontPincodeDto(string Pincode, bool IsActive, bool IsExcluded = false);
 public sealed record StorefrontPromotionDto(Guid PromotionId, string OfferName, string OfferType, decimal MinimumPurchaseAmount, string DiscountType, decimal DiscountValue, decimal? MaximumDiscount, DateTimeOffset? StartsAt, DateTimeOffset? EndsAt, bool IsActive, int? UsageLimitPerCustomer, string? ShortDescription = null, string? DetailedDescription = null, string? TermsAndConditions = null, string? PromoCode = null, string? CtaLabel = null, string? EligibleItemsDescription = null);
 public sealed record SaveStorefrontPromotionInput(string OfferName, string OfferType, decimal MinimumPurchaseAmount, string DiscountType, decimal DiscountValue, decimal? MaximumDiscount, DateTimeOffset? StartsAt, DateTimeOffset? EndsAt, bool IsActive, int? UsageLimitPerCustomer, string? ShortDescription = null, string? DetailedDescription = null, string? TermsAndConditions = null, string? PromoCode = null, string? CtaLabel = null, string? EligibleItemsDescription = null);
 public sealed record UpdateStorefrontBannerInput(bool IsEnabled, DateTimeOffset? StartsAt, DateTimeOffset? EndsAt,
@@ -52,6 +56,8 @@ public interface IStorefrontAdministrationService
     Task UpdateReviewSettingsAsync(UpdateStorefrontReviewSettingsInput input, CancellationToken token);
     Task UpdateShippingLabelSettingsAsync(UpdateStorefrontShippingLabelSettingsInput input, CancellationToken token);
     Task UpdateDeliverySettingsAsync(UpdateStorefrontDeliverySettingsInput input, CancellationToken token);
+    Task UpdateAutomatedNotificationSettingsAsync(UpdateAutomatedNotificationSettingsInput input, CancellationToken token);
+    Task SendNotificationTestEmailAsync(CancellationToken token);
     Task SavePincodeAsync(StorefrontPincodeDto input, CancellationToken token);
     Task RemovePincodeAsync(string pincode, CancellationToken token);
     Task<StorefrontPromotionDto> SavePromotionAsync(Guid? id, SaveStorefrontPromotionInput input, CancellationToken token);
@@ -126,21 +132,37 @@ public sealed record StorefrontAvailabilityRequestInput(string? Mobile, string? 
 public sealed record StorefrontMissingProductRequestInput(string Keyword, string? Mobile, string? Remarks = null, string? AnonymousSessionId = null, Guid? SearchEventId = null);
 public sealed record StorefrontFeedbackInput(string FeedbackType, string Category, string Subject, string Description, Guid? OrderId = null, string? GuestName = null, string? GuestMobile = null);
 public sealed record StorefrontFeedbackTicketDto(Guid TicketId, string TicketReference, string FeedbackType, string Category, string Subject, string Description, Guid? OrderId, string Priority, string Status, string? CustomerVisibleReply, DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc, string? CustomerName = null, string? CustomerMobile = null);
-public sealed record StorefrontFeedbackActivityDto(string ActivityType, string? FromStatus, string? ToStatus, string? CustomerReply, DateTimeOffset CreatedAtUtc);
+public sealed record StorefrontFeedbackActivityDto(string ActivityType, string? FromStatus, string? ToStatus, string? CustomerReply, DateTimeOffset CreatedAtUtc, string? InternalNote = null);
 public sealed record StorefrontFeedbackTicketDetailDto(StorefrontFeedbackTicketDto Ticket, IReadOnlyCollection<StorefrontFeedbackActivityDto> Activity);
 public sealed record UpdateStorefrontFeedbackInput(string? Status = null, string? Priority = null, Guid? AssignedTo = null, string? CustomerReply = null, string? InternalNote = null);
-public sealed record StorefrontFeedbackPageDto(IReadOnlyCollection<StorefrontFeedbackTicketDto> Items, int TotalCount, int PageNumber, int PageSize, int OpenCount, int PendingCount);
+public sealed record StorefrontFeedbackPageDto(IReadOnlyCollection<StorefrontFeedbackTicketDto> Items, int TotalCount, int PageNumber, int PageSize, int OpenCount, int PendingCount, int ResolvedCount = 0, int ClosedCount = 0, int HighPriorityCount = 0, int OverdueCount = 0);
+public sealed record StorefrontFeedbackNotificationDto(Guid Id, Guid TicketId, string TicketReference, string Title, string Message, bool IsRead, DateTimeOffset CreatedAtUtc, string RecipientType);
+public sealed record StorefrontFeedbackAttachmentDto(Guid AttachmentId, string FileName, string ContentType, long SizeBytes, string ScanStatus, DateTimeOffset CreatedAtUtc);
+public sealed record StorefrontFeedbackDeliveryStatusDto(string Channel, string Status, int AttemptCount, string? ErrorCategory, DateTimeOffset? LastAttemptAtUtc);
 public sealed record StorefrontBlacklistDto(Guid BlacklistId, string NormalizedPhone, string Reason, bool IsActive, string? BlockedBy, DateTimeOffset BlockedAtUtc, string? UnblockedBy, DateTimeOffset? UnblockedAtUtc);
 public sealed record StorefrontBlacklistInput(string Phone, string Reason);
 public sealed record StorefrontBlacklistPageDto(IReadOnlyCollection<StorefrontBlacklistDto> Items, int TotalCount, int PageNumber, int PageSize);
 public interface IStorefrontFeedbackService
 {
+    Task<Guid?> ResolveTenantAsync(string storeKey, CancellationToken token);
     Task<StorefrontFeedbackTicketDto> SubmitAsync(string storeKey, string? sessionToken, StorefrontFeedbackInput input, CancellationToken token);
     Task<IReadOnlyCollection<StorefrontFeedbackTicketDto>?> CustomerTicketsAsync(string storeKey, string sessionToken, CancellationToken token);
     Task<StorefrontFeedbackTicketDetailDto?> CustomerTicketAsync(string storeKey, string sessionToken, Guid ticketId, CancellationToken token);
-    Task<StorefrontFeedbackPageDto> SearchAsync(Guid tenantId, string? search, string? status, string? priority, int pageNumber, int pageSize, CancellationToken token);
+    Task<StorefrontFeedbackPageDto> SearchAsync(Guid tenantId, string? search, string? feedbackType, string? status, string? priority, int pageNumber, int pageSize, CancellationToken token);
     Task<StorefrontFeedbackTicketDetailDto?> GetAsync(Guid tenantId, Guid ticketId, bool includeInternal, CancellationToken token);
     Task<StorefrontFeedbackTicketDetailDto> UpdateAsync(Guid tenantId, Guid actorUserId, Guid ticketId, UpdateStorefrontFeedbackInput input, CancellationToken token);
+    Task<IReadOnlyCollection<StorefrontFeedbackNotificationDto>> NotificationsAsync(Guid tenantId, Guid? customerId, CancellationToken token);
+    Task<bool> MarkNotificationReadAsync(Guid tenantId, Guid notificationId, Guid? customerId, CancellationToken token);
+    Task<int> MarkAllNotificationsReadAsync(Guid tenantId, Guid? customerId, CancellationToken token);
+    Task<IReadOnlyCollection<StorefrontFeedbackAttachmentDto>> AttachmentsAsync(Guid tenantId, Guid ticketId, Guid? customerId, bool includeInternal, CancellationToken token);
+    Task<StorefrontFeedbackAttachmentDownload?> ReadAttachmentAsync(Guid tenantId, Guid ticketId, Guid attachmentId, Guid? customerId, bool includeInternal, CancellationToken token);
+    Task<StorefrontFeedbackAttachmentDto> AddAttachmentAsync(Guid tenantId, Guid ticketId, Guid? customerId, bool includeInternal, string fileName, string contentType, byte[] content, CancellationToken token);
+}
+public sealed record StorefrontFeedbackAttachmentDownload(byte[] Content, string ContentType, string FileName);
+public enum StorefrontAttachmentScanResult { Pending, Clean, Infected, Failed }
+public interface IStorefrontFeedbackAttachmentScanner
+{
+    Task<StorefrontAttachmentScanResult> ScanAsync(byte[] content, CancellationToken token);
 }
 public interface IStorefrontCustomerBlacklistService
 {
@@ -183,6 +205,7 @@ public interface ICustomerDemandService
 {
     Task<CustomerDemandSummaryDto> RecordSearchAsync(string storeKey, string? sessionToken, StorefrontSearchEventInput input, CancellationToken token);
     Task<StorefrontAvailabilityRequestDto> RequestAvailabilityAsync(string storeKey, Guid productId, string? sessionToken, StorefrontAvailabilityRequestInput input, CancellationToken token);
+    Task<StorefrontAvailabilityRequestDto?> GetAvailabilityAsync(string storeKey, Guid productId, string sessionToken, CancellationToken token);
     Task<bool> CancelAvailabilityAsync(string storeKey, Guid productId, string sessionToken, CancellationToken token);
     Task<CustomerDemandMissingDto> RequestMissingProductAsync(string storeKey, string? sessionToken, StorefrontMissingProductRequestInput input, CancellationToken token);
     Task<CustomerDemandSummaryDto> SummaryAsync(Guid tenantId, DateTimeOffset from, DateTimeOffset until, CancellationToken token);
@@ -205,6 +228,14 @@ public interface IStorefrontCheckoutService
     Task<StorefrontCartQuoteDto?> QuoteAsync(string storeKey, StorefrontCartQuoteInput input, string? customerSessionToken, CancellationToken token);
     Task<StorefrontCheckoutResult> CheckoutAsync(string storeKey, StorefrontCheckoutInput input,
         string idempotencyKey, string? customerSessionToken, CancellationToken token);
+    Task<StorefrontPaymentReturnDto?> GetPaymentStatusAsync(string storeKey, Guid orderId,
+        string? customerSessionToken, CancellationToken token);
+    Task<StorefrontCheckoutResult?> RetryPaymentAsync(string storeKey, Guid orderId, string? customerSessionToken, CancellationToken token);
+}
+
+public interface IStorefrontAutomatedNotificationService
+{
+    Task QueueOrderEmailAsync(Guid tenantId, Guid orderId, CancellationToken token);
 }
 
 public sealed record StorefrontReviewDto(Guid ReviewId, string ReviewerName, int Rating, string ReviewText, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, bool IsOwn);

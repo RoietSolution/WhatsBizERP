@@ -67,11 +67,47 @@
             ><input matInput name="city" [(ngModel)]="model()!.city" /></mat-form-field
           ><mat-form-field appearance="outline"
             ><mat-label>State</mat-label
-            ><input matInput name="state" [(ngModel)]="model()!.state" /></mat-form-field
+            ><mat-select name="state" [(ngModel)]="model()!.state" (ngModelChange)="stateChanged($event)">
+              @for (state of stateOptions(); track state.name) {
+                <mat-option [value]="state.name">{{ state.name }}</mat-option>
+              }
+            </mat-select></mat-form-field
           ><mat-form-field appearance="outline"
             ><mat-label>State Code</mat-label
-            ><input matInput name="stateCode" [(ngModel)]="model()!.stateCode"
-          /></mat-form-field></div></app-form-section
+            ><input
+              matInput
+              #stateCode="ngModel"
+              name="stateCode"
+              maxlength="2"
+              inputmode="numeric"
+              pattern="[0-9]{2}"
+              [(ngModel)]="model()!.stateCode"
+            />
+            @if (stateCode.invalid && (stateCode.dirty || stateCode.touched)) {
+              <mat-error>State code must be exactly two digits.</mat-error>
+            }
+          </mat-form-field></div></app-form-section
+      ><app-form-section
+        title="Shipping Address"
+        description="The PIN Code is used for shipping labels and return addresses."
+        icon="local_shipping"
+        ><div class="fields">
+          <mat-form-field appearance="outline"
+            ><mat-label>PIN Code</mat-label
+            ><input
+              matInput
+              #postalCode="ngModel"
+              name="postalCode"
+              maxlength="6"
+              inputmode="numeric"
+              pattern="[0-9]{6}"
+              [(ngModel)]="model()!.postalCode"
+            />
+            @if (postalCode.invalid && (postalCode.dirty || postalCode.touched)) {
+              <mat-error>PIN Code must be exactly six digits.</mat-error>
+            }
+          </mat-form-field>
+        </div></app-form-section
       ><app-form-section
         title="Banking & Documents"
         description="Default settlement account and invoice content."
@@ -106,8 +142,8 @@
       ></app-form-section>
       <footer>
         <span>Changes are recorded in Audit History.</span
-        ><button mat-flat-button color="primary" [disabled]="form.invalid">
-          <span class="material-symbols-rounded">save</span>Save Company
+        ><button mat-flat-button color="primary" [disabled]="form.invalid || saving()">
+          <span class="material-symbols-rounded">save</span>{{ saving() ? 'Saving...' : 'Save Company' }}
         </button>
       </footer>
     </form>

@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { AvailabilityRequest, CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer } from '../models/storefront.models';
+import { AvailabilityRequest, CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer, StorefrontPaymentReturn } from '../models/storefront.models';
 import { StorefrontDataProvider } from './storefront-data.provider';
 import { CustomerSessionService } from '../customer-session.service';
 
@@ -70,7 +70,10 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
       items: lines.map((line) => ({ productId: line.product.id, quantity: line.quantity })),
     }, { headers: { 'Idempotency-Key': idempotencyKey, ...(this.session.token(storeKey) ? { 'X-Customer-Session': this.session.token(storeKey) } : {}) } }));
   }
+  async getPaymentReturn(storeKey:string,orderId:string):Promise<StorefrontPaymentReturn|null>{const token=this.session.token(storeKey);if(!token)return null;try{return await firstValueFrom(this.http.get<StorefrontPaymentReturn>(`${this.url(storeKey)}/orders/${encodeURIComponent(orderId)}/payment-status`,{headers:{'X-Customer-Session':token}}));}catch(error){if(error instanceof HttpErrorResponse&&(error.status===401||error.status===404))return null;throw error;}}
+  async retryPayment(storeKey:string,orderId:string):Promise<CheckoutResult|null>{const token=this.session.token(storeKey);if(!token)return null;return await firstValueFrom(this.http.post<CheckoutResult>(`${this.url(storeKey)}/orders/${encodeURIComponent(orderId)}/payment-retry`,{}, {headers:{'X-Customer-Session':token}}));}
   async requestAvailability(storeKey:string,productId:string,mobile?:string,consentGiven=false):Promise<AvailabilityRequest>{const token=this.session.token(storeKey);return await firstValueFrom(this.http.post<AvailabilityRequest>(`${this.url(storeKey)}/products/${productId}/availability-request`,{mobile:mobile||null,preferredChannel:'WHATSAPP',consentGiven},{headers:token?{'X-Customer-Session':token}:{}}));}
+  async getAvailability(storeKey:string,productId:string):Promise<AvailabilityRequest|null>{const token=this.session.token(storeKey);if(!token)return null;try{return await firstValueFrom(this.http.get<AvailabilityRequest>(`${this.url(storeKey)}/products/${productId}/availability-request`,{headers:{'X-Customer-Session':token}}));}catch(error:any){if(error?.status===404)return null;throw error;}}
   async cancelAvailability(storeKey:string,productId:string):Promise<void>{const token=this.session.token(storeKey);await firstValueFrom(this.http.delete(`${this.url(storeKey)}/products/${productId}/availability-request`,{headers:token?{'X-Customer-Session':token}:{}}));}
   async requestMissingProduct(storeKey:string,keyword:string,mobile?:string,remarks?:string):Promise<void>{const token=this.session.token(storeKey);await firstValueFrom(this.http.post(`${this.url(storeKey)}/missing-product-requests`,{keyword,mobile:mobile||null,remarks:remarks||null,anonymousSessionId:null},{headers:token?{'X-Customer-Session':token}:{}}));}
 

@@ -77,7 +77,10 @@ export class DevelopmentStorefrontDataProvider implements StorefrontDataProvider
   async checkout(_storeKey: string, _customer: CheckoutCustomer, lines: readonly CartLine[], _idempotencyKey: string, paymentMethod: string): Promise<CheckoutResult> {
     const quote=await this.quote(_storeKey,lines,_customer.pincode);if(!quote?.isPincodeServiceable)throw new Error('Delivery is unavailable at this pincode.');return { orderId: crypto.randomUUID(), orderNumber: 'MOCK-ORDER', amount: quote.finalPayableAmount, currency: 'INR', paymentId: crypto.randomUUID(), paymentProvider: paymentMethod === "COD" ? "COD" : "RAZORPAY", paymentMethod, paymentStatus:'PENDING', customerSessionToken:'development-session' };
   }
+  async getPaymentReturn(_storeKey:string,_orderId:string):Promise<import('../models/storefront.models').StorefrontPaymentReturn|null>{return null;}
+  async retryPayment(_storeKey:string,_orderId:string):Promise<CheckoutResult|null>{return null;}
   async requestAvailability(_storeKey:string,productId:string):Promise<import('../models/storefront.models').AvailabilityRequest>{return {id:crypto.randomUUID(),productId,status:'ACTIVE',requestedAtUtc:new Date().toISOString()};}
+  async getAvailability(_storeKey:string,_productId:string):Promise<import('../models/storefront.models').AvailabilityRequest|null>{return null;}
   async cancelAvailability(_storeKey:string,_productId:string):Promise<void>{}
   async requestMissingProduct(_storeKey:string,_keyword:string,_mobile?:string,_remarks?:string):Promise<void>{}
 }

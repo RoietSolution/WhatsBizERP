@@ -25,6 +25,16 @@ public sealed class StorefrontFeedbackAndBlacklistArchitectureTests
     }
 
     [Fact]
+    public void FeedbackMenuAndRouteUseTheSameFeatureAndPermissionAsTheApi()
+    {
+        var sidebar = File.ReadAllText(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../..", "frontend/WhatsBiz.Web/src/app/shared/layout/sidebar/sidebar.component.ts")));
+        var routes = File.ReadAllText(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../..", "frontend/WhatsBiz.Web/src/app/app.routes.ts")));
+        sidebar.Should().Contain("route: '/storefront/feedback', permission: 'customer.feedback.manage', feature: 'STOREFRONT_FEEDBACK'");
+        routes.Should().Contain("permission: 'customer.feedback.manage', feature: 'STOREFRONT_FEEDBACK'");
+        sidebar.IndexOf("Storefront Orders", StringComparison.Ordinal).Should().BeLessThan(sidebar.IndexOf("Feedback & Complaints", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void CheckoutChecksTenantBlacklistAfterResolvingVerifiedCustomerIdentity()
     {
         var checkout = File.ReadAllText(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../..", "backend/src/WhatsBiz.Infrastructure/Storefront/StorefrontCheckoutService.cs")));

@@ -16,6 +16,10 @@ public static class NotificationDependencyInjection
         services.AddSingleton<ICustomerMessageProvider, WhatsAppProvider>();
         services.AddSingleton<ICustomerMessageProvider, SmsProvider>();
         services.AddHostedService<CustomerNotificationWorker>();
+        services.AddOptions<StorefrontFeedbackNotificationOptions>()
+            .Bind(configuration.GetSection(StorefrontFeedbackNotificationOptions.SectionName));
+        services.AddHostedService<StorefrontFeedbackNotificationWorker>();
+        services.AddHostedService<StorefrontAutomatedNotificationWorker>();
         return services;
     }
 }

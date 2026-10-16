@@ -249,5 +249,19 @@ try{
  $repositoryCatalog=Get-DatabaseMigrationCatalog (Join-Path (Split-Path -Parent $PSScriptRoot) '..\database\migrations')
  $v48=@($repositoryCatalog|Where-Object Version -eq 48)
  Assert-True ($v48.Count -eq 1 -and $v48[0].ValidatorPath -and $v48[0].ValidatorHash) 'V48 tenant-scoped warehouse migration and validator are discovered'
+ # 28 shared pending-migration preflight validates validator safety before backup.
+ $preflightRoot=Join-Path $root 'preflight';New-Item -ItemType Directory $preflightRoot|Out-Null
+ $migrationPath=Join-Path $preflightRoot 'V41-Preflight.sql';$validatorPath=Join-Path $preflightRoot 'V41-Preflight.validate.sql'
+ 'SELECT 1;'|Set-Content $migrationPath; 'SELECT 1;'|Set-Content $validatorPath
+ $safeMigration=[pscustomobject]@{Version=41;Name='Preflight';FileName='V41-Preflight.sql';Path=$migrationPath;Hash=(Get-DatabaseMigrationHash $migrationPath);ValidatorPath=$validatorPath;ValidatorHash=(Get-DatabaseMigrationHash $validatorPath)}
+ $safePreflight=Assert-DatabaseMigrationPreflight -Migrations @($safeMigration) -Pending @($safeMigration) -BaselineVersion 40
+ Assert-True ($safePreflight.Status -eq 'PASS') 'safe validator is accepted by shared preflight'
+ 'UPDATE dbo.TestTable SET Value=1;'|Set-Content $validatorPath
+ $unsafeMigration=$safeMigration.PSObject.Copy();$unsafeMigration.ValidatorHash=Get-DatabaseMigrationHash $validatorPath
+ Assert-Throws {Assert-DatabaseMigrationPreflight -Migrations @($unsafeMigration) -Pending @($unsafeMigration) -BaselineVersion 40} 'write-capable validator blocks shared preflight'
+ Assert-DatabaseMigrationValidatorReadOnly "SELECT N'UPDATE DELETE INSERT CREATE'; -- UPDATE $([Environment]::NewLine) /* DELETE */ $([Environment]::NewLine) SELECT 1;" 'comment-and-string-fixture.validate.sql'
+ Assert-True $true 'comments and string literals do not cause false positives'
+ Assert-True ($runnerSource.LastIndexOf('Assert-DatabaseMigrationPreflight') -lt $runnerSource.LastIndexOf('Invoke-BackupGate $pending')) 'actual deployment preflight precedes backup creation'
+ Assert-True ($runnerSource -match 'Preflight: FAIL' -and $runnerSource -match 'DATABASE CHANGES: NONE') 'preflight failure is reported without database-change messaging'
  Write-Host "Focused migration-framework tests passed: $script:passed"
 }finally{Remove-Item -LiteralPath $root -Recurse -Force}

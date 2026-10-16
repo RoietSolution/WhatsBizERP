@@ -97,6 +97,14 @@ export interface CheckoutCustomer {
   email?: string;
   deliveryAddress: string;
   pincode: string;
+  recipientName?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  landmark?: string;
+  city?: string;
+  district?: string;
+  state?: string;
+  country?: string;
   promoCode?: string;
 }
 
@@ -113,6 +121,7 @@ export interface CheckoutResult {
   customerSessionToken?: string;
   paymentMethod: string;
 }
+export interface StorefrontPaymentReturn { orderId:string; orderNumber:string; paymentId:string; paymentStatus:string; customerMessage:string; retryUrl?:string|null; }
 
 export interface ProductReview { reviewId:string; reviewerName:string; rating:number; reviewText:string; createdAt:string; updatedAt:string; isOwn:boolean; }
 export interface ProductReviewSummary { averageRating?:number; ratingCount:number; reviews:ProductReview[]; }

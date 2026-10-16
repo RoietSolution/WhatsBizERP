@@ -28,4 +28,7 @@ public sealed class DeliveryManagementTests
     [Fact] public void Failure_reasons_include_controlled_other_option()=>DeliveryFailureReasons.All.Should().Contain("Other");
     [Fact] public void Lifecycle_defines_delivery_separately_from_sales()=>new[]{DeliveryStatuses.Unassigned,DeliveryStatuses.Assigned,DeliveryStatuses.Ready,DeliveryStatuses.PickedUp,DeliveryStatuses.OutForDelivery,DeliveryStatuses.Delivered,DeliveryStatuses.Failed,DeliveryStatuses.Rescheduled,DeliveryStatuses.Cancelled,DeliveryStatuses.ReturnRequested,DeliveryStatuses.Returned}.Should().OnlyHaveUniqueItems();
     [Fact] public void Notification_keys_cover_delivery_lifecycle()=>new[]{DeliveryTemplateKeys.Assigned,DeliveryTemplateKeys.OutForDelivery,DeliveryTemplateKeys.Otp,DeliveryTemplateKeys.Delivered,DeliveryTemplateKeys.Failed,DeliveryTemplateKeys.Rescheduled}.Should().OnlyHaveUniqueItems();
+    [Fact] public void Standard_non_otp_completion_has_a_distinct_input_contract()=>new ConfirmDeliveryWithoutOtpInput("Customer received the order").Reason.Should().Be("Customer received the order");
+    [Fact] public void Standard_non_otp_completion_requires_the_existing_confirm_permission()
+    { var method=typeof(DeliveriesController).GetMethods().Single(x=>x.Name=="ConfirmWithoutOtp");method.GetCustomAttributes(typeof(HasPermissionAttribute),true).Cast<HasPermissionAttribute>().Single().Policy.Should().EndWith(Permissions.Delivery.Confirm); }
 }

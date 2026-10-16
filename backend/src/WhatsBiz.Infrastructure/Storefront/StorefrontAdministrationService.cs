@@ -4,12 +4,20 @@ using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Storefront;
 using WhatsBiz.Domain.Commerce;
 using WhatsBiz.Infrastructure.Persistence;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
+using System.Net;
+using System.Net.Mail;
+using WhatsBiz.Infrastructure.Notifications;
 
 namespace WhatsBiz.Infrastructure.Storefront;
 
 public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICurrentUserService currentUser,
-    IProductImageOptimizer optimizer, IStorefrontMediaStorage storage) : IStorefrontAdministrationService
+    IProductImageOptimizer optimizer, IStorefrontMediaStorage storage, IDataProtectionProvider protection,
+    IOptions<StorefrontFeedbackNotificationOptions> notificationOptions) : IStorefrontAdministrationService
 {
+    private const string SecretPurpose = "WhatsBiz.Storefront.CustomSmtpPassword.v61";
     private Guid Tenant => currentUser.TenantId ?? throw new Application.Common.Exceptions.UnauthorizedAccessException("A tenant context is required.");
 
     public async Task<StorefrontAdminDto> GetAsync(CancellationToken token)
@@ -23,7 +31,7 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
                 row.MediaId is null ? null : $"/api/storefront-administration/banners/{slot}/image", row.PromotionId)
             : new StorefrontBannerAdminDto(slot, false, null, null, null, null, null, slot == StorefrontBannerSlots.Primary ? 1 : 2, null)).ToArray();
         var pincodes = await db.StorefrontServiceablePincodes.AsNoTracking().Where(x => x.TenantId == tenant)
-            .OrderBy(x => x.Pincode).Select(x => new StorefrontPincodeDto(x.Pincode, x.IsActive)).ToArrayAsync(token);
+            .OrderBy(x => x.Pincode).Select(x => new StorefrontPincodeDto(x.Pincode, x.IsActive, x.IsExcluded)).ToArrayAsync(token);
         var promotions = await db.StorefrontPromotions.AsNoTracking().Where(x => x.TenantId == tenant && !x.IsDeleted)
             .OrderBy(x => x.OfferName).Select(x => new StorefrontPromotionDto(x.PromotionId, x.OfferName, x.OfferType,
                 x.MinimumPurchaseAmount, x.DiscountType, x.DiscountValue, x.MaximumDiscount, x.StartsAt, x.EndsAt,
@@ -31,7 +39,8 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
         return new(name, config?.LogoMediaId is null ? null : "/api/storefront-administration/logo",
             config?.DeliveryEnabled ?? false, config?.StandardDeliveryCharge ?? 0, config?.FreeDeliveryEnabled ?? false,
             config?.FreeDeliveryThreshold, config?.ShowProductRatings ?? true, config?.ShowProductReviews ?? true, config?.DefaultReturnWindowDays ?? 7,
-            banners, pincodes, promotions, config?.AllCategoryMediaId is null ? null : "/api/storefront-administration/categories/all/image", config?.ShowProductDetailsOnShippingLabel ?? true);
+            banners, pincodes, promotions, config?.AllCategoryMediaId is null ? null : "/api/storefront-administration/categories/all/image", config?.ShowProductDetailsOnShippingLabel ?? true,
+            config?.NewOrderEmailNotificationsEnabled ?? false, config?.NewOrderNotificationEmail, config?.RestockWhatsAppNotificationsEnabled ?? false, config?.RestockWhatsAppTemplateName, config?.DeliveryCoverageMode ?? "ALLOWLIST", config?.AutomatedEmailMode?.Equals("CUSTOM_SMTP", StringComparison.OrdinalIgnoreCase) == true ? "GMAIL" : "KHATADHARI_DEFAULT", config?.NotificationSenderDisplayName, config?.NotificationReplyToEmail, "smtp.gmail.com", 587, "STARTTLS", config?.CustomSmtpUsername, config?.AutomatedEmailMode?.Equals("CUSTOM_SMTP", StringComparison.OrdinalIgnoreCase) == true ? config?.CustomSmtpUsername : null, !string.IsNullOrWhiteSpace(config?.CustomSmtpPasswordProtected));
     }
 
     public async Task UpdateReviewSettingsAsync(UpdateStorefrontReviewSettingsInput input, CancellationToken token)
@@ -59,6 +68,8 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
     {
         if (input.DefaultReturnWindowDays < 0 || input.DefaultReturnWindowDays > 3650 || input.FreeDeliveryThreshold is < 0 or > 10000000 || input.StandardDeliveryCharge is < 0 or > 1000000) throw new BusinessRuleException("Delivery settings contain an invalid amount.");
         if (input.FreeDeliveryEnabled && input.FreeDeliveryThreshold is null or <= 0) throw new BusinessRuleException("A positive threshold is required when free delivery is enabled.");
+        var coverageMode = input.DeliveryCoverageMode?.Trim().ToUpperInvariant();
+        if (coverageMode is not ("ALLOWLIST" or "PAN_INDIA")) throw new BusinessRuleException("Choose a valid delivery coverage mode.");
         var tenant = Tenant;
         var row = await db.StorefrontConfigurations.SingleOrDefaultAsync(x => x.TenantId == tenant, token);
         if (row is null) { row = new() { TenantId = tenant, CreatedAt = DateTime.UtcNow }; db.StorefrontConfigurations.Add(row); }
@@ -66,23 +77,86 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
         row.StandardDeliveryCharge = decimal.Round(input.StandardDeliveryCharge, 2);
         row.FreeDeliveryEnabled = input.FreeDeliveryEnabled;
         row.FreeDeliveryThreshold = input.FreeDeliveryThreshold is null or 0 ? null : decimal.Round(input.FreeDeliveryThreshold.Value, 2); row.DefaultReturnWindowDays = input.DefaultReturnWindowDays;
+        row.DeliveryCoverageMode = coverageMode;
         row.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(token);
     }
+
+    public async Task UpdateAutomatedNotificationSettingsAsync(UpdateAutomatedNotificationSettingsInput input, CancellationToken token)
+    {
+        var email = string.IsNullOrWhiteSpace(input.NewOrderNotificationEmail) ? null : input.NewOrderNotificationEmail.Trim();
+        if (email is not null && (email.Length > 256 || !System.Net.Mail.MailAddress.TryCreate(email, out _)))
+            throw new BusinessRuleException("Enter a valid retailer notification email address.");
+        var template = string.IsNullOrWhiteSpace(input.RestockWhatsAppTemplateName) ? null : input.RestockWhatsAppTemplateName.Trim();
+        if (template?.Length > 100) throw new BusinessRuleException("The WhatsApp template name is too long.");
+        var mode = input.AutomatedEmailMode?.Trim().ToUpperInvariant();
+        if (mode is not ("KHATADHARI_DEFAULT" or "GMAIL")) throw new BusinessRuleException("Choose KhataDhari Email or Gmail.");
+        var replyTo = string.IsNullOrWhiteSpace(input.NotificationReplyToEmail) ? null : input.NotificationReplyToEmail.Trim();
+        if (replyTo is not null && (replyTo.Length > 256 || !MailAddress.TryCreate(replyTo, out _))) throw new BusinessRuleException("Enter a valid Reply-To email address.");
+        var senderName = string.IsNullOrWhiteSpace(input.NotificationSenderDisplayName) ? null : input.NotificationSenderDisplayName.Trim();
+        if (senderName?.Length > 150) throw new BusinessRuleException("The sender display name is too long.");
+        var host = mode == "GMAIL" ? "smtp.gmail.com" : null;
+        var security = mode == "GMAIL" ? "STARTTLS" : null;
+        var gmailAddress = string.IsNullOrWhiteSpace(input.CustomSmtpUsername) ? null : input.CustomSmtpUsername.Trim();
+        if (mode == "GMAIL" && (gmailAddress is null || gmailAddress.Length > 256 || !MailAddress.TryCreate(gmailAddress, out _)))
+            throw new BusinessRuleException("Enter the Gmail address used for the Google App Password.");
+        if (mode == "GMAIL" && !string.IsNullOrWhiteSpace(input.CustomSmtpHost) && !string.Equals(input.CustomSmtpHost.Trim(), "smtp.gmail.com", StringComparison.OrdinalIgnoreCase))
+            throw new BusinessRuleException("Only Gmail SMTP is supported for retailer-owned email.");
+        if (mode == "GMAIL" && input.CustomSmtpPort is not null && input.CustomSmtpPort != 587)
+            throw new BusinessRuleException("Gmail SMTP must use port 587.");
+        if (mode == "GMAIL" && !string.IsNullOrWhiteSpace(input.CustomSmtpSecurityMode) && !string.Equals(input.CustomSmtpSecurityMode.Trim(), "STARTTLS", StringComparison.OrdinalIgnoreCase))
+            throw new BusinessRuleException("Gmail SMTP must use STARTTLS.");
+        var from = mode == "GMAIL" ? gmailAddress : null;
+        if (input.RemoveCustomSmtpPassword && !string.IsNullOrWhiteSpace(input.CustomSmtpPassword))
+            throw new BusinessRuleException("Choose either a replacement App Password or remove the saved password.");
+        var tenant = Tenant;
+        var row = await db.StorefrontConfigurations.SingleOrDefaultAsync(x => x.TenantId == tenant, token);
+        if (row is null) { row = new() { TenantId = tenant, CreatedAt = DateTime.UtcNow }; db.StorefrontConfigurations.Add(row); }
+        if (mode == "GMAIL" && input.NewOrderEmailNotificationsEnabled && string.IsNullOrWhiteSpace(input.CustomSmtpPassword) && string.IsNullOrWhiteSpace(row.CustomSmtpPasswordProtected))
+            throw new BusinessRuleException("Enter a Google App Password before enabling Gmail order notifications.");
+        row.NewOrderEmailNotificationsEnabled = input.NewOrderEmailNotificationsEnabled;
+        row.NewOrderNotificationEmail = email;
+        row.RestockWhatsAppNotificationsEnabled = input.RestockWhatsAppNotificationsEnabled;
+        row.RestockWhatsAppTemplateName = template;
+        row.AutomatedEmailMode = mode == "GMAIL" ? "CUSTOM_SMTP" : "KHATADHARI_DEFAULT"; row.NotificationSenderDisplayName = senderName; row.NotificationReplyToEmail = replyTo;
+        row.CustomSmtpHost = host; row.CustomSmtpPort = mode == "GMAIL" ? 587 : null; row.CustomSmtpSecurityMode = security;
+        row.CustomSmtpUsername = mode == "GMAIL" ? input.CustomSmtpUsername!.Trim() : null; row.CustomSmtpFromEmail = from;
+        if (input.RemoveCustomSmtpPassword || input.CustomSmtpPassword is not null && string.IsNullOrWhiteSpace(input.CustomSmtpPassword)) row.CustomSmtpPasswordProtected = null;
+        else if (!string.IsNullOrWhiteSpace(input.CustomSmtpPassword)) row.CustomSmtpPasswordProtected = protection.CreateProtector(SecretPurpose).Protect(input.CustomSmtpPassword);
+        row.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(token);
+    }
+    public async Task SendNotificationTestEmailAsync(CancellationToken token)
+    {
+        var tenant = Tenant; var row = await db.StorefrontConfigurations.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenant, token);
+        var recipient = row?.NewOrderNotificationEmail;
+        if (string.IsNullOrWhiteSpace(recipient) || !MailAddress.TryCreate(recipient, out _)) throw new BusinessRuleException("Save a valid notification recipient before sending a test email.");
+        var mode = row?.AutomatedEmailMode ?? "KHATADHARI_DEFAULT"; var options = notificationOptions.Value;
+        var host = options.Email.Host; var port = options.Email.Port; var ssl = options.Email.EnableSsl; var user = options.Email.Username; var password = options.Email.Password; var from = options.Email.FromAddress; var name = row?.NotificationSenderDisplayName ?? options.Email.FromName; var reply = row?.NotificationReplyToEmail;
+        if (mode.Equals("CUSTOM_SMTP", StringComparison.OrdinalIgnoreCase)) { host = "smtp.gmail.com"; port = 587; ssl = true; user = row?.CustomSmtpUsername; password = string.IsNullOrWhiteSpace(row?.CustomSmtpPasswordProtected) ? null : protection.CreateProtector(SecretPurpose).Unprotect(row.CustomSmtpPasswordProtected); from = user; }
+        if ((!mode.Equals("CUSTOM_SMTP", StringComparison.OrdinalIgnoreCase) && !options.Email.Enabled) || string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(from) || mode.Equals("CUSTOM_SMTP", StringComparison.OrdinalIgnoreCase) && (string.IsNullOrWhiteSpace(password) || !options.CustomSmtpAllowedHosts.Any(x => string.Equals(x.Trim(), "smtp.gmail.com", StringComparison.OrdinalIgnoreCase)) || !string.Equals(user, from, StringComparison.OrdinalIgnoreCase) || !MailAddress.TryCreate(from, out _))) throw new BusinessRuleException("The selected email provider is not configured or approved by the platform.");
+        var addresses = await Dns.GetHostAddressesAsync(host, token); if (addresses.Length == 0 || addresses.Any(IsPrivateAddress)) throw new BusinessRuleException("The SMTP host is not allowed.");
+        using var message = new MailMessage { From = new MailAddress(from, name), Subject = "WhatsBiz storefront notification test", Body = "This is a test of the retailer-specific storefront notification email settings." }; message.To.Add(recipient); if (!string.IsNullOrWhiteSpace(reply)) message.ReplyToList.Add(new MailAddress(reply));
+        using var client = new SmtpClient(host, port) { EnableSsl = ssl, Timeout = 30000 }; if (!string.IsNullOrWhiteSpace(user)) client.Credentials = new NetworkCredential(user, password); await client.SendMailAsync(message, token);
+    }
+    private static bool IsPrivateAddress(IPAddress ip) => IPAddress.IsLoopback(ip) || ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal || ip.IsIPv4MappedToIPv6 && IsPrivateAddress(ip.MapToIPv4()) || ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && (ip.GetAddressBytes()[0] == 10 || ip.GetAddressBytes()[0] == 127 || ip.GetAddressBytes()[0] == 169 && ip.GetAddressBytes()[1] == 254 || ip.GetAddressBytes()[0] == 172 && ip.GetAddressBytes()[1] is >= 16 and <= 31 || ip.GetAddressBytes()[0] == 192 && ip.GetAddressBytes()[1] == 168);
     public async Task SavePincodeAsync(StorefrontPincodeDto input, CancellationToken token)
     {
-        if (input.Pincode?.Length != 6 || !input.Pincode.All(char.IsAsciiDigit)) throw new BusinessRuleException("Enter a valid six-digit Indian pincode.");
+        var pincode = input.Pincode?.Trim();
+        if (pincode?.Length != 6 || !pincode.All(char.IsAsciiDigit) || pincode[0] == '0') throw new BusinessRuleException("Enter a valid six-digit Indian pincode.");
         var tenant = Tenant;
-        var row = await db.StorefrontServiceablePincodes.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Pincode == input.Pincode, token);
-        if (row is null) { row = new() { TenantId = tenant, Pincode = input.Pincode }; db.StorefrontServiceablePincodes.Add(row); }
-        row.IsActive = input.IsActive; row.UpdatedAt = DateTimeOffset.UtcNow;
+        var row = await db.StorefrontServiceablePincodes.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Pincode == pincode, token);
+        if (row is null) { row = new() { TenantId = tenant, Pincode = pincode }; db.StorefrontServiceablePincodes.Add(row); }
+        row.IsActive = input.IsActive; row.IsExcluded = input.IsExcluded; row.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(token);
     }
 
     public async Task RemovePincodeAsync(string pincode, CancellationToken token)
     {
         var tenant = Tenant;
-        var row = await db.StorefrontServiceablePincodes.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Pincode == pincode, token);
+        var normalized = pincode?.Trim();
+        if (normalized?.Length != 6 || !normalized.All(char.IsAsciiDigit) || normalized[0] == '0') throw new BusinessRuleException("Enter a valid six-digit Indian pincode.");
+        var row = await db.StorefrontServiceablePincodes.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Pincode == normalized, token);
         if (row is null) throw new EntityNotFoundException("Pincode was not found.");
         db.StorefrontServiceablePincodes.Remove(row);
         await db.SaveChangesAsync(token);

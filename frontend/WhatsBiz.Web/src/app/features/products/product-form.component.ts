@@ -12,7 +12,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { catchError, finalize, forkJoin, map, of } from 'rxjs';
+import { catchError, finalize, firstValueFrom, forkJoin, map, of } from 'rxjs';
 import { BarcodeScanResult } from '../pos/barcode-camera.service';
 import { BarcodeScannerComponent } from '../pos/barcode-scanner.component';
 import { ProductApiService } from './product-api.service';
@@ -27,6 +27,8 @@ import {
   ProductSpecificationInput,
 } from './product.models';
 import { RichTextEditorComponent } from '../../shared/rich-text-editor.component';
+
+type ImageUploadState = { index: number; fileName: string; status: 'pending' | 'uploading' | 'success' | 'failed'; error?: string };
 
 @Component({
   selector: 'app-product-form',
@@ -118,6 +120,17 @@ import { RichTextEditorComponent } from '../../shared/rich-text-editor.component
       .image-tile img { width:112px; height:112px; object-fit:contain; }
       .image-tile.primary { border:2px solid var(--mat-sys-primary); }
       .image-tile small { display:block; color:var(--mat-sys-primary); font-weight:700; }
+      .image-tile { display:grid; justify-items:center; gap:0.35rem; width:130px; min-width:0; background:var(--mat-sys-surface); }
+      .image-name,.upload-file-name { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--mat-sys-on-surface-variant); font-size:0.72rem; }
+      .image-tile button { min-height:32px; }
+      .upload-summary { margin:0.75rem 0 0; color:var(--mat-sys-on-surface-variant); font-size:0.85rem; font-weight:600; }
+      .upload-status { display:grid; gap:0.4rem; max-width:340px; margin:0.75rem 0 0; padding:0; list-style:none; }
+      .upload-status li { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:0.75rem; padding:0.45rem 0.6rem; border:1px solid var(--mat-sys-outline-variant); border-radius:0.5rem; background:var(--mat-sys-surface-container-low); }
+      .upload-state { border-radius:999px; padding:0.2rem 0.5rem; font-size:0.7rem; font-weight:700; white-space:nowrap; }
+      .upload-state.pending { color:var(--mat-sys-on-surface-variant); background:var(--mat-sys-surface-container-high); }
+      .upload-state.uploading { color:var(--mat-sys-primary); background:var(--mat-sys-primary-container); }
+      .upload-state.success { color:var(--mat-sys-primary); background:var(--mat-sys-primary-container); }
+      .upload-state.failed { color:var(--mat-sys-error); background:var(--mat-sys-error-container); }
       .loading {
         display: grid;
         place-items: center;
@@ -309,6 +322,8 @@ export class ProductFormComponent implements OnDestroy {
   readonly flatCategories = signal<Category[]>([]);
   readonly imagePreview = signal<string | null>(null);
   readonly selectedImagePreviews = signal<string[]>([]);
+  readonly imageUploadStates = signal<ImageUploadState[]>([]);
+  readonly imageUploadSummary = signal('');
   readonly images = signal<ProductImage[]>([]);
   private imageObjectUrls: string[] = [];
   readonly additionalBarcodes = signal<ProductBarcodeInput[]>([]);
@@ -323,6 +338,7 @@ export class ProductFormComponent implements OnDestroy {
   readonly barcodeTypes = ['EAN13', 'EAN8', 'UPC', 'UPCA', 'UPCE', 'CODE128', 'CODE39', 'QR', 'CUSTOM'];
   readonly copySourceId: string | null;
   selectedImagesCount = () => this.selectedImages.length;
+  selectedImageName = (index: number) => this.selectedImages[index]?.name ?? 'Selected image';
   readonly productId: string | null;
   private selectedImages: File[] = [];
   newBarcode = '';
@@ -428,14 +444,7 @@ export class ProductFormComponent implements OnDestroy {
       : this.api.create(input);
     request.subscribe({
       next: (product) => {
-        const uploads = this.selectedImages.map((file) => this.api.uploadImage(product.productId, file));
-        if (uploads.length)
-          forkJoin(uploads).pipe(finalize(() => this.finish(product.productId))).subscribe({
-            error: () =>
-              this.snackBar.open('Product saved, but the image upload failed.', 'Dismiss', {
-                duration: 5000,
-              }),
-          });
+        if (this.selectedImages.length) void this.uploadImagesSequentially(product.productId, !this.productId);
         else this.finish(product.productId);
       },
       error: (error: unknown) => {
@@ -443,6 +452,34 @@ export class ProductFormComponent implements OnDestroy {
         this.snackBar.open(this.saveError(error), 'Dismiss', { duration: 6000 });
       },
     });
+  }
+  private async uploadImagesSequentially(productId: string, navigateAfterPartialFailure: boolean): Promise<void> {
+    const files = [...this.selectedImages];
+    this.imageUploadSummary.set('Uploading images one at a time…');
+    this.imageUploadStates.set(files.map((file, index) => ({ index, fileName: file.name, status: 'pending' })));
+    let successful = 0;
+    for (let index = 0; index < files.length; index++) {
+      const file = files[index];
+      this.imageUploadStates.update(states => states.map(state => state.index === index ? { ...state, status: 'uploading', error: undefined } : state));
+      try {
+        await firstValueFrom(this.api.uploadImage(productId, file));
+        successful++;
+        this.imageUploadStates.update(states => states.map(state => state.index === index ? { ...state, status: 'success' } : state));
+      } catch (error: unknown) {
+        const detail = error instanceof HttpErrorResponse && typeof error.error?.detail === 'string' ? error.error.detail : 'Upload failed.';
+        this.imageUploadStates.update(states => states.map(state => state.index === index ? { ...state, status: 'failed', error: detail } : state));
+      }
+    }
+    const states = this.imageUploadStates();
+    const failedIndexes = new Set(states.filter(state => state.status === 'failed').map(state => state.index));
+    this.selectedImagePreviews().forEach((preview, index) => { if (!failedIndexes.has(index)) URL.revokeObjectURL(preview); });
+    this.selectedImages = files.filter((_, index) => failedIndexes.has(index));
+    this.selectedImagePreviews.set(this.selectedImagePreviews().filter((_, index) => failedIndexes.has(index)));
+    this.imageUploadSummary.set(`${successful} of ${files.length} images uploaded successfully.`);
+    this.loadImages(productId);
+    this.saving.set(false);
+    this.snackBar.open(failedIndexes.size ? `${this.imageUploadSummary()} Failed images remain selected for retry.` : this.imageUploadSummary(), 'Dismiss', { duration: 6000 });
+    if (!failedIndexes.size || navigateAfterPartialFailure) this.finish(productId);
   }
   private saveError(error: unknown): string {
     if (!(error instanceof HttpErrorResponse)) return 'Product could not be saved. Please try again.';

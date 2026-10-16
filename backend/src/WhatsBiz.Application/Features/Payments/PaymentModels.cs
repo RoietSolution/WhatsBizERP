@@ -29,7 +29,7 @@ public sealed record SaveDirectUpiConfiguration(string UpiVpa, string PayeeName,
 public sealed record SaveCodConfiguration(bool IsEnabled, bool IsDefault);
 public sealed record SavePaymentOptions(bool OnlinePaymentEnabled, bool UpiEnabled = true, bool NetBankingEnabled = true);
 public sealed record EnabledPaymentMethod(string Code, string Provider, string Label, bool IsDefault);
-public sealed record CreatePaymentAttemptInput(Guid OrderId, string Provider, string? PaymentMethod = null);
+public sealed record CreatePaymentAttemptInput(Guid OrderId, string Provider, string? PaymentMethod = null, string? CallbackUrl = null);
 public sealed record CommercePaymentDto(Guid PaymentId, Guid TenantId, string TenantName, Guid OrderId, string OrderNumber, string? CustomerName,
     string Provider, string PaymentMethod, decimal Amount, string Currency, string Status, string? ProviderOrderId,
     string? ProviderPaymentId, string? PaymentLink, string? TransactionReference,
@@ -37,13 +37,15 @@ public sealed record CommercePaymentDto(Guid PaymentId, Guid TenantId, string Te
 public sealed record PaymentAttemptResult(CommercePaymentDto Payment, string? PaymentAction);
 public sealed record PaymentQuery(DateTimeOffset? DateFrom = null, DateTimeOffset? DateTo = null, string? Status = null, string? Provider = null, int PageNumber = 1, int PageSize = 50);
 public sealed record PlatformPaymentQuery(Guid? TenantId = null, DateTimeOffset? DateFrom = null, DateTimeOffset? DateTo = null, string? Status = null, string? Provider = null, int PageNumber = 1, int PageSize = 50);
-public sealed record PagedPaymentsDto(IReadOnlyCollection<CommercePaymentDto> Items, long TotalCount, int PageNumber, int PageSize);
+public sealed record PagedPaymentsDto(IReadOnlyCollection<CommercePaymentDto> Items, long TotalCount, int PageNumber, int PageSize,
+    decimal TotalPaid = 0, long SuccessfulCollectionCount = 0);
 public sealed record VerifyDirectUpiInput(string? Reference);
 
 public sealed record PaymentGatewayConfiguration(string Provider, string? KeyId, string? KeySecret,
     string? WebhookSecret, bool IsTestMode, string? UpiVpa, string? PayeeName);
 public sealed record GatewayCreateRequest(Guid PaymentId, Guid OrderId, string OrderNumber,
-    decimal Amount, string Currency, string TransactionReference, string? CustomerName, string? CustomerMobile, string? PaymentMethod = null);
+    decimal Amount, string Currency, string TransactionReference, string? CustomerName, string? CustomerMobile,
+    string? PaymentMethod = null, string? CallbackUrl = null);
 public sealed record GatewayCreateResult(string? ProviderOrderId, string? ProviderReference,
     string? PaymentLink, string? PaymentAction);
 public sealed record GatewayStatusResult(string Status, string? ProviderPaymentId);

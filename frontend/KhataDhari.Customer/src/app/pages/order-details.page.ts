@@ -6,6 +6,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CustomerSessionService } from '../customer-session.service';
 import { StorefrontDataService } from '../data/storefront-data.service';
 import { CustomerOrder, CustomerOrderLine } from '../models/storefront.models';
+import { codDueLabel, orderStatusLabel, paymentLabel } from '../order-status-presentation';
 
 @Component({standalone:true,imports:[CurrencyPipe,DatePipe,RouterLink,FormsModule],template:`
 <section class="page"><a class="back" [routerLink]="['/',storeKey,'orders']">← My orders</a>

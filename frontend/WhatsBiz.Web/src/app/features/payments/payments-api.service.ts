@@ -5,7 +5,7 @@ export type PaymentProvider='RAZORPAY'|'DIRECT_UPI'|'COD';
 export interface PaymentProviderSetting {provider:PaymentProvider;isEnabled:boolean;isDefault:boolean;isConfigured:boolean;maskedKeyId:string|null;hasKeySecret:boolean;hasWebhookSecret:boolean;isTestMode:boolean;upiVpa:string|null;payeeName:string|null;}
 export interface PaymentSettings {onlinePaymentEnabled:boolean;upiEnabled?:boolean;netBankingEnabled?:boolean;providers:PaymentProviderSetting[];}
 export interface CommercePayment {paymentId:string;tenantId:string;tenantName:string;orderId:string;orderNumber:string;customerName:string|null;provider:PaymentProvider;paymentMethod:string;amount:number;currency:string;status:string;providerOrderId:string|null;providerPaymentId:string|null;paymentLink:string|null;transactionReference:string|null;createdAt:string;paidAt:string|null;verifiedAt:string|null;verifiedBy:string|null;}
-export interface PaymentPage {items:CommercePayment[];totalCount:number;pageNumber:number;pageSize:number;}
+export interface PaymentPage {items:CommercePayment[];totalCount:number;pageNumber:number;pageSize:number;totalPaid:number;successfulCollectionCount:number;}
 export interface PaymentFilters {tenantId?:string;dateFrom?:string;dateTo?:string;status?:string;provider?:string;pageNumber:number;pageSize:number;}
 
 @Injectable({providedIn:'root'})

@@ -125,6 +125,7 @@
     ></mat-tab-group
   >
   <footer>
-    <button mat-flat-button type="submit" [disabled]="form.invalid">Save customer</button>
+    @if (saveError()) { <p class="save-error" role="alert">{{ saveError() }}</p> }
+    <button mat-flat-button type="submit" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving…' : 'Save customer' }}</button>
   </footer>
 </form>

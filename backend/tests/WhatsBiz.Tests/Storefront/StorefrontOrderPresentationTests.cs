@@ -6,6 +6,17 @@ namespace WhatsBiz.Tests.Storefront;
 public sealed class StorefrontOrderPresentationTests
 {
     [Theory]
+    [InlineData("COMPLETED", "FAILED", "RAZORPAY", false)]
+    [InlineData("COMPLETED", "PENDING", "RAZORPAY", false)]
+    [InlineData("COMPLETED", "PAID", "RAZORPAY", true)]
+    [InlineData("COMPLETED", "COD_PENDING", "COD", true)]
+    [InlineData("CANCELLED", "PAID", "RAZORPAY", false)]
+    public void ShippingLabelEligibilityUsesAuthoritativePaymentAndOrderState(string invoiceStatus, string paymentStatus, string paymentMethod, bool expected)
+    {
+        StorefrontOrderPresentation.CanPrintShippingLabel(invoiceStatus, paymentStatus, paymentMethod, out _).Should().Be(expected);
+    }
+
+    [Theory]
     [InlineData("HELD", null, "Order Confirmed")]
     [InlineData("HELD", "READY_FOR_PICKUP", "Packed")]
     [InlineData("HELD", "PICKED_UP", "Out for Delivery")]
@@ -15,6 +26,21 @@ public sealed class StorefrontOrderPresentationTests
     [InlineData("CANCELLED", "OUT_FOR_DELIVERY", "Cancelled")]
     public void MapsAuthoritativeStatuses(string invoice, string? delivery, string expected)
         => StorefrontOrderPresentation.Status(invoice, delivery).Should().Be(expected);
+
+    [Theory]
+    [InlineData("HELD", null, "FAILED", "RAZORPAY", "Payment Failed")]
+    [InlineData("HELD", null, "PENDING", "RAZORPAY", "Payment Pending")]
+    [InlineData("HELD", null, "COD_PENDING", "COD", "Order Confirmed")]
+    [InlineData("COMPLETED", "DELIVERED", "PAID", "RAZORPAY", "Delivered")]
+    public void PrepaidPaymentStateControlsCustomerOrderStatus(string invoice, string? delivery, string payment, string method, string expected)
+        => StorefrontOrderPresentation.Status(invoice, delivery, payment, method).Should().Be(expected);
+
+    [Fact]
+    public void FailedPrepaidPaymentDoesNotExposeFulfillmentMilestones()
+    {
+        var timeline = StorefrontOrderPresentation.Timeline("HELD", null, "FAILED", "RAZORPAY", DateTimeOffset.UtcNow, null, null, null, null, null);
+        timeline.Should().ContainSingle().Which.Label.Should().Be("Payment Failed");
+    }
 
     [Fact]
     public void CancelledOrderDoesNotShowLaterMilestones()

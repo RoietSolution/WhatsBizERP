@@ -125,7 +125,7 @@ VALUES(@id,@tenant,@invoice,@provider,@method,@amount,N'INR',@status,@attempt,@r
         GatewayCreateResult created;
         try
         {
-            created = await gateways.Resolve(provider).CreatePaymentAsync(ToGateway(config), new(paymentId,input.OrderId,invoice.Number,invoice.Balance,"INR",reference,invoice.CustomerName,invoice.Mobile,paymentMethod), token);
+            created = await gateways.Resolve(provider).CreatePaymentAsync(ToGateway(config), new(paymentId,input.OrderId,invoice.Number,invoice.Balance,"INR",reference,invoice.CustomerName,invoice.Mobile,paymentMethod,input.CallbackUrl), token);
         }
         catch
         {
@@ -160,6 +160,25 @@ VALUES(@id,@tenant,@invoice,@provider,@method,@amount,N'INR',@status,@attempt,@r
         var where=" WHERE (@tenant IS NULL OR p.TenantId=@tenant) AND (@from IS NULL OR p.CreatedAt>=@from) AND (@to IS NULL OR p.CreatedAt<DATEADD(day,1,@to)) AND (@status IS NULL OR p.Status=@status) AND (@provider IS NULL OR p.Provider=@provider)";
         var normalizedStatus=string.IsNullOrWhiteSpace(status)?null:status.Trim().ToUpperInvariant();var normalizedProvider=string.IsNullOrWhiteSpace(provider)?null:NormalizeProvider(provider);
         await using var count=new SqlCommand("SELECT COUNT_BIG(*) FROM commerce.CommercePayments p"+where,c);AddFilters(count,tenant,from,to,normalizedStatus,normalizedProvider);var total=Convert.ToInt64(await count.ExecuteScalarAsync(token),CultureInfo.InvariantCulture);
+        await using var summary=new SqlCommand("""
+            SELECT COALESCE(SUM(x.CollectedAmount),0),COUNT_BIG(*)
+            FROM (
+                SELECT p.PaymentId,SUM(a.Amount) CollectedAmount
+                FROM commerce.CommercePayments p
+                JOIN commerce.PaymentApplications a ON a.TenantId=p.TenantId AND a.PaymentId=p.PaymentId AND a.InvoiceId=p.InvoiceId
+                WHERE (@tenant IS NULL OR p.TenantId=@tenant)
+                  AND (@from IS NULL OR p.CreatedAt>=@from)
+                  AND (@to IS NULL OR p.CreatedAt<DATEADD(day,1,@to))
+                  AND (@status IS NULL OR p.Status=@status)
+                  AND (@provider IS NULL OR p.Provider=@provider)
+                  AND p.Status IN(N'PAID',N'CAPTURED')
+                GROUP BY p.PaymentId
+            ) x;
+            """,c);AddFilters(summary,tenant,from,to,normalizedStatus,normalizedProvider);
+        await using var summaryReader=await summary.ExecuteReaderAsync(token);
+        await summaryReader.ReadAsync(token);
+        var totalPaid=summaryReader.GetDecimal(0);var successfulCollections=summaryReader.GetInt64(1);
+        await summaryReader.CloseAsync();
         await using var q=new SqlCommand(SelectPayment+where+" ORDER BY p.CreatedAt DESC,p.PaymentId DESC OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY",c);AddFilters(q,tenant,from,to,normalizedStatus,normalizedProvider);P(q,"@skip",(page-1)*size);P(q,"@take",size);
         await using var r=await q.ExecuteReaderAsync(token);var rows=new List<CommercePaymentDto>();while(await r.ReadAsync(token))rows.Add(Map(r));return new(rows,total,page,size);
     }

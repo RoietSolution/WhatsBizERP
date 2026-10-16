@@ -240,6 +240,11 @@ try{
  if(-not $state.Initialized){Invoke-BaselineCheck;$state.BaselineVerified=$true;Write-Host 'V40 schema verification: PASSED (read-only).'}
  $effectiveBaseline=if($state.Initialized){$state.BaselineVersion}else{$script:BaselineVersion};$history=if($state.Initialized){[object[]]$state.History}else{[object[]]@()}
  $plan=Get-DatabaseMigrationPlan -Migrations $catalog -BaselineVersion $effectiveBaseline -History $history
+ $pending=@($plan|Where-Object Status -eq 'PENDING'|Sort-Object Version)
+ if($DryRun -or (-not $Status -and -not $InitializeBaseline)){
+  try{$preflight=Assert-DatabaseMigrationPreflight -Migrations $catalog -Pending $pending -BaselineVersion $effectiveBaseline;Write-Host "Preflight: PASS ($($preflight.PendingCount) pending migration(s))"}
+  catch{Write-Host 'Preflight: FAIL';Write-Host $_.Exception.Message;Write-Host 'DATABASE CHANGES: NONE';throw}
+ }
  if($Status){Show-Plan $plan $state 'Status';Write-Host 'STATUS: READ-ONLY';return}
  if($DryRun){Show-Plan $plan $state 'DryRun';return}
  if($InitializeBaseline){
@@ -253,13 +258,13 @@ try{
  if($AdoptExisting){
   $adopt=@($plan|Where-Object{$_.Status -eq 'PENDING' -and $_.Version -le $ThroughVersion}|Sort-Object Version);if(-not $adopt.Count){throw 'No unapplied migrations are eligible for adoption.'}
   foreach($m in $adopt){if(-not $m.ValidatorPath){throw "V$($m.Version) cannot be adopted without a read-only validator."};Invoke-SqlFile $m.ValidatorPath -ReadOnly}
-  $null=Invoke-DeploymentPreflight;$meta=Invoke-BackupGate $adopt 'adoption';$tx=$script:Connection.BeginTransaction([System.Data.IsolationLevel]::Serializable)
+  $null=Invoke-DeploymentPreflight;$null=Assert-DatabaseMigrationPreflight -Migrations $catalog -Pending $adopt -BaselineVersion $state.BaselineVersion;$meta=Invoke-BackupGate $adopt 'adoption';$tx=$script:Connection.BeginTransaction([System.Data.IsolationLevel]::Serializable)
   try{foreach($m in $adopt){Write-MigrationRecord $m $true $meta.Path $tx};$tx.Commit()}catch{try{$tx.Rollback()}catch{};throw}finally{$tx.Dispose()}
   foreach($m in $adopt){Write-Host "V$($m.Version) $($m.Name) ADOPTED AND HASH-REGISTERED"}
  }else{
   $pending=@($plan|Where-Object Status -eq 'PENDING')
   if($pending.Count){
-   $null=Invoke-DeploymentPreflight;$meta=Invoke-BackupGate $pending 'deployment';$script:BackupPathForHistory=$meta.Path
+   $null=Invoke-DeploymentPreflight;$null=Assert-DatabaseMigrationPreflight -Migrations $catalog -Pending $pending -BaselineVersion $state.BaselineVersion;$meta=Invoke-BackupGate $pending 'deployment';$script:BackupPathForHistory=$meta.Path
    foreach($m in $pending){
     Invoke-OneMigration $m
     try{

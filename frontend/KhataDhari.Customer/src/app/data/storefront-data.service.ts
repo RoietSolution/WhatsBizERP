@@ -28,7 +28,10 @@ export class StorefrontDataService {
   checkout(storeKey: string, customer: CheckoutCustomer, lines: readonly CartLine[], idempotencyKey: string, paymentMethod: string): Promise<CheckoutResult> {
     return this.provider.checkout(storeKey, customer, lines, idempotencyKey, paymentMethod);
   }
+  getPaymentReturn(storeKey:string,orderId:string):Promise<import('../models/storefront.models').StorefrontPaymentReturn|null>{return this.provider.getPaymentReturn(storeKey,orderId);}
+  retryPayment(storeKey:string,orderId:string):Promise<CheckoutResult|null>{return this.provider.retryPayment(storeKey,orderId);}
   requestAvailability(storeKey:string,productId:string,mobile?:string,consentGiven=false){return this.provider.requestAvailability(storeKey,productId,mobile,consentGiven);}
+  getAvailability(storeKey:string,productId:string){return this.provider.getAvailability(storeKey,productId);}
   cancelAvailability(storeKey:string,productId:string){return this.provider.cancelAvailability(storeKey,productId);}
   requestMissingProduct(storeKey:string,keyword:string,mobile?:string,remarks?:string){return this.provider.requestMissingProduct(storeKey,keyword,mobile,remarks);}
 }

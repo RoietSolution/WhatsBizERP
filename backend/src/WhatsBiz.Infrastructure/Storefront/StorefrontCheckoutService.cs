@@ -19,6 +19,7 @@ public sealed partial class StorefrontCheckoutService(
     ICommercePaymentService payments,
     IStorefrontCustomerService customers,
     IStorefrontCustomerBlacklistService blacklist,
+    IStorefrontAutomatedNotificationService automatedNotifications,
     ILogger<StorefrontCheckoutService> logger) : IStorefrontCheckoutService
 {
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection")
@@ -26,15 +27,19 @@ public sealed partial class StorefrontCheckoutService(
 
     public async Task<StorefrontDeliveryAvailabilityDto?> CheckDeliveryAsync(string storeKey, string pincode, CancellationToken token)
     {
-        if (string.IsNullOrWhiteSpace(pincode) || pincode.Length != 6 || !pincode.All(char.IsAsciiDigit)) throw new BusinessRuleException("Enter a valid six-digit Indian pincode.");
+        if (string.IsNullOrWhiteSpace(pincode) || !PincodePattern().IsMatch(pincode)) throw new BusinessRuleException("Enter a valid six-digit Indian pincode.");
         var tenantId = await ResolveTenant(storeKey, token);
         if (tenantId is null) return null;
         await using var connection = await Open(tenantId.Value, token);
-        await using var settings = new SqlCommand("SELECT CONVERT(bit,CASE WHEN s.DeliveryEnabled=1 AND d.DeliveryEnabled=1 THEN 1 ELSE 0 END) FROM commerce.StorefrontConfigurations s LEFT JOIN commerce.TenantDeliverySettings d ON d.TenantId=s.TenantId WHERE s.TenantId=@tenant", connection);
+        await using var settings = new SqlCommand("SELECT CONVERT(bit,CASE WHEN s.DeliveryEnabled=1 THEN 1 ELSE 0 END),COALESCE(s.DeliveryCoverageMode,'ALLOWLIST') FROM commerce.StorefrontConfigurations s WHERE s.TenantId=@tenant", connection);
         settings.Parameters.AddWithValue("@tenant", tenantId.Value);
-        var enabled = Convert.ToBoolean(await settings.ExecuteScalarAsync(token) ?? false, CultureInfo.InvariantCulture);
-        await using var serviceable = new SqlCommand("SELECT COUNT(1) FROM commerce.StorefrontServiceablePincodes WHERE TenantId=@tenant AND Pincode=@pincode AND IsActive=1", connection);
-        serviceable.Parameters.AddWithValue("@tenant", tenantId.Value); serviceable.Parameters.AddWithValue("@pincode", pincode);
+        await using var reader = await settings.ExecuteReaderAsync(token);
+        var enabled = false;
+        var mode = "ALLOWLIST";
+        if (await reader.ReadAsync(token)) { enabled = reader.GetBoolean(0); mode = reader.IsDBNull(1) ? "ALLOWLIST" : reader.GetString(1); }
+        await reader.DisposeAsync();
+        await using var serviceable = new SqlCommand("SELECT CASE WHEN @mode='PAN_INDIA' THEN CASE WHEN EXISTS(SELECT 1 FROM commerce.StorefrontServiceablePincodes WHERE TenantId=@tenant AND Pincode=@pincode AND IsExcluded=1 AND IsActive=1) THEN 0 ELSE 1 END ELSE CASE WHEN EXISTS(SELECT 1 FROM commerce.StorefrontServiceablePincodes WHERE TenantId=@tenant AND Pincode=@pincode AND IsActive=1 AND IsExcluded=0) THEN 1 ELSE 0 END END", connection);
+        serviceable.Parameters.AddWithValue("@tenant", tenantId.Value); serviceable.Parameters.AddWithValue("@pincode", pincode); serviceable.Parameters.AddWithValue("@mode", mode);
         return new(enabled, Convert.ToInt32(await serviceable.ExecuteScalarAsync(token), CultureInfo.InvariantCulture) == 1);
     }
     public async Task<StorefrontCartQuoteDto?> QuoteAsync(string storeKey, StorefrontCartQuoteInput input,
@@ -61,23 +66,30 @@ public sealed partial class StorefrontCheckoutService(
     private async Task<StorefrontCartQuoteDto> CalculateQuote(Guid tenantId, IReadOnlyCollection<PricedLine> lines,
         string? pincode, Guid? verifiedCustomerId, string? promotionCode, CancellationToken token)
     {
-        if (!string.IsNullOrWhiteSpace(pincode) && (pincode.Length != 6 || !pincode.All(char.IsAsciiDigit)))
+        if (!string.IsNullOrWhiteSpace(pincode) && !PincodePattern().IsMatch(pincode))
             throw new BusinessRuleException("Enter a valid six-digit Indian pincode.");
         await using var connection = await Open(tenantId, token);
         StorefrontPricingConfiguration settings;
-        await using (var command = new SqlCommand("SELECT CONVERT(bit,CASE WHEN s.DeliveryEnabled=1 AND d.DeliveryEnabled=1 THEN 1 ELSE 0 END),s.StandardDeliveryCharge,s.FreeDeliveryEnabled,s.FreeDeliveryThreshold FROM commerce.StorefrontConfigurations s LEFT JOIN commerce.TenantDeliverySettings d ON d.TenantId=s.TenantId WHERE s.TenantId=@tenant", connection))
+        var coverageMode = "ALLOWLIST";
+        await using (var command = new SqlCommand("SELECT CONVERT(bit,CASE WHEN s.DeliveryEnabled=1 THEN 1 ELSE 0 END),s.StandardDeliveryCharge,s.FreeDeliveryEnabled,s.FreeDeliveryThreshold,COALESCE(s.DeliveryCoverageMode,'ALLOWLIST') FROM commerce.StorefrontConfigurations s WHERE s.TenantId=@tenant", connection))
         {
             command.Parameters.AddWithValue("@tenant", tenantId);
             await using var reader = await command.ExecuteReaderAsync(token);
-            settings = await reader.ReadAsync(token)
-                ? new(reader.GetBoolean(0), reader.GetDecimal(1), reader.GetBoolean(2), reader.IsDBNull(3) ? null : reader.GetDecimal(3))
-                : new(false, 0, false, null);
+            if (await reader.ReadAsync(token))
+            {
+                settings = new(reader.GetBoolean(0), reader.GetDecimal(1), reader.GetBoolean(2), reader.IsDBNull(3) ? null : reader.GetDecimal(3));
+                coverageMode = reader.IsDBNull(4) ? "ALLOWLIST" : reader.GetString(4);
+            }
+            else
+            {
+                settings = new(false, 0, false, null);
+            }
         }
         var serviceable = false;
-        if (pincode?.Length == 6 && pincode.All(char.IsAsciiDigit))
+        if (pincode is not null && PincodePattern().IsMatch(pincode))
         {
-            await using var command = new SqlCommand("SELECT COUNT(1) FROM commerce.StorefrontServiceablePincodes WHERE TenantId=@tenant AND Pincode=@pincode AND IsActive=1", connection);
-            command.Parameters.AddWithValue("@tenant", tenantId); command.Parameters.AddWithValue("@pincode", pincode);
+            await using var command = new SqlCommand("SELECT CASE WHEN @mode='PAN_INDIA' THEN CASE WHEN EXISTS(SELECT 1 FROM commerce.StorefrontServiceablePincodes WHERE TenantId=@tenant AND Pincode=@pincode AND IsExcluded=1 AND IsActive=1) THEN 0 ELSE 1 END ELSE CASE WHEN EXISTS(SELECT 1 FROM commerce.StorefrontServiceablePincodes WHERE TenantId=@tenant AND Pincode=@pincode AND IsActive=1 AND IsExcluded=0) THEN 1 ELSE 0 END END", connection);
+            command.Parameters.AddWithValue("@tenant", tenantId); command.Parameters.AddWithValue("@pincode", pincode); command.Parameters.AddWithValue("@mode", coverageMode);
             serviceable = (int)(await command.ExecuteScalarAsync(token) ?? 0) == 1;
         }
         bool hasOrder = false;
@@ -148,13 +160,31 @@ public sealed partial class StorefrontCheckoutService(
         var customerName = input.CustomerName?.Trim();
         var mobile = Digits().Replace(input.Mobile ?? string.Empty, string.Empty);
         var email = string.IsNullOrWhiteSpace(input.Email) ? null : input.Email.Trim();
-        var address = input.DeliveryAddress?.Trim();
+        var pincode = input.Pincode?.Trim();
+        var recipientName = string.IsNullOrWhiteSpace(input.RecipientName) ? customerName : input.RecipientName.Trim();
+        var line1 = input.AddressLine1?.Trim();
+        var line2 = NullIfBlank(input.AddressLine2);
+        var landmark = NullIfBlank(input.Landmark);
+        var city = NullIfBlank(input.City);
+        var district = NullIfBlank(input.District);
+        var state = NullIfBlank(input.State);
+        var country = string.IsNullOrWhiteSpace(input.Country) ? "India" : input.Country.Trim();
+        var structuredAddress = !string.IsNullOrWhiteSpace(line1) || !string.IsNullOrWhiteSpace(city) || !string.IsNullOrWhiteSpace(state);
+        var address = structuredAddress
+            ? string.Join(", ", new[] { line1, line2, landmark, city, district, state, country }.Where(x => !string.IsNullOrWhiteSpace(x)))
+            : input.DeliveryAddress?.Trim();
         if (string.IsNullOrWhiteSpace(customerName) || customerName.Length > 250)
             throw new BusinessRuleException("Enter a valid customer name.");
+        if (string.IsNullOrWhiteSpace(recipientName) || recipientName.Length > 250)
+            throw new BusinessRuleException("Enter a valid recipient name.");
         if (mobile.Length is < 10 or > 15)
             throw new BusinessRuleException("Enter a valid mobile number.");
         if (email is not null && (!MailAddress.TryCreate(email, out _) || email.Length > 256))
             throw new BusinessRuleException("Enter a valid email address.");
+        if (structuredAddress && (string.IsNullOrWhiteSpace(line1) || string.IsNullOrWhiteSpace(city) || string.IsNullOrWhiteSpace(state)))
+            throw new BusinessRuleException("Enter address line 1, city and state.");
+        if (structuredAddress && (line1!.Length > 500 || line2?.Length > 500 || landmark?.Length > 250 || city!.Length > 150 || district?.Length > 150 || state!.Length > 100 || country.Length > 100))
+            throw new BusinessRuleException("One or more delivery address fields are too long.");
         if (string.IsNullOrWhiteSpace(address) || address.Length > 1000)
             throw new BusinessRuleException("Enter a valid delivery address.");
         if (!Guid.TryParse(idempotencyKey, out var requestKey) || requestKey == Guid.Empty)
@@ -175,7 +205,7 @@ public sealed partial class StorefrontCheckoutService(
         var authenticated = string.IsNullOrWhiteSpace(customerSessionToken) ? null : await customers.GetSessionAsync(storeKey, customerSessionToken, token);
         if (await blacklist.IsBlockedAsync(tenantId, authenticated?.Mobile ?? mobile, token))
             throw new BusinessRuleException("Orders are temporarily unavailable for this phone number. You may continue to browse and contact the store for assistance.");
-        var quote = await CalculateQuote(tenantId, lines, input.Pincode, authenticated?.Id, input.PromoCode, token);
+        var quote = await CalculateQuote(tenantId, lines, pincode, authenticated?.Id, input.PromoCode, token);
         if (!quote.IsDeliveryEnabled)
             throw new BusinessRuleException("Delivery is not currently available for this store.");
         if (!quote.IsPincodeServiceable)
@@ -189,17 +219,20 @@ public sealed partial class StorefrontCheckoutService(
             DeliveryCharge: quote.DeliveryCharge, PromotionDiscountAmount: quote.PromotionDiscount,
             AppliedPromotionId: quote.PromotionId, AppliedPromotionName: quote.PromotionName,
             FreeDeliveryApplied: quote.IsFreeDeliveryUnlocked, FreeDeliveryThresholdSnapshot: quote.FreeDeliveryThreshold,
-            ServicePincode: input.Pincode);
+            ServicePincode: pincode);
         var order = await pos.PostForTenant(orderRequest, tenantId, $"STOREFRONT:{tenantId:N}:{requestKey:N}", token);
 
-        await UpdateOrderMetadata(tenantId, order.InvoiceId, address, method, token);
+        await UpdateOrderMetadata(tenantId, order.InvoiceId, address, method, recipientName, mobile, line1, line2, landmark, city, district, state, country, token);
         var existing = await ExistingPayment(tenantId, order.InvoiceId, provider, method, token);
         if (existing is not null)
+        {
+            await QueueOrderNotificationSafely(tenantId, order.InvoiceId, token);
             return new(order.InvoiceId, order.InvoiceNumber, existing.Value.Amount, "INR", existing.Value.PaymentId,
                 provider == PaymentProviders.Cod ? null : existing.Value.Url, provider, existing.Value.Status, CustomerMessage(method), null, method);
+        }
 
         var attempt = await payments.CreateAttemptForTenantAsync(tenantId,
-            new(order.InvoiceId, provider, method), "STOREFRONT", token);
+            new(order.InvoiceId, provider, method, provider == PaymentProviders.Razorpay ? PaymentReturnUrl(storeKey, order.InvoiceId) : null), "STOREFRONT", token);
         var checkoutUrl = attempt.PaymentAction ?? attempt.Payment.PaymentLink;
         if (provider == PaymentProviders.Cod) checkoutUrl = null;
         if (provider == PaymentProviders.Razorpay && (string.IsNullOrWhiteSpace(checkoutUrl)
@@ -209,8 +242,85 @@ public sealed partial class StorefrontCheckoutService(
             StorefrontCheckoutLogs.InvalidPaymentAction(logger, tenantId, order.InvoiceId, provider);
             throw new BusinessRuleException("Online payment is currently unavailable. Please try again.");
         }
+        await QueueOrderNotificationSafely(tenantId, order.InvoiceId, token);
         return new(order.InvoiceId, order.InvoiceNumber, attempt.Payment.Amount,
             attempt.Payment.Currency, attempt.Payment.PaymentId, checkoutUrl, provider, attempt.Payment.Status, CustomerMessage(method), null, method);
+    }
+
+    public async Task<StorefrontPaymentReturnDto?> GetPaymentStatusAsync(string storeKey, Guid orderId,
+        string? customerSessionToken, CancellationToken token)
+    {
+        var session = string.IsNullOrWhiteSpace(customerSessionToken)
+            ? null
+            : await customers.GetSessionAsync(storeKey, customerSessionToken, token);
+        if (session is null) return null;
+        var tenantId = await ResolveTenant(storeKey, token);
+        if (tenantId is null) return null;
+        await using var connection = await Open(tenantId.Value, token);
+        await using var command = new SqlCommand(@"SELECT TOP(1) i.InvoiceNumber,p.PaymentId,p.Status
+FROM sales.SalesInvoices i
+JOIN commerce.CommercePayments p ON p.InvoiceId=i.InvoiceId AND p.TenantId=i.TenantId
+WHERE i.TenantId=@tenant AND i.InvoiceId=@order AND i.CustomerId=@customer AND p.Provider=N'RAZORPAY'
+ORDER BY p.AttemptNumber DESC;", connection);
+        command.Parameters.AddWithValue("@tenant", tenantId.Value);
+        command.Parameters.AddWithValue("@order", orderId);
+        command.Parameters.AddWithValue("@customer", session.Id);
+        await using var reader = await command.ExecuteReaderAsync(token);
+        if (!await reader.ReadAsync(token)) return null;
+        var status = reader.GetString(2).Trim().ToUpperInvariant();
+        var message = status switch
+        {
+            CommercePaymentStatuses.Paid => "Payment verified successfully.",
+            CommercePaymentStatuses.Failed or CommercePaymentStatuses.Cancelled => "Payment was not completed. You can retry payment for this existing order.",
+            _ => "Payment is still being confirmed. We will update this order when Razorpay confirms it."
+        };
+        return new(orderId, reader.GetString(0), reader.GetGuid(1), status, message);
+    }
+
+    private string? PaymentReturnUrl(string storeKey, Guid orderId)
+    {
+        var configured = configuration["Storefront:PublicBaseUrl"] ?? configuration["Storefront:BaseUrl"];
+        if (!Uri.TryCreate(configured, UriKind.Absolute, out var root) || root.Scheme != Uri.UriSchemeHttps && root.Scheme != Uri.UriSchemeHttp)
+            return null;
+        return new Uri(root, $"{Uri.EscapeDataString(storeKey)}/payment-return?orderId={Uri.EscapeDataString(orderId.ToString("D"))}").ToString();
+    }
+
+    public async Task<StorefrontCheckoutResult?> RetryPaymentAsync(string storeKey, Guid orderId,
+        string? customerSessionToken, CancellationToken token)
+    {
+        var session = string.IsNullOrWhiteSpace(customerSessionToken) ? null : await customers.GetSessionAsync(storeKey, customerSessionToken, token);
+        if (session is null) return null;
+        var tenantId = await ResolveTenant(storeKey, token);
+        if (tenantId is null) return null;
+        string number, name, mobile, method, status; decimal balance;
+        await using (var connection = await Open(tenantId.Value, token))
+        await using (var command = new SqlCommand(@"SELECT i.InvoiceNumber,cu.CustomerName,cu.Mobile,i.BalanceAmount,i.Status,
+COALESCE((SELECT TOP(1) p.PaymentMethod FROM commerce.CommercePayments p WHERE p.TenantId=i.TenantId AND p.InvoiceId=i.InvoiceId ORDER BY p.AttemptNumber DESC),N'UPI')
+FROM sales.SalesInvoices i JOIN sales.Customers cu ON cu.CustomerId=i.CustomerId AND cu.TenantId=i.TenantId
+WHERE i.TenantId=@tenant AND i.InvoiceId=@order AND i.CustomerId=@customer;", connection))
+        {
+            command.Parameters.AddWithValue("@tenant", tenantId.Value); command.Parameters.AddWithValue("@order", orderId);
+            await using var reader = await command.ExecuteReaderAsync(token);
+            if (!await reader.ReadAsync(token)) return null;
+            number = reader.GetString(0); name = reader.GetString(1); mobile = reader.GetString(2); balance = reader.GetDecimal(3); status = reader.GetString(4);
+            method = reader.GetString(5);
+        }
+        if (status is "CANCELLED" or "VOID" or "RETURNED" || balance <= 0) throw new BusinessRuleException("This order cannot receive another payment.");
+        method = method is "UPI" or "NET_BANKING" ? method : "UPI";
+        var existing = await ExistingPayment(tenantId.Value, orderId, PaymentProviders.Razorpay, method, token);
+        if (existing is not null)
+            return new(orderId, number, existing.Value.Amount, "INR", existing.Value.PaymentId, existing.Value.Url, PaymentProviders.Razorpay, existing.Value.Status, CustomerMessage(method), null, method);
+        var attempt = await payments.CreateAttemptForTenantAsync(tenantId.Value,
+            new(orderId, PaymentProviders.Razorpay, method, PaymentReturnUrl(storeKey, orderId)), "STOREFRONT", token);
+        return new(orderId, number, attempt.Payment.Amount, attempt.Payment.Currency, attempt.Payment.PaymentId,
+            attempt.PaymentAction ?? attempt.Payment.PaymentLink, PaymentProviders.Razorpay, attempt.Payment.Status, CustomerMessage(method), null, method);
+    }
+
+    private async Task QueueOrderNotificationSafely(Guid tenantId, Guid orderId, CancellationToken token)
+    {
+        try { await automatedNotifications.QueueOrderEmailAsync(tenantId, orderId, token); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        { StorefrontCheckoutLogs.NotificationQueueFailed(logger, tenantId, orderId, ex); }
     }
 
     private async Task<Guid?> ResolveTenant(string storeKey, CancellationToken token)
@@ -303,15 +413,29 @@ public sealed partial class StorefrontCheckoutService(
         return id;
     }
 
-    private async Task UpdateOrderMetadata(Guid tenantId, Guid orderId, string address, string method, CancellationToken token)
+    private async Task UpdateOrderMetadata(Guid tenantId, Guid orderId, string address, string method, string recipientName,
+        string mobile, string? line1, string? line2, string? landmark, string? city, string? district, string? state,
+        string country, CancellationToken token)
     {
         await using var connection = await Open(tenantId, token);
         await using var command = new SqlCommand("""
             UPDATE integration.WhatsAppCommerceOrders
-            SET DeliveryAddress=@address,FulfillmentMethod=N'RETAILER_DELIVERY',PaymentType=@paymentType
+            SET DeliveryAddress=@address,DeliveryRecipientName=@recipientName,DeliveryMobile=@mobile,
+                DeliveryAddressLine1=@line1,DeliveryAddressLine2=@line2,DeliveryLandmark=@landmark,
+                DeliveryCity=@city,DeliveryDistrict=@district,DeliveryState=@state,DeliveryCountry=@country,
+                FulfillmentMethod=N'RETAILER_DELIVERY',PaymentType=@paymentType
             WHERE TenantId=@tenant AND InvoiceId=@order;
             """, connection);
         command.Parameters.AddWithValue("@address", address);
+        command.Parameters.AddWithValue("@recipientName", recipientName);
+        command.Parameters.AddWithValue("@mobile", mobile);
+        command.Parameters.AddWithValue("@line1", (object?)line1 ?? DBNull.Value);
+        command.Parameters.AddWithValue("@line2", (object?)line2 ?? DBNull.Value);
+        command.Parameters.AddWithValue("@landmark", (object?)landmark ?? DBNull.Value);
+        command.Parameters.AddWithValue("@city", (object?)city ?? DBNull.Value);
+        command.Parameters.AddWithValue("@district", (object?)district ?? DBNull.Value);
+        command.Parameters.AddWithValue("@state", (object?)state ?? DBNull.Value);
+        command.Parameters.AddWithValue("@country", (object?)country ?? DBNull.Value);
         command.Parameters.AddWithValue("@paymentType", method);
         command.Parameters.AddWithValue("@tenant", tenantId);
         command.Parameters.AddWithValue("@order", orderId);
@@ -353,10 +477,14 @@ public sealed partial class StorefrontCheckoutService(
         : "Payment is processing. The order will update when Razorpay confirms it.";
     [GeneratedRegex("^[A-Z0-9_-]{1,100}$", RegexOptions.CultureInvariant)] private static partial Regex StoreKeyPattern();
     [GeneratedRegex("[^0-9]+", RegexOptions.CultureInvariant)] private static partial Regex Digits();
+    private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    [GeneratedRegex("^[0-9]{6}$", RegexOptions.CultureInvariant)] private static partial Regex PincodePattern();
 }
 
 internal static partial class StorefrontCheckoutLogs
 {
     [LoggerMessage(3401, LogLevel.Warning, "Storefront payment provider {Provider} returned an invalid action for tenant {TenantId}, order {OrderId}.")]
     public static partial void InvalidPaymentAction(ILogger logger, Guid tenantId, Guid orderId, string provider);
+    [LoggerMessage(3402, LogLevel.Error, "Storefront order {OrderId} for tenant {TenantId} was committed but notification queueing failed.")]
+    public static partial void NotificationQueueFailed(ILogger logger, Guid tenantId, Guid orderId, Exception exception);
 }

@@ -89,7 +89,7 @@ public sealed class StorefrontCustomerService(
             FROM sales.SalesInvoices i
             JOIN integration.WhatsAppCommerceOrders w ON w.TenantId=i.TenantId AND w.InvoiceId=i.InvoiceId AND w.SourceChannel=N'STOREFRONT'
             LEFT JOIN commerce.OrderDeliveries d ON d.TenantId=i.TenantId AND d.OrderId=i.InvoiceId
-            OUTER APPLY(SELECT TOP(1) p.PaymentMethod,p.Status FROM commerce.CommercePayments p WHERE p.TenantId=i.TenantId AND p.InvoiceId=i.InvoiceId ORDER BY p.AttemptNumber DESC) cp
+            OUTER APPLY(SELECT TOP(1) p.PaymentMethod,p.Status FROM commerce.CommercePayments p WHERE p.TenantId=i.TenantId AND p.InvoiceId=i.InvoiceId ORDER BY CASE WHEN p.Status IN(N'PAID',N'CAPTURED') THEN 0 ELSE 1 END,p.AttemptNumber DESC) cp
             WHERE i.TenantId=@tenant AND i.CustomerId=@customer
             ORDER BY i.InvoiceDate DESC;
             """, connection);
@@ -100,8 +100,9 @@ public sealed class StorefrontCustomerService(
         while (await reader.ReadAsync(token))
         {
             var invoiceStatus = reader.GetString(3); var delivery = reader.IsDBNull(5) ? null : reader.GetString(5);
-            result.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetDateTimeOffset(2), StorefrontOrderPresentation.Status(invoiceStatus, delivery),
-                reader.GetDecimal(4), delivery, reader.IsDBNull(6) ? null : reader.GetString(6), reader.GetString(7), reader.GetString(8), reader.GetInt32(9)));
+            var paymentMethod = reader.GetString(7); var paymentStatus = reader.GetString(8);
+            result.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetDateTimeOffset(2), StorefrontOrderPresentation.Status(invoiceStatus, delivery, paymentStatus, paymentMethod),
+                reader.GetDecimal(4), delivery, reader.IsDBNull(6) ? null : reader.GetString(6), reader.GetString(7), StorefrontOrderPresentation.PaymentStatus(reader.GetString(8), reader.GetString(7)), reader.GetInt32(9)));
         }
         return result;
     }
@@ -117,7 +118,7 @@ public sealed class StorefrontCustomerService(
             FROM sales.SalesInvoices i
             JOIN integration.WhatsAppCommerceOrders w ON w.TenantId=i.TenantId AND w.InvoiceId=i.InvoiceId AND w.SourceChannel=N'STOREFRONT'
             LEFT JOIN commerce.OrderDeliveries d ON d.TenantId=i.TenantId AND d.OrderId=i.InvoiceId
-            OUTER APPLY(SELECT TOP(1) p.PaymentMethod,p.Status FROM commerce.CommercePayments p WHERE p.TenantId=i.TenantId AND p.InvoiceId=i.InvoiceId ORDER BY p.AttemptNumber DESC) cp
+            OUTER APPLY(SELECT TOP(1) p.PaymentMethod,p.Status FROM commerce.CommercePayments p WHERE p.TenantId=i.TenantId AND p.InvoiceId=i.InvoiceId ORDER BY CASE WHEN p.Status IN(N'PAID',N'CAPTURED') THEN 0 ELSE 1 END,p.AttemptNumber DESC) cp
             WHERE i.TenantId=@tenant AND i.CustomerId=@customer AND i.InvoiceId=@order;
             """, connection);
         command.Parameters.AddWithValue("@tenant", session.TenantId); command.Parameters.AddWithValue("@customer", session.CustomerId); command.Parameters.AddWithValue("@order", orderId);
@@ -129,7 +130,7 @@ public sealed class StorefrontCustomerService(
             number=reader.GetString(0); placed=reader.GetDateTimeOffset(1); invoiceStatus=reader.GetString(2); total=reader.GetDecimal(3);
             delivery=reader.IsDBNull(4)?null:reader.GetString(4); tracking=reader.IsDBNull(5)?null:reader.GetString(5); paymentMethod=reader.GetString(6); paymentStatus=reader.GetString(7);
             packed=reader.IsDBNull(8)?null:reader.GetDateTimeOffset(8); outAt=reader.IsDBNull(9)?null:reader.GetDateTimeOffset(9); delivered=reader.IsDBNull(10)?null:reader.GetDateTimeOffset(10); failed=reader.IsDBNull(11)?null:reader.GetDateTimeOffset(11);
-            cancelled=StorefrontOrderPresentation.Status(invoiceStatus,delivery)=="Cancelled"&&!reader.IsDBNull(12)?reader.GetDateTimeOffset(12):null;
+            cancelled=StorefrontOrderPresentation.Status(invoiceStatus,delivery,paymentStatus,paymentMethod)=="Cancelled"&&!reader.IsDBNull(12)?reader.GetDateTimeOffset(12):null;
             deliveryCharge=reader.GetDecimal(13);promotionDiscount=reader.GetDecimal(14);promotionName=reader.IsDBNull(15)?null:reader.GetString(15);merchandiseAmount=reader.GetDecimal(16);merchandiseTaxAmount=reader.GetDecimal(17);merchandiseSubtotal=reader.GetDecimal(18);
         }
         var defaultReturnDays = 7;
@@ -156,9 +157,9 @@ public sealed class StorefrontCustomerService(
                 lines.Add(new(reader.GetGuid(1),reader.GetString(2),reader.IsDBNull(3)?null:reader.GetString(3),reader.GetDecimal(4),reader.GetDecimal(6),eligible,days,delivered,deadline,lineStatus,reader.IsDBNull(9)?null:reader.GetString(9),itemId,reader.GetDecimal(5),returnable,request.Requested==0?0:request.Requested,request.Status==null?null:request.Status,request.Id==Guid.Empty?null:request.Id));
             }
         }
-        var status=StorefrontOrderPresentation.Status(invoiceStatus,delivery);
-        return new(orderId,number,placed,status,total,delivery,tracking,paymentMethod,paymentStatus,lines.Count,lines,
-            StorefrontOrderPresentation.Timeline(invoiceStatus,delivery,placed,packed,outAt,delivered,failed,cancelled),
+        var status=StorefrontOrderPresentation.Status(invoiceStatus,delivery,paymentStatus,paymentMethod);
+        return new(orderId,number,placed,status,total,delivery,tracking,paymentMethod,StorefrontOrderPresentation.PaymentStatus(paymentStatus,paymentMethod),lines.Count,lines,
+            StorefrontOrderPresentation.Timeline(invoiceStatus,delivery,paymentStatus,paymentMethod,placed,packed,outAt,delivered,failed,cancelled),
             deliveryCharge,promotionDiscount,promotionName,merchandiseAmount,null,merchandiseTaxAmount,merchandiseSubtotal);
     }
 
@@ -227,16 +228,14 @@ public sealed class StorefrontCustomerService(
     {
         var session = await Resolve(storeKey, sessionToken, token); if (session is null) return null;
         var recipient = input.RecipientName?.Trim(); var mobile = input.Mobile?.Trim(); var line1 = input.AddressLine1?.Trim(); var city = input.City?.Trim(); var state = input.State?.Trim(); var pincode = input.Pincode?.Trim(); var type = input.AddressType?.Trim();
-        if (string.IsNullOrWhiteSpace(recipient) || recipient.Length > 250 || string.IsNullOrWhiteSpace(mobile) || mobile.Length > 18 || string.IsNullOrWhiteSpace(line1) || line1.Length > 250 || string.IsNullOrWhiteSpace(city) || city.Length > 100 || string.IsNullOrWhiteSpace(state) || state.Length > 100 || !Regex.IsMatch(pincode ?? "", "^[0-9]{6}$") || type is not ("Home" or "Work" or "Other")) throw new BusinessRuleException("Enter complete valid delivery address details.");
+        if (string.IsNullOrWhiteSpace(recipient) || recipient.Length > 250 || string.IsNullOrWhiteSpace(mobile) || mobile.Length > 18 || string.IsNullOrWhiteSpace(line1) || line1.Length > 250 || string.IsNullOrWhiteSpace(city) || city.Length > 100 || string.IsNullOrWhiteSpace(state) || state.Length > 100 || !Regex.IsMatch(pincode ?? "", "^[1-9][0-9]{5}$") || type is not ("Home" or "Work" or "Other")) throw new BusinessRuleException("Enter complete valid delivery address details.");
         await using var connection = await Open(session.TenantId, token);
         await using (var availability = new SqlCommand("""
-            SELECT CONVERT(bit, CASE WHEN s.DeliveryEnabled=1 AND d.DeliveryEnabled=1 THEN 1 ELSE 0 END),
-                   CONVERT(bit, CASE WHEN EXISTS (
-                       SELECT 1 FROM commerce.StorefrontServiceablePincodes p
-                       WHERE p.TenantId=@tenant AND p.Pincode=@pincode AND p.IsActive=1
-                   ) THEN 1 ELSE 0 END)
+            SELECT CONVERT(bit, CASE WHEN s.DeliveryEnabled=1 THEN 1 ELSE 0 END),
+                   CONVERT(bit, CASE WHEN COALESCE(s.DeliveryCoverageMode,'ALLOWLIST')='PAN_INDIA'
+                       THEN CASE WHEN EXISTS (SELECT 1 FROM commerce.StorefrontServiceablePincodes p WHERE p.TenantId=@tenant AND p.Pincode=@pincode AND p.IsExcluded=1 AND p.IsActive=1) THEN 0 ELSE 1 END
+                       ELSE CASE WHEN EXISTS (SELECT 1 FROM commerce.StorefrontServiceablePincodes p WHERE p.TenantId=@tenant AND p.Pincode=@pincode AND p.IsActive=1 AND p.IsExcluded=0) THEN 1 ELSE 0 END END)
             FROM commerce.StorefrontConfigurations s
-            LEFT JOIN commerce.TenantDeliverySettings d ON d.TenantId=s.TenantId
             WHERE s.TenantId=@tenant;
             """, connection))
         {

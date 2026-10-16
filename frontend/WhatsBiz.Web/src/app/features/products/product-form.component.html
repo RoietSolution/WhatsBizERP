@@ -203,7 +203,7 @@
     <mat-card
       ><mat-card-header><mat-card-title>Product images (up to 5)</mat-card-title></mat-card-header
       ><mat-card-content class="media">
-        <div class="gallery">@for (image of images(); track image.productImageId) {<div class="image-tile" [class.primary]="image.isPrimary"><img [src]="image.url" [alt]="image.fileName" /><small>{{ image.isPrimary ? 'Primary image' : 'Saved image' }}</small><button type="button" mat-button color="warn" (click)="deleteImage(image)">Delete</button></div>} @for (preview of selectedImagePreviews(); track preview; let i = $index) {<div class="image-tile"><img [src]="preview" alt="Selected product image preview" /><small>Selected image</small><button type="button" mat-button color="warn" (click)="removeSelectedImage(i)">Remove</button></div>} @if (!images().length && !selectedImagePreviews().length) {<span>No images selected.</span>}</div>
+        <div class="gallery">@for (image of images(); track image.productImageId) {<div class="image-tile" [class.primary]="image.isPrimary"><img [src]="image.url" [alt]="image.fileName" /><small>{{ image.isPrimary ? 'Primary image' : 'Saved image' }}</small><span class="image-name" [title]="image.fileName">{{ image.fileName }}</span><button type="button" mat-stroked-button color="warn" (click)="deleteImage(image)">Remove</button></div>} @for (preview of selectedImagePreviews(); track preview; let i = $index) {<div class="image-tile"><img [src]="preview" alt="Selected product image preview" /><small>Selected image</small><span class="image-name" [title]="selectedImageName(i)">{{ selectedImageName(i) }}</span><button type="button" mat-stroked-button color="warn" (click)="removeSelectedImage(i)">Remove</button></div>} @if (!images().length && !selectedImagePreviews().length) {<span>No images selected.</span>}</div>
         <div>
           <button type="button" mat-stroked-button (click)="imageInput.click()">
             Add images</button
@@ -216,6 +216,8 @@
             (change)="selectImage($event)"
           />
           <p>{{ images().length + selectedImagesCount() }} of 5 images. The first uploaded image is used as the primary catalog image.</p>
+          @if (imageUploadSummary()) { <p class="upload-summary" role="status">{{ imageUploadSummary() }}</p> }
+          @if (imageUploadStates().length) { <ul class="upload-status" aria-label="Image upload status">@for (upload of imageUploadStates(); track upload.index) { <li><span class="upload-file-name" [title]="upload.fileName">{{ upload.fileName }}</span><span class="upload-state" [class]="upload.status">{{ upload.status === 'success' ? 'Uploaded' : upload.status === 'failed' ? 'Failed' : upload.status === 'uploading' ? 'Uploading…' : 'Waiting' }}</span></li> }</ul> }
         </div></mat-card-content
       ></mat-card
     >

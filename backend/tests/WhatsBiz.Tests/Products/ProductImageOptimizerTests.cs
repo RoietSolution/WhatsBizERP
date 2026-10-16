@@ -2,6 +2,8 @@ using FluentAssertions;
 using ImageMagick;
 using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Infrastructure.Products;
+using WhatsBiz.Application.Features.Products.Products;
+using WhatsBiz.Application.Features.Storefront;
 
 namespace WhatsBiz.Tests.Products;
 
@@ -53,6 +55,32 @@ public sealed class ProductImageOptimizerTests
         await FluentActions.Awaiting(() => optimizer.OptimizeAsync("x.gif", "image/gif", [1, 2, 3], CancellationToken.None)).Should().ThrowAsync<BusinessRuleException>();
         await FluentActions.Awaiting(() => optimizer.OptimizeAsync("x.jpg", "image/jpeg", [1, 2, 3], CancellationToken.None)).Should().ThrowAsync<BusinessRuleException>();
         await FluentActions.Awaiting(() => optimizer.OptimizeAsync("x.jpg", "image/jpeg", new byte[5 * 1024 * 1024 + 1], CancellationToken.None)).Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Theory]
+    [InlineData(StorefrontAttachmentScanResult.Infected)]
+    [InlineData(StorefrontAttachmentScanResult.Failed)]
+    [InlineData(StorefrontAttachmentScanResult.Pending)]
+    public void ProductUploadFailsClosedForNonCleanScannerResults(StorefrontAttachmentScanResult result)
+    {
+        FluentActions.Invoking(() => StorefrontProductImageScanGuard.RequireClean(result))
+            .Should().Throw<BusinessRuleException>();
+    }
+
+    [Fact]
+    public void ProductUploadAllowsOnlyCleanScannerResult()
+    {
+        FluentActions.Invoking(() => StorefrontProductImageScanGuard.RequireClean(StorefrontAttachmentScanResult.Clean))
+            .Should().NotThrow();
+    }
+
+    [Fact]
+    public void ProductUploadScansBeforeStorageAndPersistsTheAuthenticatedTenant()
+    {
+        var sourcePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../..", "backend/src/WhatsBiz.Application/Features/Products/Products/ProductHandlers.cs"));
+        var source = File.ReadAllText(sourcePath);
+        source.IndexOf("ScanOriginalAsync", StringComparison.Ordinal).Should().BeLessThan(source.IndexOf("storage.StoreAsync", StringComparison.Ordinal));
+        source.Should().Contain("TenantId = tenantId");
     }
 
     private static byte[] CreateImage(int width, int height, bool jpeg)

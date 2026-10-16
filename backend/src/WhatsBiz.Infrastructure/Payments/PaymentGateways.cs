@@ -35,6 +35,8 @@ public sealed class RazorpayPaymentGateway(IHttpClientFactory clients) : IPaymen
             customer = new { name = request.CustomerName, contact = request.CustomerMobile },
             notify = new { sms = false, email = false },
             reminder_enable = false,
+            callback_url = request.CallbackUrl,
+            callback_method = string.IsNullOrWhiteSpace(request.CallbackUrl) ? null : "get",
             options = request.PaymentMethod switch
             {
                 "UPI" => new { checkout = new { method = new { upi = true, netbanking = false, card = false, wallet = false } } },

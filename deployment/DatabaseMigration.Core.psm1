@@ -218,12 +218,43 @@ function Assert-DatabaseMigrationConnectionPolicy {
 function Assert-DatabaseMigrationValidatorReadOnly {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Text,[Parameter(Mandatory)][string]$FileName)
-    $safe=[regex]::Replace($Text,'(?s)/\*.*?\*/',' ')
+    $safe=[regex]::Replace($Text,"N?'(?:''|[^'])*'",' ')
+    $safe=[regex]::Replace($safe,'(?s)/\*.*?\*/',' ')
     $safe=[regex]::Replace($safe,'(?m)--.*$',' ')
-    $safe=[regex]::Replace($safe,"N?'(?:''|[^'])*'",' ')
-    if($safe -match '(?i)\b(INSERT|UPDATE|DELETE|MERGE|CREATE|ALTER|DROP|TRUNCATE|EXEC|BACKUP|RESTORE|GRANT|REVOKE|DENY|DBCC|INTO|BULK|OPENROWSET|OPENDATASOURCE|WAITFOR)\b|\bNEXT\s+VALUE\s+FOR\b'){
-        throw "Validator '$FileName' contains a write-capable or administrative SQL operation."
+    $prohibited=[regex]::Match($safe,'(?i)\b(INSERT|UPDATE|DELETE|MERGE|CREATE|ALTER|DROP|TRUNCATE|EXEC|BACKUP|RESTORE|GRANT|REVOKE|DENY|DBCC|INTO|BULK|OPENROWSET|OPENDATASOURCE|WAITFOR)\b|\bNEXT\s+VALUE\s+FOR\b')
+    if($prohibited.Success){
+        throw "Validator '$FileName' contains prohibited SQL operation or token '$($prohibited.Value.Trim())'."
     }
+}
+
+function Assert-DatabaseMigrationPreflight {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object[]]$Migrations,
+        [Parameter(Mandatory)][object[]]$Pending,
+        [Parameter(Mandatory)][int]$BaselineVersion
+    )
+    Assert-DatabaseMigrationSequence -Migrations $Migrations -BaselineVersion $BaselineVersion
+    foreach ($migration in @($Pending | Sort-Object Version)) {
+        if (-not (Test-Path -LiteralPath $migration.Path -PathType Leaf)) { throw "Preflight failed for V$($migration.Version): migration file is missing." }
+        if ([string]::IsNullOrWhiteSpace([string]$migration.Hash) -or [string]$migration.Hash -ne (Get-DatabaseMigrationHash -Path $migration.Path)) {
+            throw "Preflight failed for V$($migration.Version): migration hash is unavailable or changed."
+        }
+        $migrationText=[IO.File]::ReadAllText($migration.Path)
+        if($migrationText.IndexOf([char]0) -ge 0){throw "Preflight failed for V$($migration.Version): migration file contains a NUL character and is not runner-compatible."}
+        if($migrationText -match '(?im)^\s*:\s*(r|setvar)\b'){throw "Preflight failed for V$($migration.Version): migration file contains unsupported SQLCMD directives."}
+        if ([string]::IsNullOrWhiteSpace([string]$migration.ValidatorPath) -or -not (Test-Path -LiteralPath $migration.ValidatorPath -PathType Leaf)) {
+            throw "Preflight failed for V$($migration.Version): read-only validator is missing."
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$migration.ValidatorHash) -or [string]$migration.ValidatorHash -ne (Get-DatabaseMigrationHash -Path $migration.ValidatorPath)) {
+            throw "Preflight failed for V$($migration.Version): validator hash is unavailable or changed."
+        }
+        $validatorText = [IO.File]::ReadAllText($migration.ValidatorPath)
+        if($validatorText.IndexOf([char]0) -ge 0){throw "Preflight failed for V$($migration.Version): validator contains a NUL character and is not runner-compatible."}
+        if($validatorText -match '(?im)^\s*:\s*(r|setvar)\b'){throw "Preflight failed for V$($migration.Version): validator contains unsupported SQLCMD directives."}
+        Assert-DatabaseMigrationValidatorReadOnly -Text $validatorText -FileName (Split-Path -Leaf $migration.ValidatorPath)
+    }
+    [pscustomobject]@{ PendingCount = @($Pending).Count; Status = 'PASS' }
 }
 function Assert-DatabaseMigrationBaselineVersion {
     [CmdletBinding()]
@@ -340,5 +371,5 @@ function Invoke-DatabaseMigrationAdoption {
     return
 }
 
-Export-ModuleMember -Function ConvertTo-DatabaseBackupMetadata,ConvertTo-DatabaseBackupResumeRecord,Assert-DatabaseBackupResumeEvidence,ConvertTo-DatabaseMigrationHistoryRows,Get-DatabaseMigrationStatusSummary,Get-DatabaseMigrationCatalog,Get-DatabaseMigrationHash,Assert-DatabaseMigrationSequence,Get-DatabaseMigrationPlan,Assert-DatabaseMigrationIdentity,Assert-DatabaseMigrationConnectionPolicy,Assert-ProductionConfirmation,Assert-DatabaseMigrationBaselineVersion,Assert-DatabaseMigrationBaselineInitialized,Assert-DatabaseMigrationValidatorReadOnly,Assert-DatabaseMigrationModes,Assert-DatabaseMigrationMetadataVisibility,Assert-DatabaseDeploymentPreflight,New-DatabaseSqlConnectionStringBuilder,Format-SafeSqlConnectionException,Invoke-DatabaseMigrationWorkflow,Invoke-DatabaseMigrationAdoption
+Export-ModuleMember -Function ConvertTo-DatabaseBackupMetadata,ConvertTo-DatabaseBackupResumeRecord,Assert-DatabaseBackupResumeEvidence,ConvertTo-DatabaseMigrationHistoryRows,Get-DatabaseMigrationStatusSummary,Get-DatabaseMigrationCatalog,Get-DatabaseMigrationHash,Assert-DatabaseMigrationSequence,Get-DatabaseMigrationPlan,Assert-DatabaseMigrationIdentity,Assert-DatabaseMigrationConnectionPolicy,Assert-ProductionConfirmation,Assert-DatabaseMigrationBaselineVersion,Assert-DatabaseMigrationBaselineInitialized,Assert-DatabaseMigrationValidatorReadOnly,Assert-DatabaseMigrationPreflight,Assert-DatabaseMigrationModes,Assert-DatabaseMigrationMetadataVisibility,Assert-DatabaseDeploymentPreflight,New-DatabaseSqlConnectionStringBuilder,Format-SafeSqlConnectionException,Invoke-DatabaseMigrationWorkflow,Invoke-DatabaseMigrationAdoption
 

@@ -1,0 +1,4 @@
+IF COL_LENGTH(N'commerce.StorefrontConfigurations', N'AutomatedEmailMode') IS NULL THROW 61001, N'V61 email mode column is missing.', 1;
+IF COL_LENGTH(N'commerce.StorefrontConfigurations', N'CustomSmtpPasswordProtected') IS NULL THROW 61002, N'V61 protected SMTP password column is missing.', 1;
+IF NOT EXISTS (SELECT 1 FROM sys.default_constraints dc JOIN sys.columns c ON c.object_id=dc.parent_object_id AND c.column_id=dc.parent_column_id WHERE dc.parent_object_id=OBJECT_ID(N'commerce.StorefrontConfigurations') AND c.name=N'AutomatedEmailMode' AND dc.definition LIKE N'%KHATADHARI_DEFAULT%') THROW 61003, N'V61 email mode default is missing.', 1;
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name=N'CK_StorefrontConfigurations_AutomatedEmailMode' AND parent_object_id=OBJECT_ID(N'commerce.StorefrontConfigurations')) THROW 61004, N'V61 email mode constraint is missing.', 1;

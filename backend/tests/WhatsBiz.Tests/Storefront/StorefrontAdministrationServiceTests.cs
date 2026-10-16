@@ -1,10 +1,13 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Storefront;
 using WhatsBiz.Domain.Commerce;
 using WhatsBiz.Domain.Tenants;
 using WhatsBiz.Infrastructure.Persistence;
+using WhatsBiz.Infrastructure.Notifications;
 using WhatsBiz.Infrastructure.Storefront;
 
 namespace WhatsBiz.Tests.Storefront;
@@ -18,7 +21,7 @@ public sealed class StorefrontAdministrationServiceTests
         var tenant = new Tenant { TenantId = Guid.NewGuid(), TenantKey = "GUTURGO", Name = "GuturGo", IsActive = true };
         db.Tenants.Add(tenant);
         await db.SaveChangesAsync();
-        var service = new StorefrontAdministrationService(db, new CurrentUser(tenant.TenantId), new TestOptimizer(), new TestStorage());
+        var service = CreateService(db, tenant.TenantId);
 
         await service.UploadImageAsync("logo", null, "logo.png", new MemoryStream([1, 2, 3]), default);
 
@@ -49,7 +52,7 @@ public sealed class StorefrontAdministrationServiceTests
         var tenant = new Tenant { TenantId = Guid.NewGuid(), TenantKey = "GUTURGO", Name = "GuturGo", IsActive = true };
         db.Tenants.Add(tenant);
         await db.SaveChangesAsync();
-        var service = new StorefrontAdministrationService(db, new CurrentUser(tenant.TenantId), new TestOptimizer(), new TestStorage());
+        var service = CreateService(db, tenant.TenantId);
 
         await service.UploadImageAsync("banner-primary", null, "primary.png", new MemoryStream([4, 5, 6]), default);
         var beforeSave = await db.StorefrontBanners.SingleAsync(x => x.TenantId == tenant.TenantId && x.Slot == StorefrontBannerSlots.Primary);
@@ -105,7 +108,7 @@ public sealed class StorefrontAdministrationServiceTests
         var tenant=new Tenant{TenantId=Guid.NewGuid(),TenantKey="GUTURGO",Name="GuturGo",IsActive=true};
         var other=new Tenant{TenantId=Guid.NewGuid(),TenantKey="OTHER",Name="Other",IsActive=true};
         db.Tenants.AddRange(tenant,other);await db.SaveChangesAsync();
-        var service=new StorefrontAdministrationService(db,new CurrentUser(tenant.TenantId),new TestOptimizer(),new TestStorage());
+        var service = CreateService(db, tenant.TenantId);
         await service.UploadImageAsync("category-all",null,"all.png",new MemoryStream([1,2,3]),default);
         var firstConfig=await db.StorefrontConfigurations.SingleAsync(x=>x.TenantId==tenant.TenantId);
         var firstId=firstConfig.AllCategoryMediaId!.Value;
@@ -122,7 +125,7 @@ public sealed class StorefrontAdministrationServiceTests
         var replacement=await db.StorefrontMedia.SingleAsync(x=>x.TenantId==tenant.TenantId&&x.MediaId==secondId);
         replacement.ResourceType.Should().Be("category-all");replacement.ImageData.Should().Equal(7,8,9);
         (await publicStorefront.GetPresentationImageAsync("GUTURGO","category-all",null,default))!.Content.Should().Equal(7,8,9);
-        var otherService=new StorefrontAdministrationService(db,new CurrentUser(other.TenantId),new TestOptimizer(),new TestStorage());
+        var otherService = CreateService(db, other.TenantId);
         (await otherService.GetImageAsync("category-all",null,default)).Should().BeNull();
     }
     private static StorefrontMedia Media(Guid tenantId, string type, byte[] data) => new()
@@ -130,6 +133,11 @@ public sealed class StorefrontAdministrationServiceTests
         MediaId = Guid.NewGuid(), TenantId = tenantId, ResourceType = type, StorageProvider = "DATABASE",
         ContentType = "image/webp", ImageData = data, ContentHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data))
     };
+
+    private static StorefrontAdministrationService CreateService(ApplicationDbContext db, Guid tenantId)
+        => new(db, new CurrentUser(tenantId), new TestOptimizer(), new TestStorage(),
+            DataProtectionProvider.Create("whatsbiz-storefront-administration-tests"),
+            Options.Create(new StorefrontFeedbackNotificationOptions()));
 
     private static ApplicationDbContext CreateDb() => new(new DbContextOptionsBuilder<ApplicationDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

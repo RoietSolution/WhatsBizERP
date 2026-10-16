@@ -205,10 +205,28 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
     [HttpGet("feedback/{ticketId:guid}")]
     public async Task<IActionResult> MyFeedbackTicket(string storeKey, Guid ticketId, CancellationToken token)
     { var result = await feedback.CustomerTicketAsync(storeKey, CustomerSessionToken(), ticketId, token); return result is null ? NotFound() : Ok(result); }
+    [HttpGet("feedback/notifications")]
+    public async Task<IActionResult> MyFeedbackNotifications(string storeKey, CancellationToken token)
+    { var customer=await customers.GetSessionAsync(storeKey,CustomerSessionToken(),token); var tenant=await feedback.ResolveTenantAsync(storeKey,token); if(customer is null||tenant is null)return Unauthorized(); return Ok(await feedback.NotificationsAsync(tenant.Value,customer.Id,token)); }
+    [HttpPost("feedback/notifications/{notificationId:guid}/read")]
+    public async Task<IActionResult> ReadFeedbackNotification(string storeKey, Guid notificationId, CancellationToken token)
+    { var customer=await customers.GetSessionAsync(storeKey,CustomerSessionToken(),token); var tenant=await feedback.ResolveTenantAsync(storeKey,token); if(customer is null||tenant is null)return Unauthorized(); return await feedback.MarkNotificationReadAsync(tenant.Value,notificationId,customer.Id,token)?NoContent():NotFound(); }
+    [HttpGet("feedback/{ticketId:guid}/attachments")]
+    public async Task<IActionResult> FeedbackAttachments(string storeKey, Guid ticketId, CancellationToken token)
+    { var customer=await customers.GetSessionAsync(storeKey,CustomerSessionToken(),token); var tenant=await feedback.ResolveTenantAsync(storeKey,token); if(customer is null||tenant is null)return Unauthorized(); return Ok(await feedback.AttachmentsAsync(tenant.Value,ticketId,customer.Id,false,token)); }
+    [HttpPost("feedback/{ticketId:guid}/attachments"), RequestSizeLimit(16 * 1024 * 1024)]
+    public async Task<ActionResult<StorefrontFeedbackAttachmentDto>> AddFeedbackAttachment(string storeKey, Guid ticketId, [FromForm(Name="file")] IFormFile file, CancellationToken token)
+    { if(file is null)return BadRequest(new{message="Choose an attachment."}); var customer=await customers.GetSessionAsync(storeKey,CustomerSessionToken(),token); var tenant=await feedback.ResolveTenantAsync(storeKey,token); if(customer is null||tenant is null)return Unauthorized(); await using var stream=file.OpenReadStream(); using var memory=new MemoryStream(); await stream.CopyToAsync(memory,token); try{return Ok(await feedback.AddAttachmentAsync(tenant.Value,ticketId,customer.Id,false,file.FileName,file.ContentType,memory.ToArray(),token));}catch(BusinessRuleException ex){return BadRequest(new{message=ex.Message});} }
+    [HttpGet("feedback/{ticketId:guid}/attachments/{attachmentId:guid}")]
+    public async Task<IActionResult> DownloadFeedbackAttachment(string storeKey, Guid ticketId, Guid attachmentId, CancellationToken token)
+    { var customer=await customers.GetSessionAsync(storeKey,CustomerSessionToken(),token); var tenant=await feedback.ResolveTenantAsync(storeKey,token); if(customer is null||tenant is null)return Unauthorized(); var file=await feedback.ReadAttachmentAsync(tenant.Value,ticketId,attachmentId,customer.Id,false,token); if(file is null)return NotFound(); Response.Headers["X-Content-Type-Options"]="nosniff"; return File(file.Content,file.ContentType,file.FileName,enableRangeProcessing:false); }
     [HttpPost("search-events")]
     public async Task<CustomerDemandSummaryDto> SearchEvent(string storeKey, StorefrontSearchEventInput input, CancellationToken token) => await demand.RecordSearchAsync(storeKey, CustomerSessionTokenOrNull(), input, token);
     [HttpPost("products/{productId:guid}/availability-request")]
     public Task<StorefrontAvailabilityRequestDto> Availability(string storeKey, Guid productId, StorefrontAvailabilityRequestInput input, CancellationToken token) => demand.RequestAvailabilityAsync(storeKey, productId, CustomerSessionTokenOrNull(), input, token);
+    [HttpGet("products/{productId:guid}/availability-request")]
+    public async Task<ActionResult<StorefrontAvailabilityRequestDto>> AvailabilityStatus(string storeKey, Guid productId, CancellationToken token)
+    { var tokenValue=CustomerSessionTokenOrNull(); if (tokenValue is null) return NotFound(); var result=await demand.GetAvailabilityAsync(storeKey, productId, tokenValue, token); return result is null ? NotFound() : Ok(result); }
     [HttpDelete("products/{productId:guid}/availability-request")]
     public async Task<IActionResult> CancelAvailability(string storeKey, Guid productId, CancellationToken token) { var tokenValue=CustomerSessionTokenOrNull(); if (tokenValue is null) return Unauthorized(); return (await demand.CancelAvailabilityAsync(storeKey, productId, tokenValue, token)) ? NoContent() : NotFound(); }
     [HttpPost("missing-product-requests")]
@@ -339,6 +357,22 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
     [EnableRateLimiting("StorefrontCheckout")]
     public async Task<ActionResult<StorefrontCheckoutResult>> CheckoutWithSelectedMethod(
         string storeKey, StorefrontCheckoutInput input, CancellationToken token) => await CheckoutCore(storeKey, input, token);
+
+    [HttpGet("orders/{orderId:guid}/payment-status")]
+    [EnableRateLimiting("StorefrontCheckout")]
+    public async Task<ActionResult<StorefrontPaymentReturnDto>> PaymentStatus(string storeKey, Guid orderId, CancellationToken token)
+    {
+        var result = await checkout.GetPaymentStatusAsync(storeKey, orderId, CustomerSessionToken(), token);
+        return result is null ? Unauthorized() : Ok(result);
+    }
+
+    [HttpPost("orders/{orderId:guid}/payment-retry")]
+    [EnableRateLimiting("StorefrontCheckout")]
+    public async Task<ActionResult<StorefrontCheckoutResult>> RetryPayment(string storeKey, Guid orderId, CancellationToken token)
+    {
+        var result = await checkout.RetryPaymentAsync(storeKey, orderId, CustomerSessionToken(), token);
+        return result is null ? Unauthorized() : Ok(result);
+    }
 
     [HttpPost("checkout/razorpay")]
     [EnableRateLimiting("StorefrontCheckout")]

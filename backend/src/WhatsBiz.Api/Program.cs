@@ -102,6 +102,7 @@ try
     builder.Services.AddScoped<ICommerceCollectionRepository, CommerceCollectionRepository>();
     builder.Services.AddScoped<IStorefrontService, StorefrontService>();
     builder.Services.AddScoped<IStorefrontCheckoutService, StorefrontCheckoutService>();
+    builder.Services.AddScoped<IStorefrontAutomatedNotificationService, StorefrontAutomatedNotificationService>();
     builder.Services.AddScoped<IStorefrontCustomerService, StorefrontCustomerService>();
     builder.Services.AddScoped<IStorefrontCustomerRewardsService, StorefrontCustomerService>();
     builder.Services.AddScoped<IStorefrontCancellationService, StorefrontCancellationService>();
@@ -111,6 +112,7 @@ try
     builder.Services.AddScoped<IStorefrontActivityService, StorefrontActivityService>();
     builder.Services.AddScoped<IStorefrontCustomerManagementService, StorefrontCustomerManagementService>();
     builder.Services.AddScoped<IStorefrontFeedbackService, StorefrontFeedbackService>();
+    builder.Services.AddSingleton<IStorefrontFeedbackAttachmentScanner, ClamAvFeedbackAttachmentScanner>();
     builder.Services.AddScoped<IStorefrontCustomerBlacklistService, StorefrontCustomerBlacklistService>();
 builder.Services.AddScoped<CustomerDemandService>();
 builder.Services.AddScoped<ICustomerDemandService, CustomerDemandReportingService>();

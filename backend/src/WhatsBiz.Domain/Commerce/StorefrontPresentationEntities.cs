@@ -10,6 +10,7 @@ public sealed class StorefrontConfiguration
     public string? DeliveryMessage { get; set; }
     public decimal? FreeDeliveryThreshold { get; set; }
     public bool DeliveryEnabled { get; set; }
+    public string DeliveryCoverageMode { get; set; } = "ALLOWLIST";
     public decimal StandardDeliveryCharge { get; set; }
     public bool FreeDeliveryEnabled { get; set; }
     public bool DeliveryChargeTaxEnabled { get; set; }
@@ -18,6 +19,19 @@ public sealed class StorefrontConfiguration
     public bool ShowProductReviews { get; set; } = true;
     public bool ShowProductDetailsOnShippingLabel { get; set; } = true;
     public int DefaultReturnWindowDays { get; set; } = 7;
+    public bool NewOrderEmailNotificationsEnabled { get; set; }
+    public string? NewOrderNotificationEmail { get; set; }
+    public bool RestockWhatsAppNotificationsEnabled { get; set; }
+    public string? RestockWhatsAppTemplateName { get; set; }
+    public string AutomatedEmailMode { get; set; } = "KHATADHARI_DEFAULT";
+    public string? NotificationSenderDisplayName { get; set; }
+    public string? NotificationReplyToEmail { get; set; }
+    public string? CustomSmtpHost { get; set; }
+    public int? CustomSmtpPort { get; set; }
+    public string? CustomSmtpSecurityMode { get; set; }
+    public string? CustomSmtpUsername { get; set; }
+    public string? CustomSmtpPasswordProtected { get; set; }
+    public string? CustomSmtpFromEmail { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -91,6 +105,7 @@ public sealed class StorefrontServiceablePincode
     public Guid TenantId { get; set; }
     public string Pincode { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
+    public bool IsExcluded { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
 

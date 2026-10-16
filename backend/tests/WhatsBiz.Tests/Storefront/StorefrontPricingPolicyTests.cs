@@ -25,6 +25,17 @@ public sealed class StorefrontPricingPolicyTests
     }
 
     [Fact]
+    public void Straightforward268ProductWithoutTaxOrDeliveryRemains268()
+    {
+        var result = Quote(268, new(true, 0m, false, null));
+        result.MerchandiseSubtotal.Should().Be(268m);
+        result.MerchandiseTaxAmount.Should().Be(0m);
+        result.PromotionDiscount.Should().Be(0m);
+        result.DeliveryCharge.Should().Be(0m);
+        result.FinalPayableAmount.Should().Be(268m);
+    }
+
+    [Fact]
     public void CaseBPromotionIsBeforeDeliveryAndIndependentOfIt()
     {
         var offer = Offer("MINIMUM_PURCHASE", "FLAT", 50, 1000);

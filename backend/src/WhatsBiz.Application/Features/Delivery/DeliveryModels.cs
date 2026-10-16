@@ -29,6 +29,7 @@ public sealed record AssignDeliveryInput(Guid? DeliveryAgentId,string? Reason=nu
 public sealed record FailDeliveryInput(string Reason,string? Details=null);
 public sealed record RescheduleDeliveryInput(DateTimeOffset NewDate,string? TimeWindow,string Reason,Guid? DeliveryAgentId=null);
 public sealed record ConfirmOtpInput(string Otp);
+public sealed record ConfirmDeliveryWithoutOtpInput(string Reason);
 public sealed record CodCollectionInput(string PaymentMethod,decimal Amount,string? Reference=null);
 public sealed record OverrideDeliveryInput(string Reason,bool CodException=false);
 public sealed record OrderDeliveryCompletedEvent(Guid TenantId,Guid OrderId,Guid DeliveryId,Guid? CustomerId,string Actor) : INotification;
@@ -40,7 +41,7 @@ public interface IDeliveryService
  Task<DeliveryDashboardDto> Deliveries(Guid tenantId,DeliveryQuery query,CancellationToken token); Task<IReadOnlyCollection<DeliveryDto>> MyDeliveries(Guid tenantId,Guid userId,string? status,CancellationToken token); Task<DeliveryDto> GetDelivery(Guid tenantId,Guid deliveryId,Guid? actingUser,bool manage,CancellationToken token);
  Task<DeliveryDto> Ready(Guid tenantId,Guid orderId,ReadyDeliveryInput input,Guid actorId,string actor,CancellationToken token); Task<DeliveryDto> Assign(Guid tenantId,Guid deliveryId,AssignDeliveryInput input,Guid actorId,string actor,CancellationToken token);
  Task<DeliveryDto> PickedUp(Guid tenantId,Guid deliveryId,Guid userId,string actor,bool manage,CancellationToken token); Task<DeliveryDto> OutForDelivery(Guid tenantId,Guid deliveryId,Guid userId,string actor,bool manage,CancellationToken token);
- Task RequestOtp(Guid tenantId,Guid deliveryId,Guid userId,string actor,bool manage,CancellationToken token); Task<DeliveryDto> ConfirmOtp(Guid tenantId,Guid deliveryId,Guid userId,ConfirmOtpInput input,string actor,bool manage,CancellationToken token);
+ Task RequestOtp(Guid tenantId,Guid deliveryId,Guid userId,string actor,bool manage,CancellationToken token); Task<DeliveryDto> ConfirmOtp(Guid tenantId,Guid deliveryId,Guid userId,ConfirmOtpInput input,string actor,bool manage,CancellationToken token); Task<DeliveryDto> ConfirmWithoutOtp(Guid tenantId,Guid deliveryId,Guid userId,ConfirmDeliveryWithoutOtpInput input,string actor,bool manage,CancellationToken token);
  Task<DeliveryDto> RecordCod(Guid tenantId,Guid deliveryId,Guid userId,CodCollectionInput input,string actor,bool manage,CancellationToken token); Task<DeliveryDto> Fail(Guid tenantId,Guid deliveryId,Guid userId,FailDeliveryInput input,string actor,bool manage,CancellationToken token);
  Task<DeliveryDto> Reschedule(Guid tenantId,Guid deliveryId,Guid userId,RescheduleDeliveryInput input,string actor,bool manage,CancellationToken token); Task<DeliveryDto> OverrideDelivered(Guid tenantId,Guid deliveryId,OverrideDeliveryInput input,Guid actorId,string actor,CancellationToken token);
 }

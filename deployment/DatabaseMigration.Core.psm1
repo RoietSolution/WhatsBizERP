@@ -231,7 +231,7 @@ function Assert-DatabaseMigrationPreflight {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][object[]]$Migrations,
-        [Parameter(Mandatory)][object[]]$Pending,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Pending,
         [Parameter(Mandatory)][int]$BaselineVersion
     )
     Assert-DatabaseMigrationSequence -Migrations $Migrations -BaselineVersion $BaselineVersion

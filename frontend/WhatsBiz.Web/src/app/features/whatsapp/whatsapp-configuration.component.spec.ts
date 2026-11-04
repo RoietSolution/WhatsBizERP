@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { FeatureService } from '../../core/services/feature.service';
 import { WhatsAppApiService, WhatsAppConfiguration } from './whatsapp-api.service';
 import { WhatsAppConfigurationComponent } from './whatsapp-configuration.component';
@@ -31,10 +31,10 @@ describe('WhatsAppConfigurationComponent LIVE retailer setup', () => {
     await TestBed.configureTestingModule({
       imports: [WhatsAppConfigurationComponent],
       providers: [
+        provideRouter([]),
         { provide: WhatsAppApiService, useValue: api },
         { provide: FeatureService, useValue: features },
         { provide: ActivatedRoute, useValue: { snapshot: { data: { platform: owner } } } },
-        provideRouter([]),
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(WhatsAppConfigurationComponent);
@@ -132,10 +132,10 @@ describe('WhatsAppConfigurationComponent LIVE retailer setup', () => {
     expect(text).toContain('Save Configuration');
   });
 
-  it('launches the Meta Builder Coexistence flow with the required extras', async () => {
+  it('launches Embedded Signup v4 with the selected configuration', async () => {
     const fixture = await create(false);
     api.onboardingConfig.and.returnValue(of({ enabled: true, appId: '123', configurationId: '456', graphApiVersion: 'v24.0' }));
-    const login = installFacebookLogin();
+    const login = installFacebookLogin({});
 
     fixture.componentInstance.connectLive();
 
@@ -143,13 +143,40 @@ describe('WhatsAppConfigurationComponent LIVE retailer setup', () => {
     expect(options.config_id).toBe('456');
     expect(options.response_type).toBe('code');
     expect(options.override_default_response_type).toBeTrue();
-    expect(options.extras).toEqual({ setup: {}, featureType: 'whatsapp_business_app_onboarding', sessionInfoVersion: '3', version: 'v4' });
+    expect(options.extras).toEqual({ setup: {}, featureType: 'whatsapp_business_app_onboarding', version: 'v4' });
+  });
+
+  it('lets Application Owner launch Embedded Signup for the selected retailer', async () => {
+    const fixture = await create(true);
+    const component = fixture.componentInstance;
+    component.tenantId = 'selected-retailer';
+    component.model.set(liveConfig());
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Connect WhatsApp Business');
+    api.onboardingConfig.and.returnValue(of({ enabled: true, appId: '123', configurationId: '456', graphApiVersion: 'v24.0' }));
+    let loginResponse: ((value: { authResponse?: { code?: string } }) => void) | undefined;
+    const login = jasmine.createSpy('login').and.callFake((callback: (value: { authResponse?: { code?: string } }) => void) => { loginResponse = callback; });
+    (window as unknown as { FB: { login: typeof login } }).FB = { login };
+
+    component.connectLive();
+
+    expect(api.onboardingConfig).toHaveBeenCalledWith('selected-retailer');
+    expect(login).toHaveBeenCalled();
+    component.tenantId = 'different-retailer';
+    window.dispatchEvent(new MessageEvent('message', {
+      origin: 'https://www.facebook.com',
+      data: JSON.stringify({ event: 'FINISH', data: { waba_id: 'waba-1', phone_number_id: 'phone-1' } }),
+    }));
+    loginResponse?.({ authResponse: { code: 'auth-code' } });
+    expect(api.completeOnboarding).toHaveBeenCalledWith(jasmine.objectContaining({
+      authorizationCode: 'auth-code', apiVersion: 'v24.0',
+    }), 'selected-retailer');
   });
 
   it('keeps standard FINISH completion supported', async () => {
     const fixture = await create(false);
     api.onboardingConfig.and.returnValue(of({ enabled: true, appId: '123', configurationId: '456', graphApiVersion: 'v24.0' }));
-    const login = installFacebookLogin({});
+    const login = installFacebookLogin();
     fixture.componentInstance.connectLive();
     window.dispatchEvent(new MessageEvent('message', {
       origin: 'https://www.facebook.com',
@@ -159,13 +186,57 @@ describe('WhatsAppConfigurationComponent LIVE retailer setup', () => {
 
     expect(api.completeOnboarding).toHaveBeenCalledWith(jasmine.objectContaining({
       authorizationCode: 'auth-code', whatsAppBusinessAccountId: 'waba-1', phoneNumberId: 'phone-1',
-    }));
+    }), undefined);
   });
 
-  it('accepts Coexistence completion without assuming phone_number_id exists', async () => {
+  it('waits for Meta FINISH IDs when the Facebook authorization code arrives first', async () => {
     const fixture = await create(false);
     api.onboardingConfig.and.returnValue(of({ enabled: true, appId: '123', configurationId: '456', graphApiVersion: 'v24.0' }));
-    const login = installFacebookLogin({});
+    let loginResponse: ((value: { authResponse?: { code?: string } }) => void) | undefined;
+    const login = jasmine.createSpy('login').and.callFake((callback: (value: { authResponse?: { code?: string } }) => void) => { loginResponse = callback; });
+    (window as unknown as { FB: { login: typeof login } }).FB = { login };
+    fixture.componentInstance.connectLive();
+
+    loginResponse?.({ authResponse: { code: 'auth-code' } });
+    expect(api.completeOnboarding).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.message()).toContain('Waiting for the account details');
+
+    window.dispatchEvent(new MessageEvent('message', {
+      origin: 'https://www.facebook.com',
+      data: JSON.stringify({ event: 'FINISH', data: { waba_id: 'waba-1', phone_number_id: 'phone-1' } }),
+    }));
+
+    expect(api.completeOnboarding).toHaveBeenCalledOnceWith(jasmine.objectContaining({
+      authorizationCode: 'auth-code', whatsAppBusinessAccountId: 'waba-1', phoneNumberId: 'phone-1',
+    }), undefined);
+  });
+
+  it('refreshes the selected retailer status when completion returns an error after save', async () => {
+    const configured = liveConfig({ connectionStatus: 'CONFIGURED' });
+    const fixture = await create(true, configured);
+    const component = fixture.componentInstance;
+    component.tenantId = 'selected-retailer';
+    component.model.set(liveConfig({ connectionStatus: 'NOT_CONFIGURED' }));
+    api.onboardingConfig.and.returnValue(of({ enabled: true, appId: '123', configurationId: '456', graphApiVersion: 'v24.0' }));
+    api.completeOnboarding.and.returnValue(throwError(() => new Error('connection validation failed')));
+    let loginResponse: ((value: { authResponse?: { code?: string } }) => void) | undefined;
+    const login = jasmine.createSpy('login').and.callFake((callback: (value: { authResponse?: { code?: string } }) => void) => { loginResponse = callback; });
+    (window as unknown as { FB: { login: typeof login } }).FB = { login };
+    component.connectLive();
+    window.dispatchEvent(new MessageEvent('message', {
+      origin: 'https://www.facebook.com',
+      data: JSON.stringify({ event: 'FINISH', data: { waba_id: 'waba-1', phone_number_id: 'phone-1' } }),
+    }));
+    loginResponse?.({ authResponse: { code: 'auth-code' } });
+
+    expect(api.get).toHaveBeenCalledWith('selected-retailer');
+    expect(component.model().connectionStatus).toBe('CONFIGURED');
+  });
+
+  it('does not submit completion when Meta FINISH omits the required phone ID', async () => {
+    const fixture = await create(false);
+    api.onboardingConfig.and.returnValue(of({ enabled: true, appId: '123', configurationId: '456', graphApiVersion: 'v24.0' }));
+    const login = installFacebookLogin();
     fixture.componentInstance.connectLive();
     window.dispatchEvent(new MessageEvent('message', {
       origin: 'https://www.facebook.com',
@@ -173,8 +244,7 @@ describe('WhatsAppConfigurationComponent LIVE retailer setup', () => {
     }));
     login.calls.mostRecent().args[0]({ authResponse: { code: 'auth-code' } });
 
-    expect(api.completeOnboarding).toHaveBeenCalledWith(jasmine.objectContaining({
-      authorizationCode: 'auth-code', whatsAppBusinessAccountId: 'waba-1', phoneNumberId: undefined,
-    }));
+    expect(api.completeOnboarding).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.message()).toContain('Meta finished without returning both the WABA ID and phone number ID');
   });
 });

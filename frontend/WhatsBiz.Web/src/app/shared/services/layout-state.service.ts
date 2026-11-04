@@ -5,10 +5,7 @@ export class LayoutStateService {
   readonly sidebarCollapsed = signal(localStorage.getItem('wb.sidebar.collapsed') === 'true');
   readonly mobileOpen = signal(false);
   readonly sidebarWidth = computed(() => (this.sidebarCollapsed() ? 80 : 272));
-  readonly darkMode = signal(
-    localStorage.getItem('wb.theme') === 'dark' ||
-      (!localStorage.getItem('wb.theme') && matchMedia('(prefers-color-scheme: dark)').matches),
-  );
+  readonly darkMode = signal(localStorage.getItem('wb.theme') === 'dark');
 
   constructor() {
     this.applyTheme();

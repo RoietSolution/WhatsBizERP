@@ -10,5 +10,9 @@ export const FeatureKeys = {
   AiAssistant: 'AI_ASSISTANT',
   Integrations: 'INTEGRATIONS',
   DeliveryManagement: 'DELIVERY_MANAGEMENT',
+  StorefrontScheduledSelling: 'STOREFRONT_SCHEDULED_SELLING',
+  StorefrontPopupCampaigns: 'STOREFRONT_POPUP_CAMPAIGNS',
+  StorefrontNotifications: 'STOREFRONT_NOTIFICATIONS',
+  GuestVisitorAnalytics: 'GUEST_VISITOR_ANALYTICS',
 } as const;
 export type FeatureKey = (typeof FeatureKeys)[keyof typeof FeatureKeys];

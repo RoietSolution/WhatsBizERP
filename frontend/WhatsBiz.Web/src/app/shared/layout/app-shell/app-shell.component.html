@@ -19,6 +19,20 @@
       <footer>
         <span>© {{ year }} KhataDhari ERP</span><span>Secure enterprise workspace</span>
       </footer>
-    </div></mat-sidenav-content
+    </div>
+    @if (compactMobile()) {
+      <nav class="mobile-quick-nav" aria-label="Quick navigation">
+        @for (item of mobileDestinations(); track item.route) {
+          <a [routerLink]="item.route" routerLinkActive="active" ariaCurrentWhenActive="page">
+            <span class="material-symbols-rounded" aria-hidden="true">{{ item.icon }}</span>
+            <span>{{ item.label }}</span>
+          </a>
+        }
+        <button type="button" [class.active]="moreActive()" [attr.aria-current]="moreActive() ? 'page' : null" (click)="layout.toggleMobile()" aria-label="More navigation options">
+          <span class="material-symbols-rounded" aria-hidden="true">more_horiz</span>
+          <span>More</span>
+        </button>
+      </nav>
+    }</mat-sidenav-content
   ></mat-sidenav-container
 >

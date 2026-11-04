@@ -72,6 +72,24 @@ public sealed class ErpPaymentPostingBoundaryTests
     }
 
     [Fact]
+    public void CollectedCodCompletesASettledHeldInvoiceBeforeCommit()
+    {
+        var delivery = Read("backend/src/WhatsBiz.Infrastructure/Delivery/DeliveryService.cs");
+        delivery.Should().Contain("await CompleteHeldInvoiceIfSettled(c,tx,row.OrderId,actor,token);")
+            .And.Contain("sales.POS_TransitionHeldInvoice")
+            .And.Contain("@Action\",\"COMPLETE\"");
+        delivery.IndexOf("erpPayments.ApplyAsync(c,tx,new(tenantId,row.OrderId", StringComparison.Ordinal)
+            .Should().BeLessThan(delivery.IndexOf("CompleteHeldInvoiceIfSettled", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void HeldInvoiceCompletionIsGuardedByZeroBalanceAndStatus()
+    {
+        var delivery = Read("backend/src/WhatsBiz.Infrastructure/Delivery/DeliveryService.cs");
+        delivery.Should().Contain("if(balance!=0||invoiceStatus is not(\"HELD\" or \"SUSPENDED\"))return;");
+    }
+
+    [Fact]
     public void ErpProcedureChecksInvoiceTenantAndReturnsReceiptIdentity()
     {
         var procedure = Read("database/WhatsBiz.Database/StoredProcedures/POS_AddPayment.sql");

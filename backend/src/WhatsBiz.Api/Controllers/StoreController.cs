@@ -10,7 +10,7 @@ namespace WhatsBiz.Api.Controllers;
 [ApiController]
 [AllowAnonymous]
 [Route("api/store/{storeKey}")]
-public sealed partial class StoreController(IStorefrontService storefront, IStorefrontCheckoutService checkout, IStorefrontCustomerService customers, IStorefrontCustomerRewardsService rewards, IStorefrontCustomerAuthenticationService customerAuth, IStorefrontReviewService reviews, IStorefrontActivityService activity, ICustomerDemandService demand, IStorefrontCancellationService cancellations, IStorefrontReturnService returns, IStorefrontFeedbackService feedback, ILogger<StoreController> logger) : ControllerBase
+public sealed partial class StoreController(IStorefrontService storefront, IStorefrontCheckoutService checkout, IStorefrontAvailabilityService availability, IStorefrontCustomerService customers, IStorefrontCustomerRewardsService rewards, IStorefrontCustomerAuthenticationService customerAuth, IStorefrontReviewService reviews, IStorefrontActivityService activity, ICustomerDemandService demand, IStorefrontCancellationService cancellations, IStorefrontReturnService returns, IStorefrontFeedbackService feedback, ILogger<StoreController> logger) : ControllerBase
 {
     private const long MaxProfileImageBytes = 5 * 1024 * 1024;
     private const long MaxProfileImageRequestBytes = 6 * 1024 * 1024;
@@ -29,10 +29,18 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
     }
 
     [HttpGet("products")]
-    public async Task<ActionResult<StorefrontProductPageDto>> GetProducts(string storeKey, [FromQuery] int page = 1, [FromQuery] int pageSize = 24, CancellationToken token = default)
+    public async Task<ActionResult<StorefrontProductPageDto>> GetProducts(string storeKey, [FromQuery] int page = 1, [FromQuery] int pageSize = 24, [FromQuery] Guid? categoryId = null, CancellationToken token = default)
     {
-        page = Math.Clamp(page, 1, 100000); pageSize = Math.Clamp(pageSize, 1, 50); var products = await storefront.GetProductsAsync(storeKey, page, pageSize, token);
+        page = Math.Clamp(page, 1, 100000); pageSize = Math.Clamp(pageSize, 1, 50); var products = await storefront.GetProductsAsync(storeKey, page, pageSize, categoryId, token);
         return products is null ? NotFound() : Ok(products);
+    }
+    [HttpGet("availability-announcements")]
+    public async Task<ActionResult<IReadOnlyCollection<StorefrontAvailabilityAnnouncementDto>>> AvailabilityAnnouncements(string storeKey, CancellationToken token)
+    {
+        var store = await storefront.GetStoreAsync(storeKey, token);
+        if (store is null) return NotFound();
+        var tenantId = await availability.ResolveTenantIdAsync(storeKey, token);
+        return tenantId is null ? NotFound() : Ok(await availability.GetAnnouncementsAsync(tenantId.Value, token));
     }
 
     [HttpGet("products/{productId:guid}")]
@@ -69,7 +77,7 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         return offer is null ? NotFound() : Ok(offer);
     }
     [HttpGet("products/{productId:guid}/image")]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> GetProductImage(string storeKey, Guid productId, [FromQuery] Guid? imageId, [FromQuery] bool thumbnail, CancellationToken token)
     {
         var image = await storefront.GetProductImageAsync(storeKey, productId, imageId, thumbnail, token);
@@ -292,7 +300,8 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         var order = await customers.GetOrderAsync(storeKey, CustomerSessionToken(), orderId, token);
         if (order is null) return NotFound();
         var cancellation = await cancellations.GetCustomerStatusAsync(storeKey, CustomerSessionToken(), orderId, token);
-        return Ok(order with { Cancellation = cancellation });
+        var returnRequests = await returns.CustomerRequestsAsync(storeKey, CustomerSessionToken(), orderId, token);
+        return Ok(order with { Cancellation = cancellation, ReturnRequests = returnRequests ?? Array.Empty<StorefrontReturnRequestDto>() });
     }
 
     [HttpPost("orders/{orderId:guid}/cancellation-request")]
@@ -329,6 +338,18 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         {
             var quote = await checkout.QuoteAsync(storeKey, input, CustomerSessionToken(), token);
             return quote is null ? NotFound() : Ok(quote);
+        }
+        catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
+    }
+    [HttpPost("cart/preview")]
+    [AllowAnonymous]
+    [EnableRateLimiting("StorefrontCartPreview")]
+    public async Task<ActionResult<StorefrontCartQuoteDto>> CartPreview(string storeKey, StorefrontCartQuoteInput input, CancellationToken token)
+    {
+        try
+        {
+            var preview = await checkout.QuoteAsync(storeKey, input with { Pincode = null }, CustomerSessionToken(), token);
+            return preview is null ? NotFound() : Ok(preview);
         }
         catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
     }
@@ -417,6 +438,9 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         "A valid idempotency key is required." => message,
         "The cart is empty." => message,
         "The cart contains invalid items or quantities." => message,
+        "The order total has changed. Please review the updated amount and confirm again." => message,
+        _ when message.StartsWith("Ordering is closed for this product.", StringComparison.Ordinal) => "Ordering is closed for one or more products. Check the next booking window or remove these products to continue.",
+        "Ordering availability could not be verified. Please contact the store about its configured timezone." => message,
         "The selected payment method is not currently available for this store." => message,
         "The selected payment method is not configured." => "This payment method is currently unavailable.",
         "The selected payment method is not available." => "This payment method is currently unavailable.",

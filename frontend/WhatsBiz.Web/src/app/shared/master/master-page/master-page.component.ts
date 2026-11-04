@@ -74,7 +74,9 @@ export class MasterPageComponent<T extends object> {
   readonly pageSize = input(20);
   readonly summaries = input<MasterSummary[]>([]);
   readonly cardImages = input<Record<string, string>>({});
+  readonly cardImageError = output<T>();
   readonly action = output<MasterActionEvent<T>>();
+  readonly selectionChange = output<T[]>();
   readonly searchChange = output<string>();
   readonly statusChange = output<'all' | 'active' | 'inactive'>();
   readonly pageChange = output<MasterPageEvent>();
@@ -156,8 +158,15 @@ export class MasterPageComponent<T extends object> {
     this.selected.update((items) =>
       checked ? [...items.filter((item) => this.cardId(item) !== id), row] : items.filter((item) => this.cardId(item) !== id),
     );
+    this.selectionChange.emit(this.selected());
   }
-  clearSelection(): void { this.selected.set([]); this.table()?.clearSelection(); }
+  setSelected(rows: T[]): void { this.selected.set(rows); this.selectionChange.emit(rows); }
+  selectRows(rows: T[]): void {
+    this.selected.set(rows);
+    this.table()?.selectRows(rows, this.config().rowId);
+    this.selectionChange.emit(rows);
+  }
+  clearSelection(): void { this.selected.set([]); this.table()?.clearSelection(); this.selectionChange.emit([]); }
   drawerEdit(): void {
     const row = this.drawerRow();
     if (row) this.action.emit({ action: 'edit', row, rows: [row] });

@@ -1,14 +1,27 @@
 import { Inject, Injectable } from '@angular/core';
-import { CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer, StorefrontReturnRequest } from '../models/storefront.models';
+import { AvailabilityAnnouncement, CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer, StorefrontReturnRequest } from '../models/storefront.models';
 import { STOREFRONT_DATA_PROVIDER, StorefrontDataProvider } from './storefront-data.provider';
 
 @Injectable({ providedIn: 'root' })
 export class StorefrontDataService {
+  private readonly storeRequests = new Map<string, Promise<Store | null>>();
+
   constructor(@Inject(STOREFRONT_DATA_PROVIDER) private readonly provider: StorefrontDataProvider) {}
 
-  getStore(storeKey: string): Promise<Store | null> { return this.provider.getStore(storeKey); }
+  getStore(storeKey: string): Promise<Store | null> {
+    const key = storeKey.trim().toLowerCase();
+    const existing = this.storeRequests.get(key);
+    if (existing) return existing;
+    const request = this.provider.getStore(storeKey);
+    this.storeRequests.set(key, request);
+    void request.catch(() => {
+      if (this.storeRequests.get(key) === request) this.storeRequests.delete(key);
+    });
+    return request;
+  }
   getCategories(storeKey: string): Promise<Category[]> { return this.provider.getCategories(storeKey); }
-  getProducts(storeKey: string, page = 1, pageSize = 24): Promise<ProductPage> { return this.provider.getProducts(storeKey, page, pageSize); }
+  getProducts(storeKey: string, page = 1, pageSize = 24, categoryId?: string): Promise<ProductPage> { return this.provider.getProducts(storeKey, page, pageSize, categoryId); }
+  getAvailabilityAnnouncements(storeKey:string): Promise<AvailabilityAnnouncement[]> { return this.provider.getAvailabilityAnnouncements(storeKey); }
   getProduct(storeKey: string, id: string): Promise<Product | null> { return this.provider.getProduct(storeKey, id); }
   getOffer(storeKey: string, id: string): Promise<StorefrontOffer | null> { return this.provider.getOffer(storeKey, id); }
   getOrders(storeKey: string): Promise<CustomerOrder[]> { return this.provider.getOrders(storeKey); }
@@ -16,6 +29,7 @@ export class StorefrontDataService {
   requestCancellation(storeKey: string, orderId: string, reason: string): Promise<void> { return this.provider.requestCancellation(storeKey, orderId, reason); }
   requestReturn(storeKey:string,orderId:string,invoiceItemId:string,quantity:number,reason:string,explanation?:string):Promise<StorefrontReturnRequest>{return this.provider.requestReturn(storeKey,orderId,invoiceItemId,quantity,reason,explanation);}
   quote(storeKey: string, lines: readonly CartLine[], pincode: string, promoCode?: string): Promise<CartQuote | null> { return this.provider.quote(storeKey, lines, pincode, promoCode); }
+  previewQuote(storeKey: string, lines: readonly CartLine[], promoCode?: string): Promise<CartQuote | null> { return this.provider.previewQuote(storeKey, lines, promoCode); }
   checkDelivery(storeKey: string, pincode: string): Promise<{deliveryEnabled: boolean; isPincodeServiceable: boolean}> { return this.provider.checkDelivery(storeKey, pincode); }
   getReviews(storeKey: string, productId: string): Promise<ProductReviewSummary> { return this.provider.getReviews(storeKey, productId); }
   saveReview(storeKey: string, productId: string, rating: number, reviewText: string): Promise<ProductReview> { return this.provider.saveReview(storeKey, productId, rating, reviewText); }

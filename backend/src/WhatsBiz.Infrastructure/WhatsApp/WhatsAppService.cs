@@ -12,19 +12,21 @@ using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.WhatsApp;
 using WhatsBiz.Application.Features.WhatsAppCommerce;
 using WhatsBiz.Application.Features.Referrals;
+using WhatsBiz.Application.Features.OrderIntake;
 
 namespace WhatsBiz.Infrastructure.WhatsApp;
 
 public sealed partial class WhatsAppService(IConfiguration configuration,
     IDataProtectionProvider dataProtectionProvider, IFeatureService features, IWhatsAppCommerceProviderResolver providers,
     ILogger<WhatsAppService> logger, IHttpClientFactory clients, ICustomerReferralService? referrals = null,
-    IWhatsAppInboundCommerceHandler? inboundCommerce = null, IWhatsAppUsageBillingService? usageBilling = null) : IWhatsAppService
+    IWhatsAppInboundCommerceHandler? inboundCommerce = null, IWhatsAppUsageBillingService? usageBilling = null,
+    IWhatsAppOrderIntakeHandler? orderIntake = null, IOutboundSafetyPolicy? outboundSafety = null) : IWhatsAppService
 {
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("WhatsBiz.WhatsApp.Secrets.v1");
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
 
     public async Task<WhatsAppOnboardingConfigurationDto> GetOnboardingConfigurationAsync(CancellationToken token)
-    { var platform=await ReadPlatform(token); var id=configuration["WhatsApp:Meta:EmbeddedSignupConfigurationId"]; return new(platform?.MetaAppId,id,configuration["WhatsApp:Meta:GraphApiVersion"] ?? configuration["WhatsApp:Meta:GraphApiVersion"] ?? "v23.0", platform?.IsEnabled==true && !string.IsNullOrWhiteSpace(id)); }
+    { var platform=await ReadPlatform(token); var id=configuration["WhatsApp:Meta:EmbeddedSignupConfigurationId"]; var apiVersion=configuration["WhatsApp:Meta:GraphApiVersion"] ?? "v23.0"; var enabled=IsOnboardingConfigured(platform?.IsEnabled==true,!string.IsNullOrWhiteSpace(platform?.MetaAppId),platform?.AppSecretProtected is not null,!string.IsNullOrWhiteSpace(id)); return new(platform?.MetaAppId,id,apiVersion,enabled); }
 
     public async Task<WhatsAppConfigurationDto> GetConfigurationAsync(Guid tenantId, CancellationToken token)
     { var row = await ReadByTenant(tenantId, token); if (row is null) return Empty(); var platform=await ReadPlatform(token); return ToDto(row, platform); }
@@ -213,6 +215,7 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
 
     public async Task<string?> VerifyWebhookAsync(string? mode, string? verifyToken, string? challenge, CancellationToken token)
     {
+        if (outboundSafety is { AllowsExternalDelivery: false }) return null;
         var modeValid = string.Equals(mode, "subscribe", StringComparison.Ordinal);
         WhatsAppLogs.WebhookVerificationReceived(logger, modeValid);
         if (!modeValid || string.IsNullOrEmpty(verifyToken) || challenge is null)
@@ -257,6 +260,7 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
 
     public async Task<WhatsAppWebhookReceiveResult> ReceiveWebhookAsync(string? signature, ReadOnlyMemory<byte> body, CancellationToken token)
     {
+        if (outboundSafety is { AllowsExternalDelivery: false }) return WhatsAppWebhookReceiveResult.Acknowledged;
         var started = Stopwatch.GetTimestamp();
         var signaturePresent = !string.IsNullOrWhiteSpace(signature);
         WhatsAppLogs.WebhookPostReceived(logger, signaturePresent);
@@ -386,14 +390,17 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
 
                 try
                 {
-                    if (!await features.IsEnabledAsync(row.TenantId,
-                        WhatsBiz.Application.Common.Features.FeatureKeys.WhatsAppCommerce, processingToken))
+                    var commerceEnabled = await features.IsEnabledAsync(row.TenantId,
+                        WhatsBiz.Application.Common.Features.FeatureKeys.WhatsAppCommerce, processingToken);
+                    var intakeEnabled = await features.IsEnabledAsync(row.TenantId,
+                        WhatsBiz.Application.Common.Features.FeatureKeys.MultiChannelOrderIntake, processingToken);
+                    if (!commerceEnabled && !intakeEnabled)
                     {
-                        WhatsAppLogs.WebhookPostProcessingSkipped(logger, row.TenantId, "FEATURE_DISABLED");
+                        WhatsAppLogs.WebhookPostProcessingSkipped(logger, row.TenantId, "COMMERCE_AND_ORDER_INTAKE_DISABLED");
                         await SetEventProcessingStatus(row.TenantId, item.EventKey, "IGNORED", processingToken);
                         continue;
                     }
-                    if (item.EventType == "MESSAGE_STATUS" && usageBilling is not null)
+                    if (commerceEnabled && item.EventType == "MESSAGE_STATUS" && usageBilling is not null)
                         await usageBilling.ApplyStatusAsync(new(row.TenantId, row.ProviderMode, envelope.PhoneNumberId,
                             item.MetaMessageId, item.ContactNumber, item.Status ?? "UNKNOWN", item.EventTimestamp,
                             item.PricingCategory, item.MetaBillable, item.PricingModel), processingToken);
@@ -402,7 +409,12 @@ FROM core.Tenants t LEFT JOIN integration.WhatsAppConfigurations c ON c.TenantId
                         await UpsertContact(row.TenantId, item, processingToken);
                         if (item.MessageText is not null)
                             await TryCaptureReferralMessage(row.TenantId, item.ContactNumber, item.MessageText, processingToken);
-                        if (inboundCommerce is not null && row.ProviderMode.Equals(WhatsAppProviderModes.Live, StringComparison.OrdinalIgnoreCase)
+                        var capturedOrderRequest = intakeEnabled && orderIntake is not null
+                            && item.InteractiveActionId is null && item.Products.Count == 0 && item.MessageText is not null
+                            && await orderIntake.TryCaptureAsync(row.TenantId, envelope.PhoneNumberId, item.ContactNumber,
+                                item.MetaMessageId, item.ProfileName, item.MessageText, processingToken);
+                        if (!capturedOrderRequest && commerceEnabled && inboundCommerce is not null
+                            && row.ProviderMode.Equals(WhatsAppProviderModes.Live, StringComparison.OrdinalIgnoreCase)
                             && (item.MessageText is not null || item.InteractiveActionId is not null || item.Products.Count > 0))
                             await inboundCommerce.HandleAsync(row.TenantId, row.ProviderMode, envelope.PhoneNumberId, item.ContactNumber,
                                 item.MetaMessageId, new(item.MessageText, item.InteractiveActionId, item.CatalogId, item.Products), processingToken);
@@ -704,6 +716,8 @@ END
         && string.Equals(waba, existingWaba, StringComparison.Ordinal)
         && string.Equals(phone, existingPhone, StringComparison.Ordinal)
         && string.Equals(accessToken, existingProtectedToken, StringComparison.Ordinal);
+    internal static bool IsOnboardingConfigured(bool platformEnabled, bool hasMetaAppId, bool hasAppSecret, bool hasConfigurationId) =>
+        platformEnabled && hasMetaAppId && hasAppSecret && hasConfigurationId;
     internal static string ResolveSaveStatus(bool isLive, bool enabled, bool hasLiveConnection, bool remainsConnected) =>
         !enabled ? WhatsAppConnectionStatuses.Disabled
         : !isLive ? WhatsAppConnectionStatuses.Configured

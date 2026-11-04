@@ -119,6 +119,26 @@ a {
   font-weight: 700;
 }
 
+.product-share-action {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #16834a;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.product-share-action:hover:not(:disabled),
+.product-share-action:focus-visible { background: #e9f6ed; color: #0e6838; }
+.product-share-action:focus-visible { outline: 2px solid #16834a; outline-offset: 2px; }
+.product-share-action:disabled { opacity: .4; cursor: not-allowed; }
+.product-share-action .material-symbols-rounded { font-size: 21px; }
+
 /* Required and otherwise invalid controls must be visually unmistakable. */
 .mat-mdc-form-field.mat-form-field-invalid .mdc-notched-outline__leading,
 .mat-mdc-form-field.mat-form-field-invalid .mdc-notched-outline__notch,

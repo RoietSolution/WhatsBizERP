@@ -66,6 +66,7 @@ export class POSScreenComponent implements OnDestroy {
   readonly itemCount = signal(0);
   readonly scannerOpen = signal(false);
   readonly scannerFeedback = signal('');
+  readonly warehouseUnavailable = signal(false);
   readonly shortcuts = [
     { key: 'Ctrl+N', label: 'New Bill', icon: 'add' },
     { key: 'F2', label: 'Customer', icon: 'person' },
@@ -105,8 +106,12 @@ export class POSScreenComponent implements OnDestroy {
       next: (x) => {
         this.warehouses.set(x);
         this.warehouseId = (x.find((warehouse) => warehouse.isDefault) ?? x[0])?.warehouseId ?? '';
+        this.warehouseUnavailable.set(!this.warehouseId);
       },
-      error: (error) => this.showOrderError(error, 'Warehouses could not be loaded.'),
+      error: () => {
+        this.warehouseUnavailable.set(true);
+        this.snack.open('POS cannot load its stock location. Ask an administrator to check the inventory setup.', 'Dismiss', { duration: 5000 });
+      },
     });
     api.categories().subscribe({
       next: (items) => this.categories.set(this.flattenCategories(items)),
@@ -151,7 +156,7 @@ export class POSScreenComponent implements OnDestroy {
   }
   openCameraScanner() {
     if (!this.warehouseId) {
-      this.snack.open('Select a warehouse before scanning.', undefined, { duration: 3000 });
+      this.snack.open('Barcode scanning is unavailable until an active stock location is configured.', undefined, { duration: 4000 });
       return;
     }
     this.addSound.unlock();
@@ -166,6 +171,7 @@ export class POSScreenComponent implements OnDestroy {
     this.lookupBarcode(barcode, true);
   }
   findProducts() {
+    if (!this.warehouseId) return;
     if (this.search.trim().length < 2 && !this.categoryId && !this.brandId) {
       this.products.set([]);
       return;
@@ -289,7 +295,7 @@ export class POSScreenComponent implements OnDestroy {
       return;
     }
     if (!this.warehouseId) {
-      this.snack.open('Select a warehouse before taking payment.', undefined, { duration: 3000 });
+      this.snack.open('Payment is unavailable until an active stock location is configured.', undefined, { duration: 4000 });
       return;
     }
     if (!this.methods().length) {
@@ -331,7 +337,7 @@ export class POSScreenComponent implements OnDestroy {
       return;
     }
     if (!this.warehouseId) {
-      this.snack.open('Select a warehouse before holding the bill.', undefined, { duration: 3000 });
+      this.snack.open('Holding this bill is unavailable until an active stock location is configured.', undefined, { duration: 4000 });
       return;
     }
     this.api.hold(this.payload()).subscribe({
@@ -388,7 +394,7 @@ export class POSScreenComponent implements OnDestroy {
     const barcode = fromCamera ? value : value.trim();
     if (!barcode?.trim() || this.pendingBarcodes.has(barcode)) return;
     if (!this.warehouseId) {
-      this.snack.open('Select a warehouse before scanning.', undefined, { duration: 3000 });
+      this.snack.open('Barcode lookup is unavailable until an active stock location is configured.', undefined, { duration: 4000 });
       return;
     }
     this.pendingBarcodes.add(barcode);

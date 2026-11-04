@@ -19,7 +19,9 @@ public sealed partial class WhatsAppCommerceService(IConfiguration configuration
     IWhatsAppCommerceProviderResolver providers, IFeatureService features, IDataProtectionProvider protection,
     ICurrentUserService currentUser,
     ILoyaltyService? loyalty = null, IWhatsAppUsageBillingService? usageBilling = null,
-    ICommercePaymentService? payments = null) : IWhatsAppCommerceService
+    ICommercePaymentService? payments = null,
+    WhatsBiz.Application.Features.Storefront.IStorefrontService? storefront = null,
+    TimeProvider? clock = null) : IWhatsAppCommerceService
 {
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
     private Guid AuthenticatedTenant(Guid requested)

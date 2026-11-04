@@ -49,12 +49,12 @@ describe('CollectionProductsComponent', () => {
           {
             productId: 'product-1', productCode: 'P001', productName: 'Existing product',
             categoryId: 'category-1', brandId: 'brand-1', categoryName: 'Category', brandName: 'Brand', unitName: 'Each', purchasePrice: 80,
-            sellingPrice: 100, mrp: 100, gstPercentage: 0, isActive: true, isWhatsAppVisible: true,
+            sellingPrice: 100, mrp: 100, gstPercentage: 0, gstPricingType: 'EXCLUSIVE', isActive: true, isWhatsAppVisible: true,
           },
           {
             productId: 'product-2', productCode: 'P002', productName: 'Available product',
             categoryId: 'category-1', brandId: 'brand-1', categoryName: 'Category', brandName: 'Brand', unitName: 'Each', purchasePrice: 90,
-            sellingPrice: 120, mrp: 120, gstPercentage: 0, isActive: true, isWhatsAppVisible: true,
+            sellingPrice: 120, mrp: 120, gstPercentage: 0, gstPricingType: 'EXCLUSIVE', isActive: true, isWhatsAppVisible: true,
           },
         ],
         totalCount: 2,

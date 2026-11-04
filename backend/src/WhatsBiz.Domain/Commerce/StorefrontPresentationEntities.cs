@@ -5,6 +5,8 @@ public sealed class StorefrontConfiguration
     public Guid TenantId { get; set; }
     public Guid? LogoMediaId { get; set; }
     public Guid? AllCategoryMediaId { get; set; }
+    public Guid? FeaturedCategory1Id { get; set; }
+    public Guid? FeaturedCategory2Id { get; set; }
     public string? Tagline { get; set; }
     public string? AccentColor { get; set; }
     public string? DeliveryMessage { get; set; }

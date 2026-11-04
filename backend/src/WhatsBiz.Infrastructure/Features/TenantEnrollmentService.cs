@@ -8,6 +8,7 @@ using WhatsBiz.Application.Common.Features;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Infrastructure.Identity;
 using WhatsBiz.Infrastructure.Persistence;
+using WhatsBiz.Domain.Tenants;
 
 namespace WhatsBiz.Infrastructure.Features;
 
@@ -25,6 +26,8 @@ public sealed partial class TenantEnrollmentService(
             "SELECT FeatureKey,Name FeatureName FROM core.Features WHERE IsActive=1 AND FeatureKey<>N'RETAILER_REFERRAL_REWARDS' ORDER BY Version,SortOrder,Name").ToListAsync(cancellationToken);
 
         using var book = new XLWorkbook();
+        var businessTypes=await db.Set<BusinessType>().AsNoTracking().Where(x=>x.IsActive).OrderBy(x=>x.Name).ToArrayAsync(cancellationToken);
+        if(businessTypes.Length==0)throw new BusinessRuleException("Configure an active Business Type in Application Owner > Public Catalog before onboarding a retailer.");
         var instructions = book.AddWorksheet("Instructions");
         instructions.Cell("A1").Value = "KhataDhari QA tenant enrollment";
         instructions.Cell("A1").Style.Font.SetBold().Font.SetFontSize(16);
@@ -35,13 +38,19 @@ public sealed partial class TenantEnrollmentService(
             "Features are optional overrides. Leave Enabled Override blank to use the selected plan default.",
             "Products are intentionally excluded; import them later from Products > Import.",
             "The temporary administrator password is sensitive. Delete the completed workbook after a successful import.",
-            "Import is create-only and atomic: validation failure creates no tenant or user."
+            "Import is create-only and atomic: validation failure creates no tenant or user.",
+            "Business Type is required: select a code from Business Types. Description is optional, up to 160 characters.",
+            "Tenant Key is the Store Key. Display Name is the Store Name. Upload the store logo through existing Storefront Branding after enrollment.",
+            "Enrollment saves an unpublished directory draft. Retailer opt-in and owner publication approval remain separate."
         };
         for (var index = 0; index < notes.Length; index++) instructions.Cell(index + 3, 1).Value = notes[index];
         instructions.Column(1).Width = 110;
 
-        var tenant = Sheet(book, "Tenant", ["Tenant Key", "Tenant Name", "Display Name (Optional)"]);
+        var tenant = Sheet(book, "Tenant", ["Tenant Key", "Tenant Name", "Display Name (Optional)","Business Type","Short Business Description (Optional)"]);
         PrepareInputRow(tenant);
+        var businessSheet=Sheet(book,"Business Types",["Code","Name"]);
+        for(var index=0;index<businessTypes.Length;index++){businessSheet.Cell(index+2,1).Value=businessTypes[index].Code;businessSheet.Cell(index+2,2).Value=businessTypes[index].Name;}
+        tenant.Cell(2,4).CreateDataValidation().List(businessSheet.Range(2,1,businessTypes.Length+1,1),true);
 
         var administrator = Sheet(book, "Administrator", ["Username", "Email", "Temporary Password"]);
         PrepareInputRow(administrator);
@@ -93,6 +102,8 @@ public sealed partial class TenantEnrollmentService(
         }
 
         Validate(input);
+        var businessType=await BusinessTypeCatalogService.ResolveAsync(db,input.BusinessType,true,cancellationToken)
+            ?? throw new BusinessRuleException("Business Type is required.");
         var planId = await db.Database.SqlQuery<Guid>($"SELECT PlanId AS Value FROM core.Plans WHERE PlanKey={input.PlanKey} AND IsActive=1")
             .SingleOrDefaultAsync(cancellationToken);
         if (planId == Guid.Empty) throw new BusinessRuleException($"Plan '{input.PlanKey}' does not exist or is inactive.");
@@ -145,6 +156,7 @@ public sealed partial class TenantEnrollmentService(
                     """, cancellationToken);
             }
 
+            await InitializeBusinessProfileAsync(db,tenantId,businessType,input.ShortDescription,cancellationToken);
             var user = new ApplicationUser
             {
                 TenantId = tenantId,
@@ -175,7 +187,8 @@ public sealed partial class TenantEnrollmentService(
         var tenant = RequiredSheet(book, "Tenant");
         var administrator = RequiredSheet(book, "Administrator");
         var subscription = RequiredSheet(book, "Subscription");
-        var tenantCells = DataCells(tenant, ["Tenant Key", "Tenant Name", "Display Name (Optional)"]);
+        var tenantCells = DataCells(tenant, ["Tenant Key", "Tenant Name", "Display Name (Optional)","Business Type","Short Business Description (Optional)"]);
+        var businessProfile=ReadBusinessProfile(tenant);
         var administratorCells = DataCells(administrator, ["Username", "Email", "Temporary Password"]);
         var subscriptionCells = DataCells(subscription, ["Plan Key", "Start Date", "End Date (Optional)"]);
         var overrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
@@ -192,6 +205,8 @@ public sealed partial class TenantEnrollmentService(
             tenantCells["Tenant Key"].GetString().Trim().ToUpperInvariant(),
             tenantCells["Tenant Name"].GetString().Trim(),
             tenantCells["Display Name (Optional)"].GetString().Trim() is { Length: > 0 } displayName ? displayName : null,
+            businessProfile.Type,
+            businessProfile.Description,
             administratorCells["Username"].GetString().Trim(),
             administratorCells["Email"].GetString().Trim(),
             administratorCells["Temporary Password"].GetString(),
@@ -207,6 +222,7 @@ public sealed partial class TenantEnrollmentService(
         if (input.TenantKey.Length > 100) throw new BusinessRuleException("Tenant Key cannot exceed 100 characters.");
         if (input.TenantName.Length is 0 or > 200) throw new BusinessRuleException("Tenant Name is required and cannot exceed 200 characters.");
         if (input.DisplayName?.Length > 200) throw new BusinessRuleException("Display Name cannot exceed 200 characters.");
+        if(string.IsNullOrWhiteSpace(input.BusinessType))throw new BusinessRuleException("Business Type is required. Download the current enrollment template and choose an active catalog entry.");
         if (input.Username.Length == 0) throw new BusinessRuleException("Administrator Username is required.");
         if (input.Email.Length == 0) throw new BusinessRuleException("Administrator Email is required.");
         if (input.Password.Length == 0) throw new BusinessRuleException("Administrator Temporary Password is required.");
@@ -274,7 +290,19 @@ public sealed partial class TenantEnrollmentService(
 
     [GeneratedRegex("^[A-Z0-9_-]+$", RegexOptions.CultureInvariant)]
     private static partial Regex TenantKeyPattern();
-    private sealed record EnrollmentInput(string TenantKey, string TenantName, string? DisplayName, string Username, string Email, string Password, string PlanKey, DateTimeOffset StartDate, DateTimeOffset? EndDate, IReadOnlyDictionary<string, bool> FeatureOverrides);
+    internal static async Task<int> InitializeBusinessProfileAsync(ApplicationDbContext db,Guid tenant,BusinessType type,string description,CancellationToken ct)
+    {
+        var current=await BusinessTypeCatalogService.ResolveAsync(db,type.Code,true,ct)??throw new BusinessRuleException("Business Type is required.");
+        return await db.Database.ExecuteSqlInterpolatedAsync($"INSERT commerce.StoreDirectoryEntries(TenantId,BusinessType,BusinessTypeCode,ShortDescription,OptedIn,OwnerApproved) VALUES({tenant},{current.Name},{current.Code},{BusinessTypePolicy.Description(description)},0,0)",ct);
+    }
+    internal static (string Type,string Description) ReadBusinessProfile(IXLWorksheet sheet)
+    {
+        var cells=DataCells(sheet,["Tenant Key","Tenant Name","Display Name (Optional)","Business Type","Short Business Description (Optional)"]);
+        var type=cells["Business Type"].GetString().Trim();
+        if(type.Length==0)throw new BusinessRuleException("Business Type is required for new retailer onboarding.");
+        return(type,BusinessTypePolicy.Description(cells["Short Business Description (Optional)"].GetString()));
+    }
+    private sealed record EnrollmentInput(string TenantKey, string TenantName, string? DisplayName, string BusinessType, string ShortDescription, string Username, string Email, string Password, string PlanKey, DateTimeOffset StartDate, DateTimeOffset? EndDate, IReadOnlyDictionary<string, bool> FeatureOverrides);
     private sealed class PlanOption { public string PlanKey { get; set; } = ""; public string PlanName { get; set; } = ""; }
     private sealed class FeatureOption { public string FeatureKey { get; set; } = ""; public string FeatureName { get; set; } = ""; }
     private sealed class PlanFeatureRow { public Guid FeatureId { get; set; } public string FeatureKey { get; set; } = ""; public string FeatureName { get; set; } = ""; public bool? SubscriptionAllowed { get; set; } }

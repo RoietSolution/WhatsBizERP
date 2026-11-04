@@ -8,7 +8,7 @@ export interface CustomerCoinTransaction { coinTransactionId:string; transaction
 export interface CustomerWallet { customerId:string; availableCoins:number; totalEarned:number; totalRedeemed:number; transactions:CustomerCoinTransaction[]; }
 export interface CustomerReferral { referralId:string; referrerCustomerId:string; referredCustomerId:string; status:string; qualificationType:string; qualifyingOrderId?:string; qualifiedAt?:string; rewardedAt?:string; reversedAt?:string; rejectionReason?:string; createdAt:string; referredCustomerDisplay:string; }
 export interface CustomerReferralCode { referralCodeId:string; customerId:string; code:string; referralUrl:string; isActive:boolean; createdAt:string; }
-export interface CustomerRewards { enabled:boolean; wallet?:CustomerWallet; referralCode?:CustomerReferralCode; referrals:CustomerReferral[]; terms:string; coinValidityDays:number; }
+export interface CustomerRewards { enabled:boolean; wallet?:CustomerWallet; referralCode?:CustomerReferralCode; referrals:CustomerReferral[]; terms:string; coinValidityDays:number; qualificationType:string; referrerRewardCoins:number; referredRewardCoins:number; }
 export interface ReferralResolution { code:string; tenantKey:string; retailerName:string; isEnabled:boolean; }
 
 @Injectable({providedIn:'root'})

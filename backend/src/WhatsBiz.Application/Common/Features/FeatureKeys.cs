@@ -36,11 +36,23 @@ public static class FeatureKeys
     public const string CustomerDemand = "CUSTOMER_DEMAND";
     public const string StorefrontFeedback = "STOREFRONT_FEEDBACK";
     public const string StorefrontCustomerBlacklist = "STOREFRONT_CUSTOMER_BLACKLIST";
+    public const string StorefrontScheduledSelling = "STOREFRONT_SCHEDULED_SELLING";
+    public const string StorefrontPopupCampaigns = "STOREFRONT_POPUP_CAMPAIGNS";
+    public const string StorefrontNotifications = "STOREFRONT_NOTIFICATIONS";
+    public const string PartnerSellerManagement = "PARTNER_SELLER_MANAGEMENT";
+    public const string PartnerCommissions = "PARTNER_COMMISSIONS";
+    public const string PartnerSettlements = "PARTNER_SETTLEMENTS";
+    public const string CityMarketplace = "CITY_MARKETPLACE";
+    public const string MultiChannelOrderIntake = "MULTI_CHANNEL_ORDER_INTAKE";
+    public const string GuestVisitorAnalytics = "GUEST_VISITOR_ANALYTICS";
+    public static bool RequiresFreshEvaluation(string key) => new[] { StorefrontScheduledSelling, StorefrontPopupCampaigns, StorefrontNotifications }.Contains(key, StringComparer.OrdinalIgnoreCase);
 
     public static readonly IReadOnlyCollection<string> All =
         [V1, Dashboard, Pos, Products, Customers, Purchase, Inventory, Finance, Reports,
          UsersRoles, Suppliers, Warehouses, Printing, Gst, Analytics, Administration,
          V2, WhatsAppCommerce, WhatsAppConfiguration, WhatsAppCommerceDemo,
          CommerceProductSearch, CommerceCollections, CommerceOrders, CommerceAnalytics,
-         MetaWhatsAppIntegration, WebhookDiagnostics, AdvancedWarehouse, AiAssistant, Integrations, CustomerReferralRewards, DeliveryManagement, CustomerDemand, StorefrontFeedback, StorefrontCustomerBlacklist];
+         MetaWhatsAppIntegration, WebhookDiagnostics, AdvancedWarehouse, AiAssistant, Integrations, CustomerReferralRewards, DeliveryManagement, CustomerDemand, StorefrontFeedback, StorefrontCustomerBlacklist,
+         StorefrontScheduledSelling, StorefrontPopupCampaigns, StorefrontNotifications,
+         PartnerSellerManagement, PartnerCommissions, PartnerSettlements, CityMarketplace, MultiChannelOrderIntake, GuestVisitorAnalytics];
 }

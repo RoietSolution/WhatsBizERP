@@ -33,6 +33,8 @@ public sealed class WhatsAppFoundationTests
     [InlineData(nameof(WhatsAppController.SendTestMessage))]
     [InlineData(nameof(WhatsAppController.Diagnostics))]
     [InlineData(nameof(WhatsAppController.SubscriptionDiagnostics))]
+    [InlineData(nameof(WhatsAppController.OnboardingConfigForTenant))]
+    [InlineData(nameof(WhatsAppController.CompleteOnboardingForTenant))]
     public void ConfigurationEndpointsRequireApplicationOwnerAndExplicitTenant(string methodName)
     {
         var method = typeof(WhatsAppController).GetMethod(methodName)!;
@@ -61,6 +63,16 @@ public sealed class WhatsAppFoundationTests
         WhatsAppService.ResolveSaveStatus(isLive: true, enabled: true, hasLiveConnection: false, remainsConnected: false)
             .Should().Be(WhatsAppConnectionStatuses.NotConfigured);
     }
+
+    [Theory]
+    [InlineData(true, true, true, true, true)]
+    [InlineData(false, true, true, true, false)]
+    [InlineData(true, false, true, true, false)]
+    [InlineData(true, true, false, true, false)]
+    [InlineData(true, true, true, false, false)]
+    public void EmbeddedSignupReadinessRequiresEverySharedMetaSetting(
+        bool platformEnabled, bool appId, bool appSecret, bool configId, bool expected) =>
+        WhatsAppService.IsOnboardingConfigured(platformEnabled, appId, appSecret, configId).Should().Be(expected);
 
     [Fact]
     public void LivePreparationCannotBeMarkedConnectedBeforeMetaValidation()

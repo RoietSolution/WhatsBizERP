@@ -3,14 +3,16 @@
   Scan a product code, enter the physical count, and approve to generate its variance adjustment.
 </p>
 <form [formGroup]="form" (ngSubmit)="save()" class="grid">
+  @if (locationUnavailable()) { <p role="alert" class="location-message">No active stock location is configured. A stock verification cannot be saved.</p> }
+  @if (manualLocationChoice()) { <p class="location-message">No single default is configured. Select the location being counted.</p>
   <mat-form-field
-    ><mat-label>Warehouse</mat-label
+    ><mat-label>Stock location</mat-label
     ><mat-select formControlName="warehouseId">
       @for (x of warehouses(); track x.warehouseId) {
         <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
       }
-    </mat-select></mat-form-field
-  ><mat-form-field
+    </mat-select></mat-form-field> }
+  <mat-form-field
     ><mat-label>Barcode / product code</mat-label
     ><input matInput formControlName="barcode" (keyup.enter)="selectBarcode()" /></mat-form-field
   ><mat-form-field

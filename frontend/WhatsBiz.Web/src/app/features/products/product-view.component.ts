@@ -8,6 +8,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { finalize } from 'rxjs';
 import { ProductApiService } from './product-api.service';
 import { Product } from './product.models';
+import { MatDialog } from '@angular/material/dialog';
+import { ProductShareDialogComponent } from './product-share-dialog.component';
+import { ProductPublicationPanelComponent } from './product-publication-panel.component';
 
 @Component({
   selector: 'app-product-view',
@@ -19,6 +22,7 @@ import { Product } from './product.models';
     MatCardModule,
     MatChipsModule,
     MatProgressSpinnerModule,
+    ProductPublicationPanelComponent,
   ],
   templateUrl: './product-view.component.html',
   styles: [
@@ -70,7 +74,7 @@ export class ProductViewComponent implements OnDestroy {
   ngOnDestroy(): void { if (this.imageObjectUrl) URL.revokeObjectURL(this.imageObjectUrl); }
   readonly product = signal<Product | null>(null);
   readonly loading = signal(true);
-  constructor(api: ProductApiService, route: ActivatedRoute) {
+  constructor(api: ProductApiService, route: ActivatedRoute, private readonly dialog: MatDialog) {
     api
       .get(route.snapshot.paramMap.get('id') ?? '')
       .pipe(finalize(() => this.loading.set(false)))
@@ -85,5 +89,8 @@ export class ProductViewComponent implements OnDestroy {
               ),
             );
       });
+  }
+  share(productId: string): void {
+    this.dialog.open(ProductShareDialogComponent, { data: { productId }, width: '620px', maxWidth: 'calc(100vw - 24px)', disableClose: true });
   }
 }

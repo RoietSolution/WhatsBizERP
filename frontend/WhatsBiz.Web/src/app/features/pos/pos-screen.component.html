@@ -47,14 +47,6 @@
             </div>
           }
         </div>
-        <mat-form-field class="warehouse-control" appearance="outline" subscriptSizing="dynamic"
-          ><mat-label>Warehouse</mat-label
-          ><mat-select [(ngModel)]="warehouseId">
-            @for (x of warehouses(); track x.warehouseId) {
-              <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
-            }
-          </mat-select></mat-form-field
-        >
         <button mat-flat-button color="primary" class="quick-customer" type="button" (click)="quickCustomer()">
           <span class="material-symbols-rounded">person_add</span>Add Customer
         </button>
@@ -99,6 +91,7 @@
           /></mat-form-field>
           @if (products().length) {
             <cdk-virtual-scroll-viewport itemSize="56" class="product-results"
+              aria-label="Product results"
               ><button
                 *cdkVirtualFor="let x of products(); trackBy: trackProduct"
                 type="button"
@@ -116,7 +109,8 @@
         <mat-form-field appearance="outline" subscriptSizing="dynamic"
           ><mat-label>Category</mat-label
           ><mat-select [(ngModel)]="categoryId" (selectionChange)="findProducts()"
-            ><mat-option value="">All categories</mat-option>
+            ><mat-option value="">All Categories</mat-option>
+            @if (!categories().length) { <mat-option disabled value="__empty_categories">No categories available</mat-option> }
             @for (category of categories(); track category.productCategoryId) {
               <mat-option [value]="category.productCategoryId">{{ category.categoryName }}</mat-option>
             }
@@ -125,14 +119,22 @@
         ><mat-form-field appearance="outline" subscriptSizing="dynamic"
           ><mat-label>Brand</mat-label
           ><mat-select [(ngModel)]="brandId" (selectionChange)="findProducts()"
-            ><mat-option value="">All brands</mat-option>
+            ><mat-option value="">All Brands</mat-option>
+            @if (!brands().length) { <mat-option disabled value="__empty_brands">No brands available</mat-option> }
             @for (brand of brands(); track brand.brandId) {
               <mat-option [value]="brand.brandId">{{ brand.brandName }}</mat-option>
             }
           </mat-select
           ></mat-form-field
         >
+        <div class="product-results-heading">Product Results</div>
+        @if (!products().length && (search.trim() || categoryId || brandId)) {
+          <p class="product-results-empty">No products match the current search and filters.</p>
+        }
       </section>
+      @if (warehouseUnavailable()) {
+        <p class="stock-location-warning" role="alert">POS cannot continue because no active stock location is available. Ask an administrator to check the inventory setup.</p>
+      }
       <app-pos-cart-grid
         [items]="cart()"
         [images]="productImages()"

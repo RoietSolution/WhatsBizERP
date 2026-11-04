@@ -71,7 +71,7 @@ export class DataTableComponent<T extends object> {
     flex: 1,
     suppressHeaderMenuButton: false,
   };
-  readonly pageSizes = [10, 20, 50, 100];
+  readonly pageSizes = [10, 20, 25, 50, 100];
   readonly selection: RowSelectionOptions = {
     mode: 'multiRow',
     headerCheckbox: true,
@@ -131,6 +131,12 @@ export class DataTableComponent<T extends object> {
     this.selectionChange.emit(this.api?.getSelectedRows() ?? []);
   }
   clearSelection(): void { this.api?.deselectAll(); this.selectionChange.emit([]); }
+  selectRows(rows: T[], key: string): void {
+    if (!this.api) return;
+    this.api.deselectAll();
+    const ids = new Set(rows.map(row => String((row as unknown as Record<string, unknown>)[key] ?? '')));
+    this.api.forEachNode(node => { if (node.data && ids.has(String((node.data as unknown as Record<string, unknown>)[key] ?? ''))) node.setSelected(true); });
+  }
   emitSort(event: SortChangedEvent<T>): void {
     const column = event.api.getColumnState().find((item) => item.sort);
     this.sortChange.emit({ field: column?.colId ?? '', direction: column?.sort ?? '' });

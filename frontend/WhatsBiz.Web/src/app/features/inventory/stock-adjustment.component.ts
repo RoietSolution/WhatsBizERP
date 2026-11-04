@@ -8,6 +8,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { StockControlApiService } from './stock-control-api.service';
 import { ProductOption, WarehouseOption } from './inventory.models';
+import { WarehouseUiVisibilityService } from '../../shared/services/warehouse-ui-visibility.service';
 @Component({
   imports: [
     ReactiveFormsModule,
@@ -28,6 +29,15 @@ import { ProductOption, WarehouseOption } from './inventory.models';
       .wide {
         grid-column: span 3;
       }
+      .location-message {
+        grid-column: 1 / -1;
+        margin: 0;
+        padding: 10px 12px;
+        color: var(--wb-text-secondary);
+        background: var(--wb-background);
+        border: 1px solid var(--wb-border);
+        border-radius: 8px;
+      }
       @media (max-width: 800px) {
         .grid {
           grid-template-columns: 1fr;
@@ -46,10 +56,13 @@ export class StockAdjustmentComponent {
   readonly reasons = ['DAMAGE', 'EXPIRY', 'LOST', 'FOUND', 'INTERNAL_CONSUMPTION', 'PHYSICAL_VERIFICATION', 'OTHER'];
   readonly form;
   readonly saving = signal(false);
+  readonly manualLocationChoice = signal(false);
+  readonly locationUnavailable = signal(false);
   constructor(
     private readonly api: StockControlApiService,
     fb: FormBuilder,
     private readonly snack: MatSnackBar,
+    private readonly warehouseUi: WarehouseUiVisibilityService,
   ) {
     this.form = fb.group({
       productId: ['', Validators.required],
@@ -65,7 +78,19 @@ export class StockAdjustmentComponent {
       remarks: [''],
     });
     api.products().subscribe({ next: (x) => this.products.set(x.items), error: () => this.snack.open('Products could not be loaded.', 'Dismiss', { duration: 4000 }) });
-    api.warehouses().subscribe({ next: (x) => this.warehouses.set(x), error: () => this.snack.open('Warehouses could not be loaded.', 'Dismiss', { duration: 4000 }) });
+    api.warehouses().subscribe({
+      next: (x) => {
+        this.warehouses.set(x);
+        const resolved = this.warehouseUi.resolveDefaultOrOnly(x);
+        if (resolved) this.form.controls.warehouseId.setValue(resolved);
+        this.manualLocationChoice.set(this.warehouseUi.showOptionalSelectors || (x.length > 1 && !resolved));
+        this.locationUnavailable.set(x.length === 0);
+      },
+      error: () => {
+        this.locationUnavailable.set(true);
+        this.snack.open('Stock adjustment is unavailable because inventory locations could not be loaded.', 'Dismiss', { duration: 5000 });
+      },
+    });
   }
   save() {
     if (this.form.invalid || this.saving()) { this.form.markAllAsTouched(); return; }

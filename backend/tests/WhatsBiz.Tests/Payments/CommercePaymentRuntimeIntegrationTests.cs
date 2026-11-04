@@ -7,6 +7,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Payments;
+using WhatsBiz.Tests.Notifications;
 using WhatsBiz.Infrastructure.Payments;
 using WhatsBiz.Infrastructure.POS;
 using WhatsBiz.Tests.Integration;
@@ -42,7 +43,8 @@ public sealed class CommercePaymentRuntimeIntegrationTests(ITestOutputHelper out
             ["ConnectionStrings:DefaultConnection"] = connectionString
         }).Build();
         var service = new CommercePaymentService(configuration, new EphemeralDataProtectionProvider(),
-            new SyntheticCurrentUser(tenant), new PaymentGatewayResolver([gateway]), new ErpPaymentPosting());
+            new SyntheticCurrentUser(tenant), new PaymentGatewayResolver([gateway]), new ErpPaymentPosting(),
+            new AllowTestOutboundSafetyPolicy());
         await service.SaveRazorpayForTenantAsync(tenant,
             new SaveRazorpayConfiguration("phase1_test_key", "synthetic-only-key", "synthetic-only-webhook", true, true, true),
             tag, default);

@@ -5,3 +5,53 @@ public sealed class SupplierAddress { public Guid AddressId { get; set; } = Guid
 public sealed class SupplierBankAccount { public Guid BankAccountId { get; set; } = Guid.NewGuid(); public Guid SupplierId { get; set; } public string BankName { get; set; } = ""; public string? Branch { get; set; } public string AccountNumber { get; set; } = ""; public string? IFSCCode { get; set; } public string? UPIId { get; set; } }
 public sealed class SupplierDocument { public Guid DocumentId { get; set; } = Guid.NewGuid(); public Guid SupplierId { get; set; } public string DocumentType { get; set; } = ""; public string FileName { get; set; } = ""; public string ContentType { get; set; } = ""; public byte[] DocumentData { get; set; } = []; public DateTimeOffset UploadedOn { get; set; } = DateTimeOffset.UtcNow; public string? UploadedBy { get; set; } public bool IsDeleted { get; set; } public byte[] RowVersion { get; set; } = []; }
 public sealed class SupplierPaymentTerm { public Guid PaymentTermId { get; set; } = Guid.NewGuid(); public string PaymentTermCode { get; set; } = ""; public string PaymentTermName { get; set; } = ""; public int DueDays { get; set; } public bool IsDefault { get; set; } public bool IsActive { get; set; } = true; public DateTimeOffset CreatedOn { get; set; } = DateTimeOffset.UtcNow; public string? CreatedBy { get; set; } public DateTimeOffset? ModifiedOn { get; set; } public string? ModifiedBy { get; set; } public byte[] RowVersion { get; set; } = []; }
+
+public sealed class SupplierCatalogImportProfile
+{
+    public Guid TenantId { get; set; }
+    public Guid SupplierId { get; set; }
+    public string Format { get; set; } = "SHOPIFY";
+    public string FieldMappingsJson { get; set; } = "{}";
+    public string SupplierOwnedFieldsJson { get; set; } = "{\"productName\":true,\"cost\":true,\"description\":true,\"images\":true,\"status\":false}";
+    public bool AutoCreateCategories { get; set; }
+    public Guid? DefaultUnitId { get; set; }
+    public Guid? DefaultBrandId { get; set; }
+    public decimal? DefaultGstPercentage { get; set; }
+    public DateTimeOffset ModifiedOn { get; set; } = DateTimeOffset.UtcNow;
+    public string? ModifiedBy { get; set; }
+    public byte[] Version { get; set; } = [];
+}
+
+public sealed class SupplierCatalogProduct
+{
+    public Guid SupplierCatalogProductId { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid SupplierId { get; set; }
+    public string? SupplierSku { get; set; }
+    public string? SourceHandle { get; set; }
+    public string SourceRowIdentity { get; set; } = string.Empty;
+    public Guid? ProductId { get; set; }
+    public string OriginalTagsJson { get; set; } = "[]";
+    public decimal? ProductCost { get; set; }
+    public decimal? PackagingCost { get; set; }
+    public decimal? ShippingCost { get; set; }
+    public decimal? CombinedShippingPackagingCost { get; set; }
+    public decimal? SupplierAvailableQuantity { get; set; }
+    public string? DescriptionHtml { get; set; }
+    public string? DescriptionText { get; set; }
+    public string ImageUrlsJson { get; set; } = "[]";
+    public DateTimeOffset LastImportedOn { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class SupplierCatalogImportHistory
+{
+    public Guid ImportId { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid SupplierId { get; set; }
+    public string Format { get; set; } = "SHOPIFY";
+    public string SourceFileHash { get; set; } = string.Empty;
+    public int ImportedRows { get; set; }
+    public int ErrorRows { get; set; }
+    public DateTimeOffset ImportedOn { get; set; } = DateTimeOffset.UtcNow;
+    public string? ImportedBy { get; set; }
+}

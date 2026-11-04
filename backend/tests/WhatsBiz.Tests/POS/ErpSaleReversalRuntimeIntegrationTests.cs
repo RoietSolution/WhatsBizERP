@@ -9,6 +9,7 @@ using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Payments;
 using WhatsBiz.Application.Features.Storefront;
 using WhatsBiz.Infrastructure.Payments;
+using WhatsBiz.Tests.Notifications;
 using WhatsBiz.Infrastructure.POS;
 using WhatsBiz.Infrastructure.Storefront;
 using WhatsBiz.Tests.Integration;
@@ -874,7 +875,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
                 { ["ConnectionStrings:DefaultConnection"]=connectionString }).Build();
             return new CommerceRefundService(configuration,new EphemeralDataProtectionProvider(),
                 new PaymentGatewayResolver(Array.Empty<IPaymentGateway>()),
-                new ErpRefundSettlement(configuration));
+                new ErpRefundSettlement(configuration),new AllowTestOutboundSafetyPolicy());
         }
 
         public async Task<CommerceRefundService> RazorpayRefundServiceAsync(RefundGateway gateway)
@@ -893,7 +894,8 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
             var configuration=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>
                 { ["ConnectionStrings:DefaultConnection"]=connectionString }).Build();
             return new CommerceRefundService(configuration,protection,
-                new PaymentGatewayResolver([gateway]),new ErpRefundSettlement(configuration));
+                new PaymentGatewayResolver([gateway]),new ErpRefundSettlement(configuration),
+                new AllowTestOutboundSafetyPolicy());
         }
 
         public async Task<string> ProviderPaymentIdAsync(Guid refund)

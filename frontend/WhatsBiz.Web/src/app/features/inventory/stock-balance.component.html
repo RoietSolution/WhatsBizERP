@@ -1,7 +1,7 @@
 <app-operations-workspace
   eyebrow="Inventory operations"
-  title="Warehouse Stock"
-  description="Real-time stock availability, valuation, reservations, and storage locations."
+  title="Stock Balances"
+  description="Real-time product stock availability, valuation, and reservations."
   [summaries]="summaries()"
   [statusText]="total() + ' stock records'"
   ><a workspace-header-actions mat-flat-button color="primary" routerLink="/inventory/adjustment"
@@ -26,14 +26,6 @@
     (reset)="reset()"
     ><div class="filters">
       <mat-form-field appearance="outline"
-        ><mat-label>Warehouse</mat-label
-        ><mat-select [formControl]="warehouse"
-          ><mat-option value="">All warehouses</mat-option>
-          @for (x of warehouses(); track x.warehouseId) {
-            <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
-          }
-        </mat-select></mat-form-field
-      ><mat-form-field appearance="outline"
         ><mat-label>Product</mat-label
         ><mat-select [formControl]="product"
           ><mat-option value="">All products</mat-option>

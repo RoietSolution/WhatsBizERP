@@ -2,21 +2,26 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using WhatsBiz.Api.Authorization;
 using WhatsBiz.Application.Features.Storefront;
+using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.SharedKernel;
+using WhatsBiz.Application.Common.Features;
 
 namespace WhatsBiz.Api.Controllers;
 
 [ApiController, Authorize, Route("api/storefront-administration")]
 [HasPermission(Permissions.Admin.Settings)]
-public sealed class StorefrontAdministrationController(IStorefrontAdministrationService service) : ControllerBase
+public sealed class StorefrontAdministrationController(IStorefrontAdministrationService service, IStorefrontAvailabilityService availability, ICurrentUserService currentUser) : ControllerBase
 {
     private const long MaxImageBytes = 5 * 1024 * 1024;
+    private Guid TenantId() => currentUser.TenantId ?? throw new UnauthorizedAccessException("A tenant context is required.");
     [HttpGet] public Task<StorefrontAdminDto> Get(CancellationToken token) => service.GetAsync(token);
+    [HttpGet("automated-notification-settings"), RequireFeature(FeatureKeys.StorefrontNotifications)] public Task<StorefrontAdminDto> GetNotificationSettings(CancellationToken token) => service.GetAsync(token);
     [HttpPut("review-settings")] public async Task<IActionResult> UpdateReviewSettings(UpdateStorefrontReviewSettingsInput input, CancellationToken token) { await service.UpdateReviewSettingsAsync(input, token); return NoContent(); }
     [HttpPut("shipping-label-settings")] public async Task<IActionResult> UpdateShippingLabelSettings(UpdateStorefrontShippingLabelSettingsInput input, CancellationToken token) { await service.UpdateShippingLabelSettingsAsync(input, token); return NoContent(); }
     [HttpPut("delivery-settings")] public async Task<IActionResult> UpdateDeliverySettings(UpdateStorefrontDeliverySettingsInput input, CancellationToken token) { await service.UpdateDeliverySettingsAsync(input, token); return NoContent(); }
-    [HttpPut("automated-notification-settings")] public async Task<IActionResult> UpdateAutomatedNotificationSettings(UpdateAutomatedNotificationSettingsInput input, CancellationToken token) { await service.UpdateAutomatedNotificationSettingsAsync(input, token); return NoContent(); }
-    [HttpPost("automated-notification-settings/test-email")] public async Task<IActionResult> TestNotificationEmail(CancellationToken token) { await service.SendNotificationTestEmailAsync(token); return NoContent(); }
+    [HttpPut("featured-categories")] public async Task<IActionResult> UpdateFeaturedCategories(UpdateStorefrontFeaturedCategoriesInput input, CancellationToken token) { await service.UpdateFeaturedCategoriesAsync(input, token); return NoContent(); }
+    [HttpPut("automated-notification-settings"), RequireFeature(FeatureKeys.StorefrontNotifications)] public async Task<IActionResult> UpdateAutomatedNotificationSettings(UpdateAutomatedNotificationSettingsInput input, CancellationToken token) { await service.UpdateAutomatedNotificationSettingsAsync(input, token); return NoContent(); }
+    [HttpPost("automated-notification-settings/test-email"), RequireFeature(FeatureKeys.StorefrontNotifications)] public async Task<IActionResult> TestNotificationEmail(CancellationToken token) { await service.SendNotificationTestEmailAsync(token); return NoContent(); }
     [HttpPut("pincodes")]
     public async Task<IActionResult> SavePincode(StorefrontPincodeDto input, CancellationToken token) { await service.SavePincodeAsync(input, token); return NoContent(); }
     [HttpDelete("pincodes/{pincode}")]
@@ -27,6 +32,14 @@ public sealed class StorefrontAdministrationController(IStorefrontAdministration
     public Task<StorefrontPromotionDto> UpdatePromotion(Guid id, SaveStorefrontPromotionInput input, CancellationToken token) => service.SavePromotionAsync(id, input, token);
     [HttpDelete("promotions/{id:guid}")]
     public async Task<IActionResult> RemovePromotion(Guid id, CancellationToken token) { await service.RemovePromotionAsync(id, token); return NoContent(); }    [HttpPut("banners/{slot}")] public async Task<IActionResult> UpdateBanner(string slot, UpdateStorefrontBannerInput input, CancellationToken token) { await service.UpdateBannerAsync(slot, input, token); return NoContent(); }
+    [HttpGet("availability-schedules"), RequireFeature(FeatureKeys.StorefrontScheduledSelling)]
+    public Task<IReadOnlyCollection<StorefrontAvailabilityScheduleDto>> GetAvailabilitySchedules(CancellationToken token) => availability.GetSchedulesAsync(TenantId(), token);
+    [HttpPost("availability-schedules"), RequireFeature(FeatureKeys.StorefrontScheduledSelling)]
+    public Task<StorefrontAvailabilityScheduleDto> CreateAvailabilitySchedule(SaveStorefrontAvailabilityScheduleInput input, CancellationToken token) => availability.SaveScheduleAsync(TenantId(), null, input, token);
+    [HttpPut("availability-schedules/{id:guid}"), RequireFeature(FeatureKeys.StorefrontScheduledSelling)]
+    public Task<StorefrontAvailabilityScheduleDto> UpdateAvailabilitySchedule(Guid id, SaveStorefrontAvailabilityScheduleInput input, CancellationToken token) => availability.SaveScheduleAsync(TenantId(), id, input, token);
+    [HttpDelete("availability-schedules/{id:guid}"), RequireFeature(FeatureKeys.StorefrontScheduledSelling)]
+    public async Task<IActionResult> DeleteAvailabilitySchedule(Guid id, CancellationToken token) { await availability.DeleteScheduleAsync(TenantId(), id, token); return NoContent(); }
     [HttpGet("logo")] public async Task<IActionResult> Logo(CancellationToken token) => ToImage(await service.GetImageAsync("logo", null, token));
     [HttpPost("logo")] public Task<IActionResult> UploadLogo(IFormFile file, CancellationToken token) => Upload("logo", null, file, token);
     [HttpDelete("logo")] public async Task<IActionResult> RemoveLogo(CancellationToken token) { await service.RemoveImageAsync("logo", null, token); return NoContent(); }

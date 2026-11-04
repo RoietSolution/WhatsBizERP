@@ -155,7 +155,7 @@ public sealed class WhatsAppInboundCommerceHandler(
                 JOIN master.Products p ON p.ProductId=m.ProductId AND p.TenantId=m.TenantId
                 WHERE m.TenantId=@tenant AND m.Provider=N'META' AND m.SyncStatus=N'MAPPED'
                   AND m.CatalogId=@catalog AND m.ExternalProductId=@external
-                  AND p.IsActive=1 AND p.IsDeleted=0 AND p.IsWhatsAppVisible=1;
+                  AND p.IsActive=1 AND p.IsDeleted=0 AND p.IsWhatsAppVisible=1 AND commerce.IsProductPubliclyApproved(@tenant,p.ProductId)=1;
                 """,connection,transaction);
             query.Parameters.AddWithValue("@tenant",tenantId);query.Parameters.AddWithValue("@warehouse",conversation.WarehouseId);
             query.Parameters.AddWithValue("@catalog",catalogId);query.Parameters.AddWithValue("@external",item.ProductRetailerId);
@@ -226,7 +226,7 @@ public sealed class WhatsAppInboundCommerceHandler(
     private async Task<string> AddToCart(Guid tenantId, Conversation c, string code, decimal quantity, CancellationToken token)
     {
         await using var connection = new SqlConnection(ConnectionString); await connection.OpenAsync(token);
-        await using var q = new SqlCommand("SELECT TOP(1)p.ProductId,p.ProductName,p.SellingPrice,p.GSTPercentage FROM master.Products p WHERE p.TenantId=@tenant AND p.ProductCode=@code AND p.IsActive=1 AND p.IsDeleted=0 AND p.IsWhatsAppVisible=1;", connection); q.Parameters.AddWithValue("@tenant", tenantId); q.Parameters.AddWithValue("@code", code);
+        await using var q = new SqlCommand("SELECT TOP(1)p.ProductId,p.ProductName,p.SellingPrice,p.GSTPercentage FROM master.Products p WHERE p.TenantId=@tenant AND p.ProductCode=@code AND p.IsActive=1 AND p.IsDeleted=0 AND p.IsWhatsAppVisible=1 AND commerce.IsProductPubliclyApproved(@tenant,p.ProductId)=1;", connection); q.Parameters.AddWithValue("@tenant", tenantId); q.Parameters.AddWithValue("@code", code);
         await using var r = await q.ExecuteReaderAsync(token); if (!await r.ReadAsync(token)) return "Product code was not found or is not available."; var id = r.GetGuid(0); var name = r.GetString(1); var price = r.GetDecimal(2); var tax = r.GetDecimal(3);
         await r.CloseAsync(); await using var stock = new SqlCommand("SELECT ISNULL(SUM(QuantityAvailable),0) FROM inventory.InventoryBalances WHERE TenantId=@tenant AND WarehouseId=@warehouse AND ProductId=@product;", connection); stock.Parameters.AddWithValue("@tenant", tenantId); stock.Parameters.AddWithValue("@warehouse", c.WarehouseId); stock.Parameters.AddWithValue("@product", id); if (Convert.ToDecimal(await stock.ExecuteScalarAsync(token), CultureInfo.InvariantCulture) < quantity) return "The requested quantity is not currently available.";
         await using var upsert = new SqlCommand("MERGE integration.WhatsAppCommerceCartLines AS t USING (SELECT @conversation ConversationId,@tenant TenantId,@product ProductId) AS s ON t.ConversationId=s.ConversationId AND t.ProductId=s.ProductId WHEN MATCHED THEN UPDATE SET Quantity=t.Quantity+@quantity,UpdatedOn=SYSUTCDATETIME() WHEN NOT MATCHED THEN INSERT(ConversationId,TenantId,ProductId,Quantity,UnitPrice,TaxPercentage) VALUES(@conversation,@tenant,@product,@quantity,@price,@tax);", connection); upsert.Parameters.AddWithValue("@conversation", c.ConversationId); upsert.Parameters.AddWithValue("@tenant", tenantId); upsert.Parameters.AddWithValue("@product", id); upsert.Parameters.AddWithValue("@quantity", quantity); upsert.Parameters.AddWithValue("@price", price); upsert.Parameters.AddWithValue("@tax", tax); await upsert.ExecuteNonQueryAsync(token); return $"Added {quantity:0.####} × {name} to your cart. Reply CART to review or CONFIRM to place the order.";
@@ -243,6 +243,7 @@ public sealed class WhatsAppInboundCommerceHandler(
             LEFT JOIN inventory.InventoryBalances b ON b.ProductId=p.ProductId AND b.TenantId=@tenant AND b.WarehouseId=@warehouse
             LEFT JOIN commerce.ProductChannelMappings m ON m.TenantId=@tenant AND m.ProductId=p.ProductId AND m.Provider=N'META'
             WHERE p.TenantId=@tenant AND p.IsActive=1 AND p.IsDeleted=0 AND p.IsWhatsAppVisible=1
+              AND commerce.IsProductPubliclyApproved(@tenant,p.ProductId)=1
               AND (@search IS NULL OR p.ProductCode LIKE N'%'+@search+N'%' OR p.ProductName LIKE N'%'+@search+N'%')
             GROUP BY p.ProductId,p.ProductCode,p.ProductName,p.SellingPrice,m.SyncStatus,m.CatalogId,m.ExternalProductId
             HAVING ISNULL(SUM(b.QuantityAvailable),0)>0

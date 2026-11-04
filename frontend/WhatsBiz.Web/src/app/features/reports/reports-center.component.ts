@@ -177,7 +177,7 @@ export class ReportsCenterComponent {
     {
       title: 'Inventory Reports',
       icon: 'inventory_2',
-      description: 'Stock valuation, movement, alerts, and warehouse availability.',
+      description: 'Stock valuation, movement, alerts, and inventory availability.',
       reports: [
         { label: 'Inventory Analytics', route: '/analytics/inventory' },
         { label: 'Stock Balance', route: '/inventory/balance' },

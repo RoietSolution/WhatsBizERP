@@ -27,6 +27,7 @@ public interface IProductRepository
     Task<bool> BrandCodeExistsAsync(string code, Guid? excludingId, CancellationToken cancellationToken);
     Task<bool> BrandHasProductsAsync(Guid id, CancellationToken cancellationToken);
     void Add(Brand brand);
+    void AddTenantPrivateBrand(Brand brand);
     Task<IReadOnlyCollection<UnitOfMeasure>> GetUnitsAsync(CancellationToken cancellationToken);
     Task<UnitOfMeasure?> GetUnitAsync(Guid id, bool tracking, CancellationToken cancellationToken);
     Task<bool> UnitCodeExistsAsync(string code, Guid? excludingId, CancellationToken cancellationToken);
@@ -34,6 +35,7 @@ public interface IProductRepository
     void Add(UnitOfMeasure unit);
     Task<ProductImage?> GetImageAsync(Guid productId, bool tracking, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<ProductImage>> GetImagesAsync(Guid productId, bool tracking, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<ProductExternalImage>> GetExternalImagesAsync(Guid productId, CancellationToken cancellationToken);
     Task<ProductImage?> GetImageByIdAsync(Guid productId, Guid imageId, bool tracking, CancellationToken cancellationToken);
     void Add(ProductImage image);
     Task SaveChangesAsync(CancellationToken cancellationToken);
@@ -46,7 +48,7 @@ public interface IProductSpreadsheetService
     IReadOnlyCollection<ProductImportRow> Read(byte[] content);
 }
 
-public sealed record ProductImportRow(int RowNumber, string ProductCode, string? Barcode, string ProductName, string CategoryCode, string BrandCode, string UnitCode, decimal GSTPercentage, decimal PurchasePrice, decimal SellingPrice, decimal MRP, bool IsActive, string BarcodeType);
+public sealed record ProductImportRow(int RowNumber, string ProductCode, string? Barcode, string ProductName, string CategoryCode, string BrandCode, string UnitCode, decimal GSTPercentage, decimal PurchasePrice, decimal SellingPrice, decimal MRP, bool IsActive, string BarcodeType, string GstPricingType = "EXCLUSIVE");
 
 public interface IProductMasterSpreadsheetService
 {

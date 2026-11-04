@@ -25,14 +25,15 @@
       <mat-form-field appearance="outline"
         ><mat-label>Supplier Invoice</mat-label
         ><input matInput [(ngModel)]="supplierInvoiceNo" /></mat-form-field
-      ><mat-form-field appearance="outline"
-        ><mat-label>Warehouse</mat-label
+      >@if (warehouseUnavailable()) { <p class="warehouse-setup-message" role="alert">No active stock destination is configured. A purchase cannot be posted yet.</p> }
+      @if (manualWarehouseChoice()) { <p class="warehouse-setup-message">No single default stock destination is configured. Select where this purchase will be received.</p><mat-form-field appearance="outline"
+        ><mat-label>Receiving stock location</mat-label
         ><mat-select [(ngModel)]="warehouseId" required>
           @for (x of warehouses(); track x.warehouseId) {
             <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
           }
-        </mat-select></mat-form-field
-      ><mat-form-field appearance="outline"
+        </mat-select></mat-form-field> }
+      <mat-form-field appearance="outline"
         ><mat-label>Due Date</mat-label><input matInput [matDatepicker]="duePicker" [(ngModel)]="dueDate"
         /><mat-datepicker-toggle matIconSuffix [for]="duePicker" /><mat-datepicker #duePicker
       /></mat-form-field>

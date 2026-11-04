@@ -7,6 +7,7 @@
       <p>{{ item.productCode }}</p>
     </div>
     <div>
+      <button mat-stroked-button (click)="share(item.productId)" [disabled]="!item.isActive">Share on WhatsApp</button>
       <a mat-button routerLink="/products">Back</a
       ><a mat-flat-button [routerLink]="['/products', item.productId, 'edit']">Edit</a>
     </div>
@@ -47,8 +48,8 @@
   <mat-card
     ><mat-card-header><mat-card-title>Descriptions and inventory</mat-card-title></mat-card-header
     ><mat-card-content
-      ><p>{{ item.shortDescription }}</p>
-      <p>{{ item.longDescription }}</p>
+      ><div class="product-description" [innerHTML]="item.shortDescription"></div>
+      <div class="product-description" [innerHTML]="item.longDescription"></div>
       <dl>
         <dt>Stock range</dt>
         <dd>{{ item.minimumStock }} – {{ item.maximumStock }}</dd>
@@ -61,4 +62,5 @@
       </dl></mat-card-content
     ></mat-card
   >
+  <app-product-publication-panel [productId]="item.productId" />
 }

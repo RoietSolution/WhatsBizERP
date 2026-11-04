@@ -12,6 +12,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using WhatsBiz.Application.Features.WhatsAppCommerce;
+using WhatsBiz.Application.Common.Features;
+using WhatsBiz.Application.Common.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace WhatsBiz.Infrastructure.Notifications;
 
@@ -20,13 +23,19 @@ internal sealed class StorefrontAutomatedNotificationWorker(
     IOptions<StorefrontFeedbackNotificationOptions> feedbackOptions,
     IWhatsAppCommerceProviderResolver providers,
     IDataProtectionProvider protection,
-    ILogger<StorefrontAutomatedNotificationWorker> logger) : BackgroundService
+    ILogger<StorefrontAutomatedNotificationWorker> logger, IServiceScopeFactory? scopes = null,
+    IOutboundSafetyPolicy? outboundSafety = null) : BackgroundService
 {
     private readonly StorefrontFeedbackNotificationOptions settings = feedbackOptions.Value;
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (outboundSafety is { AllowsExternalDelivery: false })
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+            return;
+        }
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -117,6 +126,11 @@ internal sealed class StorefrontAutomatedNotificationWorker(
 
     private async Task<DeliveryResult> Deliver(WorkItem item, CancellationToken token)
     {
+        if (scopes is null) return new("PENDING", null, "FEATURE_DISABLED", "Optional notifications require an entitlement service.", false);
+        await using var scope = scopes.CreateAsyncScope();
+        var featureService = scope.ServiceProvider.GetRequiredService<IFeatureService>();
+        if (!await featureService.IsEnabledAsync(item.TenantId, FeatureKeys.StorefrontNotifications, token))
+            return new("PENDING", null, "FEATURE_DISABLED", "Optional notifications are paused by the retailer entitlement.", false);
         return item.EventType switch
         {
             "STOREFRONT_ORDER_CREATED" when item.Channel == "EMAIL" => await DeliverOrderEmail(item, token),
@@ -127,6 +141,8 @@ internal sealed class StorefrontAutomatedNotificationWorker(
 
     private async Task<DeliveryResult> DeliverOrderEmail(WorkItem item, CancellationToken token)
     {
+        if (outboundSafety is { AllowsExternalDelivery: false })
+            return new("PENDING", null, "DEVELOPMENT_BLOCKED", "External delivery is disabled in Development.", false);
         if (string.IsNullOrWhiteSpace(item.Recipient) || !MailAddress.TryCreate(item.Recipient, out _)) return new("SKIPPED", null, "NO_VALID_RECIPIENT", "No valid retailer email is configured.", false);
         try
         {
@@ -190,6 +206,8 @@ internal sealed class StorefrontAutomatedNotificationWorker(
 
     private async Task<DeliveryResult> DeliverRestock(WorkItem item, CancellationToken token)
     {
+        if (outboundSafety is { AllowsExternalDelivery: false })
+            return new("PENDING", null, "DEVELOPMENT_BLOCKED", "External delivery is disabled in Development.", true);
         await using var connection = new SqlConnection(ConnectionString); await connection.OpenAsync(token);
         await using var command = new SqlCommand("""
             SELECT r.ContactMobile,r.ConsentGiven,r.ProductId,p.ProductName,t.Name,t.TenantKey,sc.RestockWhatsAppNotificationsEnabled,sc.RestockWhatsAppTemplateName,c.Mobile,w.ProviderMode,w.ApiVersion,w.PhoneNumberId,w.AccessTokenProtected,w.TestRecipientNumber,

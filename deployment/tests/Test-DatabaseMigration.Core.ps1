@@ -256,6 +256,8 @@ try{
  $safeMigration=[pscustomobject]@{Version=41;Name='Preflight';FileName='V41-Preflight.sql';Path=$migrationPath;Hash=(Get-DatabaseMigrationHash $migrationPath);ValidatorPath=$validatorPath;ValidatorHash=(Get-DatabaseMigrationHash $validatorPath)}
  $safePreflight=Assert-DatabaseMigrationPreflight -Migrations @($safeMigration) -Pending @($safeMigration) -BaselineVersion 40
  Assert-True ($safePreflight.Status -eq 'PASS') 'safe validator is accepted by shared preflight'
+ $emptyPendingPreflight=Assert-DatabaseMigrationPreflight -Migrations @($safeMigration) -Pending @() -BaselineVersion 40
+ Assert-True ($emptyPendingPreflight.Status -eq 'PASS' -and $emptyPendingPreflight.PendingCount -eq 0) 'shared preflight accepts zero pending migrations while still validating sequence'
  'UPDATE dbo.TestTable SET Value=1;'|Set-Content $validatorPath
  $unsafeMigration=$safeMigration.PSObject.Copy();$unsafeMigration.ValidatorHash=Get-DatabaseMigrationHash $validatorPath
  Assert-Throws {Assert-DatabaseMigrationPreflight -Migrations @($unsafeMigration) -Pending @($unsafeMigration) -BaselineVersion 40} 'write-capable validator blocks shared preflight'

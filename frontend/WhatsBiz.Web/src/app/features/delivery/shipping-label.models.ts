@@ -13,6 +13,8 @@ export interface StorefrontShippingLabel {
   paymentStatus: string;
   paymentDue: boolean;
   dueAmount: number;
+  paymentCollected?: boolean;
+  collectedAmount?: number;
   storeName: string;
   senderAddress: string;
   senderPhone?: string;
@@ -31,4 +33,15 @@ export interface StorefrontShippingLabel {
   barcodeUrl?: string;
   items?: StorefrontShippingLabelItem[];
   showProductDetails?: boolean;
+}
+
+export function shippingLabelPaymentIndicator(order: StorefrontShippingLabel): string {
+  const currency = (value: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(value);
+  if ((order.paymentMethod || '').toUpperCase() === 'COD') {
+    if (order.paymentCollected && order.collectedAmount != null) return `COD PAID — ${currency(order.collectedAmount)} · Do not collect payment again`;
+    return order.paymentDue ? `COD TO COLLECT — ${currency(order.dueAmount)}` : 'COD collection status unavailable';
+  }
+  return ['PAID', 'CAPTURED', 'SUCCESS', 'COMPLETED'].includes((order.paymentStatus || '').toUpperCase())
+    ? 'PREPAID — Payment received'
+    : 'Payment pending — do not collect';
 }

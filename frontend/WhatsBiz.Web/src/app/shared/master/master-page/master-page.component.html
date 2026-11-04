@@ -129,7 +129,7 @@
             @if (config().cardImageEnabled) {
               <div class="card-image">
                 @if (cardImages()[cardId(item)]; as image) {
-                  <img [src]="image" [alt]="item[config().rowName]" />
+                  <img [src]="image" [alt]="item[config().rowName]" referrerpolicy="no-referrer" (error)="cardImageError.emit(item)" />
                 } @else {
                   <span class="material-symbols-rounded">image</span>
                 }
@@ -184,7 +184,7 @@
       [emptyDescription]="
         'Adjust the search or filters, or create a new ' + config().singular.toLowerCase() + '.'
       "
-      (selectionChange)="selected.set($event)"
+      (selectionChange)="setSelected($event)"
       (searchChange)="queueSearch($event)"
       (sortChange)="sortChange.emit($event)"
       (rowAction)="row($event)"

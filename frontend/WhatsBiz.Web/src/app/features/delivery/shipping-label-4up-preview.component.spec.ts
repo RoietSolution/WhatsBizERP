@@ -23,5 +23,7 @@ describe('ShippingLabel4UpPreviewComponent', () => {
     expect(component.deliveryMethod(pickup)).toBe('Store Pickup');
     expect(component.deliveryMethod(courier)).toBe('Courier Delivery');
     expect(component.paymentIndicator(label('cod'))).toContain('Collect');
+    const paid = label('paid'); paid.paymentDue = false; paid.paymentCollected = true; paid.collectedAmount = 359;
+    expect(component.paymentIndicator(paid)).toContain('COD PAID');
   });
 });

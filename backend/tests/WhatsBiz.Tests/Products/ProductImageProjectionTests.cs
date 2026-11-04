@@ -9,6 +9,31 @@ namespace WhatsBiz.Tests.Products;
 public sealed class ProductImageProjectionTests
 {
     [Fact]
+    public async Task ShopifyExternalPrimaryWinsProductListProjectionAndStaysTenantScoped()
+    {
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var tenantId = Guid.NewGuid();
+        var category = new ProductCategory { CategoryCode = "EXT-CAT", CategoryName = "External" };
+        var brand = new Brand { BrandCode = "EXT-BR", BrandName = "Brand" };
+        var unit = new UnitOfMeasure { UnitCode = "EXT-EA", UnitName = "Each", ShortName = "ea" };
+        var product = new Product { TenantId = tenantId, ProductCode = "EXT-P", ProductName = "External product", Category = category, Brand = brand, Unit = unit };
+        db.Products.Add(product);
+        db.ProductImages.Add(new ProductImage { TenantId = tenantId, ProductId = product.ProductId, IsPrimary = true });
+        db.ProductExternalImages.AddRange(
+            new ProductExternalImage { TenantId = tenantId, ProductId = product.ProductId, ImageUrl = "https://cdn.shopify.com/1.jpg", DisplayOrder = 1, IsPrimary = true },
+            new ProductExternalImage { TenantId = Guid.NewGuid(), ProductId = product.ProductId, ImageUrl = "https://cdn.shopify.com/other-tenant.jpg", DisplayOrder = 0, IsPrimary = true });
+        db.SaveChanges();
+        var repository = new ProductRepository(db, new CurrentUser(tenantId));
+
+        var row = (await repository.SearchAsync(null, null, null, null, "productName", false, 1, 20, default)).Items.Single();
+        var external = await repository.GetExternalImagesAsync(product.ProductId, default);
+
+        row.ImageUrl.Should().Be("https://cdn.shopify.com/1.jpg");
+        external.Should().ContainSingle().Which.TenantId.Should().Be(tenantId);
+    }
+
+    [Fact]
     public async Task ProductListAndDetailsResolveSameTenantPrimaryImageForActiveAndInactiveProducts()
     {
         await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()

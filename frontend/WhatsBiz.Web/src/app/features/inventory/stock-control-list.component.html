@@ -3,14 +3,6 @@
   <mat-form-field
     ><mat-label>Search</mat-label
     ><input matInput [(ngModel)]="search" (keyup.enter)="load()" /></mat-form-field
-  ><mat-form-field
-    ><mat-label>Warehouse</mat-label
-    ><mat-select [(ngModel)]="warehouseId" (selectionChange)="load()"
-      ><mat-option value="">All</mat-option>
-      @for (w of warehouses(); track w.warehouseId) {
-        <mat-option [value]="w.warehouseId">{{ w.warehouseName }}</mat-option>
-      }
-    </mat-select></mat-form-field
   >
   @if (mode === 'alerts') {
     <mat-form-field
@@ -35,7 +27,7 @@
       <thead>
         <tr>
           <th>Product</th>
-          <th>Warehouse</th>
+          <th>Stock location</th>
           <th>Movement</th>
           <th>Quantity</th>
           <th>Balance</th>
@@ -60,7 +52,7 @@
       <thead>
         <tr>
           <th>Product</th>
-          <th>Warehouse</th>
+          <th>Stock location</th>
           <th>Status</th>
           <th>Current</th>
           <th>Suggested</th>

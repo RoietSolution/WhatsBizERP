@@ -13,4 +13,7 @@
     <ProjectReference Include="..\..\src\WhatsBiz.Infrastructure\WhatsBiz.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup><Using Include="Xunit" /></ItemGroup>
+  <ItemGroup>
+    <Content Include="../../../deployment/integration-database.config.json" Link="integration-database.config.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

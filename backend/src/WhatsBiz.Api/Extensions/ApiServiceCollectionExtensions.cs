@@ -86,6 +86,18 @@ public static class ApiServiceCollectionExtensions
                     QueueLimit = 0,
                     AutoReplenishment = true
                 }));
+            options.AddPolicy("StorefrontCartPreview", context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 60,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                }));
+            options.AddPolicy("GuestAnalytics", context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
         });
         services.AddCors(options => options.AddPolicy(CorsPolicyName, policy =>
             policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));

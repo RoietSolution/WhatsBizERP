@@ -7,6 +7,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { InventoryApiService } from './inventory-api.service';
 import { ProductOption, Reservation, WarehouseOption } from './inventory.models';
+import { WarehouseUiVisibilityService } from '../../shared/services/warehouse-ui-visibility.service';
 @Component({
   imports: [
     ReactiveFormsModule,
@@ -31,6 +32,7 @@ import { ProductOption, Reservation, WarehouseOption } from './inventory.models'
         padding: 0.75rem;
         border-bottom: 1px solid var(--mat-sys-outline-variant);
       }
+      .location-message { grid-column: 1 / -1; margin: 0; padding: .65rem .75rem; color: var(--wb-text-secondary); background: var(--wb-background); border: 1px solid var(--wb-border); border-radius: 8px; }
       @media (max-width: 800px) {
         .grid {
           grid-template-columns: 1fr;
@@ -44,11 +46,14 @@ export class StockReservationComponent {
   readonly products = signal<ProductOption[]>([]);
   readonly warehouses = signal<WarehouseOption[]>([]);
   readonly reservations = signal<Reservation[]>([]);
+  readonly manualLocationChoice = signal(false);
+  readonly locationUnavailable = signal(false);
   readonly form;
   constructor(
     private readonly api: InventoryApiService,
     fb: FormBuilder,
     private readonly snack: MatSnackBar,
+    private readonly warehouseUi: WarehouseUiVisibilityService,
   ) {
     this.form = fb.group({
       action: ['RESERVE'],
@@ -61,7 +66,16 @@ export class StockReservationComponent {
       referenceId: [null],
     });
     api.products().subscribe((x) => this.products.set(x.items));
-    api.warehouses().subscribe((x) => this.warehouses.set(x));
+    api.warehouses().subscribe({
+      next: (x) => {
+        this.warehouses.set(x);
+        const resolved = this.warehouseUi.resolveDefaultOrOnly(x);
+        if (resolved) this.form.controls.warehouseId.setValue(resolved);
+        this.manualLocationChoice.set(this.warehouseUi.showOptionalSelectors || (x.length > 1 && !resolved));
+        this.locationUnavailable.set(x.length === 0);
+      },
+      error: () => this.locationUnavailable.set(true),
+    });
     this.load();
   }
   load() {

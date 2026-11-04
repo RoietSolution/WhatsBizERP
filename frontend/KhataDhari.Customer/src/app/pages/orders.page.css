@@ -1,0 +1,14 @@
+:host{display:block}
+shop-orders-page .page{max-width:820px;margin:auto;min-width:0}
+shop-orders-page .orders{gap:12px}
+shop-orders-page .orders article{border:1px solid var(--store-border);border-radius:16px;box-shadow:0 8px 22px rgba(15,23,42,.04);padding:16px;transition:transform .15s ease,box-shadow .15s ease}
+shop-orders-page .orders article:hover{transform:translateY(-1px);box-shadow:0 10px 26px rgba(15,23,42,.07)}
+shop-orders-page .top{align-items:flex-start}
+shop-orders-page .top strong{font:800 14px Manrope,sans-serif;letter-spacing:.1px}
+shop-orders-page .top small{font-size:11px;line-height:1.45}
+shop-orders-page .top b{font:800 16px Manrope,sans-serif}
+shop-orders-page .bottom{padding-top:12px;border-top:1px solid var(--store-border);line-height:1.5}
+shop-orders-page .status{display:inline-flex;align-items:center;min-height:25px;padding:4px 9px;border-radius:999px;font-size:10px}
+shop-orders-page article>a{display:inline-flex;align-items:center;min-height:40px;margin-top:4px;font-size:12px}
+shop-orders-page .state{gap:8px}
+@media(max-width:620px){shop-orders-page .orders article{padding:14px}shop-orders-page .top b{font-size:14px}shop-orders-page .bottom{align-items:flex-start;line-height:1.55}shop-orders-page article>a{margin-top:2px}}

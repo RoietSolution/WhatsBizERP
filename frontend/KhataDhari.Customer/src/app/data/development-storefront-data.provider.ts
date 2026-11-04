@@ -40,6 +40,7 @@ const demoStore: Store = {
 /** GuturGo demo data, selected only by the explicit mock build configuration. */
 @Injectable({ providedIn: 'root' })
 export class DevelopmentStorefrontDataProvider implements StorefrontDataProvider {
+  async getAvailabilityAnnouncements(_storeKey:string):Promise<import('../models/storefront.models').AvailabilityAnnouncement[]> { return []; }
   async getStore(storeKey: string): Promise<Store | null> {
     return storeKey.toLowerCase() === demoStore.storeKey ? demoStore : null;
   }
@@ -48,7 +49,7 @@ export class DevelopmentStorefrontDataProvider implements StorefrontDataProvider
     return storeKey.toLowerCase() === demoStore.storeKey ? guturgoCategories : [];
   }
 
-  async getProducts(storeKey: string, page = 1, pageSize = 24): Promise<ProductPage> { const all = storeKey.toLowerCase() === demoStore.storeKey ? guturgoProducts : []; const items = all.slice((page - 1) * pageSize, page * pageSize); return { items, pageNumber: page, pageSize, totalCount: all.length, hasMore: page * pageSize < all.length }; }
+  async getProducts(storeKey: string, page = 1, pageSize = 24, categoryId?: string): Promise<ProductPage> { const all = (storeKey.toLowerCase() === demoStore.storeKey ? guturgoProducts : []).filter(product => !categoryId || product.categoryId === categoryId); const items = all.slice((page - 1) * pageSize, page * pageSize); return { items, pageNumber: page, pageSize, totalCount: all.length, hasMore: page * pageSize < all.length }; }
 
   async getOffer(_storeKey:string,_offerId:string):Promise<StorefrontOffer|null>{return null;}
   async getProduct(storeKey: string, productId: string): Promise<Product | null> {
@@ -65,6 +66,7 @@ export class DevelopmentStorefrontDataProvider implements StorefrontDataProvider
   async requestReturn(_storeKey:string,orderId:string,invoiceItemId:string,quantity:number,reason:string,explanation?:string):Promise<import('../models/storefront.models').StorefrontReturnRequest>{return {requestId:crypto.randomUUID(),orderId,invoiceItemId,orderNumber:'MOCK-ORDER',productName:'Development product',quantity,reason,explanation,status:'REQUESTED',requestedAtUtc:new Date().toISOString()};}
   async checkDelivery(_storeKey:string,pincode:string):Promise<{deliveryEnabled:boolean;isPincodeServiceable:boolean}>{return{deliveryEnabled:true,isPincodeServiceable:/^[0-9]{6}$/.test(pincode)};}
   async quote(_storeKey:string,lines:readonly CartLine[],pincode:string):Promise<CartQuote|null>{const amount=lines.filter(x=>x.product.available).reduce((sum,x)=>sum+x.product.sellingPrice*x.quantity,0);const threshold=demoStore.freeDeliveryThreshold;const serviceable=/^[0-9]{6}$/.test(pincode);const unlocked=!!threshold&&amount>=threshold;const charge=serviceable&&!unlocked?40:0;return{eligibleAmount:amount,freeDeliveryThreshold:threshold,remainingAmount:Math.max(0,(threshold??0)-amount),progressPercent:threshold?Math.min(100,Math.round(amount/threshold*100)):0,isFreeDeliveryUnlocked:unlocked,isDeliveryEnabled:true,isPincodeServiceable:serviceable,merchandiseAmount:amount,merchandiseTaxAmount:0,merchandiseSubtotal:amount,standardDeliveryCharge:40,freeDeliveryEnabled:!!threshold,deliveryCharge:charge,promotionDiscount:0,finalPayableAmount:amount+charge};}
+  async previewQuote(storeKey:string,lines:readonly CartLine[]):Promise<CartQuote|null>{return this.quote(storeKey,lines,'');}
   async getReviews(_storeKey:string,productId:string):Promise<ProductReviewSummary>{const ratings=[5,5,4,4,4,3];const comments=['Excellent quality and neatly packed.','Fresh product and quick delivery.','Good value for the pack size.','Product matched the description.','Would order this again.','Good overall, packaging can improve.'];const reviews=ratings.map((rating,i)=>({reviewId:`demo-${productId}-${i}`,reviewerName:`Demo shopper ${i+1}`,rating,reviewText:comments[i],createdAt:'2026-01-01T00:00:00Z',updatedAt:'2026-01-01T00:00:00Z',isOwn:false}));return{averageRating:4.2,ratingCount:reviews.length,reviews};}
   async saveReview(_storeKey:string,productId:string,rating:number,reviewText:string):Promise<ProductReview>{return{reviewId:`demo-own-${productId}`,reviewerName:'Development customer',rating,reviewText,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),isOwn:true};}
 

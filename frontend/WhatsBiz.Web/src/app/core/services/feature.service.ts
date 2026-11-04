@@ -25,13 +25,14 @@ export class FeatureService {
   constructor(private readonly http: HttpClient, private readonly currentUser: CurrentUserService) {}
   hasFeature(featureKey: string): boolean {
     const loaded = this.configurationState()?.features.find(x => x.featureKey === featureKey)?.effectiveEnabled;
-    return loaded ?? this.currentUser.user()?.features?.[featureKey] === true;
+    return loaded ?? (!this.requiresLive(featureKey) && this.currentUser.user()?.features?.[featureKey] === true);
   }
+  requiresLive(key: string): boolean { return ['STOREFRONT_SCHEDULED_SELLING','STOREFRONT_POPUP_CAMPAIGNS','STOREFRONT_NOTIFICATIONS'].includes(key); }
   load(force = false): Observable<TenantFeatureConfiguration | null> {
     if (!force && this.configurationState()) return of(this.configurationState());
     if (!force && this.request) return this.request;
     this.request = this.http.get<TenantFeatureConfiguration>('/api/features/effective').pipe(
-      tap(x => this.configurationState.set(x)), map(x => x as TenantFeatureConfiguration | null), catchError(() => of(null)),
+      tap(x => this.configurationState.set(x)), map(x => x as TenantFeatureConfiguration | null), catchError(() => { this.configurationState.set(null); return of(null); }),
       shareReplay({ bufferSize: 1, refCount: false }));
     return this.request;
   }
@@ -58,6 +59,7 @@ export class FeatureService {
   requiredFeature(url: string): string | undefined {
     if (url.startsWith('/admin/features')) return undefined;
     const routes: [string, string][] = [
+      ['/admin/storefront/schedules','STOREFRONT_SCHEDULED_SELLING'], ['/admin/storefront/campaigns','STOREFRONT_POPUP_CAMPAIGNS'], ['/admin/storefront/notifications','STOREFRONT_NOTIFICATIONS'],
       ['/delivery','DELIVERY_MANAGEMENT'], ['/orders/deliveries','DELIVERY_MANAGEMENT'], ['/admin/delivery','DELIVERY_MANAGEMENT'], ['/admin/whatsapp-deliveries','DELIVERY_MANAGEMENT'], ['/admin/whatsapp-demo','WHATSAPP_COMMERCE_DEMO'], ['/admin/whatsapp-usage-billing','WHATSAPP_COMMERCE'], ['/admin/whatsapp','WHATSAPP_CONFIGURATION'],
       ['/products/collections','COMMERCE_COLLECTIONS'], ['/dashboard','DASHBOARD'], ['/pos','POS'], ['/products','PRODUCTS'],
       ['/product-categories','PRODUCTS'], ['/brands','PRODUCTS'], ['/units','PRODUCTS'], ['/customers/whatsapp-contacts','WHATSAPP_COMMERCE'], ['/customers','CUSTOMERS'], ['/customer-groups','CUSTOMERS'],

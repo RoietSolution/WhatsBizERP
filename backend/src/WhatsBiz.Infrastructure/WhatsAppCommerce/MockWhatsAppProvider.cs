@@ -6,6 +6,9 @@ namespace WhatsBiz.Infrastructure.WhatsAppCommerce;
 
 public sealed class MockWhatsAppProvider : IWhatsAppCommerceProvider
 {
+    public Task<WhatsAppTransactionalMessageResult> SendSingleProductAsync(WhatsAppSingleProductRequest request, CancellationToken token) =>
+        Task.FromResult(new WhatsAppTransactionalMessageResult(true, $"mock-product-{Guid.NewGuid():N}", DateTimeOffset.UtcNow,
+            "MOCK only: image and product link simulated; no WhatsApp message was sent."));
     public string Mode => WhatsAppProviderModes.Mock;
     public Task<IReadOnlyCollection<WhatsAppCommerceMessage>> SendWelcomeAsync(string storeName, CancellationToken token) =>
         Task.FromResult<IReadOnlyCollection<WhatsAppCommerceMessage>>([new("WHATS_BIZ", "TEXT", $"Welcome to {storeName}\nWhat would you like to do?")]);

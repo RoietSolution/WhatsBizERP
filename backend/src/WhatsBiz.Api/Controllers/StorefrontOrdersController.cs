@@ -18,7 +18,7 @@ public sealed record RetailerStorefrontOrderDto(Guid Id, string OrderNumber, Dat
 public sealed record StorefrontShippingLabelDto(
     Guid Id, string OrderNumber, DateTimeOffset OrderDate, string CustomerName, string? CustomerMobile,
     string DeliveryAddress, string? DeliveryPincode, string PaymentMethod, string PaymentStatus,
-    bool PaymentDue, decimal DueAmount, string StoreName, string SenderAddress, string? SenderPhone, string? SenderEmail,
+    bool PaymentDue, decimal DueAmount, bool PaymentCollected, decimal? CollectedAmount, string StoreName, string SenderAddress, string? SenderPhone, string? SenderEmail,
     string? FulfillmentMethod, string? CourierName, string? TrackingNumber, string? DeliveryAgentName,
     string? SenderLogoUrl, string? RetailerDisplayName, string? DeliveryLocality, string? DeliveryCity, string? DeliveryDistrict,
     string? DeliveryState, string? QrCodeUrl, string? BarcodeUrl, IReadOnlyCollection<StorefrontShippingLabelItemDto> Items,
@@ -147,17 +147,24 @@ public sealed class StorefrontOrdersController(IConfiguration configuration, ICu
         await using (var context = new SqlCommand("EXEC sys.sp_set_session_context @key=N'TenantId',@value=@tenant", connection))
         { context.Parameters.AddWithValue("@tenant", tenant); await context.ExecuteNonQueryAsync(token); }
         await using (var eligibility = new SqlCommand("""
-            SELECT i.Status,d.DeliveryStatus,COALESCE(cp.Provider,w.PaymentType,N'UNKNOWN'),COALESCE(cp.Status,N'PENDING')
+            SELECT i.Status,d.DeliveryStatus,COALESCE(cp.Provider,w.PaymentType,N'UNKNOWN'),COALESCE(cp.Status,N'PENDING'),
+              COALESCE(d.CodRequired,CASE WHEN w.PaymentType=N'COD' THEN 1 ELSE 0 END),d.CodCollected,cod.Amount,i.BalanceAmount
             FROM sales.SalesInvoices i
             JOIN integration.WhatsAppCommerceOrders w ON w.TenantId=i.TenantId AND w.InvoiceId=i.InvoiceId AND w.SourceChannel=N'STOREFRONT'
             LEFT JOIN commerce.OrderDeliveries d ON d.TenantId=i.TenantId AND d.OrderId=i.InvoiceId
             OUTER APPLY(SELECT TOP(1) p.Provider,p.Status FROM commerce.CommercePayments p WHERE p.TenantId=i.TenantId AND p.InvoiceId=i.InvoiceId ORDER BY CASE WHEN p.Status IN(N'PAID',N'CAPTURED') THEN 0 ELSE 1 END,p.AttemptNumber DESC) cp
+            OUTER APPLY(SELECT TOP(1) pa.Amount FROM commerce.PaymentApplications pa JOIN commerce.CommercePayments p ON p.TenantId=pa.TenantId AND p.PaymentId=pa.PaymentId WHERE pa.TenantId=i.TenantId AND pa.InvoiceId=i.InvoiceId AND p.Provider=N'COD' AND p.Status IN(N'PAID',N'CAPTURED') ORDER BY pa.AppliedAt DESC) cod
             WHERE i.TenantId=@tenant AND i.InvoiceId=@order;
             """, connection))
         {
             eligibility.Parameters.AddWithValue("@tenant", tenant); eligibility.Parameters.AddWithValue("@order", orderId);
             await using var eligibilityReader = await eligibility.ExecuteReaderAsync(token);
             if (!await eligibilityReader.ReadAsync(token)) return NotFound();
+            var codRequired = !eligibilityReader.IsDBNull(4) && eligibilityReader.GetBoolean(4);
+            var codCollected = !eligibilityReader.IsDBNull(5) && eligibilityReader.GetBoolean(5);
+            var collectedAmount = eligibilityReader.IsDBNull(6) ? (decimal?)null : eligibilityReader.GetDecimal(6);
+            if (codRequired && codCollected && collectedAmount is null)
+                return UnprocessableEntity(new { message = "Shipping label unavailable: the COD collection record is incomplete. Verify the payment record before printing." });
             if (!StorefrontOrderPresentation.CanPrintShippingLabel(eligibilityReader.GetString(0), eligibilityReader.IsDBNull(3) ? null : eligibilityReader.GetString(3), eligibilityReader.IsDBNull(2) ? null : eligibilityReader.GetString(2), eligibilityReader.IsDBNull(1) ? null : eligibilityReader.GetString(1), out var reason))
                 return UnprocessableEntity(new { message = reason });
         }
@@ -168,6 +175,7 @@ public sealed class StorefrontOrdersController(IConfiguration configuration, ICu
               COALESCE(cp.Provider,w.PaymentType,N'UNKNOWN'),COALESCE(cp.Status,N'PENDING'),
               CONVERT(bit,CASE WHEN COALESCE(d.CodRequired,CASE WHEN w.PaymentType=N'COD' THEN 1 ELSE 0 END)=1 AND i.BalanceAmount>0 THEN 1 ELSE 0 END),
               CASE WHEN COALESCE(d.CodRequired,CASE WHEN w.PaymentType=N'COD' THEN 1 ELSE 0 END)=1 AND i.BalanceAmount>0 THEN i.BalanceAmount ELSE 0 END,
+              CONVERT(bit,CASE WHEN COALESCE(d.CodRequired,CASE WHEN w.PaymentType=N'COD' THEN 1 ELSE 0 END)=1 AND d.CodCollected=1 AND cod.Amount IS NOT NULL THEN 1 ELSE 0 END),cod.Amount,
               co.CompanyName,CONCAT_WS(N', ',co.AddressLine1,co.AddressLine2,co.City,co.State,co.PostalCode),co.Phone,co.Email,
               w.FulfillmentMethod,w.CourierName,w.TrackingNumber,a.DisplayName,
               t.TenantKey,COALESCE(NULLIF(t.DisplayName,N''),t.Name),s.LogoMediaId,s.ShowProductDetailsOnShippingLabel
@@ -177,6 +185,7 @@ public sealed class StorefrontOrdersController(IConfiguration configuration, ICu
             LEFT JOIN commerce.OrderDeliveries d ON d.TenantId=i.TenantId AND d.OrderId=i.InvoiceId
             LEFT JOIN commerce.DeliveryAgents a ON a.TenantId=d.TenantId AND a.DeliveryAgentId=d.DeliveryAgentId
             OUTER APPLY(SELECT TOP(1) p.Provider,p.Status FROM commerce.CommercePayments p WHERE p.TenantId=i.TenantId AND p.InvoiceId=i.InvoiceId ORDER BY CASE WHEN p.Status IN(N'PAID',N'CAPTURED') THEN 0 ELSE 1 END,p.AttemptNumber DESC) cp
+            OUTER APPLY(SELECT TOP(1) pa.Amount FROM commerce.PaymentApplications pa JOIN commerce.CommercePayments p ON p.TenantId=pa.TenantId AND p.PaymentId=pa.PaymentId WHERE pa.TenantId=i.TenantId AND pa.InvoiceId=i.InvoiceId AND p.Provider=N'COD' AND p.Status IN(N'PAID',N'CAPTURED') ORDER BY pa.AppliedAt DESC) cod
             LEFT JOIN admin.Companies co ON co.TenantId=i.TenantId AND co.IsActive=1
             JOIN core.Tenants t ON t.TenantId=i.TenantId AND t.IsActive=1
             LEFT JOIN commerce.StorefrontConfigurations s ON s.TenantId=i.TenantId
@@ -192,13 +201,13 @@ public sealed class StorefrontOrdersController(IConfiguration configuration, ICu
         var label = new StorefrontShippingLabelDto(
             reader.GetGuid(0), reader.GetString(1), reader.GetDateTimeOffset(2), reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4),
             reader.GetString(5), reader.IsDBNull(6) ? null : reader.GetString(6), reader.IsDBNull(11) ? "UNKNOWN" : reader.GetString(11),
-            PaymentStatusLabel(reader.IsDBNull(12) ? "PENDING" : reader.GetString(12), paymentDue), paymentDue, reader.GetDecimal(14),
-            reader.IsDBNull(15) ? "" : reader.GetString(15), reader.IsDBNull(16) ? "" : reader.GetString(16), reader.IsDBNull(17) ? null : reader.GetString(17), reader.IsDBNull(18) ? null : reader.GetString(18),
-            reader.IsDBNull(19) ? null : reader.GetString(19), reader.IsDBNull(20) ? null : reader.GetString(20), reader.IsDBNull(21) ? null : reader.GetString(21), reader.IsDBNull(22) ? null : reader.GetString(22),
-            null, reader.IsDBNull(24) ? null : reader.GetString(24), reader.IsDBNull(7) ? null : reader.GetString(7), reader.IsDBNull(8) ? null : reader.GetString(8), reader.IsDBNull(9) ? null : reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetString(10),
-            null, null, [], reader.IsDBNull(26) || reader.GetBoolean(26));
-        var tenantKey = reader.IsDBNull(23) ? null : reader.GetString(23);
-        var hasLogo = !reader.IsDBNull(25);
+            PaymentStatusLabel(reader.IsDBNull(12) ? "PENDING" : reader.GetString(12), paymentDue, reader.GetString(11), !reader.IsDBNull(15) && reader.GetBoolean(15), reader.IsDBNull(16) ? null : reader.GetDecimal(16)), paymentDue, reader.GetDecimal(14), !reader.IsDBNull(15) && reader.GetBoolean(15), reader.IsDBNull(16) ? null : reader.GetDecimal(16),
+            reader.IsDBNull(17) ? "" : reader.GetString(17), reader.IsDBNull(18) ? "" : reader.GetString(18), reader.IsDBNull(19) ? null : reader.GetString(19), reader.IsDBNull(20) ? null : reader.GetString(20),
+            reader.IsDBNull(21) ? null : reader.GetString(21), reader.IsDBNull(22) ? null : reader.GetString(22), reader.IsDBNull(23) ? null : reader.GetString(23), reader.IsDBNull(24) ? null : reader.GetString(24),
+            null, reader.IsDBNull(26) ? null : reader.GetString(26), reader.IsDBNull(7) ? null : reader.GetString(7), reader.IsDBNull(8) ? null : reader.GetString(8), reader.IsDBNull(9) ? null : reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetString(10),
+            null, null, [], reader.IsDBNull(28) || reader.GetBoolean(28));
+        var tenantKey = reader.IsDBNull(25) ? null : reader.GetString(25);
+        var hasLogo = !reader.IsDBNull(27);
         var items = new List<StorefrontShippingLabelItemDto>();
         await reader.CloseAsync();
         await using (var itemCommand = new SqlCommand("""SELECT p.ProductName,p.ProductCode,CAST(NULL AS nvarchar(200)),x.Quantity FROM sales.SalesInvoiceItems x JOIN sales.SalesInvoices i ON i.InvoiceId=x.InvoiceId AND i.TenantId=@tenant JOIN master.Products p ON p.ProductId=x.ProductId AND p.TenantId=@tenant WHERE x.InvoiceId=@order ORDER BY x.InvoiceItemId;""", connection))
@@ -217,7 +226,9 @@ public sealed class StorefrontOrdersController(IConfiguration configuration, ICu
         return Ok(label with { SenderLogoUrl = logoUrl, QrCodeUrl = $"data:image/svg+xml;base64,{qr}", BarcodeUrl = $"data:image/svg+xml;base64,{barcode}", Items = items, ShowProductDetails = showProducts });
     }
 
-    private static string PaymentStatusLabel(string status, bool due) => due ? "Pay on delivery" : status.Trim().ToUpperInvariant() switch
+    private static string PaymentStatusLabel(string status, bool due, string method, bool collected, decimal? collectedAmount) => string.Equals(method.Trim(), "COD", StringComparison.OrdinalIgnoreCase)
+        ? collected && collectedAmount is not null ? $"COD PAID — ₹{collectedAmount.Value:0.00}; Do not collect payment again" : due ? "COD TO COLLECT" : "COD collection status unavailable"
+        : due ? "Pay on delivery" : status.Trim().ToUpperInvariant() switch
     {
         "PAID" or "CAPTURED" or "SUCCESS" or "COMPLETED" => "Payment successful",
         "FAILED" or "FAILURE" => "Payment unsuccessful",

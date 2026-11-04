@@ -20,6 +20,11 @@ import { RouterLink } from '@angular/router';
 })
 export class ApplicationOwnerHubComponent {
   readonly items = [
+    { title: 'Public Catalog & Store Directory', description: 'Review retailer products and approve public directory listings.', icon: 'fact_check', route: '/application-owner/public-catalog' },
+    { title: 'City Marketplaces', description: 'Create and publish city routes and assign eligible directory-published retailers.', icon: 'location_city', route: '/application-owner/marketplace-cities' },
+    { title: 'Marketplace Search Analytics', description: 'Review aggregated search trends and zero-result terms across cities and retailer storefronts.', icon: 'manage_search', route: '/application-owner/search-analytics' },
+    { title: 'Marketplace Visitor Analytics', description: 'Review aggregated, consented storefront visitor activity for enabled retailers.', icon: 'visibility', route: '/application-owner/visitor-analytics' },
+    { title: 'Partner Seller Verification', description: 'Review partner seller verification requests from operating retailers.', icon: 'verified_user', route: '/application-owner/partner-verification' },
     { title: 'Tenant Features', description: 'Enroll retailers and control plan feature access.', icon: 'account_tree', route: '/admin/features' },
     { title: 'Demo Requests', description: 'Review website leads and manage their sales status.', icon: 'campaign', route: '/admin/demo-requests' },
     { title: 'WhatsApp Platform', description: 'Configure the shared Meta app and inspect retailer connections.', icon: 'hub', route: '/admin/whatsapp-platform' },

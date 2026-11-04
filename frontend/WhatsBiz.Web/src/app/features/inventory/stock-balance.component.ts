@@ -11,7 +11,7 @@ import { OperationsWorkspaceComponent } from '../../shared/components/operations
 import { FilterPanelComponent } from '../../shared/components/filter-panel/filter-panel.component';
 import { DataTableComponent } from '../../shared/components/data-table/data-table.component';
 import { InventoryApiService } from './inventory-api.service';
-import { Balance, ProductOption, WarehouseOption } from './inventory.models';
+import { Balance, ProductOption } from './inventory.models';
 @Component({
   imports: [
     ReactiveFormsModule,
@@ -79,11 +79,9 @@ export class StockBalanceComponent {
   readonly view = signal<'card'|'table'>('card');
   readonly items = signal<Balance[]>([]);
   readonly products = signal<ProductOption[]>([]);
-  readonly warehouses = signal<WarehouseOption[]>([]);
   readonly total = signal(0);
   readonly loading = signal(false);
   readonly search = new FormControl('', { nonNullable: true });
-  readonly warehouse = new FormControl('', { nonNullable: true });
   readonly product = new FormControl('', { nonNullable: true });
   readonly available = computed(() => this.items().reduce((a, x) => a + x.quantityAvailable, 0));
   readonly reserved = computed(() => this.items().reduce((a, x) => a + x.quantityReserved, 0));
@@ -121,7 +119,7 @@ export class StockBalanceComponent {
   readonly columns = [
     { field: 'productCode', headerName: 'Code' },
     { field: 'productName', headerName: 'Product', minWidth: 220 },
-    { field: 'warehouseName', headerName: 'Warehouse' },
+    { field: 'warehouseName', headerName: 'Stock location' },
     { field: 'zoneCode', headerName: 'Zone' },
     { field: 'binCode', headerName: 'Bin' },
     { field: 'quantityOnHand', headerName: 'On hand' },
@@ -137,7 +135,6 @@ export class StockBalanceComponent {
   size = 20;
   constructor(private api: InventoryApiService) {
     api.products().subscribe((x) => this.products.set(x.items));
-    api.warehouses().subscribe((x) => this.warehouses.set(x));
     this.load();
   }
   load() {
@@ -145,7 +142,6 @@ export class StockBalanceComponent {
     this.api
       .balances({
         search: this.search.value || undefined,
-        warehouseId: this.warehouse.value || undefined,
         productId: this.product.value || undefined,
         pageNumber: this.page,
         pageSize: this.size,
@@ -161,7 +157,6 @@ export class StockBalanceComponent {
   }
   reset() {
     this.search.setValue('');
-    this.warehouse.setValue('');
     this.product.setValue('');
     this.page = 1;
     this.load();
@@ -175,7 +170,7 @@ export class StockBalanceComponent {
     this.api
       .export(
         this.search.value || undefined,
-        this.warehouse.value || undefined,
+        undefined,
         this.product.value || undefined,
       )
       .subscribe((blob) => {

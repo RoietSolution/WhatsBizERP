@@ -42,6 +42,20 @@ public sealed class ProductImageStorageTests
         external.Catalog.Should().Equal(4,5);external.Thumbnail.Should().Equal(6);
     }
     [Fact]
+    public async Task CampaignMediaReusesBinaryAndTenantScopedExternalStorage()
+    {
+        var tenant=Guid.NewGuid();var media=Guid.NewGuid();
+        var database=Storage(ProductImageStorageProviders.Database,[]);
+        var saved=await database.StoreStorefrontAsync(new(tenant,"campaign",media,[1,2],[3],"image/webp"),default);
+        (await database.ReadStorefrontAsync(new(tenant,saved.Provider,null,[1,2],"image/webp"),default))!.Content.Should().Equal(1,2);
+        var s3=Storage(ProductImageStorageProviders.S3,[new RecordingStore()]);
+        var external=await s3.StoreStorefrontAsync(new(tenant,"campaign",media,[4,5],[6],"image/webp"),default);
+        external.ObjectKey.Should().Contain($"tenants/{tenant:N}/storefront/campaign/{media:N}/");
+        (await s3.ReadStorefrontAsync(new(tenant,external.Provider,external.ObjectKey,[],"image/webp"),default))!.Content.Should().Equal(4,5);
+        await FluentActions.Awaiting(()=>s3.ReadStorefrontAsync(new(Guid.NewGuid(),external.Provider,external.ObjectKey,[],"image/webp"),default)).Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
     public async Task LocalProviderRoundTripsBothVariantsAndRejectsCrossTenantKeys()
     {
         var root=Path.Combine(Path.GetTempPath(),"whatsbiz-product-images-"+Guid.NewGuid().ToString("N"));

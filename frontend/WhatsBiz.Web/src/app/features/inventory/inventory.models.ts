@@ -89,6 +89,7 @@ export interface WarehouseOption {
   warehouseId: string;
   warehouseCode: string;
   warehouseName: string;
+  isDefault?: boolean;
 }
 export interface OperationResult {
   operationId: string;

@@ -18,6 +18,7 @@ import { PageContainerComponent } from '../../shared/components/page-container/p
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 import { StatusChipComponent } from '../../shared/components/status-chip/status-chip.component';
 import { PurchaseApiService } from './purchase-api.service';
+import { WarehouseUiVisibilityService } from '../../shared/services/warehouse-ui-visibility.service';
 type Line = {
   productId: string;
   productName: string;
@@ -71,6 +72,8 @@ export class PurchaseFormComponent {
   items = signal<Line[]>([]);
   suppliers = signal<any[]>([]);
   warehouses = signal<any[]>([]);
+  manualWarehouseChoice = signal(false);
+  warehouseUnavailable = signal(false);
   productOptions = signal<ProductLookup[]>([]);
   attachments = signal<File[]>([]);
   private lookupTimer?: ReturnType<typeof setTimeout>;
@@ -80,10 +83,25 @@ export class PurchaseFormComponent {
     private router: Router,
     private snack: MatSnackBar,
     private dialog: MatDialog,
+    private readonly warehouseUi: WarehouseUiVisibilityService,
   ) {
     this.id = route.snapshot.paramMap.get('id') ?? '';
     api.suppliers().subscribe((x) => this.suppliers.set(x));
-    api.warehouses().subscribe((x) => this.warehouses.set(x));
+    api.warehouses().subscribe({
+      next: (x) => {
+        this.warehouses.set(x);
+        if (!this.id) {
+          const resolved = this.warehouseUi.resolveDefaultOrOnly(x);
+          if (resolved) this.warehouseId = resolved;
+          this.manualWarehouseChoice.set(this.warehouseUi.showOptionalSelectors || (x.length > 1 && !resolved));
+          this.warehouseUnavailable.set(x.length === 0);
+        }
+      },
+      error: () => {
+        this.warehouseUnavailable.set(true);
+        this.snack.open('Purchase entry cannot load its stock destination. Check the inventory setup before posting.', 'Dismiss', { duration: 5000 });
+      },
+    });
     if (this.id)
       api.get(this.id).subscribe((x) => {
         this.supplierId = x.supplierId;
@@ -183,7 +201,7 @@ export class PurchaseFormComponent {
   }
   save(status: string) {
     if (!this.supplierId || !this.warehouseId || !this.items().length) {
-      this.snack.open('Supplier, warehouse and items are required', 'Close', { duration: 3000 });
+      this.snack.open('Supplier, stock destination and items are required', 'Close', { duration: 3000 });
       return;
     }
     const body = {

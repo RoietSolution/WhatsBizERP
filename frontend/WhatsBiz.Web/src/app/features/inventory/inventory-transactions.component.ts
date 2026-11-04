@@ -9,7 +9,7 @@ import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { InventoryApiService } from './inventory-api.service';
-import { InventoryTransaction, TransactionList, WarehouseOption } from './inventory.models';
+import { InventoryTransaction, TransactionList } from './inventory.models';
 
 @Component({
   imports: [
@@ -56,7 +56,6 @@ export class InventoryTransactionsComponent {
     'MANUFACTURING',
   ];
   readonly items = signal<TransactionList[]>([]);
-  readonly warehouses = signal<WarehouseOption[]>([]);
   readonly total = signal(0);
   readonly filters;
   page = 1;
@@ -68,12 +67,10 @@ export class InventoryTransactionsComponent {
   ) {
     this.filters = fb.group({
       search: [''],
-      warehouseId: [''],
       transactionType: [''],
       from: [''],
       to: [''],
     });
-    api.warehouses().subscribe((x) => this.warehouses.set(x));
     this.load();
   }
   load() {
@@ -81,7 +78,7 @@ export class InventoryTransactionsComponent {
     this.api
       .transactions({
         search: f.search || undefined,
-        warehouseId: f.warehouseId || undefined,
+        warehouseId: undefined,
         transactionType: f.transactionType || undefined,
         from: f.from || undefined,
         to: f.to || undefined,

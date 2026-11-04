@@ -6,7 +6,6 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { StockControlApiService, MovementRow, StockControlRow } from './stock-control-api.service';
-import { WarehouseOption } from './inventory.models';
 @Component({
   imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   templateUrl: './stock-control-list.component.html',
@@ -49,7 +48,6 @@ import { WarehouseOption } from './inventory.models';
 export class StockControlListComponent implements OnInit {
   readonly rows = signal<StockControlRow[]>([]);
   readonly movements = signal<MovementRow[]>([]);
-  readonly warehouses = signal<WarehouseOption[]>([]);
   readonly loading = signal(false);
   readonly alertTypes = [
     'LOW_STOCK',
@@ -62,7 +60,6 @@ export class StockControlListComponent implements OnInit {
   mode = 'reorder';
   title = 'Reorder Suggestions';
   search = '';
-  warehouseId = '';
   status = '';
   constructor(
     private readonly api: StockControlApiService,
@@ -72,14 +69,13 @@ export class StockControlListComponent implements OnInit {
     this.title = route.snapshot.data['title'] ?? 'Inventory Stock Control';
   }
   ngOnInit() {
-    this.api.warehouses().subscribe((x) => this.warehouses.set(x));
     this.load();
   }
   load() {
     this.loading.set(true);
     const q = {
       search: this.search,
-      warehouseId: this.warehouseId,
+      warehouseId: '',
       status: this.status,
       pageNumber: 1,
       pageSize: 200,

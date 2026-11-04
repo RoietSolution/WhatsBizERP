@@ -4,14 +4,6 @@
     ><mat-label>Search</mat-label
     ><input matInput formControlName="search" (keyup.enter)="load()" /></mat-form-field
   ><mat-form-field
-    ><mat-label>Warehouse</mat-label
-    ><mat-select formControlName="warehouseId" (selectionChange)="load()"
-      ><mat-option value="">All</mat-option>
-      @for (x of warehouses(); track x.warehouseId) {
-        <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
-      }
-    </mat-select></mat-form-field
-  ><mat-form-field
     ><mat-label>Type</mat-label
     ><mat-select formControlName="transactionType" (selectionChange)="load()"
       ><mat-option value="">All</mat-option>
@@ -42,7 +34,7 @@
       ><th mat-header-cell *matHeaderCellDef>Type</th>
       <td mat-cell *matCellDef="let x">{{ x.transactionType }}</td></ng-container
     ><ng-container matColumnDef="warehouse"
-      ><th mat-header-cell *matHeaderCellDef>Warehouse</th>
+      ><th mat-header-cell *matHeaderCellDef>Stock location</th>
       <td mat-cell *matCellDef="let x">{{ x.warehouseName }}</td></ng-container
     ><ng-container matColumnDef="quantity"
       ><th mat-header-cell *matHeaderCellDef>Quantity</th>

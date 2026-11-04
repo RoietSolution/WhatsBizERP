@@ -1,6 +1,7 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Injectable, signal } from '@angular/core';
 import { catchError, forkJoin, of } from 'rxjs';
+import { CurrentUserService } from '../../core/services/current-user.service';
 
 export interface AppNotification {
   id: string;
@@ -28,19 +29,17 @@ interface FeedbackNotification { id: string; ticketId: string; ticketReference: 
 export class NotificationService {
   readonly notifications = signal<AppNotification[]>([]);
   readonly loading = signal(false);
-  private feedbackNotificationsAllowed = true;
-  constructor(private readonly http: HttpClient) {
+  constructor(private readonly http: HttpClient, private readonly currentUser: CurrentUserService) {
     this.load();
   }
   load(refresh = false): void {
     this.loading.set(true);
     forkJoin({
-      dashboard: this.http.get<ApiNotification[]>('/api/dashboard/notifications', { params: { refresh } }),
-      feedback: this.feedbackNotificationsAllowed
-        ? this.http.get<FeedbackNotification[]>('/api/storefront-feedback/notifications').pipe(catchError((error: HttpErrorResponse) => {
-            if (error.status === 403) this.feedbackNotificationsAllowed = false;
-            return of([]);
-          }))
+      dashboard: this.canReadDashboard()
+        ? this.http.get<ApiNotification[]>('/api/dashboard/notifications', { params: { refresh } }).pipe(catchError(() => of([])))
+        : of([]),
+      feedback: this.canReadFeedback()
+        ? this.http.get<FeedbackNotification[]>('/api/storefront-feedback/notifications').pipe(catchError(() => of([])))
         : of([]),
     }).subscribe({
         next: ({ dashboard, feedback }) => {
@@ -71,17 +70,25 @@ export class NotificationService {
     ]);
   }
   markRead(id: string): void {
-    if (id.startsWith('feedback:') && this.feedbackNotificationsAllowed) this.http.post(`/api/storefront-feedback/notifications/${id.substring(9)}/read`, {}).subscribe({ error: (error: HttpErrorResponse) => { if (error.status === 403) this.feedbackNotificationsAllowed = false; } });
+    if (id.startsWith('feedback:') && this.canReadFeedback()) this.http.post(`/api/storefront-feedback/notifications/${id.substring(9)}/read`, {}).subscribe({ error: () => undefined });
     this.notifications.update((items) =>
       items.map((item) => (item.id === id ? { ...item, read: true } : item)),
     );
   }
   markAllRead(): void {
-    if (this.feedbackNotificationsAllowed) this.http.post('/api/storefront-feedback/notifications/read-all', {}).subscribe({ error: (error: HttpErrorResponse) => { if (error.status === 403) this.feedbackNotificationsAllowed = false; } });
+    if (this.canReadFeedback()) this.http.post('/api/storefront-feedback/notifications/read-all', {}).subscribe({ error: () => undefined });
     this.notifications.update((items) => items.map((item) => ({ ...item, read: true })));
   }
   remove(id: string): void {
     this.notifications.update((items) => items.filter((item) => item.id !== id));
+  }
+  private canReadDashboard(): boolean {
+    const user = this.currentUser.user();
+    return !!user?.permissions.includes('dashboard.view') && user.features?.['DASHBOARD'] !== false;
+  }
+  private canReadFeedback(): boolean {
+    const user = this.currentUser.user();
+    return !!user?.permissions.includes('customer.feedback.manage') && user.features?.['STOREFRONT_FEEDBACK'] !== false;
   }
   private tone(value: string): AppNotification['type'] {
     const tone = value.toLowerCase();

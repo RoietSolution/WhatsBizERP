@@ -11,29 +11,30 @@ public sealed class StorefrontActivityService(IConfiguration configuration, ISto
 {
     private static readonly Action<ILogger, Guid, Exception?> ReportSqlFailure = LoggerMessage.Define<Guid>(LogLevel.Error, new EventId(6101, nameof(ReportSqlFailure)), "Storefront activity SQL report failed for tenant {TenantId}.");
     private static readonly Action<ILogger, string, Guid?, Exception?> RecordSqlFailure = LoggerMessage.Define<string, Guid?>(LogLevel.Error, new EventId(6103, nameof(RecordSqlFailure)), "Storefront activity event {EventType} could not be recorded for tenant {TenantId}; tracking is best-effort.");
-    private static readonly HashSet<string> Events = new(StringComparer.OrdinalIgnoreCase) { "STORE_VISIT", "CUSTOMER_SIGN_IN", "CUSTOMER_SIGN_OUT", "PRODUCT_VIEW", "CATEGORY_VIEW", "SEARCH", "ADD_TO_CART", "REMOVE_FROM_CART", "ADD_TO_WISHLIST", "REMOVE_FROM_WISHLIST", "CHECKOUT_STARTED", "ORDER_PLACED", "REFERRAL_OPENED", "REFERRAL_SHARED" };
+    private static readonly HashSet<string> Events = new(StringComparer.OrdinalIgnoreCase) { "STORE_VISIT", "CUSTOMER_SIGN_IN", "CUSTOMER_SIGN_OUT", "PRODUCT_VIEW", "CATEGORY_VIEW", "SEARCH", "ADD_TO_CART", "REMOVE_FROM_CART", "ADD_TO_WISHLIST", "REMOVE_FROM_WISHLIST", "CHECKOUT_STARTED", "REFERRAL_OPENED", "REFERRAL_SHARED" };
     private static readonly Regex VisitorPattern = new("^[A-Za-z0-9_-]{16,64}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
 
     public async Task RecordAsync(string storeKey, string? sessionToken, StorefrontActivityInput input, CancellationToken token)
     {
-        if (!Events.Contains(input.EventType) || !VisitorPattern.IsMatch(input.VisitorSessionId)) return;
+        if (!Events.Contains(input.EventType) || !VisitorPattern.IsMatch(input.VisitorSessionId) || string.IsNullOrWhiteSpace(sessionToken)) return;
         Guid? tenantId = null;
         try
         {
             tenantId = await ResolveTenant(storeKey, token); if (tenantId is null) return;
-            var customer = string.IsNullOrWhiteSpace(sessionToken) ? null : await customers.GetSessionAsync(storeKey, sessionToken, token);
-            var metadata = string.IsNullOrWhiteSpace(input.SearchTerm) ? null : $"{{\"search\":{System.Text.Json.JsonSerializer.Serialize(input.SearchTerm[..Math.Min(100,input.SearchTerm.Length)])}}}";
+            var customer = await customers.GetSessionAsync(storeKey, sessionToken, token);
+            if (customer is null) return;
+            var term = input.EventType.Equals("SEARCH", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(input.SearchTerm)
+                ? SearchTermPrivacy.ForStorage(input.SearchTerm)
+                : null;
+            var metadata = string.IsNullOrWhiteSpace(term) ? null : $"{{\"search\":{System.Text.Json.JsonSerializer.Serialize(term[..Math.Min(100,term.Length)])}}}";
             await using var connection = new SqlConnection(ConnectionString); await connection.OpenAsync(token);
-            // AnalyticsEventId has a NEWSEQUENTIALID() DEFAULT. SQL Server does not
-            // allow NEWSEQUENTIALID() to be called directly in an INSERT statement.
-            await using var command = new SqlCommand("INSERT commerce.AnalyticsEvents(TenantId,EventType,CustomerId,ProductId,MetadataJson,VisitorSessionId) VALUES(@tenant,@type,@customer,@product,@metadata,@visitor);", connection);
+            await using var command = new SqlCommand("INSERT commerce.AnalyticsEvents(TenantId,EventType,CustomerId,ProductId,MetadataJson,VisitorSessionId) VALUES(@tenant,@type,@customer,@product,@metadata,NULL);", connection);
             command.Parameters.Add("@tenant", System.Data.SqlDbType.UniqueIdentifier).Value = tenantId.Value;
             command.Parameters.Add("@type", System.Data.SqlDbType.NVarChar, 60).Value = input.EventType.ToUpperInvariant();
-            command.Parameters.Add("@customer", System.Data.SqlDbType.UniqueIdentifier).Value = customer?.Id ?? (object)DBNull.Value;
+            command.Parameters.Add("@customer", System.Data.SqlDbType.UniqueIdentifier).Value = customer.Id;
             command.Parameters.Add("@product", System.Data.SqlDbType.UniqueIdentifier).Value = input.ProductId ?? (object)DBNull.Value;
             command.Parameters.Add("@metadata", System.Data.SqlDbType.NVarChar, 4000).Value = (object?)metadata ?? DBNull.Value;
-            command.Parameters.Add("@visitor", System.Data.SqlDbType.VarChar, 64).Value = input.VisitorSessionId;
             await command.ExecuteNonQueryAsync(token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
@@ -55,13 +56,13 @@ WITH FirstSignIn AS
 (
     SELECT CustomerId, MIN(CreatedOn) AS FirstSignInOn
     FROM commerce.AnalyticsEvents
-    WHERE TenantId=@tenant AND EventType=N'CUSTOMER_SIGN_IN' AND CustomerId IS NOT NULL
+    WHERE TenantId=@tenant AND EventType=N'CUSTOMER_SIGN_IN' AND CustomerId IS NOT NULL AND GuestSessionId IS NULL
     GROUP BY CustomerId
 ), PeriodEvents AS
 (
     SELECT EventType, CustomerId, VisitorSessionId, CreatedOn
     FROM commerce.AnalyticsEvents
-    WHERE TenantId=@tenant AND CreatedOn>=@from AND CreatedOn<@to
+    WHERE TenantId=@tenant AND CreatedOn>=@from AND CreatedOn<@to AND CustomerId IS NOT NULL AND GuestSessionId IS NULL
 )
 SELECT
     CONVERT(int,COUNT(DISTINCT CASE WHEN e.EventType=N'STORE_VISIT' AND e.CreatedOn>=CONVERT(datetimeoffset,CONVERT(date,SYSUTCDATETIME())) THEN e.VisitorSessionId END)),
@@ -79,7 +80,7 @@ LEFT JOIN FirstSignIn fs ON fs.CustomerId=e.CustomerId;
 WITH PeriodEvents AS
 (
     SELECT * FROM commerce.AnalyticsEvents
-    WHERE TenantId=@tenant AND CreatedOn>=@from AND CreatedOn<@to
+    WHERE TenantId=@tenant AND CreatedOn>=@from AND CreatedOn<@to AND CustomerId IS NOT NULL AND GuestSessionId IS NULL
 ), ActivityGroups AS
 (
     SELECT CustomerId, CASE WHEN CustomerId IS NULL THEN VisitorSessionId ELSE NULL END AS VisitorSessionId, MAX(CreatedOn) AS LastActivityOn,
@@ -128,7 +129,7 @@ SELECT TOP (500) e.EventType,e.CustomerId,e.VisitorSessionId,e.ProductId,p.Produ
 FROM commerce.AnalyticsEvents e
 LEFT JOIN sales.Customers c ON c.TenantId=e.TenantId AND c.CustomerId=e.CustomerId
 LEFT JOIN master.Products p ON p.TenantId=e.TenantId AND p.ProductId=e.ProductId
-WHERE e.TenantId=@tenant AND e.CreatedOn>=@from AND e.CreatedOn<@to
+WHERE e.TenantId=@tenant AND e.CreatedOn>=@from AND e.CreatedOn<@to AND e.CustomerId IS NOT NULL AND e.GuestSessionId IS NULL
 ORDER BY e.CreatedOn DESC;
 SELECT TOP (500) w.CustomerId,c.CustomerName,w.ProductId,p.ProductName,p.SellingPrice,
        CASE WHEN ISNULL((SELECT SUM(b.QuantityOnHand-b.QuantityReserved) FROM inventory.InventoryBalances b JOIN inventory.Warehouses wh ON wh.WarehouseId=b.WarehouseId AND wh.TenantId=w.TenantId AND wh.IsActive=1 AND wh.IsDeleted=0 WHERE b.TenantId=w.TenantId AND b.ProductId=w.ProductId),0)>0 THEN N'IN_STOCK' ELSE N'OUT_OF_STOCK' END,

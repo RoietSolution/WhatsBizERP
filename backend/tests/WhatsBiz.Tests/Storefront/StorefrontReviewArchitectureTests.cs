@@ -37,7 +37,10 @@ public sealed class StorefrontReviewArchitectureTests
             .And.Contain("TR_StorefrontProductReviews_TenantGuard")
             .And.Contain("CK_StorefrontProductReviews_Status");
         var service = Read("backend/src/WhatsBiz.Infrastructure/Storefront/StorefrontReviewService.cs");
-        service.Should().Contain("invoice.CustomerId == customer.Id").And.Contain("invoice.Items.Any(item => item.ProductId == productId)")
+        service.Should().Contain("PurchasedAsync(tenant.Value, customer.Id, productId")
+            .And.Contain("i.CustomerId=@customer").And.Contain("li.ProductId=@product")
+            .And.Contain("p.Status IN(N'PAID',N'CAPTURED')")
+            .And.Contain("p.Provider<>N'COD'").And.Contain("d.DeliveryStatus=N'DELIVERED'")
             .And.Contain("PARTIALLY_RETURNED");
     }
 

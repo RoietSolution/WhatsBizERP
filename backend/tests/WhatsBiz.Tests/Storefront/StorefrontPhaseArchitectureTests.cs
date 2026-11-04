@@ -134,6 +134,16 @@ public sealed class StorefrontPhaseArchitectureTests
     }
 
     [Fact]
+    public void ProfileMediaBinaryColumnsUseTypedVarbinaryParameters()
+    {
+        var service = Read("backend/src/WhatsBiz.Infrastructure/Storefront/StorefrontCustomerService.cs");
+        service.Should().Contain("command.Parameters.Add(\"@data\",SqlDbType.VarBinary,-1)")
+            .And.Contain("command.Parameters.Add(\"@thumbdata\",SqlDbType.VarBinary,-1)")
+            .And.NotContain("command.Parameters.AddWithValue(\"@data\"")
+            .And.NotContain("command.Parameters.AddWithValue(\"@thumbdata\"");
+    }
+
+    [Fact]
     public void StorefrontActivityRecordsProductAndKeepsAnalyticsTenantScoped()
     {
         var service = Read("backend/src/WhatsBiz.Infrastructure/Storefront/StorefrontActivityService.cs");
@@ -186,9 +196,10 @@ public sealed class StorefrontPhaseArchitectureTests
     public void CustomerSearchTrackingUsesSchemaDefaultsAndTenantScopedWrites()
     {
         var service = Read("backend/src/WhatsBiz.Infrastructure/Storefront/CustomerDemandService.cs");
-        service.Should().Contain("INSERT commerce.ProductSearchEvents(TenantId,CustomerId,AnonymousSessionId")
-            .And.Contain("DECLARE @id uniqueidentifier=NEWID()")
-            .And.NotContain("ProductSearchEvents(SearchEventId,TenantId");
+        service.Should().Contain("INSERT commerce.ProductSearchEvents(SearchEventId,TenantId,CustomerId,AnonymousSessionId")
+            .And.Contain("var searchEventId = Guid.NewGuid()")
+            .And.Contain("insert.Parameters.AddWithValue(\"@id\", searchEventId)")
+            .And.NotContain("NEWSEQUENTIALID()");
         Read("frontend/KhataDhari.Customer/src/app/storefront-activity.service.ts")
             .Should().Contain("/search-events").And.Contain("recordDemandSearch");
     }

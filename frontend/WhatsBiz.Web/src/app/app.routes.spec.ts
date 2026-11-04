@@ -27,6 +27,7 @@ describe('application routes', () => {
     const mainRoute = routes.find((route) => route.canActivateChild);
     const ownerPaths = [
       'application-owner',
+      'application-owner/search-analytics',
       'admin/features',
       'admin/demo-requests',
       'admin/whatsapp-platform',

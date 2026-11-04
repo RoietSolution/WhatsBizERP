@@ -4,13 +4,14 @@ import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { ProductApiService } from './product-api.service';
 import { ProductFormComponent } from './product-form.component';
+import { FeatureService } from '../../core/services/feature.service';
 
 describe('ProductFormComponent manufacturer codes', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({ providers: [FormBuilder] });
   });
 
-  function setup() {
+  function setup(productId: string | null = null) {
     const api = jasmine.createSpyObj<ProductApiService>('ProductApiService', [
       'categories',
       'brands',
@@ -26,13 +27,15 @@ describe('ProductFormComponent manufacturer codes', () => {
       'createBrand',
       'createUnit',
     ]);
+    const features = jasmine.createSpyObj<FeatureService>('FeatureService', ['load']);
+    features.load.and.returnValue(of(null));
     api.categories.and.returnValue(of([]));
     api.brands.and.returnValue(of([]));
     api.units.and.returnValue(of([]));
     api.nextCode.and.returnValue(of('P-TEST'));
     const route = {
       snapshot: {
-        paramMap: { get: () => null },
+        paramMap: { get: () => productId },
         queryParamMap: { get: () => null },
       },
     } as unknown as ActivatedRoute;
@@ -40,7 +43,7 @@ describe('ProductFormComponent manufacturer codes', () => {
     const snack = jasmine.createSpyObj('MatSnackBar', ['open']);
     const dialog = jasmine.createSpyObj('MatDialog', ['open']);
     const component = TestBed.runInInjectionContext(
-      () => new ProductFormComponent(api, route, router, snack, dialog),
+      () => new ProductFormComponent(api, route, router, snack, dialog, features),
     );
     return { component, api, snack };
   }
@@ -81,6 +84,49 @@ describe('ProductFormComponent manufacturer codes', () => {
     expect(api.imageByUrl).toHaveBeenCalledWith('/api/products/product-1/images/image-1');
     expect(component.images()[0].url).toBe('blob:authenticated-image');
     expect(component.imagePreview()).toBe('blob:authenticated-image');
+  });
+
+  it('keeps Shopify external images direct while loading managed images through the protected API', () => {
+    const { component, api } = setup();
+    api.images.and.returnValue(of([
+      { productImageId: 'external-1', productId: 'product-1', fileName: 'shopify.jpg', contentType: 'image/external-url', isPrimary: true, url: 'https://cdn.shopify.com/product.jpg', storageKind: 'EXTERNAL_URL', displayOrder: 1 },
+      { productImageId: 'managed-1', productId: 'product-1', fileName: 'managed.png', contentType: 'image/png', isPrimary: false, url: '/api/products/product-1/images/managed-1', storageKind: 'MANAGED' },
+    ]));
+    api.imageByUrl.and.returnValue(of(new Blob(['managed'], { type: 'image/png' })));
+    spyOn(URL, 'createObjectURL').and.returnValue('blob:managed-image');
+
+    (component as unknown as { loadImages(id: string): void }).loadImages('product-1');
+
+    expect(api.imageByUrl).toHaveBeenCalledOnceWith('/api/products/product-1/images/managed-1');
+    expect(component.images().map(image => image.url)).toEqual(['https://cdn.shopify.com/product.jpg', 'blob:managed-image']);
+    expect(component.managedImageCount()).toBe(1);
+    expect(component.externalImageCount()).toBe(1);
+  });
+
+  it('does not count Shopify external images against the five managed-upload limit', () => {
+    const { component, snack } = setup();
+    component.images.set(Array.from({ length: 20 }, (_, index) => ({
+      productImageId: `external-${index}`, productId: 'product-1', fileName: `${index}.jpg`, contentType: 'image/external-url',
+      isPrimary: index === 0, url: `https://cdn.shopify.com/${index}.jpg`, storageKind: 'EXTERNAL_URL' as const,
+    })));
+    spyOn(URL, 'createObjectURL').and.returnValue('blob:managed-preview');
+    const file = new File(['new image'], 'new.png', { type: 'image/png' });
+
+    component.selectImage({ target: { files: [file] } } as unknown as Event);
+
+    expect(component.managedImageCount()).toBe(0);
+    expect(component.externalImageCount()).toBe(20);
+    expect(component.selectedImagesCount()).toBe(1);
+    expect(snack.open).not.toHaveBeenCalled();
+  });
+
+  it('keeps Shopify external images read-only in the ERP editor', () => {
+    const { component, api } = setup('product-1');
+    const image = { productImageId: 'external-1', productId: 'product-1', fileName: 'source.jpg', contentType: 'image/external-url', isPrimary: true, url: 'https://cdn.shopify.com/source.jpg', storageKind: 'EXTERNAL_URL' as const };
+
+    component.deleteImage(image);
+
+    expect(api.deleteProductImage).not.toHaveBeenCalled();
   });
 
   it('stores exact manufacturer QR URL text without navigating to it', () => {
@@ -223,5 +269,32 @@ describe('ProductFormComponent manufacturer codes', () => {
     });
     expect(component.form.controls.unitId.value).toBe('unit-1');
     expect(component.units()).toHaveSize(1);
+  });
+
+  it('retains form values while switching between Basic and Additional Details', () => {
+    const { component } = setup();
+    component.form.patchValue({ productName: 'Tea', shortDescription: 'Fresh tea' });
+
+    component.activeSection.set('additional');
+    component.activeSection.set('basic');
+
+    expect(component.form.controls.productName.value).toBe('Tea');
+    expect(component.form.controls.shortDescription.value).toBe('Fresh tea');
+  });
+
+  it('requires return days only for a custom return policy', () => {
+    const { component } = setup();
+    const days = component.form.controls.returnWindowDays;
+
+    component.form.controls.returnPolicyMode.setValue('CUSTOM');
+    expect(days.hasError('required')).toBeTrue();
+
+    component.form.controls.returnPolicyMode.setValue('INHERIT_DEFAULT');
+    expect(days.hasError('required')).toBeFalse();
+  });
+
+  it('keeps Partner Seller source unavailable without the effective entitlement', () => {
+    const { component } = setup();
+    expect(component.partnerSourceEnabled()).toBeFalse();
   });
 });

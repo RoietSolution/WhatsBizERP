@@ -112,6 +112,8 @@ public sealed record WhatsAppCommerceOrderDetails(WhatsAppCommerceOrderSummary O
 
 public interface IWhatsAppCommerceProvider
 {
+    Task<WhatsAppTransactionalMessageResult> SendSingleProductAsync(WhatsAppSingleProductRequest request, CancellationToken token) =>
+        Task.FromResult(new WhatsAppTransactionalMessageResult(false, null, DateTimeOffset.UtcNow, "Single product sharing is not supported by this provider."));
     string Mode { get; }
     bool Supports(string mode) => string.Equals(Mode, mode, StringComparison.OrdinalIgnoreCase);
     Task<IReadOnlyCollection<WhatsAppCommerceMessage>> SendWelcomeAsync(string storeName, CancellationToken token);
@@ -137,6 +139,9 @@ public interface IWhatsAppCommerceProvider
 public interface IWhatsAppCommerceProviderResolver { IWhatsAppCommerceProvider Resolve(string mode); }
 public interface IWhatsAppCommerceService
 {
+    Task<ProductSharePreview> GetProductShareAsync(Guid tenantId, Guid productId, CancellationToken token) => throw new NotSupportedException();
+    Task<ProductShareSendResult> SendProductShareAsync(Guid tenantId, Guid productId, SendProductShareInput input, CancellationToken token) => throw new NotSupportedException();
+    Task<ProductShareSendResult> GetProductShareStatusAsync(Guid tenantId, Guid productId, Guid requestId, CancellationToken token) => throw new NotSupportedException();
     Task<WhatsAppCommerceSetup> GetSetupAsync(Guid tenantId, Guid? warehouseId, CancellationToken token);
     Task<WhatsAppCommerceCart> CalculateCartAsync(Guid tenantId, Guid warehouseId, IReadOnlyCollection<WhatsAppCommerceCartItem> items, CancellationToken token);
     Task<WhatsAppCommerceOrderResult> PlaceOrderAsync(Guid tenantId, PlaceWhatsAppDemoOrderInput input, string? actor, CancellationToken token);

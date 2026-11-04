@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Globalization;
+using System.Data;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
@@ -58,7 +59,7 @@ public sealed class StorefrontCustomerService(
         var enabled = await features.IsEnabledAsync(session.TenantId, FeatureKeys.CustomerReferralRewards, token);
         var configuration = await referrals.GetConfigurationAsync(session.TenantId, token);
         if (!enabled || !configuration.IsEnabled)
-            return new(false, null, null, Array.Empty<StorefrontCustomerReferralDto>(), "This retailer's referral rewards are not currently available.", configuration.CoinValidityDays);
+            return new(false, null, null, Array.Empty<StorefrontCustomerReferralDto>(), "This retailer's referral rewards are not currently available.", configuration.CoinValidityDays, configuration.QualificationType, configuration.ReferrerRewardCoins, configuration.ReferredRewardCoins);
         var code = await referrals.GetOrCreateCodeAsync(session.TenantId, session.CustomerId, "STOREFRONT", token);
         var wallet = await loyalty.GetWalletAsync(session.TenantId, session.CustomerId, Math.Clamp(take, 1, 500), token);
         var history = (await referrals.GetHistoryAsync(session.TenantId, session.CustomerId, Math.Clamp(take, 1, 500), token)).Select(x => new StorefrontCustomerReferralDto(x.ReferralId, x.Status, x.QualificationType, x.QualifiedAt, x.RewardedAt, x.ReversedAt, x.CreatedAt, x.ReferredCustomerDisplay)).ToArray();
@@ -66,7 +67,7 @@ public sealed class StorefrontCustomerService(
         var terms = $"Invite a customer using your referral link. Rewards are credited after {qualification}. " +
                     $"Referrer reward: {configuration.ReferrerRewardCoins} coins; welcome reward: {configuration.ReferredRewardCoins} coins." +
                     (configuration.CoinValidityDays > 0 ? $" Coins are valid for {configuration.CoinValidityDays} days." : string.Empty);
-        return new(true, wallet, code, history, terms, configuration.CoinValidityDays);
+        return new(true, wallet, code, history, terms, configuration.CoinValidityDays, configuration.QualificationType, configuration.ReferrerRewardCoins, configuration.ReferredRewardCoins);
     }
 
     public async Task<bool> CaptureReferralAsync(string storeKey, string sessionToken, StorefrontReferralCaptureInput input, CancellationToken token)
@@ -291,7 +292,10 @@ public sealed class StorefrontCustomerService(
             }
             var id=old??Guid.NewGuid();
             await using var command=new SqlCommand(old.HasValue?"UPDATE commerce.StorefrontMedia SET FileName=@file,ContentType=@content,ThumbnailContentType=N'image/webp',StorageProvider=@provider,ObjectKey=@object,ThumbnailObjectKey=@thumb,ImageData=@data,ThumbnailData=@thumbdata,ContentHash=@hash,CreatedAt=SYSUTCDATETIME() WHERE MediaId=@id AND TenantId=@tenant AND CustomerId=@customer AND ResourceType=N'customer-profile';":"INSERT commerce.StorefrontMedia(MediaId,TenantId,CustomerId,ResourceType,FileName,ContentType,ThumbnailContentType,StorageProvider,ObjectKey,ThumbnailObjectKey,ImageData,ThumbnailData,ContentHash,CreatedAt) VALUES(@id,@tenant,@customer,N'customer-profile',@file,@content,N'image/webp',@provider,@object,@thumb,@data,@thumbdata,@hash,SYSUTCDATETIME());",connection,(SqlTransaction)transaction);
-            command.Parameters.AddWithValue("@id",id);command.Parameters.AddWithValue("@tenant",session.TenantId);command.Parameters.AddWithValue("@customer",session.CustomerId);command.Parameters.AddWithValue("@file",optimized.FileName);command.Parameters.AddWithValue("@content",optimized.ContentType);command.Parameters.AddWithValue("@provider",stored.Provider);command.Parameters.AddWithValue("@object",(object?)stored.ObjectKey??DBNull.Value);command.Parameters.AddWithValue("@thumb",(object?)stored.ThumbnailObjectKey??DBNull.Value);command.Parameters.AddWithValue("@data",(object?)(database?optimized.CatalogData:null)??DBNull.Value);command.Parameters.AddWithValue("@thumbdata",(object?)(database?optimized.ThumbnailData:null)??DBNull.Value);command.Parameters.AddWithValue("@hash",stored.ContentHash);
+            command.Parameters.AddWithValue("@id",id);command.Parameters.AddWithValue("@tenant",session.TenantId);command.Parameters.AddWithValue("@customer",session.CustomerId);command.Parameters.AddWithValue("@file",optimized.FileName);command.Parameters.AddWithValue("@content",optimized.ContentType);command.Parameters.AddWithValue("@provider",stored.Provider);command.Parameters.AddWithValue("@object",(object?)stored.ObjectKey??DBNull.Value);command.Parameters.AddWithValue("@thumb",(object?)stored.ThumbnailObjectKey??DBNull.Value);
+            var imageData=command.Parameters.Add("@data",SqlDbType.VarBinary,-1);imageData.Value=database?optimized.CatalogData:DBNull.Value;
+            var thumbnailData=command.Parameters.Add("@thumbdata",SqlDbType.VarBinary,-1);thumbnailData.Value=database?optimized.ThumbnailData:DBNull.Value;
+            command.Parameters.AddWithValue("@hash",stored.ContentHash);
             if(await command.ExecuteNonQueryAsync(token)!=1)throw new InvalidOperationException("The existing customer profile media record could not be updated.");
             await using var profile=new SqlCommand("UPDATE sales.Customers SET ProfileMediaId=@id WHERE TenantId=@tenant AND CustomerId=@customer;",connection,(SqlTransaction)transaction);profile.Parameters.AddWithValue("@id",id);profile.Parameters.AddWithValue("@tenant",session.TenantId);profile.Parameters.AddWithValue("@customer",session.CustomerId);if(await profile.ExecuteNonQueryAsync(token)!=1)throw new InvalidOperationException("The customer profile media reference could not be updated.");
             await transaction.CommitAsync(token);

@@ -31,4 +31,31 @@ public sealed class DeliveryManagementTests
     [Fact] public void Standard_non_otp_completion_has_a_distinct_input_contract()=>new ConfirmDeliveryWithoutOtpInput("Customer received the order").Reason.Should().Be("Customer received the order");
     [Fact] public void Standard_non_otp_completion_requires_the_existing_confirm_permission()
     { var method=typeof(DeliveriesController).GetMethods().Single(x=>x.Name=="ConfirmWithoutOtp");method.GetCustomAttributes(typeof(HasPermissionAttribute),true).Cast<HasPermissionAttribute>().Single().Policy.Should().EndWith(Permissions.Delivery.Confirm); }
+
+    [Fact]
+    public void Storefront_delivery_transitions_keep_the_legacy_commerce_projection_in_sync()
+    {
+        var source = File.ReadAllText(Find("backend", "src", "WhatsBiz.Infrastructure", "Delivery", "DeliveryService.cs"));
+        source.Should().Contain("SyncIntegrationDeliveryStatus(c,tx,t,row.OrderId,next,token)")
+            .And.Contain("SourceChannel=N'STOREFRONT'")
+            .And.Contain("DeliveredOn=CASE WHEN @status=N'DELIVERED'");
+    }
+
+    [Fact]
+    public void Delivery_list_maps_collection_amounts_and_timestamps_to_their_actual_ordinals()
+    {
+        var source = File.ReadAllText(Find("backend", "src", "WhatsBiz.Infrastructure", "Delivery", "DeliveryService.cs"));
+        source.Should().Contain("r.IsDBNull(28)?null:r.GetDecimal(28)")
+            .And.Contain("r.IsDBNull(30)?null:r.GetDateTimeOffset(30)")
+            .And.Contain("S(r,25),S(r,29),r.IsDBNull(27)?null:r.GetDateTimeOffset(27),S(r,26)")
+            .And.NotContain("r.IsDBNull(24)?null:r.GetDecimal(24)")
+            .And.NotContain("r.IsDBNull(25)?null:r.GetDateTimeOffset(25)");
+    }
+
+    private static string Find(params string[] parts)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, ".git"))) directory = directory.Parent;
+        return Path.Combine(directory?.FullName ?? throw new InvalidOperationException("Repository root was not found."), Path.Combine(parts));
+    }
 }

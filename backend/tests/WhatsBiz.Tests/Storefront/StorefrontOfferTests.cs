@@ -31,6 +31,8 @@ public sealed class StorefrontOfferTests {
         details.ShortDescription.Should().Be("Seasonal saving");
         details.PromoCode.Should().Be("SPRING");
         details.BenefitDescription.Should().Contain("15% off");
+        var flatDetails = await service.GetOfferAsync("offerone", expired.PromotionId, default);
+        flatDetails!.BenefitDescription.Should().Be("₹20.00 off");
         details.Status.Should().Be("ACTIVE");
         details.BannerImageUrl.Should().EndWith("/presentation/banners/primary");
         var banner = (await service.GetStoreAsync("offerone", default))!.Banners.Single();

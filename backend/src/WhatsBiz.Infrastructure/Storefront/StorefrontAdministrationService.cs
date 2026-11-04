@@ -10,12 +10,14 @@ using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Net.Mail;
 using WhatsBiz.Infrastructure.Notifications;
+using WhatsBiz.Application.Common.Features;
 
 namespace WhatsBiz.Infrastructure.Storefront;
 
 public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICurrentUserService currentUser,
     IProductImageOptimizer optimizer, IStorefrontMediaStorage storage, IDataProtectionProvider protection,
-    IOptions<StorefrontFeedbackNotificationOptions> notificationOptions) : IStorefrontAdministrationService
+    IOptions<StorefrontFeedbackNotificationOptions> notificationOptions, IOutboundSafetyPolicy outboundSafety,
+    IFeatureService? features = null) : IStorefrontAdministrationService
 {
     private const string SecretPurpose = "WhatsBiz.Storefront.CustomSmtpPassword.v61";
     private Guid Tenant => currentUser.TenantId ?? throw new Application.Common.Exceptions.UnauthorizedAccessException("A tenant context is required.");
@@ -36,11 +38,42 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
             .OrderBy(x => x.OfferName).Select(x => new StorefrontPromotionDto(x.PromotionId, x.OfferName, x.OfferType,
                 x.MinimumPurchaseAmount, x.DiscountType, x.DiscountValue, x.MaximumDiscount, x.StartsAt, x.EndsAt,
                 x.IsActive, x.UsageLimitPerCustomer, x.ShortDescription, x.DetailedDescription, x.TermsAndConditions, x.PromoCode, x.CtaLabel, x.EligibleItemsDescription)).ToArrayAsync(token);
-        return new(name, config?.LogoMediaId is null ? null : "/api/storefront-administration/logo",
+        var categoryOptions = await db.ProductCategories.AsNoTracking()
+            .Where(x => x.IsActive && !x.IsDeleted && db.Set<TenantProductCategory>().Any(link => link.TenantId == tenant && link.ProductCategoryId == x.ProductCategoryId))
+            .OrderBy(x => x.DisplayOrder).ThenBy(x => x.CategoryName)
+            .Select(x => new StorefrontCategoryOptionDto(x.ProductCategoryId, x.CategoryName, x.ParentCategoryId)).ToArrayAsync(token);
+        var result = new StorefrontAdminDto(name, config?.LogoMediaId is null ? null : "/api/storefront-administration/logo",
             config?.DeliveryEnabled ?? false, config?.StandardDeliveryCharge ?? 0, config?.FreeDeliveryEnabled ?? false,
             config?.FreeDeliveryThreshold, config?.ShowProductRatings ?? true, config?.ShowProductReviews ?? true, config?.DefaultReturnWindowDays ?? 7,
             banners, pincodes, promotions, config?.AllCategoryMediaId is null ? null : "/api/storefront-administration/categories/all/image", config?.ShowProductDetailsOnShippingLabel ?? true,
-            config?.NewOrderEmailNotificationsEnabled ?? false, config?.NewOrderNotificationEmail, config?.RestockWhatsAppNotificationsEnabled ?? false, config?.RestockWhatsAppTemplateName, config?.DeliveryCoverageMode ?? "ALLOWLIST", config?.AutomatedEmailMode?.Equals("CUSTOM_SMTP", StringComparison.OrdinalIgnoreCase) == true ? "GMAIL" : "KHATADHARI_DEFAULT", config?.NotificationSenderDisplayName, config?.NotificationReplyToEmail, "smtp.gmail.com", 587, "STARTTLS", config?.CustomSmtpUsername, config?.AutomatedEmailMode?.Equals("CUSTOM_SMTP", StringComparison.OrdinalIgnoreCase) == true ? config?.CustomSmtpUsername : null, !string.IsNullOrWhiteSpace(config?.CustomSmtpPasswordProtected));
+            config?.NewOrderEmailNotificationsEnabled ?? false, config?.NewOrderNotificationEmail, config?.RestockWhatsAppNotificationsEnabled ?? false, config?.RestockWhatsAppTemplateName, config?.DeliveryCoverageMode ?? "ALLOWLIST", config?.AutomatedEmailMode?.Equals("CUSTOM_SMTP", StringComparison.OrdinalIgnoreCase) == true ? "GMAIL" : "KHATADHARI_DEFAULT", config?.NotificationSenderDisplayName, config?.NotificationReplyToEmail, "smtp.gmail.com", 587, "STARTTLS", config?.CustomSmtpUsername, config?.AutomatedEmailMode?.Equals("CUSTOM_SMTP", StringComparison.OrdinalIgnoreCase) == true ? config?.CustomSmtpUsername : null, !string.IsNullOrWhiteSpace(config?.CustomSmtpPasswordProtected), categoryOptions, config?.FeaturedCategory1Id, config?.FeaturedCategory2Id);
+        if (features is null || !await features.IsEnabledAsync(tenant, FeatureKeys.StorefrontNotifications, token))
+            result = result with { NewOrderEmailNotificationsEnabled=false, NewOrderNotificationEmail=null, RestockWhatsAppNotificationsEnabled=false,
+                RestockWhatsAppTemplateName=null, AutomatedEmailMode="KHATADHARI_DEFAULT", NotificationSenderDisplayName=null, NotificationReplyToEmail=null,
+                CustomSmtpHost=null, CustomSmtpPort=null, CustomSmtpSecurityMode=null, CustomSmtpUsername=null, CustomSmtpFromEmail=null, HasCustomSmtpPassword=false };
+        return result;
+    }
+
+    public async Task UpdateFeaturedCategoriesAsync(UpdateStorefrontFeaturedCategoriesInput input, CancellationToken token)
+    {
+        if (input.FeaturedCategory1Id.HasValue && input.FeaturedCategory1Id == input.FeaturedCategory2Id)
+            throw new BusinessRuleException("Choose two different featured categories.");
+        var tenant = Tenant;
+        var selected = new[] { input.FeaturedCategory1Id, input.FeaturedCategory2Id }.Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
+        if (selected.Length > 0)
+        {
+            var eligible = await db.ProductCategories.AsNoTracking()
+                .Where(x => selected.Contains(x.ProductCategoryId) && x.IsActive && !x.IsDeleted
+                    && db.Set<TenantProductCategory>().Any(link => link.TenantId == tenant && link.ProductCategoryId == x.ProductCategoryId))
+                .Select(x => x.ProductCategoryId).ToArrayAsync(token);
+            if (eligible.Length != selected.Length) throw new BusinessRuleException("Choose active categories assigned to this storefront.");
+        }
+        var row = await db.StorefrontConfigurations.SingleOrDefaultAsync(x => x.TenantId == tenant, token);
+        if (row is null) { row = new() { TenantId = tenant, CreatedAt = DateTime.UtcNow }; db.StorefrontConfigurations.Add(row); }
+        row.FeaturedCategory1Id = input.FeaturedCategory1Id;
+        row.FeaturedCategory2Id = input.FeaturedCategory2Id;
+        row.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(token);
     }
 
     public async Task UpdateReviewSettingsAsync(UpdateStorefrontReviewSettingsInput input, CancellationToken token)
@@ -84,6 +117,7 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
 
     public async Task UpdateAutomatedNotificationSettingsAsync(UpdateAutomatedNotificationSettingsInput input, CancellationToken token)
     {
+        if (features is null || !await features.IsEnabledAsync(Tenant, FeatureKeys.StorefrontNotifications, token)) throw new BusinessRuleException("Optional Storefront Notifications is not enabled for this retailer.");
         var email = string.IsNullOrWhiteSpace(input.NewOrderNotificationEmail) ? null : input.NewOrderNotificationEmail.Trim();
         if (email is not null && (email.Length > 256 || !System.Net.Mail.MailAddress.TryCreate(email, out _)))
             throw new BusinessRuleException("Enter a valid retailer notification email address.");
@@ -128,6 +162,8 @@ public sealed class StorefrontAdministrationService(ApplicationDbContext db, ICu
     }
     public async Task SendNotificationTestEmailAsync(CancellationToken token)
     {
+        outboundSafety.EnsureExternalDeliveryAllowed("SMTP email");
+        if (features is null || !await features.IsEnabledAsync(Tenant, FeatureKeys.StorefrontNotifications, token)) throw new BusinessRuleException("Optional Storefront Notifications is not enabled for this retailer.");
         var tenant = Tenant; var row = await db.StorefrontConfigurations.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenant, token);
         var recipient = row?.NewOrderNotificationEmail;
         if (string.IsNullOrWhiteSpace(recipient) || !MailAddress.TryCreate(recipient, out _)) throw new BusinessRuleException("Save a valid notification recipient before sending a test email.");

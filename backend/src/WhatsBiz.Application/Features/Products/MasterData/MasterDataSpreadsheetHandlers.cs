@@ -24,42 +24,46 @@ public sealed class ProductMasterSpreadsheetHandlers(
     public async Task<ImportProductMasterResult> Handle(ImportProductCategoriesCommand request, CancellationToken cancellationToken)
     {
         var rows = Read(() => spreadsheet.ReadCategories(request.Content));
-        var existing = (await repository.GetCategoriesAsync(cancellationToken)).ToDictionary(x => x.CategoryCode, StringComparer.OrdinalIgnoreCase);
+        var existing = (await repository.GetCategoriesAsync(cancellationToken)).ToDictionary(x => x.CategoryCode.Trim(), StringComparer.OrdinalIgnoreCase);
         var candidates = new Dictionary<string, (CategoryImportRow Row, ProductCategory Entity)>(StringComparer.OrdinalIgnoreCase);
         var errors = new List<string>();
         foreach (var row in rows)
         {
             if (Invalid(row.Code, 50) || Invalid(row.Name, 200) || row.Description?.Length > 1000 || row.DisplayOrder < 0) { errors.Add($"Row {row.RowNumber}: category code, name, description, or display order is invalid."); continue; }
-            if (existing.ContainsKey(row.Code) || !candidates.TryAdd(row.Code, (row, new ProductCategory { CategoryCode = row.Code.Trim(), CategoryName = row.Name.Trim(), Description = Trim(row.Description), DisplayOrder = row.DisplayOrder, IsActive = row.IsActive, CreatedBy = currentUser.Username }))) errors.Add($"Row {row.RowNumber}: category code already exists.");
+            var code = row.Code.Trim();
+            if (existing.ContainsKey(code) || !candidates.TryAdd(code, (row, new ProductCategory { CategoryCode = code, CategoryName = row.Name.Trim(), Description = Trim(row.Description), DisplayOrder = row.DisplayOrder, IsActive = row.IsActive, CreatedBy = currentUser.Username }))) errors.Add($"Row {row.RowNumber}: category code already exists.");
         }
         var invalidParents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in candidates.Values)
         {
+            var categoryCode = pair.Row.Code.Trim();
             var parentCode = pair.Row.ParentCode?.Trim();
             if (string.IsNullOrWhiteSpace(parentCode)) continue;
-            if (parentCode.Equals(pair.Row.Code, StringComparison.OrdinalIgnoreCase)) { errors.Add($"Row {pair.Row.RowNumber}: a category cannot be its own parent."); invalidParents.Add(pair.Row.Code); }
+            if (parentCode.Equals(categoryCode, StringComparison.OrdinalIgnoreCase)) { errors.Add($"Row {pair.Row.RowNumber}: a category cannot be its own parent."); invalidParents.Add(categoryCode); }
             else if (existing.TryGetValue(parentCode, out var existingParent)) pair.Entity.ParentCategoryId = existingParent.ProductCategoryId;
             else if (candidates.TryGetValue(parentCode, out var importedParent)) pair.Entity.ParentCategoryId = importedParent.Entity.ProductCategoryId;
-            else { errors.Add($"Row {pair.Row.RowNumber}: parent category code '{parentCode}' was not found."); invalidParents.Add(pair.Row.Code); }
+            else { errors.Add($"Row {pair.Row.RowNumber}: parent category code '{parentCode}' was not found."); invalidParents.Add(categoryCode); }
         }
-        foreach (var start in candidates.Values.Where(x => !invalidParents.Contains(x.Row.Code)))
+        foreach (var start in candidates.Values.Where(x => !invalidParents.Contains(x.Row.Code.Trim())))
         {
-            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase); var code = start.Row.Code;
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase); var code = start.Row.Code.Trim();
             while (candidates.TryGetValue(code, out var current) && !string.IsNullOrWhiteSpace(current.Row.ParentCode))
             {
                 if (!visited.Add(code)) { foreach (var item in visited) invalidParents.Add(item); errors.Add($"Row {start.Row.RowNumber}: category parent hierarchy contains a cycle."); break; }
-                code = current.Row.ParentCode!;
+                code = current.Row.ParentCode!.Trim();
             }
         }
         bool changed;
         do
         {
             changed = false;
-            foreach (var pair in candidates.Values.Where(x => !invalidParents.Contains(x.Row.Code) && !string.IsNullOrWhiteSpace(x.Row.ParentCode) && invalidParents.Contains(x.Row.ParentCode!)))
-            { errors.Add($"Row {pair.Row.RowNumber}: parent category row is invalid."); changed |= invalidParents.Add(pair.Row.Code); }
+        foreach (var pair in candidates.Values.Where(x => !invalidParents.Contains(x.Row.Code.Trim()) && !string.IsNullOrWhiteSpace(x.Row.ParentCode) && invalidParents.Contains(x.Row.ParentCode!.Trim())))
+            { errors.Add($"Row {pair.Row.RowNumber}: parent category row is invalid."); changed |= invalidParents.Add(pair.Row.Code.Trim()); }
         } while (changed);
-        foreach (var pair in candidates.Values.Where(x => !invalidParents.Contains(x.Row.Code))) repository.Add(pair.Entity);
+        foreach (var pair in candidates.Values.Where(x => !invalidParents.Contains(x.Row.Code.Trim()))) repository.Add(pair.Entity);
         var imported = candidates.Count - invalidParents.Count;
+        // SaveChanges is a single provider transaction for category masters and tenant links.
+        // The configured FK orders the category principals before their tenant associations.
         if (imported > 0) await repository.SaveChangesAsync(cancellationToken);
         return new(imported, errors);
     }

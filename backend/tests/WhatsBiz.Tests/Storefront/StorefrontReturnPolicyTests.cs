@@ -1,4 +1,5 @@
 using FluentAssertions;
+using System.Data;
 using WhatsBiz.Application.Features.Storefront;
 
 namespace WhatsBiz.Tests.Storefront;
@@ -27,5 +28,20 @@ public sealed class StorefrontReturnPolicyTests
     {
         var delivery = new DateTimeOffset(2026, 10, 10, 0, 0, 0, TimeSpan.Zero);
         StorefrontReturnPolicy.Resolve("CUSTOM", 0, 30, delivery).Deadline.Should().Be(delivery);
+    }
+
+    [Fact]
+    public void EmptyReturnHistoryMapsNullPendingAggregateToNoPendingRequest()
+    {
+        var result = new DataTable();
+        result.Columns.Add("RequestedQuantity", typeof(decimal));
+        result.Columns.Add("HasPending", typeof(int));
+        result.Rows.Add(0m, DBNull.Value);
+
+        using var reader = result.CreateDataReader();
+        reader.Read().Should().BeTrue();
+        var hasPending = !reader.IsDBNull(1) && reader.GetInt32(1) == 1;
+
+        hasPending.Should().BeFalse();
     }
 }

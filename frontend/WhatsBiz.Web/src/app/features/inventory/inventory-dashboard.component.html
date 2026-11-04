@@ -1,7 +1,7 @@
 <app-operations-workspace
   eyebrow="Inventory operations"
   title="Inventory Workspace"
-  description="Monitor stock availability, warehouse movements, replenishment, and inventory risk."
+  description="Monitor stock availability, movements, replenishment, and inventory risk."
   [summaries]="summaries()"
   [statusText]="summary() ? 'Database data loaded' : 'Loading inventory data'"
   ><a workspace-header-actions mat-flat-button color="primary" routerLink="/inventory/adjustment"
@@ -18,25 +18,10 @@
       ><span class="material-symbols-rounded">autorenew</span>Reorder</a
     ><button mat-button><span class="material-symbols-rounded">label</span>Print Labels</button>
   </div>
-  <app-filter-panel
-    workspace-filters
-    title="Warehouse & stock filters"
-    (apply)="load()"
-    (reset)="warehouseId = ''; load()"
-    ><mat-form-field appearance="outline"
-      ><mat-label>Warehouse</mat-label
-      ><mat-select [(ngModel)]="warehouseId">
-        <mat-option value="">All warehouses</mat-option>
-        @for (x of warehouses(); track x.warehouseId) {
-          <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
-        }
-      </mat-select></mat-form-field
-    ></app-filter-panel
-  >
   <section class="operations">
     <a routerLink="/inventory/balance"
-      ><span class="material-symbols-rounded">warehouse</span><strong>Warehouse Stock</strong
-      ><small>Search product, barcode, category, and warehouse balances.</small></a
+      ><span class="material-symbols-rounded">inventory_2</span><strong>Stock Balances</strong
+      ><small>Search product, barcode, category, and available stock.</small></a
     ><a routerLink="/inventory/transactions"
       ><span class="material-symbols-rounded">timeline</span><strong>Inventory History</strong
       ><small>Review the stock timeline and product movements.</small></a
@@ -51,7 +36,7 @@
   </section>
   <section workspace-context class="context-card">
     <h3>Quick Stock Lookup</h3>
-    <p>Open Stock List to locate a product across warehouses and storage locations.</p>
+    <p>Open Stock List to review product-level available and reserved quantities.</p>
     <a mat-stroked-button routerLink="/inventory/balance">Open lookup</a>
   </section>
   <section workspace-context class="context-card">

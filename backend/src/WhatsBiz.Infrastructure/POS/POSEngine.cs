@@ -25,6 +25,29 @@ public sealed class POSEngine(
             return await idempotency.ExecuteForTenant(idempotencyKey, "POS_SALE", r, r.User, tenantId,
                 async (connection, transaction, ct) =>
                 {
+                    // Public commerce only. Regular ERP PostInternal, historical invoices and
+                    // returns are deliberately not governed by current catalog publication.
+                    await using (var publication = new SqlCommand("""
+                        DECLARE @ids TABLE(ProductId uniqueidentifier PRIMARY KEY);
+                        INSERT @ids SELECT DISTINCT ProductId FROM OPENJSON(@items) WITH(ProductId uniqueidentifier '$.ProductId');
+                        DECLARE @locked bigint;
+                        SELECT @locked=COUNT_BIG(*) FROM master.Products p WITH(UPDLOCK,HOLDLOCK) JOIN @ids i ON i.ProductId=p.ProductId WHERE p.TenantId=@tenant;
+                        SELECT @locked=COUNT_BIG(*) FROM commerce.ProductPublications a WITH(UPDLOCK,HOLDLOCK) JOIN @ids i ON i.ProductId=a.ProductId WHERE a.TenantId=@tenant;
+                        SELECT @locked=COUNT_BIG(*) FROM master.ProductImages a WITH(HOLDLOCK) JOIN @ids i ON i.ProductId=a.ProductId WHERE a.TenantId=@tenant;
+                        SELECT @locked=COUNT_BIG(*) FROM master.ProductSpecifications a WITH(HOLDLOCK) JOIN @ids i ON i.ProductId=a.ProductId WHERE a.TenantId=@tenant;
+                        SELECT COUNT(*) FROM @ids i WHERE NOT EXISTS(SELECT 1 FROM master.Products p WHERE p.TenantId=@tenant AND p.ProductId=i.ProductId
+                          AND p.IsActive=1 AND p.IsDeleted=0 AND p.IsWhatsAppVisible=1 AND commerce.IsProductPubliclyApproved(@tenant,p.ProductId)=1
+                          AND EXISTS(SELECT 1 FROM master.TenantProductCategories x WHERE x.TenantId=@tenant AND x.ProductCategoryId=p.CategoryId)
+                          AND EXISTS(SELECT 1 FROM master.ProductCategories x WHERE x.ProductCategoryId=p.CategoryId AND x.IsActive=1 AND x.IsDeleted=0)
+                          AND EXISTS(SELECT 1 FROM master.TenantUnitsOfMeasure x WHERE x.TenantId=@tenant AND x.UnitId=p.UnitId)
+                          AND EXISTS(SELECT 1 FROM master.UnitsOfMeasure x WHERE x.UnitId=p.UnitId AND x.IsActive=1 AND x.IsDeleted=0));
+                        """, connection, transaction))
+                    {
+                        publication.Parameters.AddWithValue("@tenant",tenantId);
+                        publication.Parameters.AddWithValue("@items",r.ItemsJson);
+                        if(Convert.ToInt32(await publication.ExecuteScalarAsync(ct),System.Globalization.CultureInfo.InvariantCulture)!=0)
+                            throw new BusinessRuleException("A product is no longer approved for public ordering. Refresh your cart.");
+                    }
                     if (r.AppliedPromotionId is Guid promotionId)
                     {
                         if (r.CustomerId is not Guid promotionCustomerId)

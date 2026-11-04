@@ -2,17 +2,21 @@ using System.Net.Mail;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using WhatsBiz.Application.Features.Storefront;
+using WhatsBiz.Application.Common.Features;
+using WhatsBiz.Application.Common.Interfaces;
 
 namespace WhatsBiz.Infrastructure.Notifications;
 
 /// <summary>Writes post-commit storefront notification work. Delivery is performed by the hosted worker.</summary>
-public sealed class StorefrontAutomatedNotificationService(IConfiguration configuration) : IStorefrontAutomatedNotificationService
+public sealed class StorefrontAutomatedNotificationService(IConfiguration configuration, IFeatureService? features = null) : IStorefrontAutomatedNotificationService
 {
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection")
         ?? throw new InvalidOperationException("Database connection unavailable.");
 
     public async Task QueueOrderEmailAsync(Guid tenantId, Guid orderId, CancellationToken token)
     {
+        // This is the optional retailer alert, not the customer's transactional receipt.
+        if (features is null || !await features.IsEnabledAsync(tenantId, FeatureKeys.StorefrontNotifications, token)) return;
         await using var connection = new SqlConnection(ConnectionString);
         await connection.OpenAsync(token);
         await using var settings = new SqlCommand("SELECT NewOrderEmailNotificationsEnabled,NewOrderNotificationEmail FROM commerce.StorefrontConfigurations WHERE TenantId=@tenant;", connection);

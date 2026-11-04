@@ -115,7 +115,17 @@ public sealed class CustomerNotificationService(IConfiguration configuration, IO
         return Task.FromResult(new NotificationConfigurationStatusDto(whatsApp, sms, whatsApp || sms ? "Enabled and configured channels are available. No test message was sent." : "Channels are disabled or provider configuration is incomplete. No test message was sent."));
     }
     private bool ChannelEnabled(string channel) => channel.Equals("WHATSAPP", StringComparison.OrdinalIgnoreCase) ? features.CurrentValue.WhatsApp.Enabled : channel.Equals("SMS", StringComparison.OrdinalIgnoreCase) && features.CurrentValue.Sms.Enabled;
-    private bool ProviderConfigured(string channel) => Uri.TryCreate(configuration[$"CustomerNotifications:{channel}:Endpoint"], UriKind.Absolute, out _) && !string.IsNullOrWhiteSpace(configuration[$"CustomerNotifications:{channel}:AccessToken"]);
+    private bool ProviderConfigured(string channel)
+    {
+        var prefix = $"CustomerNotifications:{channel}";
+        if (string.Equals(configuration[$"{prefix}:Provider"], "2Factor", StringComparison.OrdinalIgnoreCase))
+            return HttpCustomerMessageProvider.TryTwoFactorEndpoint(configuration[$"{prefix}:Endpoint"], out _)
+                && !string.IsNullOrWhiteSpace(configuration[$"{prefix}:ApiKey"])
+                && !string.IsNullOrWhiteSpace(configuration[$"{prefix}:SenderId"])
+                && !string.IsNullOrWhiteSpace(configuration[$"{prefix}:MessageType"]);
+        return Uri.TryCreate(configuration[$"{prefix}:Endpoint"], UriKind.Absolute, out _)
+            && !string.IsNullOrWhiteSpace(configuration[$"{prefix}:AccessToken"]);
+    }
 
     private static IEnumerable<(string Key, string Value, string Type)> Settings(CustomerNotificationSettingsInput x)
     {
@@ -167,11 +177,100 @@ internal abstract class HttpCustomerMessageProvider(IHttpClientFactory clients, 
             NotificationLogs.ChannelDisabled(logger, channel);
             return new(false, null, $"FEATURE_DISABLED: {channel} notifications are currently disabled.");
         }
-        var endpoint = configuration[$"CustomerNotifications:{channel}:Endpoint"]; var accessToken = configuration[$"CustomerNotifications:{channel}:AccessToken"];
+        var prefix = $"CustomerNotifications:{channel}";
+        var endpoint = configuration[$"{prefix}:Endpoint"];
+        if (channel.Equals("Sms", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(configuration[$"{prefix}:Provider"], "2Factor", StringComparison.OrdinalIgnoreCase))
+            return await SendTwoFactorSms(recipient, message, notificationId, prefix, endpoint, token);
+        var accessToken = configuration[$"{prefix}:AccessToken"];
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(accessToken)) return new(false, null, "NOT_CONFIGURED: provider endpoint or access token is missing.");
         try { using var request = new HttpRequestMessage(HttpMethod.Post, uri); request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken); request.Content = JsonContent.Create(new { recipient, message, referenceId = notificationId }); using var response = await clients.CreateClient("CustomerNotifications").SendAsync(request, token); if (!response.IsSuccessStatusCode) { NotificationLogs.ProviderFailed(logger, channel, notificationId, $"HTTP_{(int)response.StatusCode}"); return new(false, null, $"Provider returned HTTP {(int)response.StatusCode}."); } var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: token); var id = json.ValueKind == JsonValueKind.Object && json.TryGetProperty("messageId", out var property) ? property.GetString() : null; return new(true, id, null); }
         catch (Exception exception) { NotificationLogs.ProviderFailed(logger, channel, notificationId, exception.GetType().Name); return new(false, null, "Provider request failed."); }
     }
+
+    private async Task<ProviderResult> SendTwoFactorSms(string recipient, string message, Guid notificationId, string prefix, string? endpoint, CancellationToken token)
+    {
+        var apiKey = configuration[$"{prefix}:ApiKey"];
+        var senderId = configuration[$"{prefix}:SenderId"];
+        var messageType = configuration[$"{prefix}:MessageType"];
+        if (!TryTwoFactorEndpoint(endpoint, out var uri)
+            || string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(senderId) || string.IsNullOrWhiteSpace(messageType))
+            return new(false, null, "NOT_CONFIGURED: 2Factor HTTPS endpoint template, API key, or sender ID is missing.");
+        try
+        {
+            var payload = new Dictionary<string, object?>
+            {
+                ["recipient"] = recipient,
+                ["message"] = message,
+                ["sender_id"] = senderId,
+                ["message_type"] = messageType,
+                ["referenceId"] = notificationId
+            };
+            var templateId = configuration[$"{prefix}:TemplateId"];
+            if (!string.IsNullOrWhiteSpace(templateId)) payload["template_id"] = templateId;
+            using var request = new HttpRequestMessage(HttpMethod.Post, uri) { Content = JsonContent.Create(payload) };
+            AddTwoFactorAuthentication(request, apiKey, configuration[$"{prefix}:ApiKeyHeader"], configuration[$"{prefix}:ApiKeyScheme"]);
+            using var response = await clients.CreateClient("CustomerNotifications").SendAsync(request, token);
+            var body = await response.Content.ReadAsStringAsync(token);
+            if (!response.IsSuccessStatusCode || !TwoFactorAccepted(body, out var messageId))
+            {
+                NotificationLogs.ProviderFailed(logger, channel, notificationId, response.IsSuccessStatusCode ? "2FACTOR_REJECTED" : $"HTTP_{(int)response.StatusCode}");
+                return new(false, null, response.IsSuccessStatusCode ? "2Factor rejected the SMS request." : $"Provider returned HTTP {(int)response.StatusCode}.");
+            }
+            return new(true, messageId, null);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            NotificationLogs.ProviderFailed(logger, channel, notificationId, exception.GetType().Name);
+            return new(false, null, "Provider request failed.");
+        }
+    }
+
+    internal static bool TwoFactorAccepted(string body, out string? messageId)
+    {
+        messageId = null;
+        if (string.IsNullOrWhiteSpace(body)) return false;
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (document.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                var root = document.RootElement;
+                var status = root.TryGetProperty("Status", out var upper) ? upper : root.TryGetProperty("status", out var lower) ? lower : default;
+                var statusText = status.ValueKind == JsonValueKind.String ? status.GetString() : null;
+                var accepted = statusText is not null && (statusText.Equals("Success", StringComparison.OrdinalIgnoreCase) || statusText.Equals("Sent", StringComparison.OrdinalIgnoreCase));
+                var detail = root.TryGetProperty("Details", out var details) ? details : root.TryGetProperty("details", out var lowerDetails) ? lowerDetails : default;
+                if (detail.ValueKind == JsonValueKind.String) messageId = detail.GetString();
+                if (messageId is null && root.TryGetProperty("session_id", out var sessionId) && sessionId.ValueKind == JsonValueKind.String) messageId = sessionId.GetString();
+                if (messageId is null && root.TryGetProperty("messageId", out var providerId) && providerId.ValueKind == JsonValueKind.String) messageId = providerId.GetString();
+                return accepted;
+            }
+        }
+        catch (JsonException) { }
+        return body.Trim().StartsWith("Success", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool TryTwoFactorEndpoint(string? endpoint, out Uri uri)
+    {
+        uri = null!;
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var candidate) || candidate is null
+            || candidate.Scheme != Uri.UriSchemeHttps || !IsTwoFactorHost(candidate.Host)) return false;
+        uri = candidate;
+        return true;
+    }
+
+    internal static void AddTwoFactorAuthentication(HttpRequestMessage request, string apiKey, string? headerName, string? scheme)
+    {
+        var name = string.IsNullOrWhiteSpace(headerName) ? "X-API-Key" : headerName.Trim();
+        if (name.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
+            request.Headers.Authorization = new AuthenticationHeaderValue(string.IsNullOrWhiteSpace(scheme) ? "Bearer" : scheme.Trim(), apiKey);
+        else if (!request.Headers.TryAddWithoutValidation(name, apiKey))
+            throw new InvalidOperationException("The configured 2Factor API key header is invalid.");
+    }
+
+    private static bool IsTwoFactorHost(string host) => host.Equals("2factor.in", StringComparison.OrdinalIgnoreCase)
+        || host.Equals("www.2factor.in", StringComparison.OrdinalIgnoreCase)
+        || host.Equals("api.2factor.in", StringComparison.OrdinalIgnoreCase);
 }
 internal sealed class WhatsAppProvider(IHttpClientFactory clients, IConfiguration configuration, IOptionsMonitor<FeatureOptions> features, ILogger<WhatsAppProvider> logger) : HttpCustomerMessageProvider(clients, configuration, features, logger, "WhatsApp");
 internal sealed class SmsProvider(IHttpClientFactory clients, IConfiguration configuration, IOptionsMonitor<FeatureOptions> features, ILogger<SmsProvider> logger) : HttpCustomerMessageProvider(clients, configuration, features, logger, "Sms");

@@ -15,9 +15,13 @@ export interface ProductListItem {
   brandName: string;
   unitName: string;
   purchasePrice: number;
+  packagingCost?: number | null;
+  shippingCost?: number | null;
+  combinedShippingPackagingCost?: number | null;
   sellingPrice: number;
   mrp: number;
   gstPercentage: number;
+  gstPricingType: 'INCLUSIVE' | 'EXCLUSIVE';
   isActive: boolean;
   isWhatsAppVisible: boolean;
   returnPolicyMode?: "INHERIT_DEFAULT" | "CUSTOM" | "NON_RETURNABLE";
@@ -35,7 +39,7 @@ export interface Product extends ProductInput {
 
 export interface ProductSpecification { name: string; value: string; displayOrder: number; }
 export interface ProductSpecificationInput { name: string; value: string; displayOrder?: number; }
-export interface ProductImage { productImageId: string; productId: string; fileName: string; contentType: string; isPrimary: boolean; url: string; }
+export interface ProductImage { productImageId: string; productId: string; fileName: string; contentType: string; isPrimary: boolean; url: string; storageKind?: 'MANAGED' | 'EXTERNAL_URL'; displayOrder?: number; }
 export interface ProductHistory {
   id: number;
   action: string;
@@ -59,7 +63,11 @@ export interface ProductInput {
   hsnCode: string | null;
   sacCode: string | null;
   gstPercentage: number;
+  gstPricingType: 'INCLUSIVE' | 'EXCLUSIVE';
   purchasePrice: number;
+  packagingCost?: number | null;
+  shippingCost?: number | null;
+  combinedShippingPackagingCost?: number | null;
   sellingPrice: number;
   mrp: number;
 

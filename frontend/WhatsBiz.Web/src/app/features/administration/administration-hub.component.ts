@@ -9,6 +9,7 @@ import { StatusChipComponent } from '../../shared/components/status-chip/status-
 import { forkJoin } from 'rxjs';
 import { AdminApiService } from './admin-api.service';
 import { FeatureService } from '../../core/services/feature.service';
+import { WarehouseUiVisibilityService } from '../../shared/services/warehouse-ui-visibility.service';
 type SettingLink = {
   title: string;
   description: string;
@@ -146,6 +147,7 @@ type SettingGroup = { title: string; icon: string; items: SettingLink[] };
 export class AdministrationHubComponent {
   private readonly api = inject(AdminApiService);
   private readonly features = inject(FeatureService);
+  private readonly warehouseUi = inject(WarehouseUiVisibilityService);
   query = '';
   readonly category = signal('Organization');
   readonly selected = signal<SettingLink | null>(null);
@@ -447,9 +449,11 @@ export class AdministrationHubComponent {
   readonly visible = computed(() => {
     const q = this.query.trim().toLowerCase(),
       group = this.groups.find((x) => x.title === this.category()) ?? this.groups[0];
-    if (!q) return group.items.filter((x) => !x.feature || this.features.hasFeature(x.feature));
+    if (!q) return group.items.filter((x) => this.warehouseUi.showManagement || x.route !== '/warehouses')
+      .filter((x) => !x.feature || this.features.hasFeature(x.feature));
     return this.groups
       .flatMap((x) => x.items)
+      .filter((x) => this.warehouseUi.showManagement || x.route !== '/warehouses')
       .filter((x) => !x.feature || this.features.hasFeature(x.feature))
       .filter((x) => `${x.title} ${x.description}`.toLowerCase().includes(q));
   });

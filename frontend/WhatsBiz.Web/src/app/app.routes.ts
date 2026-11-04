@@ -4,6 +4,7 @@ import { permissionGuard } from './core/guards/permission.guard';
 import { featureGuard } from './core/guards/feature.guard';
 import { roleGuard } from './core/guards/role.guard';
 import { landingGuard } from './core/guards/landing.guard';
+import { warehouseUiGuard } from './core/guards/warehouse-ui.guard';
 const productView = { permission: 'product.view' },
   productCreate = { permission: 'product.create' },
   productEdit = { permission: 'product.edit' };
@@ -199,6 +200,34 @@ export const routes: Routes = [
         loadComponent: () => import('./features/administration/feature-management.component').then(m => m.FeatureManagementComponent),
       },
       {
+        path: 'application-owner/public-catalog',
+        canActivate: [roleGuard, permissionGuard],
+        data: { platform: true, role: 'ApplicationOwner', permission: 'feature.manage', title: 'Public Catalog Review' },
+        loadComponent: () => import('./features/administration/public-catalog-owner.component').then(m => m.PublicCatalogOwnerComponent),
+      },
+      {
+        path:'application-owner/marketplace-cities',canActivate:[roleGuard,permissionGuard],
+        data:{platform:true,role:'ApplicationOwner',permission:'feature.manage',title:'City Marketplace Management'},
+        loadComponent:()=>import('./features/administration/marketplace-cities.component').then(m=>m.MarketplaceCitiesComponent),
+      },
+      {
+        path:'application-owner/partner-verification',canActivate:[roleGuard,permissionGuard],
+        data:{platform:true,role:'ApplicationOwner',permission:'feature.manage',title:'Partner Seller Verification'},
+        loadComponent:()=>import('./features/administration/partner-sellers.component').then(m=>m.PartnerSellersComponent),
+      },
+      {
+        path: 'application-owner/search-analytics',
+        canActivate: [roleGuard, permissionGuard],
+        data: { platform: true, role: 'ApplicationOwner', permission: 'feature.manage', title: 'Marketplace Search Analytics' },
+        loadComponent: () => import('./features/administration/owner-search-analytics.component').then(m => m.OwnerSearchAnalyticsComponent),
+      },
+      {
+        path: 'application-owner/visitor-analytics',
+        canActivate: [roleGuard, permissionGuard],
+        data: { platform: true, role: 'ApplicationOwner', permission: 'feature.manage', title: 'Marketplace Visitor Analytics', owner: true },
+        loadComponent: () => import('./features/dashboard/guest-visitor-analytics.component').then(m => m.GuestVisitorAnalyticsComponent),
+      },
+      {
         path: 'application-owner',
         canActivate: [roleGuard],
         data: { platform: true, role: 'ApplicationOwner', title: 'Application Owner Center' },
@@ -245,6 +274,7 @@ export const routes: Routes = [
       },
       { path: 'storefront/customer-demand', canActivate: [permissionGuard], data: { permission: 'analytics.view', title: 'Customer Demand' }, loadComponent: () => import('./features/dashboard/customer-demand-dashboard.component').then(m => m.CustomerDemandDashboardComponent) },
       { path: 'storefront/search-analytics', canActivate: [permissionGuard, featureGuard], data: { permission: 'analytics.view', feature: 'CUSTOMER_DEMAND', title: 'Search Analytics' }, loadComponent: () => import('./features/dashboard/storefront-search-analytics.component').then(m => m.StorefrontSearchAnalyticsComponent) },
+      { path: 'storefront/visitor-analytics', canActivate: [permissionGuard, featureGuard], data: { permission: 'analytics.view', feature: 'GUEST_VISITOR_ANALYTICS', title: 'Guest Visitor Analytics' }, loadComponent: () => import('./features/dashboard/guest-visitor-analytics.component').then(m => m.GuestVisitorAnalyticsComponent) },
       { path: 'storefront/customers', canActivate: [permissionGuard, featureGuard], data: { permission: 'customer.view', feature: 'CUSTOMER_DEMAND', title: 'Storefront Customers' }, loadComponent: () => import('./features/customers/storefront-customer-list-enhanced.component').then(m => m.StorefrontCustomerListEnhancedComponent) },
       { path: 'storefront/feedback', canActivate: [permissionGuard, featureGuard], data: { permission: 'customer.feedback.manage', feature: 'STOREFRONT_FEEDBACK', title: 'Feedback & Complaints' }, loadComponent: () => import('./features/customers/storefront-feedback-management-enhanced.component').then(m => m.StorefrontFeedbackManagementEnhancedComponent) },
       { path: 'storefront/blocked-customers', canActivate: [permissionGuard, featureGuard], data: { permission: 'customer.blacklist.manage', feature: 'STOREFRONT_CUSTOMER_BLACKLIST', title: 'Blocked Customers' }, loadComponent: () => import('./features/customers/storefront-blacklist.component').then(m => m.StorefrontBlacklistComponent) },
@@ -472,10 +502,15 @@ export const routes: Routes = [
       },
       {
         path: 'admin/storefront',
-        canActivate: [permissionGuard],
+        canActivate: [permissionGuard, featureGuard],
         data: { ...adminSettings, title: 'Storefront Branding' },
         loadComponent: () => import('./features/administration/storefront-administration-settings.component').then((m) => m.StorefrontAdministrationSettingsComponent),
       },
+      { path:'admin/storefront/schedules',canActivate:[permissionGuard,featureGuard],data:{...adminSettings,feature:'STOREFRONT_SCHEDULED_SELLING',title:'Scheduled Selling Windows'},loadComponent:()=>import('./features/administration/storefront-availability-schedules.component').then(m=>m.StorefrontAvailabilitySchedulesComponent) },
+      { path:'admin/storefront/campaigns',canActivate:[permissionGuard,featureGuard],data:{...adminSettings,feature:'STOREFRONT_POPUP_CAMPAIGNS',title:'Storefront Popup Campaigns'},loadComponent:()=>import('./features/administration/storefront-campaigns.component').then(m=>m.StorefrontCampaignsComponent) },
+      { path:'admin/storefront/notifications',canActivate:[permissionGuard,featureGuard],data:{...adminSettings,feature:'STOREFRONT_NOTIFICATIONS',title:'Storefront Notifications'},loadComponent:()=>import('./features/administration/storefront-notification-settings.component').then(m=>m.StorefrontNotificationSettingsComponent) },
+      { path:'admin/storefront/cities',canActivate:[permissionGuard,featureGuard],data:{...adminSettings,feature:'CITY_MARKETPLACE',title:'City and Service Areas'},loadComponent:()=>import('./features/administration/retailer-cities.component').then(m=>m.RetailerCitiesComponent) },
+      { path:'admin/storefront/partner-sellers',canActivate:[permissionGuard,featureGuard],data:{...adminSettings,feature:'PARTNER_SELLER_MANAGEMENT',title:'Partner Sellers'},loadComponent:()=>import('./features/administration/partner-sellers.component').then(m=>m.PartnerSellersComponent) },
       {
         path: 'admin/whatsapp-platform',
         canActivate: [roleGuard, permissionGuard],
@@ -809,7 +844,7 @@ export const routes: Routes = [
       },
       {
         path: 'warehouses',
-        canActivate: [permissionGuard],
+        canActivate: [warehouseUiGuard, permissionGuard],
         data: warehouseView,
         loadComponent: () =>
           import('./features/warehouses/warehouse-list.component').then(
@@ -818,7 +853,7 @@ export const routes: Routes = [
       },
       {
         path: 'warehouses/new',
-        canActivate: [permissionGuard],
+        canActivate: [warehouseUiGuard, permissionGuard],
         data: warehouseCreate,
         loadComponent: () =>
           import('./features/warehouses/warehouse-form.component').then(
@@ -827,7 +862,7 @@ export const routes: Routes = [
       },
       {
         path: 'warehouses/:id/edit',
-        canActivate: [permissionGuard],
+        canActivate: [warehouseUiGuard, permissionGuard],
         data: warehouseEdit,
         loadComponent: () =>
           import('./features/warehouses/warehouse-form.component').then(
@@ -836,7 +871,7 @@ export const routes: Routes = [
       },
       {
         path: 'warehouses/:id',
-        canActivate: [permissionGuard],
+        canActivate: [warehouseUiGuard, permissionGuard],
         data: warehouseView,
         loadComponent: () =>
           import('./features/warehouses/warehouse-view.component').then(
@@ -845,7 +880,7 @@ export const routes: Routes = [
       },
       {
         path: 'warehouse-types',
-        canActivate: [permissionGuard],
+        canActivate: [warehouseUiGuard, permissionGuard],
         data: warehouseView,
         loadComponent: () =>
           import('./features/warehouses/warehouse-type-management.component').then(
@@ -941,6 +976,12 @@ export const routes: Routes = [
           import('./features/inventory/stock-control-list.component').then(
             (m) => m.StockControlListComponent,
           ),
+      },
+      {
+        path: 'order-inbox',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permission: 'pos.view', feature: 'MULTI_CHANNEL_ORDER_INTAKE', title: 'Order Inbox' },
+        loadComponent: () => import('./features/pos/order-inbox.component').then(m => m.OrderInboxComponent),
       },
       {
         path: 'pos',

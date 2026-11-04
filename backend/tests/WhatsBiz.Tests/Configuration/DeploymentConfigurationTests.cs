@@ -12,6 +12,30 @@ namespace WhatsBiz.Tests.Configuration;
 public sealed class DeploymentConfigurationTests
 {
     [Theory]
+    [InlineData("QA", "WhatsBizERP_QA", "WhatsBizERP_QA")]
+    [InlineData("Production", "WhatsBizERP_PROD", "WhatsBizERP_PROD")]
+    public void OpenConnectionDatabaseIdentityMustMatchConfiguredTarget(
+        string environment, string configuredDatabase, string connectedDatabase)
+    {
+        DatabaseTargetGuard.ValidateOpenConnectionDatabaseName(environment, configuredDatabase, connectedDatabase)
+            .Should().Be(connectedDatabase);
+    }
+
+    [Theory]
+    [InlineData("QA", "WhatsBizERP_QA", "WhatsBizERP")]
+    [InlineData("QA", "WhatsBizERP", "WhatsBizERP_QA")]
+    [InlineData("Production", "WhatsBizERP_PROD", "WhatsBizERP_QA")]
+    [InlineData("Development", "WhatsBizERP", "WhatsBizERP_QA")]
+    public void OpenConnectionDatabaseIdentityRejectsUnexpectedDatabase(
+        string environment, string configuredDatabase, string connectedDatabase)
+    {
+        FluentActions.Invoking(() => DatabaseTargetGuard.ValidateOpenConnectionDatabaseName(
+                environment, configuredDatabase, connectedDatabase))
+            .Should().Throw<InvalidOperationException>()
+            .Which.Message.Should().NotContain("Password");
+    }
+
+    [Theory]
     [InlineData("WhatsBizERP_PROD", true)]
     [InlineData("WhatsBizERP", false)]
     [InlineData("WhatsBizERP_QA", false)]

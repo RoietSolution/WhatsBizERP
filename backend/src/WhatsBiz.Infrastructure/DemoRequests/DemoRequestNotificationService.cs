@@ -48,12 +48,14 @@ public interface IDemoRequestEmailSender
     Task SendAsync(DemoRequestEmail email, CancellationToken token);
 }
 
-public sealed class SmtpDemoRequestEmailSender(IOptions<DemoRequestOptions> options) : IDemoRequestEmailSender
+public sealed class SmtpDemoRequestEmailSender(IOptions<DemoRequestOptions> options,
+    IOutboundSafetyPolicy outboundSafety) : IDemoRequestEmailSender
 {
     private readonly SmtpOptions settings = options.Value.Email;
 
     public async Task SendAsync(DemoRequestEmail email, CancellationToken token)
     {
+        outboundSafety.EnsureExternalDeliveryAllowed("SMTP email");
         if (string.IsNullOrWhiteSpace(settings.Host) || string.IsNullOrWhiteSpace(settings.FromAddress))
             throw new InvalidOperationException("Demo request SMTP configuration is incomplete.");
 

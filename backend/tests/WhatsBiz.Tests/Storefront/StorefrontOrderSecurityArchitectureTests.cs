@@ -58,7 +58,8 @@ public sealed class StorefrontOrderSecurityArchitectureTests
         var models = Read("frontend/WhatsBiz.Web/src/app/features/delivery/shipping-label.models.ts");
         var preview = Read("frontend/WhatsBiz.Web/src/app/features/delivery/shipping-label-preview.component.ts");
         models.Should().Contain("'A5'").And.Contain("'A4_SINGLE'").And.Contain("'A4_DOUBLE'").And.Contain("'THERMAL_80'").And.Contain("'THERMAL_58'");
-        preview.Should().Contain("window.print()").And.Contain("PREPAID / PAID").And.Contain("CASH ON DELIVERY").And.Contain("148mm").And.Contain("72mm").And.Contain("50mm");
+        preview.Should().Contain("window.print()").And.Contain("shippingLabelPaymentIndicator").And.Contain("148mm").And.Contain("72mm").And.Contain("50mm");
+        models.Should().Contain("COD PAID").And.Contain("COD TO COLLECT").And.Contain("PREPAID").And.Contain("Payment pending");
         preview.Should().NotContain("itemCount").And.NotContain("sellingPrice").And.NotContain("GrandTotal");
     }
 
@@ -127,6 +128,23 @@ public sealed class StorefrontOrderSecurityArchitectureTests
         var service = Read("backend/src/WhatsBiz.Infrastructure/Storefront/StorefrontReturnService.cs");
         service.Should().Contain("r.TenantId=@tenant").And.Contain("i.CustomerId=@customer").And.Contain("Status IN(N'REQUESTED',N'APPROVED',N'RECEIVED')").And.NotContain("POS_ReturnInvoice");
         Read("database/migrations/V54-CustomerReturnRequests.sql").Should().Contain("UX_StorefrontReturnRequests_ActiveItem");
+    }
+
+    [Fact]
+    public void CustomerReturnInsertNormalizesLegacyDeliveryTimestampAndMapsKnownConflicts()
+    {
+        var service = Read("backend/src/WhatsBiz.Infrastructure/Storefront/StorefrontReturnService.cs");
+        service.Should().Contain("CONVERT(datetimeoffset(7),d.DeliveredAt)")
+            .And.Contain("exception.Number is 2601 or 2627")
+            .And.Contain("The order item is no longer available for a return request.");
+    }
+
+    [Fact]
+    public void CustomerReturnEmptyHistoryTreatsNullablePendingAggregateAsNoPendingRequest()
+    {
+        var service = Read("backend/src/WhatsBiz.Infrastructure/Storefront/StorefrontReturnService.cs");
+        service.Should().Contain("COALESCE(MAX(CASE WHEN Status IN(N'REQUESTED',N'APPROVED',N'RECEIVED') THEN 1 ELSE 0 END),0)")
+            .And.Contain("!er.IsDBNull(1)&&er.GetInt32(1)==1");
     }
 
     private static string FindRoot()

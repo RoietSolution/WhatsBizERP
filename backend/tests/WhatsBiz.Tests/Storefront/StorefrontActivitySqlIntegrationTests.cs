@@ -36,7 +36,7 @@ public sealed class StorefrontActivitySqlIntegrationTests
     }
 
     [Fact(Skip = "Requires an explicitly configured approved disposable database via ConnectionStrings__IntegrationTests.", Timeout = 30_000)]
-    public async Task ActivityRecordUsesTheAnalyticsEventDefaultAndPersistsAVisitorEvent()
+    public async Task AnonymousGuestActivityIsNotWrittenToLegacyCustomerReports()
     {
         var raw = Environment.GetEnvironmentVariable("ConnectionStrings__IntegrationTests");
         if (string.IsNullOrWhiteSpace(raw)) throw new InvalidOperationException("The disposable integration database is not configured.");
@@ -67,7 +67,7 @@ public sealed class StorefrontActivitySqlIntegrationTests
             await using var countCommand = new SqlCommand("SELECT COUNT(*) FROM commerce.AnalyticsEvents WHERE TenantId=@tenant AND VisitorSessionId=@visitor AND EventType=N'STORE_VISIT';", connection);
             countCommand.Parameters.Add("@tenant", System.Data.SqlDbType.UniqueIdentifier).Value = tenantId;
             countCommand.Parameters.Add("@visitor", System.Data.SqlDbType.VarChar, 64).Value = visitorSessionId;
-            ((int?)await countCommand.ExecuteScalarAsync()).Should().Be(1);
+            ((int?)await countCommand.ExecuteScalarAsync()).Should().Be(0);
         }
         finally
         {

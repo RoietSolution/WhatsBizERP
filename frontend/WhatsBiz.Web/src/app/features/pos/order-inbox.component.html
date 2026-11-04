@@ -1,0 +1,133 @@
+<main class="inbox-page">
+  <header class="page-heading"><div><span class="eyebrow">SALES / ORDERS</span><h1>Order Inbox</h1><p>Review customer requests from WhatsApp, phone calls and shopping lists. Requests do not place orders automatically.</p></div>
+    <button class="primary" type="button" (click)="createOpen = !createOpen" [attr.aria-expanded]="createOpen">New assisted request</button></header>
+
+  @if (createOpen) {
+    <section class="panel create-panel" aria-labelledby="new-request-title"><div class="panel-title"><div><h2 id="new-request-title">Create intake request</h2><p>Use the customer's original words. Product matching is only a draft for staff review.</p></div><button class="quiet" type="button" (click)="createOpen = false">Close</button></div>
+      <div class="form-grid"><label>Source channel<select [(ngModel)]="sourceChannel"><option value="MANUAL_LIST">Manual shopping list</option><option value="PHONE_CALL">Phone call</option></select></label>
+        <label>Customer name<input [(ngModel)]="customerName" maxlength="200" autocomplete="name"></label><label>Customer mobile<input [(ngModel)]="customerMobile" maxlength="30" autocomplete="tel" inputmode="tel"></label>
+        <label>Fulfillment<select [(ngModel)]="fulfilmentPreference" (ngModelChange)="newAddress.fulfilmentPreference = $event"><option value="">Choose fulfillment</option><option value="PICKUP">Store Pickup</option><option value="DELIVERY">Home Delivery</option></select></label>
+        @if(fulfilmentPreference === 'DELIVERY'){
+          <div class="address-fields wide"><h3>Customer delivery address</h3><p class="muted">A complete address and retailer-serviceable six-digit PIN are required before quoting.</p>
+            <label>Recipient name *<input [(ngModel)]="newAddress.recipientName" maxlength="200" autocomplete="name" required></label>
+            <label>Mobile *<input [(ngModel)]="newAddress.mobile" maxlength="30" autocomplete="tel" inputmode="tel" required></label>
+            <label class="address-wide">House / street *<input [(ngModel)]="newAddress.houseStreet" maxlength="300" autocomplete="street-address" required></label>
+            <label>Locality / village *<input [(ngModel)]="newAddress.locality" maxlength="160" required></label>
+            <label>City *<input [(ngModel)]="newAddress.city" maxlength="120" autocomplete="address-level2" required></label>
+            <label>State *<input [(ngModel)]="newAddress.state" maxlength="120" autocomplete="address-level1" required></label>
+            <label>PIN code *<input [(ngModel)]="newAddress.pincode" maxlength="6" inputmode="numeric" autocomplete="postal-code" pattern="[0-9]{6}" required></label>
+            <label>Landmark (optional)<input [(ngModel)]="newAddress.landmark" maxlength="200"></label>
+            <label class="address-wide">Delivery instructions (optional)<textarea [(ngModel)]="newAddress.deliveryInstructions" maxlength="500" rows="2"></textarea></label>
+          </div>
+        }
+        <label class="wide">Original customer request<textarea [(ngModel)]="originalRequest" maxlength="4000" rows="4" placeholder="Atta 2 kg&#10;Sugar 1 kg&#10;Oil 1 litre" required></textarea></label>
+        <label class="wide">Staff notes<textarea [(ngModel)]="notes" maxlength="2000" rows="2"></textarea></label></div>
+      <div class="actions"><button class="primary" type="button" [disabled]="saving() || !originalRequest.trim()" (click)="create()">{{ saving() ? 'Savingâ€¦' : 'Save draft request' }}</button></div>
+    </section>
+  }
+
+  <section class="panel filters" aria-label="Filter order requests"><label class="search-field">Search<input [(ngModel)]="search" (keyup.enter)="page = 1; load()" placeholder="Reference, customer or request"></label>
+    <label>Channel<select [(ngModel)]="channel"><option value="">All channels</option><option value="WHATSAPP">WhatsApp</option><option value="PHONE_CALL">Phone call</option><option value="MANUAL_LIST">Manual list</option></select></label>
+    <label>Status<select [(ngModel)]="status"><option value="">All statuses</option><option>NEW</option><option>UNDER_REVIEW</option><option>AWAITING_CUSTOMER</option><option>CONFIRMED</option><option>CONVERTED</option><option>REJECTED</option><option>CANCELLED</option></select></label>
+    <label>From<input type="date" [(ngModel)]="from"></label><label>To<input type="date" [(ngModel)]="to"></label>
+    <div class="filter-actions"><button class="secondary" type="button" (click)="page = 1; load()">Apply</button><button class="quiet" type="button" (click)="clearFilters()">Clear</button></div>
+  </section>
+
+  @if (error()) { <div class="alert error" role="alert">{{ error() }} <button type="button" (click)="load()">Retry</button></div> }
+  @if (loading()) { <div class="state" role="status">Loading order requestsâ€¦</div> }
+  @else if (!error() && rows().length === 0) { <div class="state"><strong>{{ search || channel || status || from || to ? 'No requests match these filters' : 'No order requests yet' }}</strong><span>WhatsApp, phone-call and manual-list requests will appear here.</span></div> }
+  @else if (!error()) {
+    <section class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Request</th><th>Channel</th><th>Customer</th><th>Received</th><th>Items</th><th>Status</th><th>Assigned staff</th><th></th></tr></thead><tbody>
+      @for (row of rows(); track row.id) { <tr><td><button class="link-button" type="button" (click)="open(row)">{{ row.reference }}</button></td><td>{{ row.sourceChannel.replace('_', ' ') }}</td><td>{{ row.customerName || 'Customer not named' }}<small>{{ row.customerMobile || 'Mobile hidden' }}</small></td><td>{{ row.createdAtUtc | date:'medium' }}</td><td>{{ row.itemCount }} <small>{{ row.unmatchedItemCount }} need review</small></td><td><span class="status" [attr.data-status]="row.status">{{ row.status.replace('_', ' ') }}</span></td><td>{{ row.assignedStaffName || (row.assignedStaffId ? 'Assigned' : 'Unassigned') }}</td><td><button class="secondary compact" type="button" (click)="open(row)">Open</button></td></tr> }
+    </tbody></table></div><footer class="pagination"><span>{{ total() }} requests Â· Page {{ page }}</span><div><button class="secondary" type="button" [disabled]="page <= 1" (click)="pageBy(-1)">Previous</button><button class="secondary" type="button" [disabled]="page * pageSize >= total()" (click)="pageBy(1)">Next</button></div></footer></section>
+  }
+
+  @if (detailError()) { <div class="alert error" role="alert">{{ detailError() }}</div> }
+  @if (selected(); as detail) {
+    <section class="detail-grid" aria-label="Order request details"><article class="panel"><div class="panel-title"><div><span class="eyebrow">{{ detail.reference }} Â· {{ detail.sourceChannel.replace('_', ' ') }}</span><h2>Original customer request</h2></div><span class="status" [attr.data-status]="detail.status">{{ detail.status.replace('_', ' ') }}</span></div>
+      <dl class="facts"><div><dt>Customer</dt><dd>{{ detail.customerName || 'Not provided' }}</dd></div><div><dt>Mobile</dt><dd>{{ detail.customerMobile || 'Restricted or unavailable' }}</dd></div><div><dt>Received</dt><dd>{{ detail.createdAtUtc | date:'medium' }}</dd></div><div><dt>Assigned staff</dt><dd>{{ detail.assignedStaffName || (detail.assignedStaffId ? 'Assigned' : 'Unassigned') }}</dd></div></dl>
+      <h3>Original request</h3><pre class="original-request">{{ detail.originalRequest }}</pre>@if(detail.notes){<h3>Staff notes</h3><p>{{detail.notes}}</p>}
+      <div class="actions wrap"><button class="secondary" type="button" [disabled]="saving()" (click)="assign()">Assign to me</button>
+        @if(detail.status === 'NEW'){<button class="secondary" type="button" (click)="changeStatus('UNDER_REVIEW')">Start review</button>}
+        @if(detail.status !== 'CONVERTED' && detail.status !== 'REJECTED' && detail.status !== 'CANCELLED'){<button class="danger" type="button" (click)="rejectOpen.set(!rejectOpen())">Reject request</button>}
+      </div>
+      @if(detail.status !== 'CONVERTED' && detail.status !== 'REJECTED' && detail.status !== 'CANCELLED'){
+        <section class="delivery-editor" aria-label="Fulfillment and delivery address"><h3>Delivery / Store Pickup</h3>
+          <label>Fulfillment choice<select [(ngModel)]="deliveryAddress.fulfilmentPreference"><option value="PICKUP">Store Pickup</option><option value="DELIVERY">Home Delivery</option></select></label>
+          @if(deliveryAddress.fulfilmentPreference === 'DELIVERY'){
+            @if(addressesLoading()){<p class="muted" role="status">Loading linked customer addresses…</p>}
+            @if(addressesError()){<p class="alert error" role="alert">{{addressesError()}} <button type="button" (click)="retrySavedAddresses(detail.id)">Retry</button></p>}
+            <fieldset class="customer-link"><legend>Use a verified customer profile (optional)</legend>
+              <p class="muted">Search is limited to this retailer's customer records. Select a customer only after verifying their identity; a matching mobile number is never used to link accounts.</p>
+              <div class="customer-search-row"><label>Customer name or code<input [(ngModel)]="customerSearch" maxlength="100" autocomplete="off"></label><button class="secondary" type="button" [disabled]="customerSearchLoading() || customerSearch.trim().length < 2" (click)="searchCustomers()">{{customerSearchLoading()?'Searching…':'Search customers'}}</button></div>
+              @if(customerMatches().length){<label>Customer<select [(ngModel)]="selectedCustomerId"><option value="">Choose a customer</option>@for(c of customerMatches();track c.customerId){<option [value]="c.customerId">{{c.customerName}} · {{c.customerCode}}</option>}</select></label>}
+              <div class="customer-search-row"><label>Identity verification<select [(ngModel)]="customerVerificationMethod"><option value="CALLBACK">Verified callback</option><option value="IN_PERSON">Verified in person</option><option value="VERIFIED_CUSTOMER">Other verified customer interaction</option></select></label><label class="acknowledge"><input type="checkbox" [(ngModel)]="customerIdentityAcknowledged"> I verified this customer's identity</label></div>
+              <button class="secondary" type="button" [disabled]="customerLinking() || !selectedCustomerId || !customerIdentityAcknowledged" (click)="linkVerifiedCustomer()">{{customerLinking()?'Linking…':'Verify and link customer'}}</button>
+            </fieldset>            @if(savedAddresses().length){<label>Use linked customer address<select [(ngModel)]="selectedSavedAddressId" (ngModelChange)="selectSavedAddress($event)"><option value="">Enter a new address</option>@for(a of savedAddresses();track a.addressId){<option [value]="a.addressId">{{a.addressType}} Â· {{a.addressLine1}}, {{a.city}} {{a.pincode}}{{a.isDefault ? ' Â· Default' : ''}}</option>}</select></label>}
+            <p class="muted">Saved addresses are available only for a customer already linked through a trusted identity flow. A phone-number match is never used.</p>
+            <div class="address-fields">
+              <label>Recipient name *<input [(ngModel)]="deliveryAddress.recipientName" [readonly]="!!deliveryAddress.savedAddressId" maxlength="200" autocomplete="name" required></label>
+              <label>Mobile *<input [(ngModel)]="deliveryAddress.mobile" [readonly]="!!deliveryAddress.savedAddressId" maxlength="30" autocomplete="tel" inputmode="tel" required></label>
+              <label class="address-wide">House / street *<input [(ngModel)]="deliveryAddress.houseStreet" [readonly]="!!deliveryAddress.savedAddressId" maxlength="300" autocomplete="street-address" required></label>
+              <label>Locality / village *<input [(ngModel)]="deliveryAddress.locality" [readonly]="!!deliveryAddress.savedAddressId" maxlength="160" required></label>
+              <label>City *<input [(ngModel)]="deliveryAddress.city" [readonly]="!!deliveryAddress.savedAddressId" maxlength="120" autocomplete="address-level2" required></label>
+              <label>State *<input [(ngModel)]="deliveryAddress.state" [readonly]="!!deliveryAddress.savedAddressId" maxlength="120" autocomplete="address-level1" required></label>
+              <label>PIN code *<input [(ngModel)]="deliveryAddress.pincode" [readonly]="!!deliveryAddress.savedAddressId" maxlength="6" inputmode="numeric" autocomplete="postal-code" pattern="[0-9]{6}" required></label>
+              <label>Landmark (optional)<input [(ngModel)]="deliveryAddress.landmark" [readonly]="!!deliveryAddress.savedAddressId" maxlength="200"></label>
+              <label class="address-wide">Delivery instructions (optional)<textarea [(ngModel)]="deliveryAddress.deliveryInstructions" maxlength="500" rows="2"></textarea></label>
+            </div>
+          } @else { <p class="muted">No delivery address is required for store pickup.</p> }
+          <button class="secondary" type="button" [disabled]="saving()" (click)="saveDeliveryDetails()">{{saving()?'Savingâ€¦':'Save fulfillment and address'}}</button>
+          <p class="muted">Saving changes supersedes any previous quote and customer confirmation. A new quote must be prepared and accepted.</p>
+        </section>
+      }
+      @if(detail.status === 'UNDER_REVIEW'){
+        <div class="quote-editor"><h3>Prepare authoritative quotation</h3><p class="muted">Pricing, GST, eligible offers, delivery and stock use the existing backend pricing and retailer serviceability rules.</p>
+          <label>Promotion code (optional)<input [(ngModel)]="quotePromoCode" maxlength="64"></label>
+          <button class="primary" type="button" [disabled]="saving() || detail.items.length === 0" (click)="generateQuote()">{{saving()?'Preparingâ€¦':'Generate quotation'}}</button>
+          @if(!detail.fulfilmentPreference){<span class="muted">Save Store Pickup or a complete Home Delivery address before quoting.</span>}
+        </div>
+      }
+      @if(detail.status !== 'UNDER_REVIEW' && detail.status !== 'AWAITING_CUSTOMER' && detail.status !== 'CONFIRMED' && detail.status !== 'CONVERTED'){
+        <p class="notice">Move this request to Under Review and resolve all products, quantities and fulfillment details before generating a quotation.</p>
+      }
+      @if(quoteState() === 'loading'){<p class="lifecycle-state" role="status">Loading quotation status…</p>}
+      @if(quoteState() === 'not-generated'){<p class="lifecycle-state lifecycle-empty" role="status">Quotation not generated yet.</p>}
+      @if(quoteState() === 'invalidated'){<p class="lifecycle-state lifecycle-empty" role="status">Delivery or fulfillment details changed. The previous quotation confirmation was invalidated; generate a new quotation.</p>}
+      @if(quoteState() === 'error'){<div class="alert error lifecycle-error" role="alert"><span>{{quoteError()}}</span><button type="button" (click)="retryLifecycle(detail.id)">Retry lifecycle status</button></div>}
+      @if(quote(); as q){
+        <section class="quote-card" aria-label="Authoritative quotation"><div class="panel-title"><div><h3>Quotation revision {{q.revision}}</h3><p>Valid until {{q.expiresAtUtc | date:'medium'}} Â· {{q.fulfilmentPreference}}@if(q.pincode){ Â· {{q.pincode}}}</p></div><span class="status" [attr.data-status]="q.status">{{q.status}}</span></div>
+          @if(q.fulfilmentPreference === 'DELIVERY' && q.deliveryAddress){<div class="address-snapshot"><strong>Delivery address</strong><span>{{formatAddress(q.deliveryAddress)}}</span><span>{{q.deliveryAddress.recipientName}} · {{q.deliveryAddress.mobile}}</span>@if(q.deliveryAddress.deliveryInstructions){<small>Instructions: {{q.deliveryAddress.deliveryInstructions}}</small>}</div>}
+          <div class="quote-lines">@for(line of q.items;track $index){<div><span>@if(line.isSubstitution){Substitution for â€œ{{line.requestedText}}â€: }{{line.productName}} Ã— {{line.quantity}} {{line.unitShortName || line.unitName}}</span><span>{{line.unitPrice | number:'1.2-2'}} each Â· GST {{line.taxPercentage}}%</span></div>}</div>
+          <dl class="quote-totals"><div><dt>Subtotal</dt><dd>{{q.pricing.merchandiseSubtotal | number:'1.2-2'}}</dd></div><div><dt>GST</dt><dd>{{q.pricing.merchandiseTaxAmount | number:'1.2-2'}}</dd></div><div><dt>Discount</dt><dd>âˆ’{{q.pricing.promotionDiscount | number:'1.2-2'}}</dd></div><div><dt>Delivery</dt><dd>{{q.pricing.deliveryCharge | number:'1.2-2'}}</dd></div><div class="payable"><dt>Payable</dt><dd>{{q.pricing.finalPayableAmount | number:'1.2-2'}}</dd></div></dl>
+          @if(!quoteCanProceed(q)){<p class="alert error" role="status">This quotation is expired or superseded. Return the request to review, refresh availability and issue a new quotation.</p>@if(detail.status === 'AWAITING_CUSTOMER' || detail.status === 'CONFIRMED'){<button class="secondary" type="button" [disabled]="saving()" (click)="changeStatus('UNDER_REVIEW')">Return to review</button>}}
+          @if(detail.status === 'AWAITING_CUSTOMER' && quoteCanProceed(q)){<div class="confirmation-editor"><h3>Customer confirmation</h3><p class="muted">Present the quote using your authorized channel. This screen does not send a message and sending is not acceptance.</p>
+            <pre class="confirmation-summary">{{confirmationSummary()}}</pre><button class="secondary" type="button" (click)="copyConfirmationSummary()">Copy confirmation summary</button>@if(confirmationFeedback()){<p class="muted" role="status">{{confirmationFeedback()}}</p>}
+            <label>Confirmation channel<select [(ngModel)]="confirmationChannel"><option value="PHONE_CALL">Phone call</option><option value="WHATSAPP">WhatsApp (staff-assisted)</option><option value="IN_PERSON">In person</option></select></label>
+            <div class="actions wrap"><button class="secondary" type="button" [disabled]="saving()" (click)="markConfirmationRequested()">Record quote presented</button></div>
+            <label>Customer identity verification<select [(ngModel)]="confirmationVerification"><option value="CALLBACK">Callback to verified number</option><option value="VERIFIED_CUSTOMER">Verified customer</option><option value="IN_PERSON">In person</option><option value="CUSTOMER_APP">Customer app</option></select></label>
+            <label>Evidence reference (optional)<input [(ngModel)]="confirmationEvidence" maxlength="500" placeholder="Internal call/reference note"></label>
+            <label class="check-label"><input type="checkbox" [(ngModel)]="confirmationAcknowledged"> I confirm the customer accepted quotation revision {{q.revision}}, its items, quantities, any listed substitutions, fulfillment and payable amount.</label>
+            <button class="primary" type="button" [disabled]="saving() || !confirmationAcknowledged" (click)="recordConfirmation()">Record customer confirmation</button>
+          </div>}
+          @if(detail.status === 'CONFIRMED' && quoteCanProceed(q)){<p class="notice">Customer acceptance is recorded for quote revision {{q.revision}}. Creating the Sales Order below has no invoice, payment or inventory effect.</p><button class="primary" type="button" [disabled]="saving()" (click)="convertToSalesOrder()">Convert to Sales Order</button>}
+          @if(detail.status === 'CONVERTED'){<p class="muted">Request converted to a non-posting Sales Order. Billing, payment, stock reservation and fulfillment completion remain separate.</p>}
+        </section>
+      }
+      @if(salesOrderState() === 'loading'){<p class="lifecycle-state" role="status">Checking Sales Order…</p>}
+      @if(salesOrderState() === 'not-created'){<p class="lifecycle-state lifecycle-empty" role="status">Sales Order not created yet.</p>}
+      @if(salesOrderState() === 'not-checked'){<p class="lifecycle-state lifecycle-empty" role="status">{{salesOrderError()}}</p>}
+      @if(salesOrderState() === 'error'){<div class="alert error lifecycle-error" role="alert"><span>{{salesOrderError()}}</span><button type="button" (click)="retryLifecycle(detail.id)">Retry Sales Order status</button></div>}
+      @if(salesOrder(); as so){<section class="quote-card order-card"><div class="panel-title"><div><span class="eyebrow">{{so.reference}}</span><h3>Sales Order</h3></div><span class="status" [attr.data-status]="so.status">{{so.status}}</span></div><p>{{so.fulfilmentPreference === 'DELIVERY' ? 'Home Delivery' : 'Store Pickup'}} Â· Quote revision {{so.quoteRevision}} Â· {{so.createdAtUtc | date:'medium'}}</p>@if(so.deliveryAddress){<div class="address-snapshot"><strong>Delivery address snapshot</strong><span>{{formatAddress(so.deliveryAddress)}}</span><span>{{so.deliveryAddress.recipientName}} · {{so.deliveryAddress.mobile}}</span>@if(so.deliveryAddress.deliveryInstructions){<small>Instructions: {{so.deliveryAddress.deliveryInstructions}}</small>}</div>}<p class="order-total">Quoted payable: {{so.payableAmount | number:'1.2-2'}}</p><p class="notice">Non-posting order: no POS invoice, payment record, stock deduction/reservation or delivery completion was created.</p><div class="actions wrap">@if(so.status === 'CONFIRMED'){<button class="secondary" type="button" [disabled]="saving()" (click)="changeSalesOrderStatus('PROCESSING')">Start processing</button>}@if(so.status === 'PROCESSING'){<button class="secondary" type="button" [disabled]="saving()" (click)="changeSalesOrderStatus('READY')">Mark ready</button>}@if(so.status === 'CONFIRMED' || so.status === 'PROCESSING' || so.status === 'READY'){<button class="danger" type="button" [disabled]="saving()" (click)="changeSalesOrderStatus('CANCELLED')">Cancel Sales Order</button>}</div><h4>Status history</h4>@for(event of so.history;track $index){<div class="history-row"><strong>{{event.previousStatus || 'Created'}} â†’ {{event.newStatus}}</strong><span>{{event.createdAtUtc | date:'medium'}} Â· {{event.actor || 'System'}}</span></div>}<p class="muted">Completion remains unavailable until billing, payment and fulfillment reconciliation are integrated.</p></section>}
+      @if(rejectOpen()){<div class="reject-editor"><label>Rejection reason<textarea [(ngModel)]="rejectNote" maxlength="1000" rows="2" required></textarea></label><div><button class="danger" type="button" [disabled]="saving() || !rejectNote.trim()" (click)="reject()">Confirm rejection</button><button class="quiet" type="button" (click)="rejectOpen.set(false)">Keep request</button></div></div>}
+    </article>
+    <article class="panel"><h2>Matched ERP products</h2><p class="muted">Prices and availability are current references; refresh and revalidate them before any order is created.</p>
+      @for (item of detail.items; track item.id) { <div class="item-card"><div class="item-heading"><div><strong>{{ item.requestedText }}</strong><span class="status" [attr.data-status]="item.matchStatus">{{ item.matchStatus }}</span></div><button class="quiet" type="button" (click)="findMatches(item)">{{ item.matchedProductId ? 'Change match' : 'Find product' }}</button></div>@if(item.proposedSubstitution){<p class="notice">Proposed replacement: {{item.productName}} Â· {{item.customerApprovedSubstitution ? 'Customer accepted in the current confirmed quote' : 'Awaiting explicit customer approval'}}</p>}
+        @if(item.matchedProductId){<div class="matched-product"><span>{{ item.productName }} <small>{{ item.productCode }}</small></span><span>{{ item.currentSellingPrice | number:'1.2-2' }} Â· ERP stock total {{ item.currentStock }} (active warehouses)</span></div>}
+        @if(item.requestedQuantity){<p class="muted">Requested: {{item.requestedQuantity}} {{item.requestedUnit}}</p>}
+        @if(itemQueryId === item.id){<div class="match-editor"><label>Search this retailer's catalog<input [(ngModel)]="matchQuery" (keyup.enter)="searchMatches()"></label><button class="secondary" type="button" (click)="searchMatches()">Search</button><label>ERP product<select [(ngModel)]="selectedMatchId" (ngModelChange)="onMatchSelectionChanged()" [disabled]="unavailable"><option value="">Unmatched</option>@for(match of matches();track match.productId){<option [value]="match.productId">{{match.productName}} Â· {{match.productCode}} Â· {{match.sellingPrice | number:'1.2-2'}}</option>}</select></label><label>Quantity<input type="number" min="0.0001" step="0.0001" [(ngModel)]="editQuantity"></label><label>Unit<input [(ngModel)]="editUnit" maxlength="60"></label><label class="check-label"><input type="checkbox" [(ngModel)]="retailerConfirmedMatch" [disabled]="unavailable || !selectedMatchId || proposedSubstitution"> I verified this is the requested item</label><label class="check-label"><input type="checkbox" [(ngModel)]="proposedSubstitution" (change)="toggleProposedSubstitution()" [disabled]="unavailable || !selectedMatchId"> Propose as a substitution (customer approval required)</label><label class="check-label"><input type="checkbox" [(ngModel)]="unavailable"> Product unavailable</label><button class="primary" type="button" [disabled]="saving()" (click)="saveMatch(item)">Save review</button></div>}
+      </div> }
+    </article>
+    <article class="panel history-panel"><h2>Request history</h2>@for(event of detail.history;track $index){<div class="history-row"><strong>{{event.eventType.replace('_',' ')}}</strong><span>{{event.createdAtUtc | date:'medium'}} Â· {{event.actor || 'System'}}</span>@if(event.note){<p>{{event.note}}</p>}</div>}</article></section>
+  }
+</main>

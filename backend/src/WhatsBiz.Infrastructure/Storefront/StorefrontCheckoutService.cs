@@ -20,10 +20,20 @@ public sealed partial class StorefrontCheckoutService(
     IStorefrontCustomerService customers,
     IStorefrontCustomerBlacklistService blacklist,
     IStorefrontAutomatedNotificationService automatedNotifications,
+    IStorefrontAvailabilityService availability,
     ILogger<StorefrontCheckoutService> logger) : IStorefrontCheckoutService
 {
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection")
         ?? throw new InvalidOperationException("Database connection unavailable.");
+
+    private async Task RejectPartnerSellerCheckout(Guid tenantId,IReadOnlyCollection<StorefrontCheckoutItem> items,CancellationToken token)
+    {
+        await using var connection=await Open(tenantId,token);
+        await using var command=new SqlCommand("SELECT TOP(1) 1 FROM OPENJSON(@items) WITH(ProductId uniqueidentifier,Quantity decimal(18,4)) j JOIN commerce.PartnerProductListings l ON l.OperatingTenantId=@tenant AND l.ProductId=j.ProductId",connection);
+        command.Parameters.AddWithValue("@tenant",tenantId);command.Parameters.AddWithValue("@items",JsonSerializer.Serialize(items));
+        if(await command.ExecuteScalarAsync(token)is not null)
+            throw new BusinessRuleException("This partner-seller product is listed for discovery only. Online ordering will be enabled after seller, payment and invoicing arrangements are approved.");
+    }
 
     public async Task<StorefrontDeliveryAvailabilityDto?> CheckDeliveryAsync(string storeKey, string pincode, CancellationToken token)
     {
@@ -42,16 +52,58 @@ public sealed partial class StorefrontCheckoutService(
         serviceable.Parameters.AddWithValue("@tenant", tenantId.Value); serviceable.Parameters.AddWithValue("@pincode", pincode); serviceable.Parameters.AddWithValue("@mode", mode);
         return new(enabled, Convert.ToInt32(await serviceable.ExecuteScalarAsync(token), CultureInfo.InvariantCulture) == 1);
     }
+
+    public async Task<StorefrontDeliveryAvailabilityDto> CheckDeliveryForTenantAsync(Guid tenantId, string pincode, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(pincode) || !PincodePattern().IsMatch(pincode))
+            throw new BusinessRuleException("Enter a valid six-digit Indian pincode.");
+        await using var connection = await Open(tenantId, token);
+        var mode = "ALLOWLIST"; var enabled = false;
+        await using (var settings = new SqlCommand("SELECT CONVERT(bit,CASE WHEN DeliveryEnabled=1 THEN 1 ELSE 0 END),COALESCE(DeliveryCoverageMode,'ALLOWLIST') FROM commerce.StorefrontConfigurations WHERE TenantId=@tenant", connection))
+        {
+            settings.Parameters.AddWithValue("@tenant", tenantId);
+            await using var reader = await settings.ExecuteReaderAsync(token);
+            if (await reader.ReadAsync(token)) { enabled = reader.GetBoolean(0); mode = reader.IsDBNull(1) ? "ALLOWLIST" : reader.GetString(1); }
+        }
+        await using var serviceable = new SqlCommand("SELECT CASE WHEN @mode='PAN_INDIA' THEN CASE WHEN EXISTS(SELECT 1 FROM commerce.StorefrontServiceablePincodes WHERE TenantId=@tenant AND Pincode=@pincode AND IsExcluded=1 AND IsActive=1) THEN 0 ELSE 1 END ELSE CASE WHEN EXISTS(SELECT 1 FROM commerce.StorefrontServiceablePincodes WHERE TenantId=@tenant AND Pincode=@pincode AND IsActive=1 AND IsExcluded=0) THEN 1 ELSE 0 END END", connection);
+        serviceable.Parameters.AddWithValue("@tenant", tenantId); serviceable.Parameters.AddWithValue("@pincode", pincode); serviceable.Parameters.AddWithValue("@mode", mode);
+        return new(enabled, Convert.ToInt32(await serviceable.ExecuteScalarAsync(token), CultureInfo.InvariantCulture) == 1);
+    }
     public async Task<StorefrontCartQuoteDto?> QuoteAsync(string storeKey, StorefrontCartQuoteInput input,
         string? customerSessionToken, CancellationToken token)
     {
         var tenantId = await ResolveTenant(storeKey, token);
         if (tenantId is null) return null;
         var items = NormalizeItems(input.Items);
-        var (_, lines) = await PriceCart(tenantId.Value, JsonSerializer.Serialize(items), items.Length, token);
+        var (_, lines, warnings) = await PriceCart(tenantId.Value, JsonSerializer.Serialize(items), items.Length, false, token);
         var authenticated = string.IsNullOrWhiteSpace(customerSessionToken) ? null
             : await customers.GetSessionAsync(storeKey, customerSessionToken, token);
-        return await CalculateQuote(tenantId.Value, lines, input.Pincode, authenticated?.Id, input.PromoCode, token);
+        return await CalculateQuote(tenantId.Value, lines, input.Pincode, authenticated?.Id, input.PromoCode, warnings, token);
+    }
+
+    public async Task<StorefrontIntakeQuoteDto> QuoteIntakeAsync(Guid tenantId,
+        IReadOnlyCollection<StorefrontCheckoutItem> items, string fulfilmentPreference,
+        string? pincode, string? promotionCode, CancellationToken token)
+    {
+        var normalizedItems = NormalizeItems(items);
+        var fulfillment = fulfilmentPreference.Trim().ToUpperInvariant();
+        if (fulfillment is not ("PICKUP" or "DELIVERY"))
+            throw new BusinessRuleException("Choose pickup or delivery before preparing a quotation.");
+        if (fulfillment == "DELIVERY" && (string.IsNullOrWhiteSpace(pincode) || !PincodePattern().IsMatch(pincode)))
+            throw new BusinessRuleException("A valid delivery pincode is required before quoting delivery.");
+        if (fulfillment == "PICKUP") pincode = null;
+
+        await RejectPartnerSellerCheckout(tenantId, normalizedItems, token);
+        var (_, lines, warnings) = await PriceCart(tenantId, JsonSerializer.Serialize(normalizedItems), normalizedItems.Length, false, token);
+        if (warnings.Count != 0)
+            throw new BusinessRuleException("The selected products are not currently available together from a fulfillment warehouse.");
+        await availability.EnsureOrderEligibleAsync(tenantId, normalizedItems.Select(x => x.ProductId).ToArray(), token);
+        var pricing = await CalculateQuote(tenantId, lines, pincode, null, promotionCode, [], token,
+            pickup: fulfillment == "PICKUP");
+        if (fulfillment == "DELIVERY" && (!pricing.IsDeliveryEnabled || !pricing.IsPincodeServiceable))
+            throw new BusinessRuleException("Delivery is not available for the supplied pincode. Choose pickup or verify the address with the retailer.");
+        return new(pricing, lines.Select(x => new StorefrontIntakeQuoteLine(x.ProductId, x.ProductCode,
+            x.ProductName, x.Quantity, x.UnitPrice, x.TaxPercentage, x.CompareAtPrice, x.GstPricingType, x.UnitName, x.UnitShortName)).ToArray());
     }
 
     private static StorefrontCheckoutItem[] NormalizeItems(IReadOnlyCollection<StorefrontCheckoutItem>? source)
@@ -64,7 +116,8 @@ public sealed partial class StorefrontCheckoutService(
     }
 
     private async Task<StorefrontCartQuoteDto> CalculateQuote(Guid tenantId, IReadOnlyCollection<PricedLine> lines,
-        string? pincode, Guid? verifiedCustomerId, string? promotionCode, CancellationToken token)
+        string? pincode, Guid? verifiedCustomerId, string? promotionCode, IReadOnlyCollection<StorefrontCartFulfillmentWarning> fulfillmentWarnings, CancellationToken token,
+        bool pickup = false)
     {
         if (!string.IsNullOrWhiteSpace(pincode) && !PincodePattern().IsMatch(pincode))
             throw new BusinessRuleException("Enter a valid six-digit Indian pincode.");
@@ -84,6 +137,7 @@ public sealed partial class StorefrontCheckoutService(
             {
                 settings = new(false, 0, false, null);
             }
+        if (pickup) settings = new(false, 0, false, null);
         }
         var serviceable = false;
         if (pincode is not null && PincodePattern().IsMatch(pincode))
@@ -141,7 +195,9 @@ public sealed partial class StorefrontCheckoutService(
                 throw new BusinessRuleException("This promo code has expired.");
             if (selected.StartsAt is not null && selected.StartsAt > now)
                 throw new BusinessRuleException("Promo code is not valid.");
-            var merchandise = lines.Sum(x => x.Quantity * x.UnitPrice * (1m + x.TaxPercentage / 100m));
+            var merchandise = lines.Sum(x => x.Quantity * (StorefrontPricingPolicy.IsInclusive(x.GstPricingType)
+                ? x.UnitPrice
+                : x.UnitPrice * (1m + x.TaxPercentage / 100m)));
             if (selected.MinimumPurchaseAmount > merchandise)
             {
                 var remaining = selected.MinimumPurchaseAmount - merchandise;
@@ -151,8 +207,10 @@ public sealed partial class StorefrontCheckoutService(
                 throw new BusinessRuleException("This promo code is not applicable to this order.");
             if (selected.UsageLimitPerCustomer is not null && (!verifiedCustomerId.HasValue || selected.PreviousUses >= selected.UsageLimitPerCustomer.Value))
                 throw new BusinessRuleException("This promo code is no longer available.");
-        }        return StorefrontPricingPolicy.Calculate(lines.Select(x => new StorefrontPricedItem(x.Quantity, x.UnitPrice, x.TaxPercentage)).ToArray(),
+        }
+        var quote = StorefrontPricingPolicy.Calculate(lines.Select(x => new StorefrontPricedItem(x.Quantity, x.UnitPrice, x.TaxPercentage, x.CompareAtPrice, x.GstPricingType)).ToArray(),
             settings, pincode, serviceable, offers, verifiedCustomerId is not null, hasOrder, DateTimeOffset.UtcNow, requestedCode);
+        return quote with { FulfillmentWarnings = fulfillmentWarnings };
     }
     public async Task<StorefrontCheckoutResult> CheckoutAsync(string storeKey, StorefrontCheckoutInput input,
         string idempotencyKey, string? customerSessionToken, CancellationToken token)
@@ -194,6 +252,7 @@ public sealed partial class StorefrontCheckoutService(
 
         var tenantId = await ResolveTenant(storeKey, token)
             ?? throw new EntityNotFoundException("Store was not found.");
+        await RejectPartnerSellerCheckout(tenantId,items,token);
         var method = NormalizePaymentMethod(input.PaymentMethod);
         var provider = method == "COD" ? PaymentProviders.Cod : PaymentProviders.Razorpay;
         var methods = await payments.GetEnabledMethodsForTenantAsync(tenantId, token);
@@ -201,19 +260,23 @@ public sealed partial class StorefrontCheckoutService(
             throw new BusinessRuleException("The selected payment method is not currently available for this store.");
 
         var cartJson = JsonSerializer.Serialize(items);
-        var (warehouseId, lines) = await PriceCart(tenantId, cartJson, items.Length, token);
+        var (warehouseId, lines, _) = await PriceCart(tenantId, cartJson, items.Length, true, token);
         var authenticated = string.IsNullOrWhiteSpace(customerSessionToken) ? null : await customers.GetSessionAsync(storeKey, customerSessionToken, token);
         if (await blacklist.IsBlockedAsync(tenantId, authenticated?.Mobile ?? mobile, token))
             throw new BusinessRuleException("Orders are temporarily unavailable for this phone number. You may continue to browse and contact the store for assistance.");
-        var quote = await CalculateQuote(tenantId, lines, pincode, authenticated?.Id, input.PromoCode, token);
+        var quote = await CalculateQuote(tenantId, lines, pincode, authenticated?.Id, input.PromoCode, [], token);
+        // Revalidate immediately before creating the invoice so a booking window
+        // closing during checkout cannot be bypassed by a stale product response.
+        await availability.EnsureOrderEligibleAsync(tenantId, items.Select(x => x.ProductId).ToArray(), token);
         if (!quote.IsDeliveryEnabled)
             throw new BusinessRuleException("Delivery is not currently available for this store.");
         if (!quote.IsPincodeServiceable)
             throw new BusinessRuleException("Sorry, delivery is not available at this pincode yet.");
+        StorefrontPricingPolicy.EnsureExpectedPayable(input.ExpectedPayableAmount, quote.FinalPayableAmount);
         var customerId = authenticated?.Id ?? await FindOrCreateCustomer(tenantId, customerName, mobile, email, token);
         var posItems = lines.Select(line => new POSItemInput(line.ProductId, null, line.Quantity,
             line.UnitPrice, 0, 0, line.TaxPercentage)).ToArray();
-        var orderRequest = new POSPostRequest(null, null, customerId, warehouseId, null,
+        var orderRequest = new POSPostRequest(null, null, customerId, warehouseId!.Value, null,
             JsonSerializer.Serialize(posItems), "[]", quote.PromotionDiscount, 0, "Storefront order awaiting payment/collection",
             "HELD", false, null, "STOREFRONT", tenantId, "STOREFRONT",
             DeliveryCharge: quote.DeliveryCharge, PromotionDiscountAmount: quote.PromotionDiscount,
@@ -334,10 +397,13 @@ WHERE i.TenantId=@tenant AND i.InvoiceId=@order AND i.CustomerId=@customer;", co
         return await command.ExecuteScalarAsync(token) is Guid tenant ? tenant : null;
     }
 
-    private async Task<(Guid WarehouseId, IReadOnlyCollection<PricedLine> Lines)> PriceCart(
-        Guid tenantId, string cartJson, int expectedItems, CancellationToken token)
+    private async Task<(Guid? WarehouseId, IReadOnlyCollection<PricedLine> Lines, IReadOnlyCollection<StorefrontCartFulfillmentWarning> Warnings)> PriceCart(
+        Guid tenantId, string cartJson, int expectedItems, bool requireFulfillment, CancellationToken token)
     {
         await using var connection = await Open(tenantId, token);
+        Guid? warehouseId = null;
+        if (requireFulfillment)
+        {
         await using var warehouse = new SqlCommand("""
             SELECT TOP(1) w.WarehouseId
             FROM inventory.Warehouses w
@@ -352,16 +418,19 @@ WHERE i.TenantId=@tenant AND i.InvoiceId=@order AND i.CustomerId=@customer;", co
             """, connection);
         warehouse.Parameters.AddWithValue("@tenant", tenantId);
         warehouse.Parameters.AddWithValue("@items", cartJson);
-        if (await warehouse.ExecuteScalarAsync(token) is not Guid warehouseId)
+        if (await warehouse.ExecuteScalarAsync(token) is not Guid selectedWarehouse)
             throw new BusinessRuleException("The cart items are not available together at this store.");
+        warehouseId = selectedWarehouse;
+        }
 
         await using var products = new SqlCommand("""
-            SELECT p.ProductId,j.Quantity,p.SellingPrice,p.GSTPercentage
+            SELECT p.ProductId,j.Quantity,p.SellingPrice,p.GSTPercentage,p.MRP,p.GstPricingType,p.ProductCode,p.ProductName,u.UnitName,u.ShortName
             FROM OPENJSON(@items) WITH(ProductId uniqueidentifier,Quantity decimal(18,4)) j
             JOIN master.Products p ON p.ProductId=j.ProductId AND p.TenantId=@tenant
             JOIN master.ProductCategories c ON c.ProductCategoryId=p.CategoryId AND c.IsActive=1 AND c.IsDeleted=0
             JOIN master.UnitsOfMeasure u ON u.UnitId=p.UnitId AND u.IsActive=1 AND u.IsDeleted=0
             WHERE p.IsActive=1 AND p.IsDeleted=0 AND p.IsWhatsAppVisible=1
+              AND commerce.IsProductPubliclyApproved(@tenant,p.ProductId)=1
               AND EXISTS(SELECT 1 FROM master.TenantProductCategories x WHERE x.TenantId=@tenant AND x.ProductCategoryId=p.CategoryId)
               AND EXISTS(SELECT 1 FROM master.TenantUnitsOfMeasure x WHERE x.TenantId=@tenant AND x.UnitId=p.UnitId);
             """, connection);
@@ -370,10 +439,31 @@ WHERE i.TenantId=@tenant AND i.InvoiceId=@order AND i.CustomerId=@customer;", co
         var lines = new List<PricedLine>();
         await using var reader = await products.ExecuteReaderAsync(token);
         while (await reader.ReadAsync(token))
-            lines.Add(new(reader.GetGuid(0), reader.GetDecimal(1), reader.GetDecimal(2), reader.GetDecimal(3)));
+            lines.Add(new(reader.GetGuid(0), reader.GetDecimal(1), reader.GetDecimal(2), reader.GetDecimal(3), reader.GetDecimal(4), reader.IsDBNull(5) ? "EXCLUSIVE" : reader.GetString(5), reader.GetString(6), reader.GetString(7), reader.GetString(8), reader.IsDBNull(9) ? null : reader.GetString(9)));
+        await reader.DisposeAsync();
         if (lines.Count != expectedItems)
             throw new BusinessRuleException("One or more cart items are no longer available.");
-        return (warehouseId, lines);
+        var warnings = new List<StorefrontCartFulfillmentWarning>();
+        if (!requireFulfillment)
+        {
+            await using var warehouse = new SqlCommand("""
+                SELECT TOP(1) w.WarehouseId
+                FROM inventory.Warehouses w
+                WHERE w.TenantId=@tenant AND w.IsActive=1 AND w.IsDeleted=0
+                  AND NOT EXISTS (
+                    SELECT 1 FROM OPENJSON(@items) WITH(ProductId uniqueidentifier,Quantity decimal(18,4)) j
+                    WHERE NOT EXISTS (
+                      SELECT 1 FROM inventory.InventoryBalances b
+                      WHERE b.TenantId=@tenant AND b.WarehouseId=w.WarehouseId AND b.ProductId=j.ProductId
+                      GROUP BY b.ProductId HAVING SUM(b.QuantityOnHand-b.QuantityReserved)>=j.Quantity))
+                ORDER BY w.IsDefault DESC,w.WarehouseName;
+                """, connection);
+            warehouse.Parameters.AddWithValue("@tenant", tenantId);
+            warehouse.Parameters.AddWithValue("@items", cartJson);
+            if (await warehouse.ExecuteScalarAsync(token) is not Guid)
+                warnings.Add(new("NO_COMMON_FULFILLMENT_WAREHOUSE", "These items can be priced, but they are not currently available together from one fulfillment warehouse."));
+        }
+        return (warehouseId, lines, warnings);
     }
 
     private async Task<Guid> FindOrCreateCustomer(Guid tenantId, string name, string mobile, string? email,
@@ -465,7 +555,8 @@ WHERE i.TenantId=@tenant AND i.InvoiceId=@order AND i.CustomerId=@customer;", co
         return connection;
     }
 
-    private sealed record PricedLine(Guid ProductId, decimal Quantity, decimal UnitPrice, decimal TaxPercentage);
+    private sealed record PricedLine(Guid ProductId, decimal Quantity, decimal UnitPrice, decimal TaxPercentage,
+        decimal CompareAtPrice, string GstPricingType, string ProductCode, string ProductName, string UnitName, string? UnitShortName);
     private static string NormalizePaymentMethod(string? method)
     {
         var value = method?.Trim().ToUpperInvariant();

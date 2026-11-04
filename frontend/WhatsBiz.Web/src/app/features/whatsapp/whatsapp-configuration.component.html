@@ -8,7 +8,7 @@
   </app-page-header>
 
   @if (applicationOwner) {
-    <mat-form-field appearance="outline"><mat-label>Retailer</mat-label><mat-select [(ngModel)]="tenantId" (selectionChange)="selectTenant()"><mat-option value="">Select a retailer</mat-option>@for(tenant of tenants();track tenant.tenantId){<mat-option [value]="tenant.tenantId">{{tenant.tenantName}} — {{tenant.tenantKey}}</mat-option>}</mat-select></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Retailer</mat-label><mat-select [(ngModel)]="tenantId" (selectionChange)="selectTenant()" [disabled]="saving()"><mat-option value="">Select a retailer</mat-option>@for(tenant of tenants();track tenant.tenantId){<mat-option [value]="tenant.tenantId">{{tenant.tenantName}} — {{tenant.tenantKey}}</mat-option>}</mat-select></mat-form-field>
   }
   @if (applicationOwner && !tenantId) {
     <p class="notice">Choose a retailer before viewing or changing its WhatsApp Business connection.</p>
@@ -56,7 +56,7 @@
       <section class="card">
         @if (applicationOwner) {
           @if (model().providerMode === 'LIVE') {
-            <div class="notice">LIVE mode prepares this retailer for secure self-service onboarding. The retailer will connect its own WhatsApp Business account from its retailer settings; Meta credentials are supplied by platform configuration.</div>
+            <div class="notice">LIVE mode prepares this retailer for secure onboarding. The Application Owner can connect the retailer through Meta here, or the retailer can connect from its own settings. Shared Meta credentials remain server-side.</div>
             @if (model().businessDisplayName || model().displayPhoneNumber || model().lastValidatedDate) {
               <dl class="details owner-details">
                 @if (model().businessDisplayName) { <div><dt>Business</dt><dd>{{ model().businessDisplayName }}</dd></div> }
@@ -75,6 +75,16 @@
           } @else {
             <div class="notice">This retailer is using {{ model().providerMode }} mode. Provider modes are managed by your platform administrator.</div>
           }
+        }
+        @if (applicationOwner && model().providerMode === 'LIVE') {
+          <div class="notice">
+            <strong>Meta Embedded Signup</strong>
+            <p>Choose Connect to authorize this selected retailer's WhatsApp Business account in Meta. WABA and phone-number details are captured from the signup flow.</p>
+            <button mat-flat-button color="primary" type="button" (click)="connectLive()" [disabled]="saving() || !model().isEnabled">
+              {{ saving() ? 'Opening Meta…' : model().connectionStatus === 'CONNECTED' ? 'Reconnect WhatsApp Business' : 'Connect WhatsApp Business' }}
+            </button>
+            @if (!model().isEnabled) { <p>Enable this retailer's LIVE connection and save before starting onboarding.</p> }
+          </div>
         }
         <div class="grid">
           @if (applicationOwner) {

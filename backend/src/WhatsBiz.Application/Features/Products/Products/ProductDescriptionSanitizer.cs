@@ -2,14 +2,14 @@ using System.Text.RegularExpressions;
 
 namespace WhatsBiz.Application.Features.Products.Products;
 
-internal static class ProductDescriptionSanitizer
+public static class ProductDescriptionSanitizer
 {
     private static readonly HashSet<string> AllowedTags = new(StringComparer.OrdinalIgnoreCase) { "p", "br", "strong", "b", "em", "i", "u", "h2", "h3", "h4", "ul", "ol", "li", "a", "table", "thead", "tbody", "tr", "th", "td" };
     private static readonly Regex DangerousBlocks = new("<!--.*?-->|<\\s*(script|style|iframe|object|embed|form|svg|math)[^>]*>.*?<\\s*/\\s*\\1\\s*>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
     private static readonly Regex Tags = new("<(?<close>/?)\\s*(?<tag>[a-z0-9]+)(?<attrs>[^>]*)>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex Attributes = new("(?<name>[a-zA-Z][a-zA-Z0-9:-]*)\\s*=\\s*(?:\"(?<value>[^\"]*)\"|'(?<value>[^']*)'|(?<value>[^\\s>]+))", RegexOptions.Compiled);
 
-    internal static string? Sanitize(string? html, int maximumLength)
+    public static string? Sanitize(string? html, int maximumLength)
     {
         if (string.IsNullOrWhiteSpace(html)) return null;
         var withoutDangerous = DangerousBlocks.Replace(html, string.Empty);

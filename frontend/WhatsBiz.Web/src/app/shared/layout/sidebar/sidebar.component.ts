@@ -13,6 +13,7 @@ import { PermissionService } from '../../../core/services/permission.service';
 import { FeatureService } from '../../../core/services/feature.service';
 import { NavigationItem } from '../../models/navigation.model';
 import { ProfilePhotoService } from '../../services/profile-photo.service';
+import { WarehouseUiVisibilityService } from '../../services/warehouse-ui-visibility.service';
 
 export const navigation: NavigationItem[] = [
   { label: 'Overview', icon: 'space_dashboard', route: '/dashboard', permission: 'dashboard.view', feature: 'DASHBOARD' },
@@ -23,6 +24,7 @@ export const navigation: NavigationItem[] = [
     feature: 'POS',
     children: [
       { label: 'New Sale', icon: 'add_shopping_cart', route: '/pos', permission: 'pos.create' },
+      { label: 'Order Inbox', icon: 'inbox', route: '/order-inbox', permission: 'pos.view', feature: 'MULTI_CHANNEL_ORDER_INTAKE' },
       { label: 'Today’s Sales', icon: 'today', route: '/pos/today', permission: 'pos.view' },
       {
         label: 'Invoice History',
@@ -176,6 +178,7 @@ export const navigation: NavigationItem[] = [
       { label: 'Storefront Dashboard', icon: 'space_dashboard', route: '/dashboard', permission: 'dashboard.view', feature: 'DASHBOARD' },
       { label: 'Storefront Customers', icon: 'people', route: '/storefront/customers', permission: 'customer.view', feature: 'CUSTOMER_DEMAND' },
       { label: 'Visitors & Customer Activity', icon: 'visibility', route: '/storefront/activity', permission: 'analytics.view', feature: 'ANALYTICS' },
+      { label: 'Guest Visitor Analytics', icon: 'person_search', route: '/storefront/visitor-analytics', permission: 'analytics.view', feature: 'GUEST_VISITOR_ANALYTICS' },
       { label: 'Search Analytics', icon: 'manage_search', route: '/storefront/search-analytics', permission: 'analytics.view', feature: 'CUSTOMER_DEMAND' },
       { label: 'Storefront Orders', icon: 'shopping_cart', route: '/orders/storefront', permission: 'pos.view' },
       { label: 'Feedback & Complaints', icon: 'feedback', route: '/storefront/feedback', permission: 'customer.feedback.manage', feature: 'STOREFRONT_FEEDBACK' },
@@ -298,6 +301,9 @@ export const navigation: NavigationItem[] = [
         permission: 'admin.settings',
       },
       { label: 'Storefront Branding', icon: 'storefront', route: '/admin/storefront', permission: 'admin.settings' },
+      { label: 'Scheduled Selling Windows', icon: 'schedule', route: '/admin/storefront/schedules', permission: 'admin.settings', feature: 'STOREFRONT_SCHEDULED_SELLING' },
+      { label: 'Storefront Popup Campaigns', icon: 'campaign', route: '/admin/storefront/campaigns', permission: 'admin.settings', feature: 'STOREFRONT_POPUP_CAMPAIGNS' },
+      { label: 'Storefront Notifications', icon: 'notifications', route: '/admin/storefront/notifications', permission: 'admin.settings', feature: 'STOREFRONT_NOTIFICATIONS' },
       { label: 'Delivery Agents', icon: 'two_wheeler', route: '/admin/delivery-agents', permission: 'delivery.agent-manage', feature: 'DELIVERY_MANAGEMENT' },
       { label: 'Delivery Settings', icon: 'local_shipping', route: '/admin/delivery-settings', permission: 'delivery.settings', feature: 'DELIVERY_MANAGEMENT' },
       { label: 'WhatsApp Business', icon: 'chat', route: '/admin/whatsapp', permission: 'admin.settings', feature: 'WHATSAPP_COMMERCE' },
@@ -329,6 +335,7 @@ export class SidebarComponent {
   private readonly features = inject(FeatureService);
   private readonly currentUser = inject(CurrentUserService);
   private readonly profilePhoto = inject(ProfilePhotoService);
+  private readonly warehouseUi = inject(WarehouseUiVisibilityService);
   readonly user = this.currentUser.user;
   readonly expanded = signal(new Set<string>(['Products']));
   readonly items = computed(() =>
@@ -344,6 +351,7 @@ export class SidebarComponent {
           (!item.permission || this.permissions.has(item.permission)) &&
           (!item.feature || this.features.hasFeature(item.feature)) &&
           (!item.role || this.hasRole(item.role)) &&
+          (this.warehouseUi.showManagement || !item.route?.startsWith('/warehouses')) &&
           (!item.children || item.children.length > 0),
       ),
   );

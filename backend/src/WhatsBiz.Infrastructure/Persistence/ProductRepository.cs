@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Products.DTOs;
 using WhatsBiz.Domain.Products;
+using WhatsBiz.Infrastructure.Suppliers;
 
 namespace WhatsBiz.Infrastructure.Persistence;
 
@@ -37,9 +38,18 @@ public sealed class ProductRepository(ApplicationDbContext context, ICurrentUser
             .OrderByDescending(x => x.IsPrimary).ThenBy(x => x.CreatedOn)
             .Select(x => new { x.ProductId, x.ProductImageId }).ToArrayAsync(token);
         var primary = rows.GroupBy(x => x.ProductId).ToDictionary(x => x.Key, x => x.First().ProductImageId);
+        var external = await context.ProductExternalImages.AsNoTracking().Where(x => x.TenantId == Tenant && ids.Contains(x.ProductId))
+            .Select(x => new { x.ProductId, x.ImageUrl, x.DisplayOrder, x.IsPrimary }).ToArrayAsync(token);
+        var externalPrimary = external.Where(x => ShopifyCatalogImportParser.SafeHttps(x.ImageUrl) is not null)
+            .GroupBy(x => x.ProductId).ToDictionary(group => group.Key, group => ShopifyCatalogImportParser.SafeHttps(group
+                .OrderBy(image => image.DisplayOrder == 1 ? 0 : 1).ThenBy(image => image.DisplayOrder).ThenBy(image => image.ImageUrl, StringComparer.Ordinal)
+                .First().ImageUrl)!);
         foreach (var product in products)
-            product.ImageUrl = primary.TryGetValue(product.ProductId, out var imageId)
-                ? $"/api/products/{product.ProductId}/images/{imageId}" : null;
+            product.ImageUrl = externalPrimary.TryGetValue(product.ProductId, out var externalUrl)
+                ? externalUrl
+                : primary.TryGetValue(product.ProductId, out var imageId)
+                    ? $"/api/products/{product.ProductId}/images/{imageId}"
+                    : ShopifyCatalogImportParser.SafeHttps(product.ImageUrl);
     }
     public async Task<IReadOnlyCollection<ProductHistoryDto>> GetHistoryAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -128,6 +138,7 @@ public sealed class ProductRepository(ApplicationDbContext context, ICurrentUser
     public Task<bool> BrandCodeExistsAsync(string code, Guid? excludingId, CancellationToken cancellationToken) => TenantBrands.AnyAsync(x => !x.IsDeleted && x.BrandCode == code.Trim() && (!excludingId.HasValue || x.BrandId != excludingId), cancellationToken);
     public Task<bool> BrandHasProductsAsync(Guid id, CancellationToken cancellationToken) => TenantProducts.AnyAsync(x => !x.IsDeleted && x.BrandId == id, cancellationToken);
     public void Add(Brand brand) { var existing = context.Brands.Local.FirstOrDefault(x => x.BrandCode == brand.BrandCode) ?? context.Brands.FirstOrDefault(x => x.BrandCode == brand.BrandCode && !x.IsDeleted); if (existing is null) context.Brands.Add(brand); else { brand.BrandId = existing.BrandId; brand.BrandName = existing.BrandName; brand.Description = existing.Description; brand.Logo = existing.Logo; brand.IsActive = existing.IsActive; } context.Set<TenantBrand>().Add(new() { TenantId = Tenant, BrandId = brand.BrandId }); }
+    public void AddTenantPrivateBrand(Brand brand) { context.Brands.Add(brand); context.Set<TenantBrand>().Add(new() { TenantId = Tenant, BrandId = brand.BrandId }); }
     public async Task<IReadOnlyCollection<UnitOfMeasure>> GetUnitsAsync(CancellationToken cancellationToken) => await TenantUnits.AsNoTracking().Where(x => !x.IsDeleted).OrderBy(x => x.UnitName).ToArrayAsync(cancellationToken);
     public Task<UnitOfMeasure?> GetUnitAsync(Guid id, bool tracking, CancellationToken cancellationToken) { var query = TenantUnits.Where(x => !x.IsDeleted); if (!tracking) query = query.AsNoTracking(); return query.SingleOrDefaultAsync(x => x.UnitId == id, cancellationToken); }
     public Task<bool> UnitCodeExistsAsync(string code, Guid? excludingId, CancellationToken cancellationToken) => TenantUnits.AnyAsync(x => !x.IsDeleted && x.UnitCode == code.Trim() && (!excludingId.HasValue || x.UnitId != excludingId), cancellationToken);
@@ -136,6 +147,12 @@ public sealed class ProductRepository(ApplicationDbContext context, ICurrentUser
     private IQueryable<ProductImage> TenantImages => currentUser.TenantId is Guid tenantId ? context.ProductImages.Where(x => x.TenantId == tenantId) : context.ProductImages.Where(_ => false);
     public Task<ProductImage?> GetImageAsync(Guid productId, bool tracking, CancellationToken cancellationToken) { var query = TenantImages.Where(x => x.ProductId == productId && !x.IsDeleted && x.IsActive); if (!tracking) query = query.AsNoTracking(); return query.OrderByDescending(x => x.IsPrimary).FirstOrDefaultAsync(cancellationToken); }
     public async Task<IReadOnlyCollection<ProductImage>> GetImagesAsync(Guid productId, bool tracking, CancellationToken cancellationToken) { IQueryable<ProductImage> query = TenantImages.Where(x => x.ProductId == productId && !x.IsDeleted && x.IsActive).OrderByDescending(x => x.IsPrimary).ThenBy(x => x.CreatedOn); if (!tracking) query = query.AsNoTracking(); return await query.ToArrayAsync(cancellationToken); }
+    public async Task<IReadOnlyCollection<ProductExternalImage>> GetExternalImagesAsync(Guid productId, CancellationToken cancellationToken)
+    {
+        var images = await context.ProductExternalImages.AsNoTracking().Where(x => x.TenantId == Tenant && x.ProductId == productId)
+            .OrderByDescending(x => x.IsPrimary).ThenBy(x => x.DisplayOrder).ThenBy(x => x.ImageUrl).ToArrayAsync(cancellationToken);
+        return images.Where(image => ShopifyCatalogImportParser.SafeHttps(image.ImageUrl) is not null).ToArray();
+    }
     public Task<ProductImage?> GetImageByIdAsync(Guid productId, Guid imageId, bool tracking, CancellationToken cancellationToken) { var query = TenantImages.Where(x => x.ProductId == productId && x.ProductImageId == imageId && !x.IsDeleted && x.IsActive); if (!tracking) query = query.AsNoTracking(); return query.SingleOrDefaultAsync(cancellationToken); }
     public void Add(ProductImage image) => context.ProductImages.Add(image);
     public Task SaveChangesAsync(CancellationToken cancellationToken) => context.SaveChangesAsync(cancellationToken);

@@ -1,23 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
 import { OperationsWorkspaceComponent } from '../../shared/components/operations-workspace/operations-workspace.component';
-import { FilterPanelComponent } from '../../shared/components/filter-panel/filter-panel.component';
 import { StatusChipComponent } from '../../shared/components/status-chip/status-chip.component';
 import { InventoryApiService } from './inventory-api.service';
-import { InventorySummary, WarehouseOption } from './inventory.models';
+import { InventorySummary } from './inventory.models';
 @Component({
   imports: [
-    FormsModule,
     RouterLink,
     MatButtonModule,
-    MatFormFieldModule,
-    MatSelectModule,
     OperationsWorkspaceComponent,
-    FilterPanelComponent,
     StatusChipComponent,
   ],
   templateUrl: './inventory-dashboard.component.html',
@@ -86,7 +78,6 @@ import { InventorySummary, WarehouseOption } from './inventory.models';
 })
 export class InventoryDashboardComponent {
   readonly summary = signal<InventorySummary | null>(null);
-  readonly warehouses = signal<WarehouseOption[]>([]);
   readonly summaries = computed(() => {
     const x = this.summary();
     return [
@@ -120,13 +111,11 @@ export class InventoryDashboardComponent {
       },
     ];
   });
-  warehouseId = '';
   constructor(private api: InventoryApiService) {
-    api.warehouses().subscribe((x) => this.warehouses.set(x));
     this.load();
   }
   load() {
-    this.api.summary(this.warehouseId || undefined).subscribe((x) => this.summary.set(x));
+    this.api.summary().subscribe((x) => this.summary.set(x));
   }
 
   private formatAmount(value: number): string {

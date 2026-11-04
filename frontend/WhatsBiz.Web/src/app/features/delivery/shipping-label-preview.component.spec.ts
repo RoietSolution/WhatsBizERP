@@ -23,8 +23,10 @@ describe('ShippingLabelPreviewComponent', () => {
     component.format = 'THERMAL_58';
 
     expect(component.formatClass()).toBe('thermal-58');
-    expect(component.paymentIndicator(component.orders[0])).toBe('CASH ON DELIVERY');
+    expect(component.paymentIndicator(component.orders[0])).toContain('COD TO COLLECT');
     component.orders[0].paymentDue = false;
-    expect(component.paymentIndicator(component.orders[0])).toBe('PREPAID / PAID');
+    component.orders[0].paymentCollected = true;
+    component.orders[0].collectedAmount = 100;
+    expect(component.paymentIndicator(component.orders[0])).toContain('COD PAID');
   });
 });

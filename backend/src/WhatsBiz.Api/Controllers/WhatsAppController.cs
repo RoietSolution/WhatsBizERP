@@ -13,7 +13,7 @@ namespace WhatsBiz.Api.Controllers;
 [ApiController, Route("api/whatsapp")]
 public sealed partial class WhatsAppController(IWhatsAppService service, ICurrentUserService currentUser,
     IFeatureService? features = null, IWhatsAppUsageBillingService? usageBilling = null,
-    ILogger<WhatsAppController>? logger = null) : ControllerBase
+    ILogger<WhatsAppController>? logger = null, IOutboundSafetyPolicy? outboundSafety = null) : ControllerBase
 {
     [HttpGet("usage/summary"), HasPermission(Permissions.Admin.View), RequireFeature(FeatureKeys.WhatsAppCommerce)]
     public Task<WhatsAppUsageSummary> UsageSummary([FromQuery] int year, [FromQuery] int month, CancellationToken token) =>
@@ -32,6 +32,24 @@ public sealed partial class WhatsAppController(IWhatsAppService service, ICurren
     [HttpPost("onboarding/complete"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.MetaWhatsAppIntegration)]
     public Task<WhatsAppConnectionResult> CompleteOnboarding(WhatsAppOnboardingCompletionInput input, CancellationToken token) =>
         service.CompleteOnboardingAsync(TenantId(), input, currentUser.Username, token);
+
+    [HttpGet("administration/tenants/{tenantId:guid}/onboarding/config"), PlatformAuthorize, HasPermission(Permissions.Features.Manage)]
+    public async Task<WhatsAppOnboardingConfigurationDto> OnboardingConfigForTenant(Guid tenantId, CancellationToken token)
+    {
+        var target = await TargetTenant(tenantId, token);
+        if (features is null || !await features.IsEnabledAsync(target, FeatureKeys.MetaWhatsAppIntegration, token))
+            throw new UnauthorizedAccessException("Meta WhatsApp integration is not enabled for this retailer.");
+        return await service.GetOnboardingConfigurationAsync(token);
+    }
+
+    [HttpPost("administration/tenants/{tenantId:guid}/onboarding/complete"), PlatformAuthorize, HasPermission(Permissions.Features.Manage)]
+    public async Task<WhatsAppConnectionResult> CompleteOnboardingForTenant(Guid tenantId, WhatsAppOnboardingCompletionInput input, CancellationToken token)
+    {
+        var target = await TargetTenant(tenantId, token);
+        if (features is null || !await features.IsEnabledAsync(target, FeatureKeys.MetaWhatsAppIntegration, token))
+            throw new UnauthorizedAccessException("Meta WhatsApp integration is not enabled for this retailer.");
+        return await service.CompleteOnboardingAsync(target, input, currentUser.Username, token);
+    }
 
     [HttpPost("configuration/validate"), HasPermission(Permissions.Admin.Settings), RequireFeature(FeatureKeys.MetaWhatsAppIntegration)]
     public Task<WhatsAppConnectionResult> ValidateForRetailer(ValidateWhatsAppConnectionInput? input, CancellationToken token) => service.ValidateConnectionAsync(TenantId(), input?.AccessToken, token);
@@ -75,11 +93,12 @@ public sealed partial class WhatsAppController(IWhatsAppService service, ICurren
     public async Task<IActionResult> VerifyWebhook([FromQuery(Name = "hub.mode")] string? mode,
         [FromQuery(Name = "hub.verify_token")] string? verifyToken,
         [FromQuery(Name = "hub.challenge")] string? challenge, CancellationToken token)
-    { var result = await service.VerifyWebhookAsync(mode, verifyToken, challenge, token); return result is null ? Forbid() : Content(result, "text/plain"); }
+    { if (outboundSafety is { AllowsExternalDelivery: false }) return NotFound(); var result = await service.VerifyWebhookAsync(mode, verifyToken, challenge, token); return result is null ? Forbid() : Content(result, "text/plain"); }
 
     [AllowAnonymous, HttpPost("webhook")]
     public async Task<IActionResult> ReceiveWebhook(CancellationToken token)
     {
+        if (outboundSafety is { AllowsExternalDelivery: false }) return Ok(new { ignored = true, reason = "DISABLED_IN_DEVELOPMENT" });
         var started = Stopwatch.GetTimestamp();
         if (Request.ContentLength > 1_048_576)
         {

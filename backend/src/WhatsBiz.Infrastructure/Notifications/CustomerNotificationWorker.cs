@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using WhatsBiz.Application.Common.Interfaces;
 
 namespace WhatsBiz.Infrastructure.Notifications;
 
@@ -10,12 +11,18 @@ internal sealed class CustomerNotificationWorker(
     IConfiguration configuration,
     IOptionsMonitor<FeatureOptions> features,
     IEnumerable<ICustomerMessageProvider> providers,
-    ILogger<CustomerNotificationWorker> logger) : BackgroundService
+    ILogger<CustomerNotificationWorker> logger,
+    IOutboundSafetyPolicy? outboundSafety = null) : BackgroundService
 {
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (outboundSafety is { AllowsExternalDelivery: false })
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+            return;
+        }
         while (!stoppingToken.IsCancellationRequested)
         {
             try

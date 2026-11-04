@@ -43,11 +43,13 @@ public sealed class PaymentsController(ICommercePaymentService payments, ICurren
 
 [ApiController,Route("api/payments/webhooks")]
 public sealed class PaymentWebhooksController(ICommercePaymentService payments,
-    ICommerceRefundService refunds):ControllerBase
+    ICommerceRefundService refunds,IOutboundSafetyPolicy outboundSafety):ControllerBase
 {
     [AllowAnonymous,HttpPost("razorpay"),RequestSizeLimit(262144)]
     public async Task<IActionResult> Razorpay(CancellationToken token)
     {
+        if (!outboundSafety.AllowsExternalDelivery)
+            return Ok(new { ignored = true, reason = "DISABLED_IN_DEVELOPMENT" });
         await using var buffer=new MemoryStream();await Request.Body.CopyToAsync(buffer,token);
         var signature=Request.Headers["X-Razorpay-Signature"].ToString();var eventId=Request.Headers["x-razorpay-event-id"].ToString();
         if(string.IsNullOrWhiteSpace(signature))return Unauthorized();

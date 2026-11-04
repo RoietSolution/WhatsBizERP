@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Net;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.RateLimiting;
@@ -176,6 +177,51 @@ public sealed class StorefrontCustomerAuthenticationTests
         await sender.SendAsync("9876543210", policy.CreateCode(), Guid.NewGuid(), CancellationToken.None);
     }
 
+    [Fact]
+    public async Task TwoFactorOtpUsesTheErpGeneratedCodeOverHttps()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["StorefrontOtp:Provider"] = "2Factor",
+            ["StorefrontOtp:Endpoint"] = "https://2factor.in/API/V1/OTP/SEND",
+            ["StorefrontOtp:ApiKey"] = "test-key",
+            ["StorefrontOtp:TemplateName"] = "LOGIN_OTP"
+        }).Build();
+        var handler = new OtpRecordingHandler();
+        var policy = new StorefrontOtpPolicy("Production", configuration);
+        var sender = new CustomerOtpSender(policy, configuration, new OtpClientFactory(handler));
+
+        await sender.SendAsync("9876543210", "123456", Guid.NewGuid(), CancellationToken.None);
+
+        handler.Uri!.Scheme.Should().Be("https");
+        handler.Uri.AbsolutePath.Should().Be("/API/V1/OTP/SEND");
+        handler.ApiKey.Should().Be("test-key");
+        handler.Method.Should().Be(HttpMethod.Post);
+        using var payload = System.Text.Json.JsonDocument.Parse(handler.Body);
+        payload.RootElement.GetProperty("to").GetString().Should().Be("+919876543210");
+        payload.RootElement.GetProperty("channel").GetString().Should().Be("SMS");
+        payload.RootElement.GetProperty("template_name").GetString().Should().Be("LOGIN_OTP");
+        payload.RootElement.GetProperty("var1").GetString().Should().Be("123456");
+    }
+
+    [Fact]
+    public async Task TwoFactorOtpRejectsNonTwoFactorOrHttpEndpointBeforeSending()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["StorefrontOtp:Provider"] = "2Factor",
+            ["StorefrontOtp:Endpoint"] = "http://example.invalid/API/V1/OTP/SEND",
+            ["StorefrontOtp:ApiKey"] = "test-key",
+            ["StorefrontOtp:TemplateName"] = "LOGIN_OTP"
+        }).Build();
+        var handler = new OtpRecordingHandler();
+        var policy = new StorefrontOtpPolicy("Production", configuration);
+        var sender = new CustomerOtpSender(policy, configuration, new OtpClientFactory(handler));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sender.SendAsync("9876543210", "123456", Guid.NewGuid(), CancellationToken.None));
+        handler.Calls.Should().Be(0);
+    }
+
     [Theory]
     [InlineData("Production")]
     [InlineData("Staging")]
@@ -221,6 +267,29 @@ public sealed class StorefrontCustomerAuthenticationTests
     private sealed class ThrowingClientFactory : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => throw new InvalidOperationException("The provider must not be called.");
+    }
+
+    private sealed class OtpRecordingHandler : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+        public Uri? Uri { get; private set; }
+        public HttpMethod? Method { get; private set; }
+        public string Body { get; private set; } = "";
+        public string? ApiKey { get; private set; }
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Calls++;
+            Uri = request.RequestUri;
+            Method = request.Method;
+            request.Headers.TryGetValues("X-API-Key", out var keyValues);
+            ApiKey = keyValues?.SingleOrDefault();
+            Body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"status\":\"sent\",\"session_id\":\"test\"}") };
+        }
+    }
+    private sealed class OtpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
     }
 
     private static string Read(string relative)=>File.ReadAllText(Path.Combine(Root(),relative.Replace('/',Path.DirectorySeparatorChar)));

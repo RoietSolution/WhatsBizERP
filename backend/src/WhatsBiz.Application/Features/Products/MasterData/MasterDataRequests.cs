@@ -11,7 +11,7 @@ public sealed record ExportProductCategoriesQuery : IRequest<byte[]>;
 public sealed record DownloadProductCategoryTemplateQuery : IRequest<byte[]>;
 public sealed record ImportProductCategoriesCommand(byte[] Content) : IRequest<ImportProductMasterResult>;
 public sealed record GetBrandsQuery(string? Search = null, bool? IsActive = null) : IRequest<IReadOnlyCollection<BrandDto>>;
-public sealed record CreateBrandCommand(BrandInput Input) : IRequest<BrandDto>;
+public sealed record CreateBrandCommand(BrandInput Input, bool TenantPrivate = false) : IRequest<BrandDto>;
 public sealed record UpdateBrandCommand(Guid Id, BrandInput Input) : IRequest<BrandDto>;
 public sealed record DeleteBrandCommand(Guid Id) : IRequest;
 public sealed record ExportBrandsQuery : IRequest<byte[]>;

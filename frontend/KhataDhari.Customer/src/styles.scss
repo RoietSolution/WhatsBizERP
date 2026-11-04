@@ -28,6 +28,16 @@
 }
 
 * { box-sizing: border-box; }
+
+shop-orders-page .orders article { border: 1px solid var(--store-border); border-radius: 16px; box-shadow: 0 8px 22px rgba(15,23,42,.04); padding: 16px; }
+shop-orders-page .top { align-items: flex-start; }
+shop-orders-page .top strong { font: 800 14px Manrope, sans-serif; }
+shop-orders-page .top small { font-size: 11px; line-height: 1.45; }
+shop-orders-page .top b { font: 800 16px Manrope, sans-serif; }
+shop-orders-page .bottom { padding-top: 12px; border-top: 1px solid var(--store-border); line-height: 1.5; }
+shop-orders-page .status { display: inline-flex; align-items: center; min-height: 25px; padding: 4px 9px; border-radius: 999px; font-size: 10px; }
+shop-orders-page article > a { display: inline-flex; align-items: center; min-height: 40px; margin-top: 4px; font-size: 12px; }
+@media (max-width: 620px) { shop-orders-page .orders article { padding: 14px; } shop-orders-page .top b { font-size: 14px; } shop-orders-page .bottom { align-items: flex-start; line-height: 1.55; } }
 html { min-width: 320px; min-height: 100%; background: var(--store-background); scroll-behavior: smooth; }
 body { margin: 0; color: var(--store-text); background: var(--store-background); font-family: 'DM Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
 button, input, textarea { font: inherit; }
@@ -46,3 +56,14 @@ a { color: inherit; }
 .return-line p { margin: 4px 0 0; font-size: 10px; line-height: 1.5; }
 .return-line small { font-size: 10px; line-height: 1.5; }
 @media (max-width: 620px) { .return-line img, .line-image-fallback { width: 42px; height: 42px; flex-basis: 42px; } }
+
+.return-form { display: grid; gap: 12px; margin-top: 14px; padding: 14px; border: 1px solid var(--store-border); border-radius: var(--store-radius-sm); background: var(--store-surface); }
+.return-form > label { display: grid; gap: 6px; min-width: 0; color: var(--store-primary-dark); font-size: 11px; font-weight: 800; }
+.return-form input, .return-form select, .return-form textarea { width: 100%; min-height: 40px; box-sizing: border-box; padding: 9px 10px; border: 1px solid var(--store-border); border-radius: var(--store-radius-sm); background: var(--store-surface); color: var(--store-text); font: inherit; font-size: 12px; }
+.return-form textarea { min-height: 92px; resize: vertical; }
+.return-form input:focus, .return-form select:focus, .return-form textarea:focus { border-color: var(--store-primary); outline: 0; box-shadow: 0 0 0 3px var(--store-primary-soft); }
+.return-form button { min-height: 40px; padding: 9px 14px; border: 1px solid var(--store-border); border-radius: var(--store-radius-sm); background: var(--store-surface); color: var(--store-primary-dark); font-weight: 800; cursor: pointer; }
+.return-form button:first-of-type { margin-top: 2px; background: var(--store-primary); border-color: var(--store-primary); color: #fff; }
+.return-form button:disabled { cursor: not-allowed; opacity: .55; }
+@media (min-width: 621px) { .return-form { grid-template-columns: 120px minmax(0, 1fr); align-items: end; } .return-form > label:last-of-type { grid-column: 1 / -1; } .return-form > button { justify-self: end; } }
+@media (max-width: 620px) { .return-form { padding: 12px; } .return-form > button { width: 100%; } }

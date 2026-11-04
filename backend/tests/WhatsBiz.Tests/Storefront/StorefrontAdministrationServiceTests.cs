@@ -9,6 +9,7 @@ using WhatsBiz.Domain.Tenants;
 using WhatsBiz.Infrastructure.Persistence;
 using WhatsBiz.Infrastructure.Notifications;
 using WhatsBiz.Infrastructure.Storefront;
+using WhatsBiz.Tests.Notifications;
 
 namespace WhatsBiz.Tests.Storefront;
 
@@ -35,8 +36,17 @@ public sealed class StorefrontAdministrationServiceTests
 
         var storefront = new StorefrontService(db, new NoProductImages(), new TestStorage());
         var publicStore = await storefront.GetStoreAsync("guturgo", default);
-        publicStore!.LogoUrl.Should().Be("/api/store/GUTURGO/presentation/logo");
+        publicStore!.LogoUrl.Should().Be($"/api/store/GUTURGO/presentation/logo?v={configuration.LogoMediaId!.Value:N}");
         (await storefront.GetPresentationImageAsync("guturgo", "logo", null, default))!.Content.Should().Equal(1, 2, 3);
+
+        var oldLogoId = configuration.LogoMediaId!.Value;
+        await service.UploadImageAsync("logo", null, "replacement.png", new MemoryStream([4, 5, 6]), default);
+        var replacementConfiguration = await db.StorefrontConfigurations.SingleAsync(x => x.TenantId == tenant.TenantId);
+        replacementConfiguration.LogoMediaId.Should().NotBe(oldLogoId);
+        var replacementStore = await storefront.GetStoreAsync("guturgo", default);
+        replacementStore!.LogoUrl.Should().Be($"/api/store/GUTURGO/presentation/logo?v={replacementConfiguration.LogoMediaId!.Value:N}");
+        (await storefront.GetPresentationImageAsync("guturgo", "logo", null, default))!.Content.Should().Equal(4, 5, 6);
+        (await db.StorefrontMedia.AnyAsync(x => x.TenantId == tenant.TenantId && x.MediaId == oldLogoId)).Should().BeFalse();
 
         await service.UpdateBannerAsync(StorefrontBannerSlots.Primary,
             new(false, null, null, "Seasonal", null, null, 1), default);
@@ -137,7 +147,7 @@ public sealed class StorefrontAdministrationServiceTests
     private static StorefrontAdministrationService CreateService(ApplicationDbContext db, Guid tenantId)
         => new(db, new CurrentUser(tenantId), new TestOptimizer(), new TestStorage(),
             DataProtectionProvider.Create("whatsbiz-storefront-administration-tests"),
-            Options.Create(new StorefrontFeedbackNotificationOptions()));
+            Options.Create(new StorefrontFeedbackNotificationOptions()),new AllowTestOutboundSafetyPolicy());
 
     private static ApplicationDbContext CreateDb() => new(new DbContextOptionsBuilder<ApplicationDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

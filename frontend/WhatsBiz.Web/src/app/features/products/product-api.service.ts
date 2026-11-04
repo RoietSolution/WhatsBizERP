@@ -17,6 +17,15 @@ import {
 @Injectable({ providedIn: 'root' })
 export class ProductApiService {
   constructor(private readonly http: HttpClient) {}
+  supplierOptions(): Observable<{supplierId:string;supplierCode:string;supplierName:string}[]> { return this.http.get<{supplierId:string;supplierCode:string;supplierName:string}[]>('/api/suppliers/dropdown'); }
+  supplierCatalogProfile(id:string):Observable<any>{return this.http.get(`/api/suppliers/${id}/catalog-import/profile`);}
+  shopifySupplierCatalogTemplate(id:string):Observable<Blob>{return this.http.get(`/api/suppliers/${id}/catalog-import/template`,{responseType:'blob'});}
+  saveSupplierCatalogProfile(id:string,input:any):Observable<any>{return this.http.put(`/api/suppliers/${id}/catalog-import/profile`,input);}
+  previewSupplierCatalog(id:string,file:File):Observable<any>{const data=new FormData();data.append('file',file);return this.http.post(`/api/suppliers/${id}/catalog-import/preview`,data);}
+  importSupplierCatalog(id:string,file:File,selections:{primaryCategories:Record<number,string>;sellingPrices:Record<number,number|null>}):Observable<any>{const data=new FormData();data.append('file',file);data.append('selectionsJson',JSON.stringify(selections));return this.http.post(`/api/suppliers/${id}/catalog-import/import`,data);}
+  partnerSellers(): Observable<{partnerSellerId:string;sellerName:string;sellerType:string}[]> { return this.http.get<{partnerSellerId:string;sellerName:string;sellerType:string}[]>('/api/partner-sellers/eligible'); }
+  partnerListing(productId:string):Observable<{partnerSellerId:string;sellerName:string;listingStatus:string;verificationStatus:string;sellerStatus:string}|null>{return this.http.get<{partnerSellerId:string;sellerName:string;listingStatus:string;verificationStatus:string;sellerStatus:string}|null>(`/api/partner-sellers/products/${productId}`);}
+  submitProductsForApproval(productIds:string[],commit:boolean):Observable<{productId:string;status:string;message?:string}[]>{return this.http.post<{productId:string;status:string;message?:string}[]>('/api/public-catalog/products/submit-bulk',{productIds,commit});}
   search(query: {
     search?: string;
     isActive?: boolean;
@@ -48,6 +57,7 @@ export class ProductApiService {
   create(input: ProductInput): Observable<Product> {
     return this.http.post<Product>('/api/products', input);
   }
+  saveWithSource(id:string|null,input:ProductInput,partnerSellerId:string|null):Observable<Product>{const body={product:input,partnerSellerId};return id?this.http.put<Product>(`/api/products/${id}/with-source`,body):this.http.post<Product>('/api/products/with-source',body);}
   update(id: string, input: ProductInput): Observable<Product> {
     return this.http.put<Product>(`/api/products/${id}`, input);
   }
@@ -87,6 +97,9 @@ export class ProductApiService {
     return this.http.get(imageUrl, { responseType: 'blob' });
   }
   deleteProductImage(productId: string, imageId: string): Observable<void> { return this.http.delete<void>(`/api/products/${productId}/images/${imageId}`); }
+  pricingPreview(input: { sellingPrice: number; GSTPercentage: number; GstPricingType: 'INCLUSIVE' | 'EXCLUSIVE' }): Observable<{ sellingPrice: number; gstAmount: number; customerTotal: number; gstPricingType: string }> {
+    return this.http.post<{ sellingPrice: number; gstAmount: number; customerTotal: number; gstPricingType: string }>('/api/products/pricing-preview', input);
+  }
   categories(): Observable<Category[]> {
     return this.http.get<Category[]>('/api/productcategories');
   }

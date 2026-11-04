@@ -1,0 +1,10 @@
+<dialog #modal class="campaign-modal" aria-modal="true" aria-labelledby="campaign-title" (cancel)="cancel($event)">
+ @if(active();as campaign){
+  <article><button type="button" class="dismiss" (click)="close()" aria-label="Dismiss announcement" autofocus>×</button>
+   @if(campaign.imageUrl&&!imageFailed()){<img class="campaign-image" [src]="imageUrl(campaign)" alt="" (error)="imageFailed.set(true)">}
+   <div class="campaign-body"><span class="eyebrow">FROM YOUR STORE</span><h2 id="campaign-title">{{campaign.headline}}</h2><div class="rich-content" [innerHTML]="campaign.htmlContent"></div>
+    <footer>@if(campaign.destination&&campaign.ctaText){<button type="button" class="shop-action" (click)="go()">{{campaign.ctaText}} <span aria-hidden="true">→</span></button>}<button type="button" class="later" (click)="close()">Continue browsing</button></footer>
+   </div>
+  </article>
+ }
+</dialog>

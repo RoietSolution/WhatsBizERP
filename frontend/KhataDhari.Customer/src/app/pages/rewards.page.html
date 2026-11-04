@@ -9,18 +9,19 @@
     } @else {
       <header class="section-header"><div><span class="eyebrow">KHATADHARI REWARDS</span><h2 id="rewards-title">My Rewards</h2><p>Invite friends and earn coins for qualifying referrals.</p></div></header>
       <div class="reward-balance"><span class="balance-label">Available coins</span><strong>{{rewards.wallet?.availableCoins ?? 0}}</strong><span class="balance-note">Server-authoritative balance</span></div>
+      @if (rewards.wallet; as wallet) { <div class="wallet-summary" aria-label="Coin summary"><div><span>Earned</span><strong>{{wallet.totalEarned}} coins</strong></div><div><span>Redeemed</span><strong>{{wallet.totalRedeemed}} coins</strong></div><div><span>Transactions</span><strong>{{wallet.transactions.length}}</strong></div></div> }
       <article class="reward-card referral-card">
         <div><span class="eyebrow">REFER &amp; EARN</span><h3>Share your referral</h3><p>Invite another customer using your personal KhataDhari link.</p></div>
         <div class="referral-value"><span>Referral code</span><strong>{{rewards.referralCode?.code}}</strong><div class="button-row"><button class="secondary-button" type="button" (click)="copy(rewards.referralCode?.code ?? '', 'Referral code')">Copy code</button><button class="primary-button" type="button" (click)="share()">Share on WhatsApp</button></div></div>
         <div class="link-row"><span>{{rewards.referralCode?.referralUrl}}</span><button class="secondary-button" type="button" (click)="copy(rewards.referralCode?.referralUrl ?? '', 'Referral link')">Copy link</button></div>
       </article>
-      <article class="reward-card"><div class="card-heading"><h3>How it works</h3></div><ol class="steps"><li>Share your referral link</li><li>Your friend registers through the invitation</li><li>Their first qualifying action is completed</li><li>Configured rewards are credited automatically</li></ol><p class="terms">{{rewards.terms}}</p></article>
+      <article class="reward-card how-it-works"><div class="card-heading"><div><span class="eyebrow">SIMPLE STEPS</span><h3>How it works</h3></div></div><ol class="steps"><li>Share your referral link with a friend.</li><li>Your friend signs up using your invitation.</li><li>Your friend completes their first eligible order.</li><li>Referral and welcome coins are credited according to the configured reward rules.</li></ol><div class="reward-rules"><div><span>Referrer reward</span><strong>{{rewards.referrerRewardCoins}} coins</strong></div><div><span>Welcome reward</span><strong>{{rewards.referredRewardCoins}} coins</strong></div><div><span>Coin validity</span><strong>{{rewards.coinValidityDays}} days</strong></div></div><p class="terms">{{rewards.terms}}</p></article>
       <article class="reward-card">
         <div class="card-heading"><h3>Your referrals</h3><span>{{rewards.referrals.length}}</span></div>
         @if (rewards.referrals.length) {
           <div class="history-list">
             @for (referral of rewards.referrals; track referral.referralId) {
-              <div class="history-row"><div><strong>{{referral.referredCustomerDisplay}}</strong><small>{{referral.qualificationType}}</small></div><span class="status" [class]="statusClass(referral.status)">{{referral.status}}</span><time>{{referral.createdAt | date:'mediumDate'}}</time></div>
+              <div class="history-row referral-row"><div><strong>{{referral.referredCustomerDisplay}}</strong><small>{{qualificationLabel(referral.qualificationType)}} · Joined {{referral.createdAt | date:'mediumDate'}}</small>@if (referral.rewardedAt) {<small>Rewarded {{referral.rewardedAt | date:'mediumDate'}}</small>}</div><span class="status" [class]="statusClass(referral.status)">{{statusLabel(referral.status)}}</span></div>
             }
           </div>
         } @else { <p class="empty-copy">Your referral history will appear here.</p> }
@@ -30,7 +31,7 @@
         @if (rewards.wallet?.transactions?.length) {
           <div class="history-list">
             @for (transaction of rewards.wallet?.transactions ?? []; track transaction.coinTransactionId) {
-              <div class="history-row"><div><strong>{{transaction.description || transaction.transactionType}}</strong><small>@if (transaction.expiresAt) { Expires {{transaction.expiresAt | date:'mediumDate'}} }</small></div><span class="coin-amount" [class.debit]="transaction.coins < 0">{{transaction.coins > 0 ? '+' : ''}}{{transaction.coins}}</span><time>{{transaction.createdOn | date:'mediumDate'}}</time></div>
+              <div class="history-row coin-row"><div><strong>{{transactionLabel(transaction.transactionType, transaction.description)}}</strong><small>{{transaction.createdOn | date:'mediumDate'}} @if (transaction.expiresAt) { · Expires {{transaction.expiresAt | date:'mediumDate'}} }</small></div><span class="coin-amount" [class.debit]="transaction.coins < 0">{{transaction.coins > 0 ? '+' : ''}}{{transaction.coins}} coins</span></div>
             }
           </div>
         } @else { <p class="empty-copy">Your coin transactions will appear here.</p> }

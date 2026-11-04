@@ -1,0 +1,44 @@
+V65 REVIEW PROPOSAL — NOT EXECUTABLE
+
+Target: sales.POS_PostInvoice
+
+Authoritative contract:
+- @ItemsJson.UnitPrice is the customer-facing selling amount.
+- The procedure joins each ProductId to master.Products within @TenantId.
+- GstPricingType is never trusted from JSON.
+- EXCLUSIVE keeps the existing taxable-basis calculation.
+- INCLUSIVE treats the discounted gross amount as the line payable, extracts
+  taxable amount = gross / (1 + GSTPercentage / 100), and stores the extracted
+  GST without adding it to the line total.
+- Invoice GrandTotal adds only additional GST from EXCLUSIVE lines.
+- Invoice TaxAmount includes both extracted INCLUSIVE GST and additional
+  EXCLUSIVE GST.
+
+Required guarded changes to the existing procedure:
+
+```diff
+- @Tax DECIMAL(18,2)=0
++ @Tax DECIMAL(18,2)=0,@AdditionalTax DECIMAL(18,2)=0
+
+- @Tax=SUM(((Quantity*UnitPrice)-Discount)*TaxPercentage/100)
+- @Grand=ROUND(@Subtotal-@ItemDiscount-@BillDiscount+@Tax+@DeliveryCharge+@RoundOff,2)
++ @Tax=SUM(CASE WHEN p.GstPricingType=N'INCLUSIVE'
++   THEN ROUND(DiscountedGross*TaxPercentage/(100+TaxPercentage),2)
++   ELSE ROUND(DiscountedGross*TaxPercentage/100,2) END),
++ @AdditionalTax=SUM(CASE WHEN p.GstPricingType=N'INCLUSIVE' THEN 0
++   ELSE ROUND(DiscountedGross*TaxPercentage/100,2) END)
++ @Grand=ROUND(@Subtotal-@ItemDiscount-@BillDiscount+@AdditionalTax+
++   @DeliveryCharge+@RoundOff,2)
+
+- cursor reads JSON items only
++ cursor joins master.Products by ProductId and reads persisted GstPricingType
+
+- taxable=discounted gross; tax=taxable*rate/100; line=taxable+tax
++ INCLUSIVE: taxable=round(discounted gross/(1+rate/100),2),
++ tax=round(discounted gross-taxable,2), line=discounted gross
++ EXCLUSIVE: retain existing taxable/tax/line calculation
+```
+
+V65 must fail if the expected old procedure text/signature is absent, use
+CREATE OR ALTER only after the exact replacement has been reviewed, and be
+tested in WhatsBizERP_PosGstIntegrationTest before QA/PROD consideration.

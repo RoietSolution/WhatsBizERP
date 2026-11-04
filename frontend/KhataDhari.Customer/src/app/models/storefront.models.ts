@@ -13,9 +13,12 @@ export interface Store {
   banners: StoreBanner[];
   paymentMethods: StorePaymentMethod[];
   customerRewardsEnabled: boolean;
+  featuredCategories?: Category[];
+  orderContactNumber?: string;
 }
 
 export interface StoreBanner { slot: 'PRIMARY' | 'SECONDARY'; imageUrl: string; title?: string; subtitle?: string; targetUrl?: string; displayOrder: number; promotionId?: string | null; }
+export interface AvailabilityAnnouncement { scheduleId:string; scheduleName:string; title:string; message?:string|null; orderWindowLabel:string; deliveryWindowLabel:string; windowLabel?:string; status:string; nextTransitionAt?:string|null; productIds:string[]; nextOrderOpenAtUtc?:string|null; nextOrderCloseAtUtc?:string|null; serverNowUtc?:string|null; timeZoneId?:string|null; clientReceivedAtUtc?:number; }
 export interface StorePaymentMethod { code: 'UPI' | 'NET_BANKING' | 'COD'; provider: 'RAZORPAY' | 'COD'; label: string; description: string; isDefault: boolean; usesHostedPaymentPage: boolean; }
 
 export interface Category {
@@ -23,6 +26,7 @@ export interface Category {
   name: string;
   emoji?: string;
   imageUrl?: string;
+  parentId?: string | null;
 }
 
 export interface Product {
@@ -35,8 +39,26 @@ export interface Product {
   imageUrl: string;
   images?: ProductImage[];
   sellingPrice: number;
+  gstPercentage?: number;
+  gstPricingType?: 'INCLUSIVE' | 'EXCLUSIVE';
   compareAtPrice?: number;
   available: boolean;
+  availability?: 'ORDERING_OPEN'|'ORDERING_CLOSED'|'AVAILABLE_NOW'|'AVAILABLE_LATER'|'UNAVAILABLE_TODAY'|'OUT_OF_STOCK'|'INACTIVE';
+  availabilityMessage?: string;
+  availabilityWindow?: string;
+  availabilityDeliveryWindow?: string;
+  availabilityNextTransition?: string;
+  canOrderNow?: boolean;
+  availabilityReason?: string;
+  nextOrderOpenAtUtc?: string;
+  nextOrderCloseAtUtc?: string;
+  availabilityServerNowUtc?: string;
+  availabilityTimeZoneId?: string;
+  availabilityClientReceivedAtUtc?: number;
+  isPurchasable?: boolean;
+  partnerSellerId?: string;
+  sellerName?: string;
+  notPurchasableReason?: string;
   packSize?: string;
   averageRating?: number;
   ratingCount?: number;
@@ -84,14 +106,17 @@ export interface CustomerOrder {
   merchandiseTaxAmount?: number;
   merchandiseSubtotal?: number;
   cancellation?: CustomerOrderCancellation;
+  returnRequests?: StorefrontReturnRequest[];
 }
 
 export interface CustomerOrderCancellation { canRequest:boolean;unavailableReason?:string;requestStatus?:string;reason?:string;refundableAmount:number;refundStatus:string;refundAmount:number;refundedAt?:string;refundNeedsReconciliation?:boolean;decisionNote?:string; }
 export interface CustomerOrderLine { productId:string;productName:string;packSize?:string;quantity:number;lineTotal:number;isReturnable?:boolean;returnWindowDays?:number;deliveredAt?:string;returnDeadline?:string;returnStatus?:string;returnPolicyDescription?:string;invoiceItemId?:string;returnedQuantity?:number;returnableQuantity:number;returnRequestedQuantity?:number;returnRequestStatus?:string;returnRequestId?:string; }
 export interface StorefrontReturnRequest { requestId:string;orderId:string;invoiceItemId:string;orderNumber:string;productName:string;productCode?:string;quantity:number;reason:string;explanation?:string;status:string;requestedAtUtc:string;decidedAtUtc?:string;decisionNote?:string; }
 export interface OrderMilestone { code:string;label:string;state:string;occurredAt?:string; }
-export interface CartQuote { eligibleAmount:number;freeDeliveryThreshold?:number;remainingAmount:number;progressPercent:number;isFreeDeliveryUnlocked:boolean;isDeliveryEnabled:boolean;isPincodeServiceable:boolean;merchandiseAmount:number;merchandiseTaxAmount:number;merchandiseSubtotal:number;standardDeliveryCharge:number;freeDeliveryEnabled:boolean;deliveryCharge:number;promotionDiscount:number;promotionName?:string;promotionId?:string;finalPayableAmount:number; promotionCode?: string; }
+export interface CartFulfillmentWarning { code:string; message:string; productIds?:string[]; }
+export interface CartQuote { eligibleAmount:number;freeDeliveryThreshold?:number;remainingAmount:number;progressPercent:number;isFreeDeliveryUnlocked:boolean;isDeliveryEnabled:boolean;isPincodeServiceable:boolean;merchandiseAmount:number;merchandiseTaxAmount:number;merchandiseSubtotal:number;standardDeliveryCharge:number;freeDeliveryEnabled:boolean;deliveryCharge:number;promotionDiscount:number;promotionName?:string;promotionId?:string;finalPayableAmount:number; promotionCode?: string; productSavings?: number; fulfillmentWarnings?: CartFulfillmentWarning[]; }
 export interface CheckoutCustomer {
+  expectedPayableAmount?: number;
   customerName: string;
   mobile: string;
   email?: string;

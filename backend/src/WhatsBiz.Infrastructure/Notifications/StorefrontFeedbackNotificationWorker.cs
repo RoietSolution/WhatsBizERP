@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Infrastructure.DemoRequests;
 
 namespace WhatsBiz.Infrastructure.Notifications;
@@ -33,13 +34,19 @@ public sealed class WhatsAppFeedbackDeliveryOptions
 internal sealed class StorefrontFeedbackNotificationWorker(
     IConfiguration configuration,
     IOptions<StorefrontFeedbackNotificationOptions> options,
-    ILogger<StorefrontFeedbackNotificationWorker> logger) : BackgroundService
+    ILogger<StorefrontFeedbackNotificationWorker> logger,
+    IOutboundSafetyPolicy? outboundSafety = null) : BackgroundService
 {
     private readonly StorefrontFeedbackNotificationOptions settings = options.Value;
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (outboundSafety is { AllowsExternalDelivery: false })
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+            return;
+        }
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -96,6 +103,8 @@ WHERE DeliveryId=@id AND Status=N'PROCESSING';
 
     private async Task<DeliveryResult> Deliver(WorkItem item, CancellationToken token)
     {
+        if (outboundSafety is { AllowsExternalDelivery: false })
+            return new("PENDING", null, "DEVELOPMENT_BLOCKED", "External delivery is disabled in Development.");
         if (string.Equals(item.Channel, "WHATSAPP", StringComparison.OrdinalIgnoreCase))
             return new("SKIPPED", null, "NOT_CONFIGURED", "WhatsApp complaint delivery requires explicit customer opt-in and an approved template mapping.");
         if (!string.Equals(item.Channel, "EMAIL", StringComparison.OrdinalIgnoreCase))

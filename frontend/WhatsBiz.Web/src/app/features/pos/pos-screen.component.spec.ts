@@ -117,6 +117,25 @@ describe('POSScreenComponent barcode flow', () => {
     expect(component.products()).toHaveSize(1);
   });
 
+  it('combines product search, category and brand without clearing the cart', () => {
+    const { api, component } = setup();
+    api.products.and.returnValue(of([product()]));
+    component.add(product());
+    component.search = 'tea';
+    component.categoryId = 'category-1';
+    component.brandId = 'brand-1';
+
+    component.findProducts();
+
+    expect(api.products).toHaveBeenCalledWith(
+      'tea', undefined, 'warehouse-1', undefined, 'category-1', 'brand-1',
+    );
+    expect(component.search).toBe('tea');
+    expect(component.categoryId).toBe('category-1');
+    expect(component.brandId).toBe('brand-1');
+    expect(component.cart()).toHaveSize(1);
+  });
+
   it('loads a product thumbnail only once when an item is added repeatedly', () => {
     const { api, component } = setup();
 

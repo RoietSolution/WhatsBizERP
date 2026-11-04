@@ -1,6 +1,33 @@
 :host {
   display: block;
 }
+.mobile-module-access {
+  display: none;
+}
+.dashboard-load-error {
+  display: flex;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  color: var(--wb-text);
+  background: var(--wb-warning-soft, #fff8e6);
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-md);
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.8125rem;
+}
+.dashboard-load-error button {
+  min-height: 40px;
+  padding: 0 12px;
+  color: var(--wb-primary);
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
 .dashboard {
   position: relative;
   min-height: 640px;
@@ -427,7 +454,67 @@
     border-bottom: 1px solid var(--wb-border);
   }
 }
+@media (max-width: 899px) {
+  .mobile-module-access {
+    display: grid;
+    margin: 0 0 18px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .module-card {
+    display: grid;
+    position: relative;
+    min-width: 0;
+    min-height: 108px;
+    padding: 14px;
+    color: var(--wb-text);
+    background: var(--wb-surface);
+    border: 1px solid var(--wb-border);
+    border-radius: var(--wb-radius-md);
+    box-shadow: var(--wb-shadow-sm);
+    align-content: space-between;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    text-decoration: none;
+    transition: border-color var(--wb-motion), transform var(--wb-motion), box-shadow var(--wb-motion);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .module-card:hover,
+  .module-card:focus-visible {
+    border-color: var(--wb-primary);
+    box-shadow: var(--wb-shadow-md);
+    outline: none;
+  }
+  .module-card:active {
+    transform: scale(0.985);
+  }
+  .module-icon {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    color: var(--wb-primary);
+    background: var(--wb-primary-soft);
+    border-radius: 12px;
+    font-size: 22px;
+    place-items: center;
+  }
+  .module-label {
+    align-self: end;
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  .module-arrow {
+    align-self: end;
+    color: var(--wb-text-secondary);
+    font-size: 18px;
+  }
+}
 @media (max-width: 767px) {
+  .dashboard-load-error {
+    align-items: flex-start;
+    flex-direction: column;
+  }
   .business-summary {
     align-items: flex-start;
     flex-direction: column;
@@ -477,6 +564,20 @@
   }
   .inventory-metrics {
     grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 359px) {
+  .module-card {
+    min-height: 96px;
+    padding: 11px;
+  }
+  .module-label {
+    font-size: 0.8rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .module-card {
+    transition: none;
   }
 }
 

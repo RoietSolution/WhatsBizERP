@@ -1,3 +1,13 @@
+<section class="product-approval-actions" aria-label="Product approval submission">
+  <div><strong>{{ selectedProducts().length }} selected</strong><span>Submit retailer products to the Application Owner for review. Importing products does not submit them automatically.</span></div>
+  <div class="product-approval-buttons">
+    <button type="button" (click)="selectEligiblePage()" [disabled]="loading() || selectionBusy() || !items().length">Select eligible on this page</button>
+    <button type="button" (click)="selectAllMatching()" [disabled]="loading() || selectionBusy() || total()===0">{{selectionBusy()?'Loading matching products…':'Select all matching (up to 100)'}}</button>
+    <button type="button" (click)="selectedProducts.set([]); masterPage()?.clearSelection()" [disabled]="!selectedProducts().length">Clear selection</button>
+    <button class="primary" type="button" (click)="submitSelectedForApproval()" [disabled]="loading() || !selectedProducts().length || selectedProducts().length>100">Submit for Approval</button>
+  </div>
+</section>
+@if(approvalResults().length){<section class="product-approval-results" aria-label="Last approval submission results"><h2>Submission results</h2><ul>@for(result of approvalResults();track result.productId){<li><strong>{{result.productName}}</strong> — {{result.status.replaceAll('_',' ')}}{{result.message?': '+result.message:''}}</li>}</ul></section>}
 <app-master-page
   [config]="config"
   [rows]="items()"
@@ -7,6 +17,8 @@
   [pageSize]="size"
   [summaries]="summaries()"
   [cardImages]="cardImages()"
+  (cardImageError)="cardImageFailed($event)"
+  (selectionChange)="selectionChanged($event)"
   (searchChange)="search = $event; page = 1; load()"
   (statusChange)="status = $event; page = 1; load()"
   (pageChange)="paged($event)"

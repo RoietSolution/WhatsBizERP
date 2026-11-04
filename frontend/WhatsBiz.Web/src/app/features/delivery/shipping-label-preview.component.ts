@@ -1,7 +1,7 @@
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ShippingLabelFormat, StorefrontShippingLabel } from './shipping-label.models';
+import { ShippingLabelFormat, StorefrontShippingLabel, shippingLabelPaymentIndicator } from './shipping-label.models';
 
 @Component({
   standalone: true,
@@ -39,6 +39,6 @@ export class ShippingLabelPreviewComponent {
   thermalReady(): boolean { return this.format !== 'THERMAL_58' && this.format !== 'THERMAL_80'; }
   canPrint(): boolean { return this.orders.length > 0; }
   pageCount(): number { return this.format === 'A4_DOUBLE' ? Math.ceil(this.orders.length / 2) : this.orders.length; }
-  paymentIndicator(order: StorefrontShippingLabel): string { return order.paymentDue ? 'CASH ON DELIVERY' : 'PREPAID / PAID'; }
+  paymentIndicator(order: StorefrontShippingLabel): string { return shippingLabelPaymentIndicator(order); }
   print(): void { if (!this.canPrint()) return; localStorage.setItem('whatsbiz.storefront.shipping-label-format', this.format); window.print(); }
 }

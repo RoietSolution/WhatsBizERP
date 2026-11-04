@@ -1,0 +1,37 @@
+<h2 mat-dialog-title>Share on WhatsApp</h2>
+<mat-dialog-content>
+  @if (loading()) { <p role="status">Loading current public product…</p> }
+  @if (error()) { <p class="notice error" role="alert">{{ error() }}</p> @if (!preview()) { <button mat-stroked-button (click)="load()" [disabled]="loading()">Retry</button> } }
+  @if (preview(); as item) {
+    <section class="product">
+      <div class="image">@if (item.imageUrl && !imageFailed()) { <img [src]="item.imageUrl" [alt]="item.productName" (error)="imageFailed.set(true)" /> } @else { <span>Product image unavailable</span> }</div>
+      <div><p class="store">{{ item.storeName }}</p><h3>{{ item.productName }}</h3><strong class="price">{{ item.priceLabel }}</strong><p>{{ item.description }}</p></div>
+    </section>
+    <label class="link-label" for="product-share-link">Product share link</label>
+    <input id="product-share-link" class="link" [value]="item.linkPreviewUrl || ''" readonly (focus)="$any($event.target).select()" />
+    <label for="share-comment">Comment (optional)</label>
+    <textarea id="share-comment" rows="3" maxlength="300" [(ngModel)]="comment" [disabled]="sending() || attempted()" aria-describedby="comment-help"></textarea>
+    <p id="comment-help" class="hint">{{ comment.length }}/300 · For this share only; never changes the product or public link preview. API comments require a supported session image caption; the fixed template has no comment field.</p>
+    <section class="message-preview" aria-label="Message preview"><h4>Message preview</h4><pre>{{ manualMessage() }}</pre></section>
+    <div class="actions"><button mat-stroked-button (click)="copy()" [disabled]="!item.linkPreviewUrl">Copy Link</button>@if (item.linkPreviewUrl) { <a mat-flat-button [href]="manualWhatsAppUrl()" target="_blank" rel="noopener noreferrer">Manual WhatsApp Share</a> }</div>
+    <a mat-button [href]="item.productUrl" target="_blank" rel="noopener noreferrer">Open product directly</a>
+    <p class="hint">Opens WhatsApp's share flow. The message contains a link; WhatsApp decides whether to display an image preview. Sending does not place an order.</p>
+    <p class="hint">WhatsApp may show the link's domain automatically. A manual share sends a clickable URL, not a real button. Approved Meta templates can include a View Product button.</p>
+    <details>
+      <summary>API Send to one customer</summary>
+      @if (!item.apiSendAvailable) { <p class="notice">{{ item.apiSendUnavailableReason }}</p> }
+      @else {
+        <p class="hint">Requires messaging consent. Outside the customer-service window an approved image template is required. META_TEST is restricted to its configured recipient; MOCK sends nothing to WhatsApp.</p>
+        <label for="share-customer-search">Find customer</label>
+        <div class="search"><input id="share-customer-search" [(ngModel)]="customerSearch" placeholder="Customer name or code" [disabled]="sending() || attempted()" /><button mat-stroked-button (click)="findCustomers()" [disabled]="customersLoading() || sending() || attempted()">{{ customersLoading() ? 'Loading…' : 'Search' }}</button></div>
+        @if (customerError()) { <p role="alert" class="error">{{ customerError() }}</p> }
+        <label for="share-customer">Customer</label><select id="share-customer" [(ngModel)]="customerId" [disabled]="sending() || attempted()"><option value="">Select a customer</option>@for (customer of customers(); track customer.customerId) { <option [value]="customer.customerId">{{ customer.customerName }} · {{ customer.customerCode }}</option> }</select>
+        <label class="consent"><input type="checkbox" [(ngModel)]="consent" [disabled]="sending() || attempted()" /><span>I have verified this customer's consent to receive this product message. My confirmation will be recorded.</span></label>
+        <button mat-flat-button (click)="send()" [disabled]="sending() || attempted() || !customerId || !consent">{{ sending() ? 'Sending…' : 'Send via configured provider' }}</button>
+        @if (attempted()) { <button mat-stroked-button (click)="checkStatus()" [disabled]="sending()">Check delivery status</button> }
+      }
+    </details>
+  }
+  @if (result()) { <p class="notice" role="status">{{ result() }}</p> }
+</mat-dialog-content>
+<mat-dialog-actions align="end"><button mat-button mat-dialog-close [disabled]="sending()">Close</button></mat-dialog-actions>

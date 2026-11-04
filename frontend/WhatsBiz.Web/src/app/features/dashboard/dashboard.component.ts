@@ -5,6 +5,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { catchError, forkJoin, of } from 'rxjs';
 import { CurrentUserService } from '../../core/services/current-user.service';
+import { FeatureService } from '../../core/services/feature.service';
+import { PermissionService } from '../../core/services/permission.service';
+import { QuickAccessLink, visibleQuickAccessLinks } from '../../shared/services/quick-access-links';
 import {
   ChartComponent,
   DashboardChartConfig,
@@ -73,6 +76,8 @@ interface Activity {
 export class DashboardComponent {
   private readonly api = inject(DashboardApiService);
   private readonly currentUser = inject(CurrentUserService);
+  private readonly permissions = inject(PermissionService);
+  private readonly features = inject(FeatureService);
   readonly summary = signal<Summary | null>(null);
   readonly inventory = signal<Inventory | null>(null);
   readonly finance = signal<Finance | null>(null);
@@ -82,6 +87,7 @@ export class DashboardComponent {
   readonly sales = signal<SalesAnalytics | null>(null);
   readonly purchase = signal<PurchaseAnalytics | null>(null);
   readonly coreLoading = signal(false);
+  readonly dataLoadError = signal(false);
   readonly analyticsLoading = signal(false);
   readonly salesPeriod = signal<SalesPeriod>('hourly');
   readonly periods: SalesPeriod[] = ['hourly', 'daily', 'monthly', 'yearly'];
@@ -89,14 +95,26 @@ export class DashboardComponent {
   readonly placeholders = Array.from({ length: 8 }, (_, index) => index);
   from = new Date().toISOString().slice(0, 10);
   to = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
-  readonly quickActions = [
-    { label: 'New Sale', icon: 'point_of_sale', route: '/pos' },
-    { label: 'New Purchase', icon: 'shopping_cart', route: '/purchases/create' },
-    { label: 'Add Product', icon: 'add_box', route: '/products/new' },
-    { label: 'Add Customer', icon: 'person_add', route: '/customers/new' },
-    { label: 'Stock Adjustment', icon: 'tune', route: '/inventory/adjustment' },
-    { label: 'Reports', icon: 'analytics', route: '/analytics/sales' },
+  private readonly moduleLinks: QuickAccessLink[] = [
+    { label: 'Sales / POS', icon: 'point_of_sale', route: this.permissions.has('pos.create') ? '/pos' : '/pos/today', permission: 'pos.view', feature: 'POS' },
+    { label: 'Purchases', icon: 'shopping_cart', route: '/purchases', permission: 'purchase.view', feature: 'PURCHASE' },
+    { label: 'Products', icon: 'inventory_2', route: '/products', permission: 'product.view', feature: 'PRODUCTS' },
+    { label: 'Reports', icon: 'assessment', route: '/reports', permission: 'gst.view', feature: 'REPORTS' },
   ];
+  readonly mobileModules = computed(() =>
+    visibleQuickAccessLinks(this.moduleLinks, (permission) => this.permissions.has(permission), (feature) => this.features.hasFeature(feature)),
+  );
+  private readonly quickActionLinks: QuickAccessLink[] = [
+    { label: 'New Sale', icon: 'point_of_sale', route: '/pos', permission: 'pos.create', feature: 'POS' },
+    { label: 'New Purchase', icon: 'shopping_cart', route: '/purchases/create', permission: 'purchase.create', feature: 'PURCHASE' },
+    { label: 'Add Product', icon: 'add_box', route: '/products/new', permission: 'product.create', feature: 'PRODUCTS' },
+    { label: 'Add Customer', icon: 'person_add', route: '/customers/new', permission: 'customer.create', feature: 'CUSTOMERS' },
+    { label: 'Stock Adjustment', icon: 'tune', route: '/inventory/adjustment', permission: 'inventory.adjust', feature: 'INVENTORY' },
+    { label: 'Reports', icon: 'analytics', route: '/reports', permission: 'gst.view', feature: 'REPORTS' },
+  ];
+  readonly quickActions = computed(() =>
+    visibleQuickAccessLinks(this.quickActionLinks, (permission) => this.permissions.has(permission), (feature) => this.features.hasFeature(feature)),
+  );
   readonly userName = computed(() => this.currentUser.user()?.username ?? 'User');
   readonly greeting = computed(() => {
     const hour = new Date().getHours();
@@ -265,14 +283,15 @@ export class DashboardComponent {
   }
   load(refresh = false): void {
     this.coreLoading.set(true);
+    this.dataLoadError.set(false);
     const query = this.query(refresh);
     forkJoin({
-      summary: this.api.summary(query).pipe(catchError(() => of(null))),
-      inventory: this.api.inventory(refresh).pipe(catchError(() => of(null))),
-      finance: this.api.finance(query).pipe(catchError(() => of(null))),
-      customers: this.api.customers(query).pipe(catchError(() => of(null))),
-      suppliers: this.api.suppliers(query).pipe(catchError(() => of(null))),
-      notifications: this.api.notifications(refresh).pipe(catchError(() => of([]))),
+      summary: this.api.summary(query).pipe(catchError(() => { this.dataLoadError.set(true); return of(null); })),
+      inventory: this.api.inventory(refresh).pipe(catchError(() => { this.dataLoadError.set(true); return of(null); })),
+      finance: this.api.finance(query).pipe(catchError(() => { this.dataLoadError.set(true); return of(null); })),
+      customers: this.api.customers(query).pipe(catchError(() => { this.dataLoadError.set(true); return of(null); })),
+      suppliers: this.api.suppliers(query).pipe(catchError(() => { this.dataLoadError.set(true); return of(null); })),
+      notifications: this.api.notifications(refresh).pipe(catchError(() => { this.dataLoadError.set(true); return of([]); })),
     }).subscribe({
       next: (data) => {
         if (data.summary) this.summary.set(data.summary);
@@ -287,8 +306,8 @@ export class DashboardComponent {
     });
     this.analyticsLoading.set(true);
     forkJoin({
-      sales: this.api.sales(query).pipe(catchError(() => of(null))),
-      purchase: this.api.purchase(query).pipe(catchError(() => of(null))),
+      sales: this.api.sales(query).pipe(catchError(() => { this.dataLoadError.set(true); return of(null); })),
+      purchase: this.api.purchase(query).pipe(catchError(() => { this.dataLoadError.set(true); return of(null); })),
     }).subscribe(({ sales, purchase }) => {
       this.sales.set(sales);
       this.purchase.set(purchase);

@@ -109,7 +109,6 @@ app-pos-summary,
   position: relative;
 }
 .customer-search mat-form-field,
-.warehouse-control,
 .quick-customer {
   width: 100%;
   min-height: 56px;
@@ -132,6 +131,18 @@ app-pos-summary,
   border: 1px solid var(--wb-border);
   border-radius: 8px;
   box-shadow: var(--wb-shadow-lg);
+}
+.product-results-heading {
+  display: none;
+}
+.stock-location-warning {
+  margin: 0 0 8px;
+  padding: 12px 14px;
+  color: var(--wb-text);
+  background: var(--wb-warning-soft, #fff8e6);
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-md);
+  font-size: 0.8125rem;
 }
 .lookup-results {
   max-height: 240px;
@@ -331,7 +342,6 @@ app-pos-summary,
     font-size: 20px;
   }
   .customer-search mat-form-field,
-  .warehouse-control,
   .quick-customer,
   .camera-scan {
     min-height: 44px;
@@ -407,7 +417,7 @@ app-pos-summary,
     grid-template-areas:
       'info info'
       'search search'
-      'warehouse quick';
+      'quick quick';
   }
   .customer-details {
     grid-area: info;
@@ -416,10 +426,6 @@ app-pos-summary,
   .customer-search {
     grid-area: search;
   }
-  .warehouse-control {
-    grid-area: warehouse;
-    width: 100%;
-  }
   .customer-card > button {
     grid-area: quick;
     width: 100%;
@@ -427,6 +433,68 @@ app-pos-summary,
   }
   .status span:not(.online) {
     display: none;
+  }
+}
+@media (max-width: 899px) {
+  .workspace {
+    display: flex;
+    flex-direction: column;
+  }
+  .search-panel {
+    grid-template-columns: 1fr;
+    order: 0;
+  }
+  .product-lookup {
+    display: contents;
+  }
+  .barcode-actions {
+    order: 0;
+  }
+  .product-lookup > mat-form-field {
+    order: 1;
+  }
+  .search-panel > mat-form-field:nth-of-type(1) {
+    order: 2;
+  }
+  .search-panel > mat-form-field:nth-of-type(2) {
+    order: 3;
+  }
+  .product-results-heading {
+    display: block;
+    order: 4;
+    color: var(--wb-text-secondary);
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .product-results-empty {
+    order: 5;
+    margin: 0;
+    padding: 16px;
+    color: var(--wb-text-secondary);
+    background: var(--wb-surface);
+    border: 1px solid var(--wb-border);
+    border-radius: var(--wb-radius-md);
+    font-size: 0.8125rem;
+  }
+  .product-results {
+    position: relative;
+    z-index: 1;
+    right: auto;
+    left: auto;
+    order: 5;
+    width: 100%;
+    height: min(280px, 35vh);
+    min-height: 120px;
+    grid-column: 1 / -1;
+  }
+  .customer-card {
+    order: 6;
+  }
+  app-pos-cart-grid {
+    order: 7;
+  }
+  .remarks {
+    order: 8;
   }
 }
 @media (max-width: 767px) {
@@ -446,11 +514,9 @@ app-pos-summary,
     grid-template-areas:
       'info'
       'search'
-      'warehouse'
       'quick';
   }
   .customer-card > button,
-  .warehouse-control,
   .search-panel > *,
   .barcode-field,
   .product-lookup {

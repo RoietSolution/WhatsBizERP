@@ -26,4 +26,13 @@ public sealed class ProductImageScannerArchitectureTests
             .And.Contain("TenantId = tenantId")
             .And.Contain("ProductGates");
     }
+
+    [Fact]
+    public void CityMediaUploadScansBeforeOptimizationAndStorageAndRejectsNonCleanResults()
+    {
+        var source = File.ReadAllText(Root("backend/src/WhatsBiz.Infrastructure/Storefront/PublicMarketplaceService.cs"));
+        var upload = source[source.IndexOf("public async Task UploadCityMedia", StringComparison.Ordinal)..source.IndexOf("public async Task RemoveCityMedia", StringComparison.Ordinal)];
+        upload.IndexOf("scanner.ScanAsync", StringComparison.Ordinal).Should().BeLessThan(upload.IndexOf("optimizer.OptimizeAsync", StringComparison.Ordinal));
+        upload.IndexOf("StorefrontProductImageScanGuard.RequireClean", StringComparison.Ordinal).Should().BeLessThan(upload.IndexOf("storage.StoreStorefrontAsync", StringComparison.Ordinal));
+    }
 }

@@ -73,8 +73,8 @@ export class WhatsAppApiService {
   get(tenantId?:string) { return this.http.get<WhatsAppConfiguration>(this.tenantConfiguration(tenantId)); }
   save(tenantId:string|undefined,input: SaveWhatsAppConfiguration) { return this.http.put<WhatsAppConfiguration>(this.tenantConfiguration(tenantId), input); }
   validate(tenantId?:string,accessToken?: string) { return this.http.post<WhatsAppConnectionResult>(`${this.tenantConfiguration(tenantId)}/validate`, { accessToken: accessToken || null }); }
-  completeOnboarding(input:{authorizationCode:string;whatsAppBusinessAccountId?:string;phoneNumberId?:string;apiVersion:string}) { return this.http.post<WhatsAppConnectionResult>(`${this.root}/onboarding/complete`,input); }
-  onboardingConfig() { return this.http.get<WhatsAppOnboardingConfiguration>(`${this.root}/onboarding/config`); }
+  completeOnboarding(input:{authorizationCode:string;whatsAppBusinessAccountId?:string;phoneNumberId?:string;apiVersion:string},tenantId?:string) { const path=tenantId?`${this.root}/administration/tenants/${tenantId}/onboarding/complete`:`${this.root}/onboarding/complete`;return this.http.post<WhatsAppConnectionResult>(path,input); }
+  onboardingConfig(tenantId?:string) { const path=tenantId?`${this.root}/administration/tenants/${tenantId}/onboarding/config`:`${this.root}/onboarding/config`;return this.http.get<WhatsAppOnboardingConfiguration>(path); }
   sendTestMessage(tenantId:string|undefined,recipientNumber:string,message?:string) { return this.http.post<WhatsAppTestMessageResult>(`${this.tenantConfiguration(tenantId)}/test-message`, { recipientNumber, message:message||null }); }
   diagnostics(tenantId?:string) { return this.http.get<WhatsAppMetaTestDiagnostics>(`${this.tenantConfiguration(tenantId)}/diagnostics`); }
   subscriptionDiagnostics(tenantId:string) { return this.http.get<WhatsAppSubscriptionDiagnostic>(`${this.root}/administration/tenants/${tenantId}/configuration/subscription-diagnostics`); }

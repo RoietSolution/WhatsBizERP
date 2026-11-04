@@ -10,10 +10,15 @@
   </button>
   <div class="mobile-brand" aria-label="KhataDhari ERP">
     <img src="/assets/images/khatadhari-logo.png" alt="" />
-    <span>KhataDhari</span>
+    <span>{{ tenantDisplay() }}</span>
   </div>
-  <div class="global-search">
-    <app-search-box placeholder="Search products, customers and suppliers" ariaLabel="Global search" (searchChange)="onSearch($event)" />
+  <div id="erp-global-search" class="global-search" [class.mobile-open]="mobileSearchOpen()">
+    <app-search-box #searchBox placeholder="Search products, customers and suppliers" ariaLabel="Global search" (searchChange)="onSearch($event)" (closeRequested)="closeMobileSearch()" />
+    @if (mobileSearchOpen()) {
+      <button class="mobile-search-close" type="button" aria-label="Close global search" (click)="closeMobileSearch()">
+        <span class="material-symbols-rounded" aria-hidden="true">close</span>
+      </button>
+    }
     @if (globalSearch.results().length || globalSearch.loading()) {
       <div class="global-search-results" role="listbox">
         @if (globalSearch.loading()) { <div class="search-status">Searching live records…</div> }
@@ -37,8 +42,14 @@
     >
   </div>
   <div class="topbar-actions">
+    <button #searchToggle class="global-search-toggle" mat-icon-button type="button"
+      [attr.aria-expanded]="mobileSearchOpen()" aria-controls="erp-global-search"
+      [attr.aria-label]="mobileSearchOpen() ? 'Close global search' : 'Open global search'"
+      (click)="toggleMobileSearch()">
+      <span class="material-symbols-rounded" aria-hidden="true">{{ mobileSearchOpen() ? 'close' : 'search' }}</span>
+    </button>
     <button class="company-switch" mat-button type="button" [matMenuTriggerFor]="companyMenu">
-      <span class="material-symbols-rounded">domain</span><span>KhataDhari</span
+      <span class="material-symbols-rounded">domain</span><span>{{ tenantDisplay() }}</span
       ><span class="material-symbols-rounded chevron">expand_more</span></button
     ><button
       mat-icon-button
@@ -83,6 +94,9 @@
 ><mat-menu #notificationMenu="matMenu" class="notification-menu"
   ><app-notification-panel /></mat-menu
 ><mat-menu #userMenu="matMenu"
+  ><button mat-menu-item [matMenuTriggerFor]="companyMenu">
+    <span class="material-symbols-rounded">domain</span><span>Company and tenant</span>
+  </button
   ><a mat-menu-item routerLink="/profile"
     ><span class="material-symbols-rounded">person</span><span>My profile</span></a
   ><a mat-menu-item routerLink="/preferences"

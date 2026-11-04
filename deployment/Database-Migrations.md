@@ -15,6 +15,28 @@ The runner discovers these files at invocation time, orders them numerically, ca
 
 Applied migration SQL and its validator are immutable. A changed hash, renamed file, missing applied file, duplicate version or gap blocks execution. Correct deployed schema with a new migration.
 
+### V75 City Marketplace media
+
+V75 adds the city-scoped media reference table used by the Application Owner's City Marketplace logo/banner upload. It depends on the V74 `commerce.Cities` table and stores optimized media through the existing storefront media provider. The upload endpoints do not accept media IDs from city-edit payloads; associations are made only by the owner-authorized media endpoints. Run `-Status` and `-DryRun` before any deployment.
+
+### V74 pending-migration correction record
+
+V74's canonical tenant references target `core.Tenants(TenantId uniqueidentifier)`. Retailer route backfill preserves `TenantKey` exactly and permits existing underscores in retailer aliases; city slugs remain letters/digits/interior-hyphens only. The pending V74 validator also checks the actual `CK_Cities_Name` constraint. These V74 source/validator hashes replace the hashes of the unapplied files; no applied ledger entries were rewritten:
+
+- V74 migration SHA-256: `EBF6FD6D809D9D8523DFDFE54B6126E50C29AA424DAA5E1004F666EA0F6D14AB`
+- V74 validator SHA-256: `EFF0396991F24010D0DB102B4916B3E4D0F09E3959D8E0B3F849F4923394FA85`
+- V75 migration SHA-256 (unchanged): `7E4EE5D2EC4B00EB02E7B4004D7C9952D67FA3B835CE53D4359358EDAC2004CA`
+- V75 validator SHA-256 (unchanged): `5F05E571EFF7E948898B1E3A1FE312674E32337C891E5B245B524E40DC5D71B1`
+
+The dedicated disposable database `DESKTOP-DQ0868S/WhatsBizERP_PosGstIntegrationTest` was initialized through V75 for rollback-only verification. The QA/PROD status in this historical note reflects the status at that time and is not a current migration-ledger assertion.
+
+### V77 City Marketplace banner copy
+
+V77 adds nullable, length-bounded `BannerHeadline` and `BannerSubtitle` fields to `commerce.Cities`. It does not change existing city media storage or publication state. Apply only through the canonical migration runner after normal environment preflight; V77 has not been deployed by this UI implementation task.
+
+- V77 migration SHA-256: `FED7A4467D91AFAE69012714A886573665FAD3CDDCF8AF9C317AD8EA99E1CDB7`
+- V77 validator SHA-256: `A7181C39BD04820470CBD3AF8D48070ABCB1F90A10546A21BAD929929C069728`
+
 ## V40 historical baseline
 
 The repository owns a read-only V40 validator at **database/migrations/validators/Baseline-V40.validate.sql**. Baseline creation is an explicit write operation. It first verifies the actual V40-era schema, requires a verified pre-change backup, then creates deployment-owned history tables and records the baseline validator hash. It does not mark V41+ as applied.
@@ -62,6 +84,17 @@ QA connectivity uses the existing SSH tunnel and a dedicated deployment connecti
 ## PROD workflow
 
 The current production SQL connection must be provided through the established process environment variable **WHATSBIZ_PROD_SQL_CONNECTION**; the runner never reads a tracked file or prints the connection string.
+
+For a repeatable read-only PROD connectivity check, use the tunnel wrapper. It requires explicit production-only SSH settings (`WHATSBIZ_PROD_SSH_HOST`, `WHATSBIZ_PROD_SSH_USER`, and `WHATSBIZ_PROD_SSH_KEY`), verifies the local OpenSSH forward to `srv1930195:1433`, validates encrypted SQL identity, and then invokes the canonical runner with `-Status`. If `WHATSBIZ_PROD_SQL_CONNECTION` is absent, it prompts for the SQL login without saving the password.
+
+~~~powershell
+$env:WHATSBIZ_PROD_SSH_HOST = '<verified-production-vps-host>'
+$env:WHATSBIZ_PROD_SSH_USER = '<production-ssh-user>'
+$env:WHATSBIZ_PROD_SSH_KEY = "$env:USERPROFILE\.ssh\<production-key>"
+.\deployment\connect-prod-database.ps1
+~~~
+
+The wrapper performs no backup, migration, baseline, schema or data write. Do not replace the production SSH values with QA values.
 
 ~~~powershell
 .\deployment\deploy-database.ps1 -Environment PROD -Status
@@ -173,6 +206,8 @@ After setup, the normal runner automatically reads the encrypted per-user QA con
 ~~~
 
 A normal write automatically performs preflight, `COPY_ONLY,CHECKSUM` backup, `RESTORE VERIFYONLY WITH CHECKSUM`, migration execution, read-only validator, and history recording. A preflight failure occurs before the backup is created. VERIFYONLY remains mandatory; a failed verification never continues to migrations.
+
+V81 adds a retailer-scoped mutable delivery-address draft on intake requests and immutable JSON address snapshots on each quote and Sales Order. It depends on V79 and V80, validates JSON and the required fields/PIN for delivery quotes and Sales Orders at the database boundary, and does not link a customer by phone number. Column creation and constraints are separated by a runner-supported `GO` batch boundary to avoid SQL Server compiling references before the new columns exist. QA `-Status` reports V81 column/constraint state and existing V80 delivery-row counts read-only. Confirm the target ledger and V79/V80 hashes before applying; this source change does not apply V81.
 
 If a previous run left a pending verification manifest, the next normal write first validates the exact recorded backup metadata and automatically runs `RESTORE VERIFYONLY`. It then clears the manifest only after successful verification and continues. This makes the existing pending V47 backup eligible for safe automatic verification after the deployment principal is configured; no new backup is silently substituted.
 

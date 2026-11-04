@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace WhatsBiz.Domain.Products;
 
 public static class BarcodeTypes
@@ -73,7 +75,13 @@ public sealed class Product : ProductMasterEntity
     public string? HSNCode { get; set; }
     public string? SACCode { get; set; }
     public decimal GSTPercentage { get; set; }
+    public string GstPricingType { get; set; } = "EXCLUSIVE";
     public decimal PurchasePrice { get; set; }
+    public decimal? PackagingCost { get; set; }
+    public decimal? ShippingCost { get; set; }
+    public decimal? CombinedShippingPackagingCost { get; set; }
+    [NotMapped]
+    public decimal EstimatedAcquisitionCost => PurchasePrice + (CombinedShippingPackagingCost ?? ((PackagingCost ?? 0) + (ShippingCost ?? 0)));
     public decimal SellingPrice { get; set; }
     public decimal MRP { get; set; }
     public decimal MinimumStock { get; set; }
@@ -96,6 +104,18 @@ public sealed class Product : ProductMasterEntity
     public UnitOfMeasure Unit { get; set; } = null!;
     public ICollection<ProductBarcode> Barcodes { get; set; } = [];
     public ICollection<ProductSpecification> Specifications { get; set; } = [];
+}
+
+public sealed class ProductExternalImage
+{
+    public Guid ExternalImageId { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ProductId { get; set; }
+    public Guid? SupplierId { get; set; }
+    public string ImageUrl { get; set; } = string.Empty;
+    public int DisplayOrder { get; set; }
+    public bool IsPrimary { get; set; }
+    public DateTimeOffset CreatedOn { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class ProductSpecification : ProductMasterEntity

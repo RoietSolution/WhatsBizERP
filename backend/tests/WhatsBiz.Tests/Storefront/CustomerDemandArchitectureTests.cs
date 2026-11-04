@@ -28,6 +28,24 @@ public sealed class CustomerDemandArchitectureTests
     }
 
     [Fact]
+    public void SearchTrackingDoesNotUseNewSequentialIdAsAnInsertExpression()
+    {
+        foreach (var relativePath in new[]
+        {
+            "backend/src/WhatsBiz.Infrastructure/Storefront/CustomerDemandService.cs",
+            "backend/src/WhatsBiz.Infrastructure/Storefront/CustomerDemandServiceV52.cs"
+        })
+        {
+            var service = File.ReadAllText(Path.Combine(Root, relativePath));
+            var nextMethod = service.IndexOf("RequestAvailabilityAsync", StringComparison.Ordinal);
+            nextMethod.Should().BeGreaterThan(0);
+            var searchMethod = service.Substring(0, nextMethod);
+            searchMethod.Should().Contain("ProductSearchEvents(SearchEventId,TenantId,CustomerId,AnonymousSessionId")
+                .And.NotContain("VALUES(NEWSEQUENTIALID(),@tenant");
+        }
+    }
+
+    [Fact]
     public void DemandServiceUsesSellableStockAndTenantOwnership()
     {
         var service = File.ReadAllText(Path.Combine(Root, "backend/src/WhatsBiz.Infrastructure/Storefront/CustomerDemandServiceV52.cs"));

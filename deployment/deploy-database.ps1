@@ -15,7 +15,7 @@ $script:BaselineVersion=40;$script:ExpectedServer='srv1930195'
 $script:ExpectedDatabase=if($Environment -eq 'QA'){'WhatsBizERP_QA'}else{'WhatsBizERP_PROD'}
 $script:MigrationDirectory=Join-Path (Split-Path -Parent $PSScriptRoot) 'database\migrations'
 $script:BaselineValidator=Join-Path $script:MigrationDirectory 'validators\Baseline-V40.validate.sql'
-$script:TargetBuilder=$null;$script:Connection=$null;$script:Tunnel=$null;$script:Tx=$null
+$script:TargetBuilder=$null;$script:Connection=$null;$script:Tunnel=$null;$script:Tx=$null;$script:SshOutputPath=$null;$script:SshErrorPath=$null
 $script:NonTransactional=$false;$script:BackupPathForHistory=$null
 $script:StateDirectory=if($env:LOCALAPPDATA){Join-Path $env:LOCALAPPDATA 'WhatsBiz\DatabaseMigrations'}else{Join-Path $env:TEMP 'WhatsBiz\DatabaseMigrations'}
 $script:PendingManifest=Join-Path $script:StateDirectory "$($Environment.ToLowerInvariant())-$($script:ExpectedDatabase)-pending-backup.json"
@@ -55,18 +55,27 @@ function Get-QaDeploymentConnection {
 function Connect-Target {
  if($Environment -eq 'QA'){
   if(-not(Test-Path -LiteralPath $QaSshKey -PathType Leaf)){throw 'Established QA SSH key not found.'}
+  Write-Host 'QA connection: reading protected deployment connection.'
   $raw=Get-QaDeploymentConnection
   $b=New-DatabaseSqlConnectionStringBuilder -ConnectionString $raw
   if($b['Initial Catalog'] -cne 'WhatsBizERP_QA'){throw 'Configured QA deployment database must be exactly WhatsBizERP_QA.'}
   $server=([string]$b['Data Source']) -replace '^(?i)tcp:','';$port=1433
   if($server -match '^(.*),([0-9]+)$'){$server=$Matches[1];$port=[int]$Matches[2]}
   $listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0);$listener.Start();$localPort=([Net.IPEndPoint]$listener.LocalEndpoint).Port;$listener.Stop()
-  $ssh=(Get-Command ssh -ErrorAction Stop).Source
-  $args=@('-i',$QaSshKey,'-o','IdentitiesOnly=yes','-o','BatchMode=yes','-o','ConnectTimeout=15','-N','-L',"$($localPort):$($server):$($port)","$QaSshUser@$QaSshHost")
-  $script:Tunnel=Start-Process -FilePath $ssh -ArgumentList $args -PassThru -WindowStyle Hidden
+  # Resolve the executable explicitly: this execution environment also has a
+  # deny-shim named ssh.bat earlier on PATH. It exits immediately and never
+  # creates a tunnel. Requiring ssh.exe selects OpenSSH rather than a shim.
+  $ssh=(Get-Command ssh.exe -CommandType Application -ErrorAction Stop).Source
+  Write-Host "QA connection: using OpenSSH executable '$ssh'."
+  $args=@('-i',('"{0}"' -f $QaSshKey),'-o','IdentitiesOnly=yes','-o','BatchMode=yes','-o','ConnectTimeout=15','-o','ExitOnForwardFailure=yes','-N','-L',"$($localPort):$($server):$($port)","$QaSshUser@$QaSshHost")
+  Write-Host 'QA connection: starting the established SSH tunnel.'
+  $script:SshOutputPath=Join-Path $env:TEMP "whatsbiz-qa-tunnel-$PID-$localPort.out";$script:SshErrorPath=Join-Path $env:TEMP "whatsbiz-qa-tunnel-$PID-$localPort.err"
+  $script:Tunnel=Start-Process -FilePath $ssh -ArgumentList $args -PassThru -WindowStyle Hidden -RedirectStandardOutput $script:SshOutputPath -RedirectStandardError $script:SshErrorPath
+  Write-Host "QA connection: SSH process started (PID $($script:Tunnel.Id)); waiting for the local tunnel."
   $ready=$false
-  for($i=0;$i -lt 80 -and -not $ready;$i++){Start-Sleep -Milliseconds 250;try{$c=[Net.Sockets.TcpClient]::new('127.0.0.1',$localPort);$c.Dispose();$ready=$true}catch{}}
+  for($i=0;$i -lt 80 -and -not $ready;$i++){if($script:Tunnel.HasExited){$script:Tunnel.WaitForExit();$sshExitCode=$script:Tunnel.ExitCode;$sshDetail='';if(Test-Path -LiteralPath $script:SshErrorPath){$sshDetailRaw=Get-Content -LiteralPath $script:SshErrorPath -Raw;if($null -ne $sshDetailRaw){$sshDetail=$sshDetailRaw.Trim()}};$sshDetail=$sshDetail -replace [regex]::Escape($QaSshKey),'[configured SSH key]';throw "QA SSH tunnel process exited before the local port became available (exit code $sshExitCode). $sshDetail"};Start-Sleep -Milliseconds 250;try{$c=[Net.Sockets.TcpClient]::new('127.0.0.1',$localPort);$c.Dispose();$ready=$true}catch{}}
   if(-not $ready -or $script:Tunnel.HasExited){throw 'QA SQL SSH tunnel could not be established.'}
+  Write-Host 'QA connection: tunnel is listening; opening SQL connection.'
   $b['Data Source']="127.0.0.1,$localPort";$b['Encrypt']=$false;$b['TrustServerCertificate']=$true;$script:TargetBuilder=$b
  }else{
   $raw=[Environment]::GetEnvironmentVariable('WHATSBIZ_PROD_SQL_CONNECTION')
@@ -77,9 +86,11 @@ function Connect-Target {
  }
  $script:Connection=[System.Data.SqlClient.SqlConnection]::new($script:TargetBuilder.ConnectionString)
  try{$script:Connection.Open()}catch{$detail=Format-SafeSqlConnectionException -Exception $_.Exception -SensitiveValues @($raw,$script:TargetBuilder.ConnectionString);if($Environment -eq 'QA'){throw "QA DATABASE DEPLOYMENT CONFIGURATION INVALID. The dedicated deployment SQL principal could not authenticate. Run .\deployment\setup-database-deployment-principal.ps1 -Environment QA. $detail"};throw "Could not connect to the selected $Environment SQL database. $detail"}
+ if($Environment -eq 'QA'){Write-Host 'QA connection: SQL connection opened; confirming identity.'}
  $cmd=$script:Connection.CreateCommand();$cmd.CommandText='SELECT @@SERVERNAME,DB_NAME(),@@VERSION;';$r=$cmd.ExecuteReader()
  try{if(-not $r.Read()){throw 'SQL identity query returned no row.'};$serverName=[string]$r.GetValue(0);$dbName=[string]$r.GetValue(1);$sqlVersion=[string]$r.GetValue(2)}finally{$r.Dispose();$cmd.Dispose()}
  Assert-DatabaseMigrationIdentity -Environment $Environment -ServerName $serverName -DatabaseName $dbName
+ if($Environment -eq 'QA'){Write-Host 'QA connection: identity confirmed; checking migration metadata.'}
  Assert-TargetMetadataVisibility
  Write-Host "Environment: $Environment";Write-Host "Server: $serverName";Write-Host "Database: $dbName"
  Write-Host "SQL Server: $(($sqlVersion -split [Environment]::NewLine | Select-Object -First 1))"
@@ -219,6 +230,147 @@ function Invoke-OneMigration([object]$Migration){
  $script:NonTransactional=@($header|Where-Object{$_ -match '^\s*--\s*WhatsBiz-Migration-Transaction:\s*NONE\s*$'}).Count -gt 0
  $script:Tx=if($script:NonTransactional){$null}else{$script:Connection.BeginTransaction([System.Data.IsolationLevel]::Serializable)}
 }
+function Show-QAV74ReadOnlyPreflight {
+ if($Environment -ne 'QA'){return}
+ $cmd=$script:Connection.CreateCommand();$cmd.CommandTimeout=15
+ $cmd.CommandText=@'
+SET NOCOUNT ON;
+DECLARE @missing int=0,@missingColumns int=0,@missingFeatureRoot int=0,@invalid int=0,@duplicate int=0,@reserved int=0,@routeDuplicate int=0,@routeConflict int=0;
+DECLARE @registryState nvarchar(20)=N'ABSENT',@artifacts nvarchar(1000)=N'none',@missingObjectList nvarchar(max)=N'none',@missingColumnList nvarchar(max)=N'none',@invalidSlugList nvarchar(max)=N'none';
+SELECT @missing=COUNT(*) FROM (VALUES
+ (N'core.Tenants',OBJECT_ID(N'core.Tenants')),
+ (N'master.Products',OBJECT_ID(N'master.Products')),(N'commerce.StoreDirectoryEntries',OBJECT_ID(N'commerce.StoreDirectoryEntries')),
+ (N'core.Features',OBJECT_ID(N'core.Features')),(N'core.Plans',OBJECT_ID(N'core.Plans')),
+ (N'core.PlanFeatures',OBJECT_ID(N'core.PlanFeatures')),(N'core.TenantFeatures',OBJECT_ID(N'core.TenantFeatures'))
+) p(ObjectName,ObjectId) WHERE ObjectId IS NULL;
+SELECT @missingObjectList=COALESCE(STRING_AGG(CONVERT(nvarchar(max),ObjectName),N', '),N'none') FROM (VALUES
+ (N'core.Tenants',OBJECT_ID(N'core.Tenants')),
+ (N'master.Products',OBJECT_ID(N'master.Products')),(N'commerce.StoreDirectoryEntries',OBJECT_ID(N'commerce.StoreDirectoryEntries')),
+ (N'core.Features',OBJECT_ID(N'core.Features')),(N'core.Plans',OBJECT_ID(N'core.Plans')),
+ (N'core.PlanFeatures',OBJECT_ID(N'core.PlanFeatures')),(N'core.TenantFeatures',OBJECT_ID(N'core.TenantFeatures'))
+) p(ObjectName,ObjectId) WHERE ObjectId IS NULL;
+SELECT @missingColumns=COUNT(*) FROM (VALUES
+ (N'core.Tenants.TenantId',COL_LENGTH(N'core.Tenants',N'TenantId')),(N'core.Tenants.TenantKey',COL_LENGTH(N'core.Tenants',N'TenantKey')),(N'core.Tenants.IsActive',COL_LENGTH(N'core.Tenants',N'IsActive')),
+ (N'master.Products.TenantId',COL_LENGTH(N'master.Products',N'TenantId')),(N'master.Products.ProductId',COL_LENGTH(N'master.Products',N'ProductId')),
+ (N'commerce.StoreDirectoryEntries.TenantId',COL_LENGTH(N'commerce.StoreDirectoryEntries',N'TenantId')),(N'core.Features.FeatureId',COL_LENGTH(N'core.Features',N'FeatureId')),
+ (N'core.Features.FeatureKey',COL_LENGTH(N'core.Features',N'FeatureKey')),(N'core.Features.IsActive',COL_LENGTH(N'core.Features',N'IsActive')),(N'core.Plans.PlanId',COL_LENGTH(N'core.Plans',N'PlanId')),
+ (N'core.PlanFeatures.PlanId',COL_LENGTH(N'core.PlanFeatures',N'PlanId')),(N'core.PlanFeatures.FeatureId',COL_LENGTH(N'core.PlanFeatures',N'FeatureId')),(N'core.PlanFeatures.IsEnabled',COL_LENGTH(N'core.PlanFeatures',N'IsEnabled')),
+ (N'core.TenantFeatures.TenantId',COL_LENGTH(N'core.TenantFeatures',N'TenantId')),(N'core.TenantFeatures.FeatureId',COL_LENGTH(N'core.TenantFeatures',N'FeatureId')),(N'core.TenantFeatures.IsEnabled',COL_LENGTH(N'core.TenantFeatures',N'IsEnabled')),(N'core.TenantFeatures.IsActive',COL_LENGTH(N'core.TenantFeatures',N'IsActive'))
+) c(ColumnName,ColumnId) WHERE ColumnId IS NULL;
+SELECT @missingColumnList=COALESCE(STRING_AGG(CONVERT(nvarchar(max),ColumnName),N', '),N'none') FROM (VALUES
+ (N'core.Tenants.TenantId',COL_LENGTH(N'core.Tenants',N'TenantId')),(N'core.Tenants.TenantKey',COL_LENGTH(N'core.Tenants',N'TenantKey')),(N'core.Tenants.IsActive',COL_LENGTH(N'core.Tenants',N'IsActive')),
+ (N'master.Products.TenantId',COL_LENGTH(N'master.Products',N'TenantId')),(N'master.Products.ProductId',COL_LENGTH(N'master.Products',N'ProductId')),
+ (N'commerce.StoreDirectoryEntries.TenantId',COL_LENGTH(N'commerce.StoreDirectoryEntries',N'TenantId')),(N'core.Features.FeatureId',COL_LENGTH(N'core.Features',N'FeatureId')),
+ (N'core.Features.FeatureKey',COL_LENGTH(N'core.Features',N'FeatureKey')),(N'core.Features.IsActive',COL_LENGTH(N'core.Features',N'IsActive')),(N'core.Plans.PlanId',COL_LENGTH(N'core.Plans',N'PlanId')),
+ (N'core.PlanFeatures.PlanId',COL_LENGTH(N'core.PlanFeatures',N'PlanId')),(N'core.PlanFeatures.FeatureId',COL_LENGTH(N'core.PlanFeatures',N'FeatureId')),(N'core.PlanFeatures.IsEnabled',COL_LENGTH(N'core.PlanFeatures',N'IsEnabled')),
+ (N'core.TenantFeatures.TenantId',COL_LENGTH(N'core.TenantFeatures',N'TenantId')),(N'core.TenantFeatures.FeatureId',COL_LENGTH(N'core.TenantFeatures',N'FeatureId')),(N'core.TenantFeatures.IsEnabled',COL_LENGTH(N'core.TenantFeatures',N'IsEnabled')),(N'core.TenantFeatures.IsActive',COL_LENGTH(N'core.TenantFeatures',N'IsActive'))
+) c(ColumnName,ColumnId) WHERE ColumnId IS NULL;
+IF OBJECT_ID(N'core.Features',N'U') IS NOT NULL AND NOT EXISTS(SELECT 1 FROM core.Features WHERE FeatureKey=N'V1' AND IsActive=1) SET @missingFeatureRoot=1;
+IF OBJECT_ID(N'core.Tenants',N'U') IS NOT NULL
+BEGIN
+ SELECT @invalid=COUNT(*) FROM core.Tenants WHERE TenantKey IS NULL OR LTRIM(RTRIM(TenantKey))=N'' OR TenantKey LIKE N'%[^A-Za-z0-9_-]%' OR LEFT(LTRIM(RTRIM(TenantKey)),1) IN(N'-',N'_') OR RIGHT(LTRIM(RTRIM(TenantKey)),1) IN(N'-',N'_') OR LEN(LTRIM(RTRIM(TenantKey)))>120;
+ SELECT @invalidSlugList=COALESCE(STRING_AGG(CONVERT(nvarchar(max),COALESCE(TenantKey,N'<NULL>')),N', '),N'none') FROM core.Tenants WHERE TenantKey IS NULL OR LTRIM(RTRIM(TenantKey))=N'' OR TenantKey LIKE N'%[^A-Za-z0-9_-]%' OR LEFT(LTRIM(RTRIM(TenantKey)),1) IN(N'-',N'_') OR RIGHT(LTRIM(RTRIM(TenantKey)),1) IN(N'-',N'_') OR LEN(LTRIM(RTRIM(TenantKey)))>120;
+ SELECT @duplicate=COUNT(*) FROM (SELECT LOWER(LTRIM(RTRIM(TenantKey))) k FROM core.Tenants WHERE TenantKey IS NOT NULL GROUP BY LOWER(LTRIM(RTRIM(TenantKey))) HAVING COUNT(*)>1) d;
+ SELECT @reserved=COUNT(*) FROM core.Tenants WHERE LOWER(LTRIM(RTRIM(TenantKey))) IN(N'ref',N'share',N'cart',N'checkout',N'products',N'categories',N'search',N'offers',N'orders',N'addresses',N'account',N'auth',N'feedback',N'payment-return',N'assets',N'city',N'stores',N'api',N'admin');
+END;
+IF OBJECT_ID(N'commerce.PublicRouteRegistry',N'U') IS NOT NULL
+BEGIN
+ IF COL_LENGTH(N'commerce.PublicRouteRegistry',N'NormalizedSlug') IS NOT NULL AND COL_LENGTH(N'commerce.PublicRouteRegistry',N'TenantId') IS NOT NULL AND COL_LENGTH(N'commerce.PublicRouteRegistry',N'EntityType') IS NOT NULL
+ BEGIN
+  SET @registryState=N'COMPLETE';
+  EXEC sys.sp_executesql N'SELECT @d=COUNT(*) FROM (SELECT NormalizedSlug FROM commerce.PublicRouteRegistry GROUP BY NormalizedSlug HAVING COUNT(*)>1) x;',N'@d int OUTPUT',@d=@routeDuplicate OUTPUT;
+  IF OBJECT_ID(N'core.Tenants',N'U') IS NOT NULL
+   EXEC sys.sp_executesql N'SELECT @c=COUNT(*) FROM commerce.PublicRouteRegistry r JOIN core.Tenants t ON r.NormalizedSlug=LOWER(LTRIM(RTRIM(t.TenantKey))) WHERE r.EntityType<>''RETAILER'' OR r.TenantId<>t.TenantId;',N'@c int OUTPUT',@c=@routeConflict OUTPUT;
+ END ELSE SET @registryState=N'INCOMPLETE';
+END;
+SELECT @artifacts=COALESCE(STRING_AGG(a.ObjectName,N', '),N'none') FROM (VALUES
+ (N'PublicRouteRegistry',OBJECT_ID(N'commerce.PublicRouteRegistry')),(N'Cities',OBJECT_ID(N'commerce.Cities')),
+ (N'CityRetailers',OBJECT_ID(N'commerce.CityRetailers')),(N'PartnerSellers',OBJECT_ID(N'commerce.PartnerSellers')),
+ (N'PartnerProductListings',OBJECT_ID(N'commerce.PartnerProductListings')),(N'PartnerCommissionAgreements',OBJECT_ID(N'commerce.PartnerCommissionAgreements')),
+ (N'PartnerSettlementEntries',OBJECT_ID(N'commerce.PartnerSettlementEntries')),(N'CityMarketplaceMedia',OBJECT_ID(N'commerce.CityMarketplaceMedia'))
+) a(ObjectName,ObjectId) WHERE ObjectId IS NOT NULL;
+SELECT @missing MissingPrerequisites,@missingColumns MissingPrerequisiteColumns,@missingFeatureRoot MissingFeatureRoot,@invalid InvalidRetailerSlugs,@duplicate DuplicateRetailerSlugs,@reserved ReservedRetailerSlugs,
+ @registryState RegistryState,@routeDuplicate DuplicateRegistrySlugs,@routeConflict RetailerRouteConflicts,@artifacts ExistingMarketplaceArtifacts,
+ @missingObjectList MissingObjectNames,@missingColumnList MissingColumnNames,@invalidSlugList InvalidRetailerSlugKeys;
+'@
+ try{
+  $r=$cmd.ExecuteReader();try{if(-not $r.Read()){throw 'V74 preflight query returned no row.'};$missing=[int]$r['MissingPrerequisites'];$missingColumns=[int]$r['MissingPrerequisiteColumns'];$missingRoot=[int]$r['MissingFeatureRoot'];$invalid=[int]$r['InvalidRetailerSlugs'];$duplicate=[int]$r['DuplicateRetailerSlugs'];$reserved=[int]$r['ReservedRetailerSlugs'];$registry=[string]$r['RegistryState'];$routeDuplicate=[int]$r['DuplicateRegistrySlugs'];$routeConflict=[int]$r['RetailerRouteConflicts'];$artifacts=[string]$r['ExistingMarketplaceArtifacts'];$missingObjectList=[string]$r['MissingObjectNames'];$missingColumnList=[string]$r['MissingColumnNames'];$invalidSlugList=[string]$r['InvalidRetailerSlugKeys']}finally{$r.Dispose()}
+ }finally{$cmd.Dispose()}
+ Write-Host 'V74/V75 preflight: READ-ONLY SQL diagnostics'
+ Write-Host "  Missing V74 prerequisites: $missing objects, $missingColumns columns; missing V1 feature root: $missingRoot; invalid retailer slugs: $invalid; duplicate normalized retailer slugs: $duplicate; reserved retailer slugs: $reserved."
+ Write-Host "  Missing objects: $missingObjectList; missing columns: $missingColumnList; invalid retailer keys: $invalidSlugList."
+ Write-Host "  Route registry: $registry; duplicate registry slugs: $routeDuplicate; retailer route conflicts: $routeConflict."
+ Write-Host "  Existing V74/V75 artifacts: $artifacts."
+ if($missing -eq 0){
+  $detail=$script:Connection.CreateCommand();$detail.CommandTimeout=15
+  $detail.CommandText="SELECT t.TenantKey,COALESCE(NULLIF(LTRIM(RTRIM(t.DisplayName)),N''),t.Name) StoreName,t.IsActive,COALESCE(d.OptedIn,0) DirectoryOptIn,COALESCE(d.OwnerApproved,0) DirectoryOwnerApproved,LOWER(LTRIM(RTRIM(t.TenantKey))) ProposedLegacyRoute FROM core.Tenants t LEFT JOIN commerce.StoreDirectoryEntries d ON d.TenantId=t.TenantId WHERE t.TenantKey LIKE N'%[_]%' ORDER BY t.TenantKey;"
+  try{$rows=$detail.ExecuteReader();try{while($rows.Read()){$key=[string]$rows['TenantKey'];$name=[string]$rows['StoreName'];$active=[bool]$rows['IsActive'];$opted=[bool]$rows['DirectoryOptIn'];$approved=[bool]$rows['DirectoryOwnerApproved'];$slug=[string]$rows['ProposedLegacyRoute'];Write-Host ("  Legacy route candidate: key='{0}', store='{1}', active={2}, directoryOptIn={3}, ownerApproved={4}, preserve-path='/{5}'" -f $key,$name,$active,$opted,$approved,$slug)}}finally{$rows.Dispose()}}finally{$detail.Dispose()}
+ }
+ if($missing -eq 0 -and $missingColumns -eq 0 -and $missingRoot -eq 0 -and $invalid -eq 0 -and $duplicate -eq 0 -and $reserved -eq 0 -and $routeDuplicate -eq 0 -and $routeConflict -eq 0 -and $registry -ne 'INCOMPLETE' -and $artifacts -eq 'none'){Write-Host 'V74/V75 schema preflight: PASS (fresh schema; no slug collisions).'}
+ elseif($missing -eq 0 -and $missingColumns -eq 0 -and $missingRoot -eq 0 -and $invalid -eq 0 -and $duplicate -eq 0 -and $reserved -eq 0 -and $routeDuplicate -eq 0 -and $routeConflict -eq 0 -and $registry -eq 'COMPLETE'){Write-Host 'V74/V75 schema preflight: PASS (schema present; no slug collisions).'}
+ else{Write-Host 'V74/V75 schema preflight: REVIEW REQUIRED (do not publish until artifacts/prerequisites are reconciled).'}
+}
+function Show-QAV76ReadOnlyPreflight {
+ if($Environment -cne 'QA'){return}
+ $cmd=$script:Connection.CreateCommand();$cmd.CommandTimeout=15
+ $cmd.CommandText=@'
+SET NOCOUNT ON;
+DECLARE @objectId int=OBJECT_ID(N'commerce.CityMarketplaceMedia',N'U'),@resourceKeyRows bigint=0;
+IF @objectId IS NOT NULL AND COL_LENGTH(N'commerce.CityMarketplaceMedia',N'ResourceKey') IS NOT NULL
+ EXEC sys.sp_executesql N'SELECT @n=COUNT_BIG(*) FROM commerce.CityMarketplaceMedia WHERE ResourceKey IS NOT NULL;',N'@n bigint OUTPUT',@n=@resourceKeyRows OUTPUT;
+SELECT DB_NAME() DatabaseName,
+ CASE WHEN @objectId IS NULL THEN CONVERT(bit,0) ELSE CONVERT(bit,1) END MediaTableExists,
+ ty.name ResourceKeyType,c.max_length ResourceKeyMaxLength,c.is_nullable ResourceKeyNullable,
+ CASE WHEN EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=@objectId AND name=N'UX_CityMarketplaceMedia_CityResourceKey' AND is_unique=1 AND is_disabled=0) THEN CONVERT(bit,1) ELSE CONVERT(bit,0) END ResourceKeyIndexValid,
+ CASE WHEN EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=@objectId AND name=N'UQ_CityMarketplaceMedia_CityResource' AND is_unique=1 AND is_disabled=0) THEN CONVERT(bit,1) ELSE CONVERT(bit,0) END LegacyMediaIndexValid,
+ CASE WHEN EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=@objectId AND name=N'CK_CityMarketplaceMedia_Resource' AND is_disabled=0 AND is_not_trusted=0) THEN CONVERT(bit,1) ELSE CONVERT(bit,0) END ResourceConstraintValid,
+ @resourceKeyRows ResourceKeyRows
+FROM (SELECT 1 AS Anchor) a
+LEFT JOIN sys.columns c ON c.object_id=@objectId AND c.name=N'ResourceKey'
+LEFT JOIN sys.types ty ON ty.user_type_id=c.user_type_id;
+'@
+ try{
+  $reader=$cmd.ExecuteReader();try{
+   if(-not $reader.Read()){throw 'V76 read-only schema query returned no row.'}
+   $database=[string]$reader['DatabaseName'];if($database -cne 'WhatsBizERP_QA'){throw "V76 status rejected unexpected database '$database'."}
+   $table=[bool]$reader['MediaTableExists'];$type=if($reader.IsDBNull($reader.GetOrdinal('ResourceKeyType'))){'absent'}else{[string]$reader['ResourceKeyType']};$length=if($reader.IsDBNull($reader.GetOrdinal('ResourceKeyMaxLength'))){0}else{[int]$reader['ResourceKeyMaxLength']};$nullable=if($reader.IsDBNull($reader.GetOrdinal('ResourceKeyNullable'))){$null}else{[bool]$reader['ResourceKeyNullable']}
+   Write-Host 'V76 partial-schema check: READ-ONLY SQL diagnostics'
+   Write-Host "  Database: $database; CityMarketplaceMedia exists: $table; ResourceKey: $type/$length bytes, nullable=$nullable; non-null values: $($reader['ResourceKeyRows'])."
+   Write-Host "  ResourceKey unique index: $([bool]$reader['ResourceKeyIndexValid']); V75 logo/banner unique index: $([bool]$reader['LegacyMediaIndexValid']); trusted resource check: $([bool]$reader['ResourceConstraintValid'])."
+   if($type -ne 'absent' -and ($type -cne 'nvarchar' -or $length -ne 320 -or $nullable -ne $true)){throw 'V76 partial-schema check found an incompatible ResourceKey column; deployment is blocked for manual review.'}
+  }finally{$reader.Dispose()}
+ }finally{$cmd.Dispose()}
+}
+function Show-QAV81ReadOnlyPreflight {
+ if($Environment -cne 'QA'){return}
+ $cmd=$script:Connection.CreateCommand();$cmd.CommandTimeout=15
+ $cmd.CommandText=@'
+SET NOCOUNT ON;
+DECLARE @requestObject int=OBJECT_ID(N'commerce.OrderIntakeRequests',N'U'),@quoteObject int=OBJECT_ID(N'commerce.OrderIntakeQuotes',N'U'),@orderObject int=OBJECT_ID(N'commerce.IntakeSalesOrders',N'U'),@deliveryQuotes bigint=0,@deliveryOrders bigint=0;
+IF @quoteObject IS NOT NULL EXEC sys.sp_executesql N'SELECT @n=COUNT_BIG(*) FROM commerce.OrderIntakeQuotes WHERE FulfilmentPreference=''DELIVERY'';',N'@n bigint OUTPUT',@n=@deliveryQuotes OUTPUT;
+IF @orderObject IS NOT NULL EXEC sys.sp_executesql N'SELECT @n=COUNT_BIG(*) FROM commerce.IntakeSalesOrders WHERE FulfilmentPreference=''DELIVERY'';',N'@n bigint OUTPUT',@n=@deliveryOrders OUTPUT;
+SELECT DB_NAME() DatabaseName,
+ CASE WHEN COL_LENGTH(N'commerce.OrderIntakeRequests',N'DeliveryAddressDraftJson') IS NULL THEN CONVERT(bit,0) ELSE CONVERT(bit,1) END RequestDraftColumn,
+ CASE WHEN COL_LENGTH(N'commerce.OrderIntakeQuotes',N'DeliveryAddressSnapshotJson') IS NULL THEN CONVERT(bit,0) ELSE CONVERT(bit,1) END QuoteSnapshotColumn,
+ CASE WHEN COL_LENGTH(N'commerce.IntakeSalesOrders',N'DeliveryAddressSnapshotJson') IS NULL THEN CONVERT(bit,0) ELSE CONVERT(bit,1) END SalesOrderSnapshotColumn,
+ CASE WHEN EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=@requestObject AND name=N'CK_OrderIntakeRequests_DeliveryAddressJson') THEN CONVERT(bit,1) ELSE CONVERT(bit,0) END RequestJsonConstraint,
+ CASE WHEN EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=@quoteObject AND name=N'CK_OrderIntakeQuotes_DeliveryAddressJson') THEN CONVERT(bit,1) ELSE CONVERT(bit,0) END QuoteJsonConstraint,
+ CASE WHEN EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=@orderObject AND name=N'CK_IntakeSalesOrders_DeliveryAddressJson') THEN CONVERT(bit,1) ELSE CONVERT(bit,0) END OrderJsonConstraint,
+ CASE WHEN EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=@quoteObject AND name=N'CK_OrderIntakeQuotes_DeliveryAddressRequired') THEN CONVERT(bit,1) ELSE CONVERT(bit,0) END QuoteRequiredConstraint,
+ CASE WHEN EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=@orderObject AND name=N'CK_IntakeSalesOrders_DeliveryAddressRequired') THEN CONVERT(bit,1) ELSE CONVERT(bit,0) END OrderRequiredConstraint,
+ @deliveryQuotes LegacyDeliveryQuotes,@deliveryOrders LegacyDeliverySalesOrders;
+'@
+ try{
+  $reader=$cmd.ExecuteReader();try{
+   if(-not $reader.Read()){throw 'V81 read-only schema query returned no row.'}
+   $database=[string]$reader['DatabaseName'];if($database -cne 'WhatsBizERP_QA'){throw "V81 status rejected unexpected database '$database'."}
+   Write-Host 'V81 partial-schema check: READ-ONLY SQL diagnostics'
+   Write-Host "  Database: $database; request draft column: $([bool]$reader['RequestDraftColumn']); quote snapshot column: $([bool]$reader['QuoteSnapshotColumn']); Sales Order snapshot column: $([bool]$reader['SalesOrderSnapshotColumn'])."
+   Write-Host "  JSON constraints: request=$([bool]$reader['RequestJsonConstraint']), quote=$([bool]$reader['QuoteJsonConstraint']), Sales Order=$([bool]$reader['OrderJsonConstraint']); required-address constraints: quote=$([bool]$reader['QuoteRequiredConstraint']), Sales Order=$([bool]$reader['OrderRequiredConstraint'])."
+   Write-Host "  Existing V80 delivery rows needing legacy handling: quotes=$($reader['LegacyDeliveryQuotes']), Sales Orders=$($reader['LegacyDeliverySalesOrders'])."
+  }finally{$reader.Dispose()}
+ }finally{$cmd.Dispose()}
+}
 function Show-Plan([object[]]$Plan,[object]$State,[string]$Mode){
  $summary=Get-DatabaseMigrationStatusSummary -Plan $Plan -State $State
  Write-Host "Baseline: $($summary.Baseline)";Write-Host "Migration history: $($summary.MigrationHistory)";if($summary.BaselineEligible){Write-Host 'Baseline initialization: eligible (V40 schema verification passed)'};$applied=$summary.Applied;$pending=$summary.Pending
@@ -236,11 +388,15 @@ try{
  if($readonly -and ($ResumeAfterBackupVerification -or $VerifiedBackupPath -or $VerificationToken -or $AdminVerificationReference)){throw 'Backup-resume parameters cannot be used with read-only modes.'}
  Connect-Target
  $catalog=Get-DatabaseMigrationCatalog -Directory $script:MigrationDirectory;if(-not $catalog.Count){throw 'No managed migration files were found.'}
+ if($Status){Write-Host 'Read-only status: reading migration baseline and ledger.'}
  $state=Get-DbState
  if(-not $state.Initialized){Invoke-BaselineCheck;$state.BaselineVerified=$true;Write-Host 'V40 schema verification: PASSED (read-only).'}
  $effectiveBaseline=if($state.Initialized){$state.BaselineVersion}else{$script:BaselineVersion};$history=if($state.Initialized){[object[]]$state.History}else{[object[]]@()}
  $plan=Get-DatabaseMigrationPlan -Migrations $catalog -BaselineVersion $effectiveBaseline -History $history
  $pending=@($plan|Where-Object Status -eq 'PENDING'|Sort-Object Version)
+ if($Status -and @($pending|Where-Object Version -in @(74,75)).Count){Show-QAV74ReadOnlyPreflight}
+ if($Status -and @($catalog|Where-Object Version -eq 76).Count){Show-QAV76ReadOnlyPreflight}
+ if($Status -and @($catalog|Where-Object Version -eq 81).Count){Show-QAV81ReadOnlyPreflight}
  if($DryRun -or (-not $Status -and -not $InitializeBaseline)){
   try{$preflight=Assert-DatabaseMigrationPreflight -Migrations $catalog -Pending $pending -BaselineVersion $effectiveBaseline;Write-Host "Preflight: PASS ($($preflight.PendingCount) pending migration(s))"}
   catch{Write-Host 'Preflight: FAIL';Write-Host $_.Exception.Message;Write-Host 'DATABASE CHANGES: NONE';throw}
@@ -286,4 +442,5 @@ try{
 }finally{
  if($script:Connection){$script:Connection.Dispose()}
  if($script:Tunnel -and -not $script:Tunnel.HasExited){Stop-Process -Id $script:Tunnel.Id -Force -ErrorAction SilentlyContinue}
+ foreach($path in @($script:SshOutputPath,$script:SshErrorPath)){if($path -and (Test-Path -LiteralPath $path)){Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue}}
 }

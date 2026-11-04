@@ -3,11 +3,21 @@ import { inject } from '@angular/core';
 import { catchError, finalize, switchMap, throwError } from 'rxjs';
 import { AuthenticationService } from '../services/authentication.service';
 import { JwtStorageService } from '../services/jwt-storage.service';
+import { RuntimeConfigurationService } from '../services/runtime-configuration.service';
 const activeSubmissions = new Map<string, { key: string; callers: number }>();
 
 export const apiErrorInterceptor: HttpInterceptorFn = (request, next) => {
   const storage = inject(JwtStorageService);
   const authentication = inject(AuthenticationService);
+  const apiBaseUrl = inject(RuntimeConfigurationService).apiBaseUrl();
+  const trustedOrigin = (() => {
+    try {
+      const requestOrigin = new URL(request.url, globalThis.location.origin).origin;
+      const appOrigin = globalThis.location.origin;
+      const apiOrigin = apiBaseUrl ? new URL(apiBaseUrl, appOrigin).origin : appOrigin;
+      return requestOrigin === appOrigin || requestOrigin === apiOrigin;
+    } catch { return false; }
+  })();
   const isAuthenticationRequest =
     request.url.endsWith('/login') || request.url.endsWith('/refresh');
   const idempotentPaths = [
@@ -45,7 +55,7 @@ export const apiErrorInterceptor: HttpInterceptorFn = (request, next) => {
   const idempotent = generatedKey
     ? request.clone({ setHeaders: { 'Idempotency-Key': generatedKey } })
     : request;
-  const token = storage.token;
+  const token = trustedOrigin ? storage.token : null;
   const authorized =
     token && !isAuthenticationRequest
       ? idempotent.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
@@ -53,6 +63,7 @@ export const apiErrorInterceptor: HttpInterceptorFn = (request, next) => {
   return next(authorized).pipe(
     catchError((error: HttpErrorResponse) =>
       error.status === 401 &&
+      trustedOrigin &&
       storage.refreshToken &&
       !isAuthenticationRequest &&
       !request.url.endsWith('/logout')

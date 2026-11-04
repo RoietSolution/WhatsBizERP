@@ -25,11 +25,22 @@ public sealed class FeatureService(ApplicationDbContext db, IMemoryCache cache, 
         [FeatureKeys.MetaWhatsAppIntegration] = [FeatureKeys.WhatsAppConfiguration],
         [FeatureKeys.WebhookDiagnostics] = [FeatureKeys.MetaWhatsAppIntegration],
         [FeatureKeys.CustomerReferralRewards] = [FeatureKeys.Customers],
-        [FeatureKeys.DeliveryManagement] = [FeatureKeys.Pos]
+        [FeatureKeys.DeliveryManagement] = [FeatureKeys.Pos],
+        [FeatureKeys.StorefrontScheduledSelling] = [FeatureKeys.Administration, FeatureKeys.Products],
+        [FeatureKeys.StorefrontPopupCampaigns] = [FeatureKeys.Administration, FeatureKeys.Products],
+        [FeatureKeys.StorefrontNotifications] = [FeatureKeys.Administration, FeatureKeys.Products],
+        [FeatureKeys.PartnerSellerManagement] = [FeatureKeys.Administration, FeatureKeys.Products],
+        [FeatureKeys.PartnerCommissions] = [FeatureKeys.PartnerSellerManagement, FeatureKeys.Finance],
+        [FeatureKeys.PartnerSettlements] = [FeatureKeys.PartnerCommissions, FeatureKeys.Finance],
+        [FeatureKeys.CityMarketplace] = [FeatureKeys.Administration, FeatureKeys.Products],
+        [FeatureKeys.MultiChannelOrderIntake] = [FeatureKeys.Pos, FeatureKeys.Products, FeatureKeys.Customers],
+        [FeatureKeys.GuestVisitorAnalytics] = [FeatureKeys.Analytics]
     };
 
     public async Task<bool> IsEnabledAsync(Guid tenantId, string featureKey, CancellationToken cancellationToken = default)
-        => (await GetEffectiveFeaturesAsync(tenantId, cancellationToken)).TryGetValue(featureKey, out var enabled) && enabled;
+        => FeatureKeys.RequiresFreshEvaluation(featureKey)
+            ? (await GetTenantConfigurationCoreAsync(tenantId, cancellationToken)).Features.Any(x => x.FeatureKey.Equals(featureKey, StringComparison.OrdinalIgnoreCase) && x.EffectiveEnabled)
+            : (await GetEffectiveFeaturesAsync(tenantId, cancellationToken)).TryGetValue(featureKey, out var enabled) && enabled;
 
     public async Task<IReadOnlyDictionary<string, bool>> GetEffectiveFeaturesAsync(Guid tenantId, CancellationToken cancellationToken = default)
     {

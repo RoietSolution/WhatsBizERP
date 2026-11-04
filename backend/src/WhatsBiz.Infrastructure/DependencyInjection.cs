@@ -13,6 +13,7 @@ using WhatsBiz.Infrastructure.Products;
 using WhatsBiz.Infrastructure.Purchases;
 using WhatsBiz.Infrastructure.Suppliers;
 using WhatsBiz.Infrastructure.Warehouses;
+using WhatsBiz.Infrastructure.Outbound;
 
 namespace WhatsBiz.Infrastructure;
 
@@ -20,6 +21,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddSingleton<IOutboundSafetyPolicy, DevelopmentOutboundSafetyPolicy>();
+        services.AddTransient<DevelopmentOutboundBlockingHandler>();
         var connectionString = configuration.GetConnectionString("DefaultConnection");
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new InvalidOperationException("Connection string 'DefaultConnection' is missing or empty. Configure ConnectionStrings:DefaultConnection (environment variable ConnectionStrings__DefaultConnection) before starting the API.");

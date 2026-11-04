@@ -5,15 +5,27 @@ using WhatsBiz.Application.Features.Products.DTOs;
 using WhatsBiz.Application.Features.Products.Products;
 using WhatsBiz.SharedKernel;
 using WhatsBiz.Application.Common.Interfaces;
+using Microsoft.EntityFrameworkCore;
+using WhatsBiz.Infrastructure.Persistence;
+using WhatsBiz.Infrastructure.Storefront;
 
 namespace WhatsBiz.Api.Controllers;
 
 [ApiController]
 [Route("api/products")]
-public sealed class ProductsController(ISender sender, IEntityCodeService codes) : ControllerBase
+public sealed class ProductsController(ISender sender, IEntityCodeService codes,ApplicationDbContext db,PartnerSellerService partnerSellers,ICurrentUserService currentUser) : ControllerBase
 {
     [HttpGet("next-code"), HasPermission(Permissions.Product.Create)]
     public Task<string> NextCode(CancellationToken cancellationToken) => codes.NextAsync(EntityCodeKind.Product, cancellationToken);
+    [HttpPost("pricing-preview"), HasPermission(Permissions.Product.View)]
+    public ActionResult<ProductPricingPreviewDto> PricingPreview(ProductPricingPreviewInput input)
+    {
+        var type = input.GstPricingType.Trim().ToUpperInvariant();
+        if (input.SellingPrice < 0 || input.GSTPercentage is < 0 or > 100 || type is not ("INCLUSIVE" or "EXCLUSIVE"))
+            return BadRequest(new { message = "Product pricing values are invalid." });
+        var preview = WhatsBiz.Application.Features.Products.Products.ProductPricingPolicy.Calculate(input.SellingPrice, input.GSTPercentage, type);
+        return Ok(new ProductPricingPreviewDto(input.SellingPrice, preview.GstAmount, preview.CustomerTotal, type));
+    }
     [HttpGet, HasPermission(Permissions.Product.View)]
     public Task<PagedResult<ProductListItemDto>> Get([FromQuery] string? search, [FromQuery] bool? isActive, [FromQuery] Guid? categoryId, [FromQuery] Guid? brandId, [FromQuery] string sortBy = "productName", [FromQuery] bool descending = false, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) => sender.Send(new GetProductsQuery(search, isActive, categoryId, brandId, sortBy, descending, pageNumber, pageSize), cancellationToken);
 
@@ -29,6 +41,22 @@ public sealed class ProductsController(ISender sender, IEntityCodeService codes)
 
     [HttpPut("{id:guid}"), HasPermission(Permissions.Product.Edit)]
     public Task<ProductDto> Update(Guid id, ProductInput input, CancellationToken cancellationToken) => sender.Send(new UpdateProductCommand(id, input), cancellationToken);
+
+    [HttpPost("with-source"),HasPermission(Permissions.Product.Create)]
+    public async Task<IActionResult> CreateWithSource(ProductWithPartnerSourceInput input,CancellationToken cancellationToken)
+    {
+        await using var tx=await db.Database.BeginTransactionAsync(cancellationToken);
+        try{var product=await sender.Send(new CreateProductCommand(input.Product),cancellationToken);await partnerSellers.SetProductListing(product.ProductId,input.PartnerSellerId,currentUser.UserId?.ToString()??"retailer",cancellationToken);await tx.CommitAsync(cancellationToken);return CreatedAtAction(nameof(GetById),new{id=product.ProductId},product);}
+        catch{await tx.RollbackAsync(cancellationToken);throw;}
+    }
+
+    [HttpPut("{id:guid}/with-source"),HasPermission(Permissions.Product.Edit)]
+    public async Task<ProductDto> UpdateWithSource(Guid id,ProductWithPartnerSourceInput input,CancellationToken cancellationToken)
+    {
+        await using var tx=await db.Database.BeginTransactionAsync(cancellationToken);
+        try{var product=await sender.Send(new UpdateProductCommand(id,input.Product),cancellationToken);await partnerSellers.SetProductListing(product.ProductId,input.PartnerSellerId,currentUser.UserId?.ToString()??"retailer",cancellationToken);await tx.CommitAsync(cancellationToken);return product;}
+        catch{await tx.RollbackAsync(cancellationToken);throw;}
+    }
 
     [HttpPatch("{id:guid}/status"), HasPermission(Permissions.Product.Edit)]
     public async Task<IActionResult> SetStatus(Guid id, ProductStatusInput input, CancellationToken cancellationToken) { await sender.Send(new SetProductStatusCommand(id, input.IsActive), cancellationToken); return NoContent(); }
@@ -64,3 +92,4 @@ public sealed class ProductsController(ISender sender, IEntityCodeService codes)
 
 public sealed record ProductStatusInput(bool IsActive);
 public sealed record ProductStatusBulkInput(IReadOnlyCollection<Guid> ProductIds, bool IsActive);
+public sealed record ProductWithPartnerSourceInput(ProductInput Product,Guid? PartnerSellerId);

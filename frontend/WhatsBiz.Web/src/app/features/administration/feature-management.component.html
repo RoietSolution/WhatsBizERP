@@ -4,7 +4,7 @@
     <input #tenantWorkbook type="file" hidden accept=".xlsx" (change)="importTenant($event)" />
     <button mat-stroked-button type="button" (click)="downloadEnrollmentTemplate()">Download tenant Excel template</button>
     <button mat-flat-button color="primary" type="button" [disabled]="importing()" (click)="tenantWorkbook.click()">{{ importing() ? 'Importing…' : 'Import completed tenant Excel' }}</button>
-    <small>Uses separate Tenant, Administrator, Subscription, and Features tabs. Products are imported separately.</small>
+    <small>Use the current template: Business Type is required, with a reference list of owner-managed choices; Short Business Description is optional (160 characters). Tenant Key is the Store Key; Display Name is the Store Name. Add the logo later in Storefront Branding. Enrollment does not publish the store.</small>
   </div>
   <p><a mat-stroked-button routerLink="/admin/whatsapp-platform">View KhataDhari Meta App and retailer WhatsApp connections</a></p>
   <mat-card class="tenant-card">
@@ -52,7 +52,7 @@
       <div class="feature-row version"><div><h2>{{ version.featureName }}</h2><p>Configured: {{ version.configuredEnabled ? 'ON' : 'OFF' }} · Effective: {{ version.effectiveEnabled ? 'ON' : 'OFF' }}</p><small>{{ reason(version) }}</small></div><mat-slide-toggle [(ngModel)]="version.configuredEnabled" [disabled]="saving() || !version.subscriptionAllowed"></mat-slide-toggle></div>
       <div class="modules" [class.parent-off]="!version.effectiveEnabled">
         @for (feature of children(version); track feature.featureKey) {
-          <div class="feature-row"><div><h3>{{ feature.featureName }}</h3><p>Configured: {{ feature.configuredEnabled ? 'ON' : 'OFF' }} · Effective: {{ feature.effectiveEnabled ? 'ON' : 'OFF' }}</p><small>{{ reason(feature) }}</small></div><mat-slide-toggle [(ngModel)]="feature.configuredEnabled" [disabled]="saving() || !feature.subscriptionAllowed"></mat-slide-toggle></div>
+          <div class="feature-row"><div><h3>{{ feature.featureName }}</h3><p>Configured: {{ feature.configuredEnabled ? 'ON' : 'OFF' }} · Effective: {{ feature.effectiveEnabled ? 'ON' : 'OFF' }}</p><small>{{ reason(feature) }}</small>@if(storefrontHint(feature.featureKey);as hint){<p class="storefront-feature-hint">{{ hint }}</p>}</div><mat-slide-toggle [(ngModel)]="feature.configuredEnabled" [disabled]="saving() || !feature.subscriptionAllowed" [aria-label]="feature.featureName"></mat-slide-toggle></div>
         }
       </div>
     </mat-card>

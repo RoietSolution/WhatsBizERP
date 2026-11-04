@@ -47,6 +47,12 @@ export class FeatureManagementComponent implements OnInit {
     this.api.updateDisplayName(config.tenantId, this.displayName.trim()).subscribe({ next: x => { this.configuration.set(x); this.displayName = x.displayName ?? ''; this.tenants.update(rows => rows.map(row => row.tenantId === x.tenantId ? { ...row, displayName: x.displayName } : row)); this.saving.set(false); this.message.set('Customer-facing Display Name saved.'); }, error: e => { this.saving.set(false); this.error.set(e?.error?.detail ?? 'Display Name could not be saved.'); } });
   }
   children(version: FeatureAccessState): FeatureAccessState[] { return (this.configuration()?.features ?? []).filter(x => x.parentFeatureKey === version.featureKey); }
+  storefrontHint(key: string): string {
+    if(key==='STOREFRONT_SCHEDULED_SELLING')return 'Disabling suspends booking-window restrictions; products follow normal active/stock rules. Saved schedules are retained.';
+    if(key==='STOREFRONT_POPUP_CAMPAIGNS')return 'Disabling stops public campaign delivery without deleting saved campaigns.';
+    if(key==='STOREFRONT_NOTIFICATIONS')return 'Optional restock messages and retailer order alerts only. Essential customer order, payment and security messages are unaffected.';
+    return '';
+  }
   save(): void {
     const config = this.configuration(); if (!config) return;
     const updates = config.features.filter(x => this.original.get(x.featureKey) !== x.configuredEnabled).map(x => ({ featureKey: x.featureKey, configuredEnabled: x.configuredEnabled }));

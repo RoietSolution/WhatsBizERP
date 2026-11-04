@@ -7,6 +7,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using WhatsBiz.Infrastructure.Notifications;
 using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Application.Features.Storefront;
 
@@ -19,7 +20,7 @@ public sealed class StorefrontOtpPolicy
 
     public StorefrontOtpPolicy(string environmentName, IConfiguration configuration)
     {
-        // TEMPORARY: fixed Storefront customer OTP remains enabled until an SMS provider is configured.
+        // A configured fixed code remains an explicit test/deployment override; otherwise the configured SMS sender is used.
         if (configuration.GetValue<bool>("StorefrontCustomerAuth:FixedOtpEnabled"))
         {
             fixedCode = ValidateFixedCode(configuration["StorefrontCustomerAuth:FixedOtp"], "Storefront customer fixed OTP");
@@ -58,6 +59,26 @@ public sealed class CustomerOtpSender(StorefrontOtpPolicy policy, IConfiguration
     {
         if (policy.SkipDelivery) return;
         var endpoint = configuration["StorefrontOtp:Endpoint"];
+        if (string.Equals(configuration["StorefrontOtp:Provider"], "2Factor", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(endpoint)) endpoint = "https://2factor.in/API/V1/OTP/SEND";
+            var apiKey = configuration["StorefrontOtp:ApiKey"];
+            var template = configuration["StorefrontOtp:TemplateName"];
+            if (!HttpCustomerMessageProvider.TryTwoFactorEndpoint(endpoint, out var twoFactorUri)
+                || string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(template))
+                throw new InvalidOperationException("The 2Factor OTP endpoint template or API key is not configured.");
+            using var twoFactorRequest = new HttpRequestMessage(HttpMethod.Post, twoFactorUri)
+            {
+                Content = JsonContent.Create(new { to = "+91" + normalizedMobile, channel = "SMS", template_name = template, var1 = otp })
+            };
+            HttpCustomerMessageProvider.AddTwoFactorAuthentication(twoFactorRequest, apiKey,
+                configuration["StorefrontOtp:ApiKeyHeader"], configuration["StorefrontOtp:ApiKeyScheme"]);
+            using var twoFactorResponse = await clients.CreateClient("StorefrontOtp").SendAsync(twoFactorRequest, token);
+            var responseBody = await twoFactorResponse.Content.ReadAsStringAsync(token);
+            if (!twoFactorResponse.IsSuccessStatusCode || !HttpCustomerMessageProvider.TwoFactorAccepted(responseBody, out _))
+                throw new InvalidOperationException("The 2Factor OTP provider rejected the request.");
+            return;
+        }
         var accessToken = configuration["StorefrontOtp:AccessToken"];
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(accessToken))
             throw new InvalidOperationException("The customer OTP provider is not configured.");

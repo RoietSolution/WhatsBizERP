@@ -28,6 +28,7 @@ using WhatsBiz.Api.Configuration;
 using Serilog.Events;
 using Microsoft.Data.SqlClient;
 using WhatsBiz.Api.Logging;
+using WhatsBiz.Infrastructure.Outbound;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console(formatProvider: CultureInfo.InvariantCulture).CreateBootstrapLogger();
 
@@ -38,6 +39,15 @@ try
     var databaseTarget = DatabaseTargetGuard.Validate(builder.Environment.EnvironmentName, builder.Configuration);
     Log.Information("Runtime environment {Environment}; database server {DatabaseServer}; database name {DatabaseName}",
         builder.Environment.EnvironmentName, databaseTarget.DataSource, databaseTarget.InitialCatalog);
+    if (string.Equals(builder.Environment.EnvironmentName, "QA", StringComparison.OrdinalIgnoreCase))
+    {
+        var configuredDatabase = databaseTarget.InitialCatalog;
+        var connectedDatabase = await DatabaseTargetGuard.ReadOpenConnectionDatabaseNameAsync(
+            builder.Configuration.GetConnectionString("DefaultConnection")!);
+        DatabaseTargetGuard.ValidateOpenConnectionDatabaseName(
+            builder.Environment.EnvironmentName, configuredDatabase, connectedDatabase);
+        Log.Information("Verified open SQL connection database {DatabaseName}", connectedDatabase);
+    }
     builder.Host.UseSerilog((context, services, configuration) =>
     {
         configuration
@@ -84,7 +94,7 @@ try
     builder.Services.AddProductImageStorage(builder.Configuration);
     builder.Services.AddWhatsAppIntegration(builder.Configuration);
     builder.Services.AddSingleton<IProductMasterSpreadsheetService, ProductMasterSpreadsheetService>();
-    builder.Services.AddCustomerNotifications(builder.Configuration);
+builder.Services.AddCustomerNotifications(builder.Configuration, builder.Environment);
     builder.Services.AddScoped<IInventoryOperationsRepository, InventoryOperationsRepository>();
     builder.Services.AddScoped<IReceivablesRepository, ReceivablesRepository>();
     builder.Services.AddMemoryCache(options => options.SizeLimit = 1024);
@@ -101,6 +111,12 @@ try
     builder.Services.AddScoped<IAdminRepository, AdminRepository>();
     builder.Services.AddScoped<ICommerceCollectionRepository, CommerceCollectionRepository>();
     builder.Services.AddScoped<IStorefrontService, StorefrontService>();
+    builder.Services.AddScoped<PublicCatalogService>();
+    builder.Services.AddScoped<PublicMarketplaceService>();
+    builder.Services.AddScoped<PartnerSellerService>();
+    builder.Services.AddScoped<WhatsBiz.Infrastructure.Features.BusinessTypeCatalogService>();
+    builder.Services.AddScoped<IStorefrontAvailabilityService, StorefrontAvailabilityService>();
+    builder.Services.AddScoped<IStorefrontCampaignService, StorefrontCampaignService>();
     builder.Services.AddScoped<IStorefrontCheckoutService, StorefrontCheckoutService>();
     builder.Services.AddScoped<IStorefrontAutomatedNotificationService, StorefrontAutomatedNotificationService>();
     builder.Services.AddScoped<IStorefrontCustomerService, StorefrontCustomerService>();
@@ -117,8 +133,13 @@ try
 builder.Services.AddScoped<CustomerDemandService>();
 builder.Services.AddScoped<ICustomerDemandService, CustomerDemandReportingService>();
 builder.Services.AddScoped<ICustomerDemandManagementService, CustomerDemandManagementService>();
+builder.Services.AddScoped<OwnerSearchAnalyticsService>();
+builder.Services.AddScoped<IGuestVisitorAnalyticsService, GuestVisitorAnalyticsService>();
+builder.Services.AddSingleton<GuestVisitorAnalyticsRetentionHealth>();
+builder.Services.AddHostedService<GuestVisitorAnalyticsRetentionWorker>();
     builder.Services.AddSingleton<ICustomerOtpSender, CustomerOtpSender>();
-    builder.Services.AddHttpClient("StorefrontOtp", client => client.Timeout = TimeSpan.FromSeconds(15));
+    builder.Services.AddHttpClient("StorefrontOtp", client => client.Timeout = TimeSpan.FromSeconds(15))
+        .AddHttpMessageHandler<DevelopmentOutboundBlockingHandler>();
     builder.Services.AddScoped<IStorefrontAdministrationService, StorefrontAdministrationService>();
     builder.Services.AddScoped<ICustomerGroupRepository, CustomerGroupRepository>();
     builder.Services.AddScoped<ICommerceAnalyticsService, CommerceAnalyticsService>();

@@ -124,7 +124,7 @@ internal sealed class ProductImageStorage : IProductImageStorage, IStorefrontMed
     private static string NormalizeResource(string value)
     {
         var resource=value.Trim().ToLowerInvariant();
-        if(resource is not ("logo" or "category" or "category-all" or "banner-primary" or "banner-secondary" or "customer-profile" or "feedback"))
+        if(resource is not ("logo" or "category" or "category-all" or "banner-primary" or "banner-secondary" or "customer-profile" or "feedback" or "campaign" or "city"))
             throw new InvalidOperationException("The storefront media resource type is invalid.");
         return resource;
     }

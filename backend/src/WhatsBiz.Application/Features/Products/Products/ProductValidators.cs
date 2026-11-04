@@ -42,7 +42,12 @@ public sealed class ProductInputValidator : AbstractValidator<ProductInput>
         RuleFor(x => x.BrandId).NotEmpty();
         RuleFor(x => x.UnitId).NotEmpty();
         RuleFor(x => x.GSTPercentage).InclusiveBetween(0, 100);
+        RuleFor(x => x.GstPricingType).Must(x => x is "INCLUSIVE" or "EXCLUSIVE")
+            .WithMessage("GST pricing type must be INCLUSIVE or EXCLUSIVE.");
         RuleFor(x => x.PurchasePrice).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.PackagingCost).GreaterThanOrEqualTo(0).When(x => x.PackagingCost.HasValue);
+        RuleFor(x => x.ShippingCost).GreaterThanOrEqualTo(0).When(x => x.ShippingCost.HasValue);
+        RuleFor(x => x.CombinedShippingPackagingCost).GreaterThanOrEqualTo(0).When(x => x.CombinedShippingPackagingCost.HasValue);
         RuleFor(x => x.SellingPrice).GreaterThanOrEqualTo(x => x.PurchasePrice);
         RuleFor(x => x.MRP).GreaterThanOrEqualTo(0);
         RuleFor(x => x.MinimumStock).GreaterThanOrEqualTo(0);

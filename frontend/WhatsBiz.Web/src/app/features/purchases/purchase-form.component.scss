@@ -16,6 +16,7 @@
 .details-panel h3 { margin: 0; }
 .details-panel h3:not(:first-child) { margin-top: 0; }
 .details-panel h3 + mat-form-field { min-width:0; }
+.warehouse-setup-message { grid-column: 1 / -1; margin: 0; padding: 10px 12px; color: var(--wb-text-secondary); background: var(--wb-background); border: 1px solid var(--wb-border); border-radius: 8px; font-size: 12px; }
 .details-panel,
 .summary-panel {
   display: flex;

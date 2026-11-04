@@ -40,5 +40,12 @@ public sealed class ProductValidatorTests
         result.Errors.Should().Contain(error => error.PropertyName == nameof(ProductInput.SellingPrice));
     }
 
+    [Fact]
+    public async Task UnsupportedGstPricingTypeFailsValidation()
+    {
+        var result = await new ProductInputValidator().ValidateAsync(CreateInput() with { GstPricingType = "OTHER" });
+        result.Errors.Should().Contain(error => error.PropertyName == nameof(ProductInput.GstPricingType));
+    }
+
     private static ProductInput CreateInput() => new("PRD-001", "890000000001", "Product", null, null, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "1001", null, 18, 100, 120, 125, 0, 100, 10, null, null, null, null, false, false, true);
 }

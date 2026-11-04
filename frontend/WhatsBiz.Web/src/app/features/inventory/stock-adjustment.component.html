@@ -1,5 +1,6 @@
 <h1>Stock Adjustment</h1>
 <form [formGroup]="form" (ngSubmit)="save()" class="grid">
+  @if (locationUnavailable()) { <p role="alert" class="location-message">No active stock location is configured. This adjustment cannot be posted.</p> }
   <mat-form-field
     ><mat-label>Product</mat-label
     ><mat-select formControlName="productId">
@@ -7,14 +8,14 @@
         <mat-option [value]="x.productId">{{ x.productCode }} — {{ x.productName }}</mat-option>
       }
     </mat-select></mat-form-field
-  ><mat-form-field
-    ><mat-label>Warehouse</mat-label
+  >@if (manualLocationChoice()) { <p class="location-message">No single default is configured. Select the stock location for this adjustment.</p><mat-form-field
+    ><mat-label>Stock location</mat-label
     ><mat-select formControlName="warehouseId">
       @for (x of warehouses(); track x.warehouseId) {
         <mat-option [value]="x.warehouseId">{{ x.warehouseName }}</mat-option>
       }
-    </mat-select></mat-form-field
-  ><mat-form-field
+    </mat-select></mat-form-field> }
+  <mat-form-field
     ><mat-label>Adjustment</mat-label
     ><mat-select formControlName="adjustmentType"
       ><mat-option value="INCREASE">Increase Stock</mat-option

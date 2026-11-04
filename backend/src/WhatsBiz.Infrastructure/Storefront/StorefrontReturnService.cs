@@ -23,7 +23,7 @@ public sealed class StorefrontReturnService(IConfiguration configuration, IStore
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, token);
         await using var item = new SqlCommand("""
             SELECT i.InvoiceNumber,i.Status,i.CustomerId,x.InvoiceItemId,p.ProductName,p.ProductCode,x.Quantity,x.ReturnedQuantity,
-              COALESCE(d.DeliveredAt,NULL),COALESCE(x.ReturnPolicyModeSnapshot,p.ReturnPolicyMode),
+              CONVERT(datetimeoffset(7),d.DeliveredAt),COALESCE(x.ReturnPolicyModeSnapshot,p.ReturnPolicyMode),
               CASE WHEN COALESCE(x.ReturnPolicyModeSnapshot,p.ReturnPolicyMode)=N'NON_RETURNABLE' THEN NULL ELSE COALESCE(x.ReturnWindowDaysSnapshot,CASE WHEN p.ReturnPolicyMode=N'CUSTOM' THEN p.ReturnWindowDays ELSE sc.DefaultReturnWindowDays END) END
             FROM sales.SalesInvoices i WITH(UPDLOCK,HOLDLOCK)
             JOIN sales.SalesInvoiceItems x ON x.InvoiceId=i.InvoiceId AND x.InvoiceItemId=@item
@@ -42,13 +42,19 @@ public sealed class StorefrontReturnService(IConfiguration configuration, IStore
         if (mode.Equals("NON_RETURNABLE",StringComparison.OrdinalIgnoreCase) || days is null or <0) throw new BusinessRuleException("This product is not eligible for return.");
         var deadline=delivered.Value.Date.AddDays(days.Value);
         if (DateTimeOffset.UtcNow.Date > deadline.Date) throw new BusinessRuleException("The return window has ended.");
-        await using var existing = new SqlCommand("SELECT COALESCE(SUM(Quantity),0),MAX(CASE WHEN Status IN(N'REQUESTED',N'APPROVED',N'RECEIVED') THEN 1 ELSE 0 END) FROM commerce.StorefrontReturnRequests WITH(UPDLOCK,HOLDLOCK) WHERE TenantId=@tenant AND InvoiceItemId=@item AND Status<>N'REJECTED';",connection,transaction);
-        Add(existing,"@tenant",tenant);Add(existing,"@item",invoiceItemId);await using var er=await existing.ExecuteReaderAsync(token);await er.ReadAsync(token);var requested=er.GetDecimal(0);var hasPending=er.GetInt32(1)==1;await er.CloseAsync();
+        await using var existing = new SqlCommand("SELECT COALESCE(SUM(Quantity),0),COALESCE(MAX(CASE WHEN Status IN(N'REQUESTED',N'APPROVED',N'RECEIVED') THEN 1 ELSE 0 END),0) FROM commerce.StorefrontReturnRequests WITH(UPDLOCK,HOLDLOCK) WHERE TenantId=@tenant AND InvoiceItemId=@item AND Status<>N'REJECTED';",connection,transaction);
+        Add(existing,"@tenant",tenant);Add(existing,"@item",invoiceItemId);await using var er=await existing.ExecuteReaderAsync(token);await er.ReadAsync(token);var requested=er.GetDecimal(0);var hasPending=!er.IsDBNull(1)&&er.GetInt32(1)==1;await er.CloseAsync();
         if (hasPending) throw new BusinessRuleException("A return request is already awaiting processing.");
         if (requested + input.Quantity > sold-returned) throw new BusinessRuleException("The requested quantity exceeds the remaining returnable quantity.");
         var id=Guid.NewGuid();
         await using var insert=new SqlCommand("INSERT commerce.StorefrontReturnRequests(ReturnRequestId,TenantId,InvoiceId,InvoiceItemId,CustomerId,Quantity,Reason,Explanation) VALUES(@id,@tenant,@order,@item,@customer,@qty,@reason,@explanation);",connection,transaction);
-        Add(insert,"@id",id);Add(insert,"@tenant",tenant);Add(insert,"@order",orderId);Add(insert,"@item",invoiceItemId);Add(insert,"@customer",customer.Id);Add(insert,"@qty",input.Quantity);Add(insert,"@reason",reason);Add(insert,"@explanation",explanation);await insert.ExecuteNonQueryAsync(token);await transaction.CommitAsync(token);
+        Add(insert,"@id",id);Add(insert,"@tenant",tenant);Add(insert,"@order",orderId);Add(insert,"@item",invoiceItemId);Add(insert,"@customer",customer.Id);Add(insert,"@qty",input.Quantity);Add(insert,"@reason",reason);Add(insert,"@explanation",explanation);
+        try { await insert.ExecuteNonQueryAsync(token); }
+        catch (SqlException exception) when (exception.Number is 2601 or 2627)
+        { throw new BusinessRuleException("A return request is already awaiting processing."); }
+        catch (SqlException exception) when (exception.Number == 547)
+        { throw new BusinessRuleException("The order item is no longer available for a return request."); }
+        await transaction.CommitAsync(token);
         return new(id,orderId,invoiceItemId,number,name,code,input.Quantity,reason,explanation,"REQUESTED",DateTimeOffset.UtcNow);
     }
 

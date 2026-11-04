@@ -57,14 +57,69 @@ export class WhatsAppConfigurationComponent {
     if(this.applicationOwner)this.features.tenants().subscribe({next:tenants=>{this.tenants.set(tenants);this.loading.set(false);},error:()=>{this.message.set('Unable to load retailers.');this.loading.set(false);}});
     else this.reload();
   }
-  connectLive(){ if(this.applicationOwner&&!this.tenantId)return; this.saving.set(true); this.message.set(''); this.api.onboardingConfig().subscribe({next:cfg=>{if(!cfg.enabled||!cfg.appId||!cfg.configurationId){this.message.set('Live WhatsApp onboarding is not configured yet.');this.saving.set(false);return;} this.launchEmbeddedSignup(cfg.appId,cfg.configurationId,cfg.graphApiVersion||'v23.0');},error:()=>{this.message.set('Unable to prepare Meta onboarding.');this.saving.set(false);}}); }
-  private launchEmbeddedSignup(appId:string,configurationId:string,version:string){
-    let waba:string|undefined; let phone:string|undefined;
-    const finish=(code:string)=>this.api.completeOnboarding({authorizationCode:code,whatsAppBusinessAccountId:waba,phoneNumberId:phone,apiVersion:version}).subscribe({next:r=>{this.message.set(r.message||'WhatsApp Business connected.');this.reload();this.saving.set(false);},error:()=>{this.message.set('Meta onboarding could not be completed. Please try again.');this.saving.set(false);}});
-    const run=()=>{const fb=(window as unknown as {FB?:{login:(cb:(r:{authResponse?:{code?:string}})=>void,o:unknown)=>void}}).FB;if(!fb){this.message.set('Meta onboarding could not load.');this.saving.set(false);return;} window.addEventListener('message',(event:MessageEvent)=>{if(event.origin!=='https://www.facebook.com')return;let data:unknown;try{data=JSON.parse(String(event.data));}catch{return;}if(typeof data!=='object'||!data)return;const d=data as {event?:string;data?:unknown};if(d.event!=='FINISH'&&d.event!=='FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING')return;const session=typeof d.data==='object'&&d.data!==null?d.data as {waba_id?:unknown;phone_number_id?:unknown}:undefined;waba=typeof session?.waba_id==='string'&&session.waba_id.trim()?session.waba_id:undefined;phone=typeof session?.phone_number_id==='string'&&session.phone_number_id.trim()?session.phone_number_id:undefined;this.message.set('Meta setup received. Completing securely…');});fb.login(response=>{const code=response.authResponse?.code;if(code)finish(code);else{this.message.set('Meta onboarding was cancelled.');this.saving.set(false);}}, {config_id:configurationId,response_type:'code',override_default_response_type:true,extras:{setup:{},featureType:'whatsapp_business_app_onboarding',sessionInfoVersion:'3',version:'v4'}});};
-    if((window as unknown as {FB?:unknown}).FB){run();return;} const script=document.createElement('script');script.id='facebook-jssdk';script.src='https://connect.facebook.net/en_US/sdk.js';script.async=true;script.onload=()=>{(window as unknown as {fbAsyncInit?:()=>void}).fbAsyncInit=()=>{const w=window as unknown as {FB:{init:(o:unknown)=>void}};w.FB.init({appId,xfbml:false,version});run();};const existing=(window as unknown as {FB?:{init:(o:unknown)=>void}}).FB;if(existing){existing.init({appId,xfbml:false,version});run();}};script.onerror=()=>{this.message.set('Meta onboarding could not load.');this.saving.set(false);};document.head.appendChild(script);
-  }
-  setProviderMode(mode:WhatsAppConfiguration['providerMode']) {
+  connectLive(){ if(this.applicationOwner&&!this.tenantId)return; if(!this.model().isEnabled){this.message.set('Enable LIVE mode for this retailer before onboarding.');return;} const targetTenantId=this.applicationOwner?this.tenantId:undefined; this.saving.set(true); this.message.set(''); this.api.onboardingConfig(targetTenantId).subscribe({next:cfg=>{if(!cfg.enabled||!cfg.appId||!cfg.configurationId){this.message.set('Live WhatsApp onboarding is not configured yet. Ask the platform administrator to check the shared Meta App settings.');this.saving.set(false);return;} this.launchEmbeddedSignup(cfg.appId,cfg.configurationId,cfg.graphApiVersion||'v23.0',targetTenantId);},error:()=>{this.message.set('Unable to prepare Meta onboarding. Check this retailer\'s Meta integration entitlement and platform configuration.');this.saving.set(false);}}); }
+  private launchEmbeddedSignup(appId:string,configurationId:string,version:string,targetTenantId?:string){
+    let waba:string|undefined; let phone:string|undefined; let authorizationCode:string|undefined;
+    let sessionFinished=false; let completionStarted=false;
+    let finishTimeout:ReturnType<typeof window.setTimeout>|undefined;
+    const onMessage=(event:MessageEvent)=>{
+      if(event.origin!=='https://www.facebook.com')return;
+      let data:unknown; try{data=JSON.parse(String(event.data));}catch{return;}
+      if(typeof data!=='object'||data===null)return;
+      const d=data as {event?:string;data?:unknown};
+      if(d.event!=='FINISH'&&d.event!=='FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING')return;
+      const session=typeof d.data==='object'&&d.data!==null?d.data as {waba_id?:unknown;phone_number_id?:unknown}:undefined;
+      waba=typeof session?.waba_id==='string'&&session.waba_id.trim()?session.waba_id:undefined;
+      phone=typeof session?.phone_number_id==='string'&&session.phone_number_id.trim()?session.phone_number_id:undefined;
+      sessionFinished=true;
+      this.message.set('Meta setup received. Completing securely…');
+      completeWhenReady();
+    };
+    const cleanup=()=>{
+      if(finishTimeout!==undefined)window.clearTimeout(finishTimeout);
+      window.removeEventListener('message',onMessage);
+    };
+    const completeWhenReady=()=>{
+      if(completionStarted||!authorizationCode||!sessionFinished)return;
+      completionStarted=true; cleanup();
+      if(!waba||!phone){
+        this.message.set('Meta finished without returning both the WABA ID and phone number ID. No connection was saved. Retry signup or contact the platform administrator.');
+        this.saving.set(false); return;
+      }
+      this.api.completeOnboarding({authorizationCode,whatsAppBusinessAccountId:waba,phoneNumberId:phone,apiVersion:version},targetTenantId)
+        .subscribe({next:r=>{this.message.set(r.message||'WhatsApp Business connected.');this.reload(targetTenantId);this.saving.set(false);},
+          error:()=>{this.message.set('Meta onboarding could not be completed. Please retry and contact the platform administrator.');this.reload(targetTenantId);this.saving.set(false);}});
+    };
+    const run=()=>{
+      const fb=(window as unknown as {FB?:{login:(cb:(r:{authResponse?:{code?:string}})=>void,o:unknown)=>void}}).FB;
+      if(!fb){this.message.set('Meta onboarding could not load.');this.saving.set(false);return;}
+      window.addEventListener('message',onMessage);
+      fb.login(response=>{
+        const code=response.authResponse?.code;
+        if(!code){cleanup();this.message.set('Meta onboarding was cancelled.');this.saving.set(false);return;}
+        authorizationCode=code;
+        if(!sessionFinished){
+          this.message.set('Meta authorization received. Waiting for the account details…');
+          finishTimeout=window.setTimeout(()=>{cleanup();this.message.set('Meta did not return account details. No connection was saved; retry signup.');this.saving.set(false);},15000);
+        }
+        completeWhenReady();
+      },{config_id:configurationId,response_type:'code',override_default_response_type:true,
+        extras:{setup:{},featureType:'whatsapp_business_app_onboarding',version:'v4'}});
+    };
+    if((window as unknown as {FB?:unknown}).FB){run();return;}
+    const script=document.createElement('script');script.id='facebook-jssdk';script.src='https://connect.facebook.net/en_US/sdk.js';
+    script.async=true;
+    script.onload=()=>{
+      (window as unknown as {fbAsyncInit?:()=>void}).fbAsyncInit=()=>{
+        const w=window as unknown as {FB:{init:(o:unknown)=>void}};
+        w.FB.init({appId,xfbml:false,version});run();
+      };
+      const existing=(window as unknown as {FB?:{init:(o:unknown)=>void}}).FB;
+      if(existing){existing.init({appId,xfbml:false,version});run();}
+    };
+    script.onerror=()=>{this.message.set('Meta onboarding could not load.');this.saving.set(false);};
+    document.head.appendChild(script);
+  }  setProviderMode(mode:WhatsAppConfiguration['providerMode']) {
     const current=this.model();
     if (mode === current.providerMode) return;
     this.clearSecrets();
@@ -73,7 +128,7 @@ export class WhatsAppConfigurationComponent {
       : {...current,providerMode:mode});
   }
   selectTenant(){this.diagnostics.set(null);this.clearSecrets();if(this.tenantId)this.reload();}
-  reload() { if(this.applicationOwner&&!this.tenantId)return;this.loading.set(true);this.api.get(this.tenantId||undefined).subscribe({ next:x=>{this.model.set(x);this.recipientNumber=x.testRecipientNumber??'';this.loading.set(false);if(x.providerMode==='META_TEST')this.reloadDiagnostics();}, error:()=>{this.message.set('Unable to load WhatsApp configuration.');this.loading.set(false);} }); }
+  reload(targetTenantId?:string) { const tenantId=targetTenantId||this.tenantId;if(this.applicationOwner&&!tenantId)return;this.loading.set(true);this.api.get(tenantId||undefined).subscribe({ next:x=>{this.model.set(x);this.recipientNumber=x.testRecipientNumber??'';this.loading.set(false);if(x.providerMode==='META_TEST')this.reloadDiagnostics();}, error:()=>{this.message.set('Unable to load WhatsApp configuration.');this.loading.set(false);} }); }
   reloadDiagnostics(){if(this.applicationOwner&&!this.tenantId)return;this.api.diagnostics(this.tenantId||undefined).subscribe({next:x=>this.diagnostics.set(x),error:()=>this.diagnostics.set(null)});}
   save() { if(this.applicationOwner&&!this.tenantId)return;const x=this.model(); this.saving.set(true); this.message.set(''); this.api.save(this.tenantId||undefined,{ providerMode:x.providerMode, metaAppId:x.metaAppId??'', whatsAppBusinessAccountId:x.whatsAppBusinessAccountId??'', phoneNumberId:x.phoneNumberId??'', apiVersion:x.apiVersion??'', testRecipientNumber:this.recipientNumber||undefined, isEnabled:x.isEnabled, accessToken:this.accessToken||undefined, webhookVerifyToken:this.webhookVerifyToken||undefined, appSecret:this.appSecret||undefined }).subscribe({next:y=>{this.model.set(y);this.clearSecrets();this.message.set(x.providerMode==='MOCK'?'Mock provider configured. No Meta registration or credentials are used.':x.providerMode==='LIVE'&&y.connectionStatus!=='CONNECTED'?'LIVE onboarding is enabled. The retailer can now connect its WhatsApp Business account.':'Configuration saved. Validate the Meta connection next.');this.saving.set(false);this.reloadDiagnostics();},error:()=>{this.message.set('Configuration could not be saved. Check the values and try again.');this.saving.set(false);}}); }
   validate() { if(this.applicationOwner&&!this.tenantId)return;this.saving.set(true);this.message.set('');this.api.validate(this.tenantId||undefined,this.accessToken).subscribe({next:r=>{this.message.set(r.message??'Validation completed.');this.clearSecrets();this.reload();this.saving.set(false);},error:()=>{this.message.set('Connection validation failed safely. Review the configuration and server logs.');this.saving.set(false);}}); }

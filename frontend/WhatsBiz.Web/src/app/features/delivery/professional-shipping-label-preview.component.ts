@@ -1,7 +1,7 @@
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ShippingLabelFormat, StorefrontShippingLabel } from './shipping-label.models';
+import { ShippingLabelFormat, StorefrontShippingLabel, shippingLabelPaymentIndicator } from './shipping-label.models';
 
 @Component({
   standalone: true, imports: [CommonModule, CurrencyPipe, DatePipe, FormsModule], selector: 'app-shipping-label-preview',
@@ -15,7 +15,7 @@ export class ShippingLabelPreviewComponent {
   pageCount(): number { const count=this.document==='BOTH'?this.orders.length*2:this.orders.length; return this.format==='A4_DOUBLE'?Math.ceil(count/2):count; }
   itemCount(order: StorefrontShippingLabel): number { return (order.items||[]).reduce((sum,item)=>sum+item.quantity,0); }
   trackOrder(_: number, order: StorefrontShippingLabel): string { return order.id; }
-  paymentIndicator(order: StorefrontShippingLabel): string { return order.paymentDue ? `Cash on Delivery — Collect ${new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format(order.dueAmount)}` : 'Payment status'; }
+  paymentIndicator(order: StorefrontShippingLabel): string { return shippingLabelPaymentIndicator(order); }
   documentLabel(): string { return this.document==='LABEL'?'labels':this.document==='PACKING_SLIP'?'packing slips':'documents'; }
   async print(): Promise<void> {
     if(!this.orders.length)return;

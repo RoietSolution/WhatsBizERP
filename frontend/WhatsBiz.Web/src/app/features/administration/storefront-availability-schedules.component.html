@@ -1,0 +1,48 @@
+<section class="schedule-page">
+  <header><p>Storefront / Product availability</p><h2>Scheduled selling windows</h2><span>Choose when customers can order, and which products are covered.</span></header>
+  @if(message()){<p class="message" role="status">{{message()}}</p>}
+  <article class="schedule-card">
+    <div class="card-heading"><h3>{{editingId?'Edit schedule':'Add schedule'}}</h3><span class="state">{{isDirty()?'Unsaved changes':editingId?'Saved configuration':'New schedule'}}</span></div>
+    <fieldset [disabled]="saving()">
+      <div class="grid">
+        <label>Schedule name<input [(ngModel)]="form.scheduleName" maxlength="150" /></label>
+        <label>Timezone (IANA)<input [(ngModel)]="form.timeZoneId" /></label>
+        <label>Order booking starts<input type="time" [(ngModel)]="form.orderStartTime" /><small>Customers may order from this time.</small></label>
+        <label>Order booking ends<input type="time" [(ngModel)]="form.orderEndTime" /><small>New orders stop at this cutoff.</small></label>
+        <label>Delivery starts<input type="time" [(ngModel)]="form.deliveryStartTime" /></label>
+        <label>Delivery ends<input type="time" [(ngModel)]="form.deliveryEndTime" /><small>Intended fulfillment period, not a guaranteed appointment.</small></label>
+        <label>Customer-facing title<input [(ngModel)]="form.customerTitle" maxlength="150" /></label>
+        <label>Short message<textarea [(ngModel)]="form.customerMessage" maxlength="500" rows="2"></textarea></label>
+      </div>
+      <div class="weekdays" role="group" aria-label="Applicable weekdays">@for(day of days;track day.value){<label><input type="checkbox" [checked]="isDaySelected(day.value)" (change)="toggleDay(day.value)" />{{day.label}}</label>}</div>
+      <div class="grid assignments">
+        <section class="choice-field"><label for="schedule-product-search">Direct products <b>{{form.productIds.length}} selected</b></label>
+          <input id="schedule-product-search" type="search" placeholder="Search by name or SKU" [ngModel]="productSearch()" (ngModelChange)="productSearch.set($event)" />
+          <div class="choice-panel" role="group" aria-label="Direct product assignments">@for(item of filteredProducts();track item.id){<label class="choice" [class.selected]="form.productIds.includes(item.id)"><input type="checkbox" [checked]="form.productIds.includes(item.id)" (change)="toggleAssignment('productIds',item.id)" /><span>{{item.name}}@if(item.code){<small>{{item.code}}</small>}</span></label>}</div>
+          @if(productsLoading()){<small role="status">Loading products…</small>}@else if(productsError()){<p class="error" role="alert">{{productsError()}} <button type="button" (click)="loadChoices()">Retry</button></p>}@else if(!filteredProducts().length){<small>No matching active products.</small>}
+          <div class="tags">@for(item of choicesFor(form.productIds,'products');track item.id){<span>✓ {{item.name}}</span>}</div>
+        </section>
+        <section class="choice-field"><label for="schedule-category-search">Categories <b>{{form.categoryIds.length}} selected</b></label>
+          <input id="schedule-category-search" type="search" placeholder="Search categories" [ngModel]="categorySearch()" (ngModelChange)="categorySearch.set($event)" />
+          <div class="choice-panel" role="group" aria-label="Category assignments">@for(item of filteredCategories();track item.id){<label class="choice" [class.selected]="form.categoryIds.includes(item.id)"><input type="checkbox" [checked]="form.categoryIds.includes(item.id)" (change)="toggleAssignment('categoryIds',item.id)" /><span>{{item.name}}</span></label>}</div>
+          @if(categoriesLoading()){<small role="status">Loading categories…</small>}@else if(categoriesError()){<p class="error" role="alert">{{categoriesError()}} <button type="button" (click)="loadChoices()">Retry</button></p>}@else if(!filteredCategories().length){<small>No matching active categories.</small>}
+          <div class="tags">@for(item of choicesFor(form.categoryIds,'categories');track item.id){<span>✓ {{item.name}}</span>}</div>
+          <small>Categories cover their products and descendant categories. Direct product selections are optional.</small>
+        </section>
+      </div>
+      <label class="check"><input type="checkbox" [(ngModel)]="form.isEnabled" />Enabled</label>
+      <label class="check"><input type="checkbox" [(ngModel)]="form.showAnnouncement" />Show a compact storefront announcement</label>
+      @if(noAssignments(form)){<p class="warning" role="status">Schedule is enabled but does not apply to any products. Assign at least one product or category to activate ordering restrictions.</p>}
+      <div class="actions"><button type="button" class="primary" (click)="save()">{{saving()?'Saving…':editingId?'Save changes':'Add schedule'}}</button><button type="button" (click)="reset()">Clear</button></div>
+    </fieldset>
+  </article>
+  @for(item of schedules();track item.scheduleId){
+    <article class="schedule-row"><div class="card-heading"><div><h3>{{item.scheduleName}}</h3><span class="state">Saved · {{item.isEnabled?'Enabled':'Disabled'}}</span></div><div class="row-actions"><button type="button" [disabled]="saving()" (click)="edit(item)">Edit</button><button type="button" [disabled]="saving()" (click)="remove(item)">Delete</button></div></div>
+      <p class="timing">Orders {{item.orderStartTime}}–{{item.orderEndTime}} · Delivery {{item.deliveryStartTime}}–{{item.deliveryEndTime}} · {{item.timeZoneId}}</p>
+      <div class="grid saved-assignments"><section><h4>Categories · {{item.categoryIds.length}}</h4><div class="tags">@for(category of choicesFor(item.categoryIds,'categories');track category.id){<span>✓ {{category.name}}</span>}@empty{<small>No categories assigned.</small>}</div></section>
+      <section><h4>Direct products · {{item.productIds.length}}</h4><div class="tags">@for(product of choicesFor(item.productIds,'products');track product.id){<span>✓ {{product.name}}</span>}@empty{<small>No direct products assigned.</small>}</div></section></div>
+      @if(item.categoryIds.length){<p class="coverage">{{item.categoryCoveredProductIds?.length ?? 0}} products currently covered through categories, independently of direct assignments.</p>}
+      @if(noAssignments(item)){<p class="warning" role="status">Schedule is enabled but does not apply to any products. Assign at least one product or category to activate ordering restrictions.</p>}
+    </article>
+  }
+</section>

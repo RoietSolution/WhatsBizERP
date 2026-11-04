@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject, OnDestroy, signal } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, inject, Injector, OnDestroy, signal } from '@angular/core';
+import { CurrencyPipe } from '@angular/common';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -12,10 +13,11 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { catchError, finalize, firstValueFrom, forkJoin, map, of } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, finalize, firstValueFrom, forkJoin, map, of, Subscription, switchMap } from 'rxjs';
 import { BarcodeScanResult } from '../pos/barcode-camera.service';
 import { BarcodeScannerComponent } from '../pos/barcode-scanner.component';
 import { ProductApiService } from './product-api.service';
+import { FeatureService } from '../../core/services/feature.service';
 import { ProductMasterDialogComponent, ProductMasterDialogData, ProductMasterDialogResult } from './product-master-dialog.component';
 import {
   Brand,
@@ -34,6 +36,7 @@ type ImageUploadState = { index: number; fileName: string; status: 'pending' | '
   selector: 'app-product-form',
   imports: [
     ReactiveFormsModule,
+    CurrencyPipe,
     FormsModule,
     RouterLink,
     MatButtonModule,
@@ -76,6 +79,13 @@ type ImageUploadState = { index: number; fileName: string; status: 'pending' | '
         color: #b42318;
         font-weight: 700;
       }
+      .product-section-tabs { display:flex; gap:0.4rem; padding:0.25rem; border-bottom:1px solid var(--wb-border); }
+      .product-section-tabs button { min-height:44px; padding:0.55rem 1rem; color:var(--mat-sys-on-surface-variant); background:transparent; border:0; border-bottom:3px solid transparent; border-radius:8px 8px 0 0; font:inherit; font-weight:650; cursor:pointer; }
+      .product-section-tabs button.active { color:var(--mat-sys-primary); background:var(--mat-sys-primary-container); border-bottom-color:var(--mat-sys-primary); }
+      .product-section-tabs button:focus-visible { outline:3px solid var(--mat-sys-primary); outline-offset:2px; }
+      .product-form-section { display:grid; gap:1rem; min-width:0; }
+      .product-form-section[hidden] { display:none !important; }
+      .section-intro { margin:0; color:var(--mat-sys-on-surface-variant); font-size:0.9rem; }
       .rich-field { display: grid; gap: 0.35rem; }
       .rich-field > label { font-size: 0.85rem; font-weight: 600; }
       .rich-field small, .spec-help { color: var(--mat-sys-on-surface-variant); }
@@ -95,6 +105,11 @@ type ImageUploadState = { index: number; fileName: string; status: 'pending' | '
       }
       .wide {
         grid-column: span 3;
+      }
+      .pricing-preview {
+        margin: 0;
+        color: var(--mat-sys-on-surface-variant);
+        font-weight: 600;
       }
       .checks {
         display: flex;
@@ -118,6 +133,7 @@ type ImageUploadState = { index: number; fileName: string; status: 'pending' | '
       .gallery > div { display:flex; flex-direction:column; gap:4px; align-items:center; }
       .image-tile { position:relative; padding:6px; border:1px solid var(--mat-sys-outline-variant); border-radius:10px; }
       .image-tile img { width:112px; height:112px; object-fit:contain; }
+      .image-fallback { display:grid; width:112px; height:112px; place-items:center; color:var(--mat-sys-on-surface-variant); background:var(--mat-sys-surface-container); text-align:center; font-size:.78rem; }
       .image-tile.primary { border:2px solid var(--mat-sys-primary); }
       .image-tile small { display:block; color:var(--mat-sys-primary); font-weight:700; }
       .image-tile { display:grid; justify-items:center; gap:0.35rem; width:130px; min-width:0; background:var(--mat-sys-surface); }
@@ -139,6 +155,8 @@ type ImageUploadState = { index: number; fileName: string; status: 'pending' | '
       footer {
         display: flex;
         justify-content: flex-end;
+        gap: 0.5rem;
+        align-items: center;
       }
       .error {
         color: var(--mat-sys-error);
@@ -295,6 +313,13 @@ type ImageUploadState = { index: number; fileName: string; status: 'pending' | '
           width: 100%;
         }
       }
+      @media (max-width: 899px) {
+        footer { position:sticky; z-index:5; bottom:calc(64px + env(safe-area-inset-bottom)); padding:0.65rem; background:var(--mat-sys-surface); border-top:1px solid var(--wb-border); box-shadow:0 -5px 16px rgb(15 23 42 / 8%); }
+        footer > * { flex:1 1 0; min-height:44px; }
+      }
+      @media (max-width: 899px) and (max-height: 520px) {
+        footer { position:static; }
+      }
       @media (max-width: 480px) {
         header {
           flex-direction: column;
@@ -314,6 +339,7 @@ type ImageUploadState = { index: number; fileName: string; status: 'pending' | '
 })
 export class ProductFormComponent implements OnDestroy {
   private readonly formBuilder = inject(FormBuilder);
+  private readonly injector = inject(Injector);
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly categories = signal<Category[]>([]);
@@ -325,19 +351,34 @@ export class ProductFormComponent implements OnDestroy {
   readonly imageUploadStates = signal<ImageUploadState[]>([]);
   readonly imageUploadSummary = signal('');
   readonly images = signal<ProductImage[]>([]);
+  readonly failedImageIds = signal<Set<string>>(new Set());
   private imageObjectUrls: string[] = [];
   readonly additionalBarcodes = signal<ProductBarcodeInput[]>([]);
   readonly specifications = signal<ProductSpecificationInput[]>([]);
   readonly scannerOpen = signal(false);
   readonly scanTarget = signal<'primary' | 'additional'>('additional');
   readonly additionalCodeError = signal('');
+  readonly specificationError = signal('');
+  readonly activeSection = signal<'basic' | 'additional'>('basic');
+  readonly productSource = signal<'OWN'|'PARTNER'>('OWN');
+  readonly partnerSourceEnabled = signal(false);
+  readonly partnerOptions = signal<{partnerSellerId:string;sellerName:string;sellerType:string}[]>([]);
+  readonly selectedPartnerId = signal('');
+  readonly partnerListingState = signal('');
+  readonly partnerLoading = signal(false);
   readonly addingBrand = signal(false);
   readonly addingUnit = signal(false);
   readonly savingBrand = signal(false);
   readonly savingUnit = signal(false);
+  readonly pricingPreview = signal<{ gstAmount: number; customerTotal: number; gstPricingType: string } | null>(null);
+  private pricingPreviewSubscription?: Subscription;
+  private readonly formSubscriptions = new Subscription();
   readonly barcodeTypes = ['EAN13', 'EAN8', 'UPC', 'UPCA', 'UPCE', 'CODE128', 'CODE39', 'QR', 'CUSTOM'];
   readonly copySourceId: string | null;
   selectedImagesCount = () => this.selectedImages.length;
+  managedImageCount = () => this.images().filter(image => image.storageKind !== 'EXTERNAL_URL').length;
+  externalImageCount = () => this.images().filter(image => image.storageKind === 'EXTERNAL_URL').length;
+  imageLoadFailed(image: ProductImage): void { this.failedImageIds.update(current => new Set(current).add(image.productImageId)); }
   selectedImageName = (index: number) => this.selectedImages[index]?.name ?? 'Selected image';
   readonly productId: string | null;
   private selectedImages: File[] = [];
@@ -361,7 +402,11 @@ export class ProductFormComponent implements OnDestroy {
       hsnCode: [''],
       sacCode: [''],
       gstPercentage: [0, [Validators.required, Validators.min(0), Validators.max(100)]],
+      gstPricingType: ['EXCLUSIVE' as 'INCLUSIVE' | 'EXCLUSIVE', Validators.required],
       purchasePrice: [0, [Validators.required, Validators.min(0)]],
+      packagingCost: [null as number | null, Validators.min(0)],
+      shippingCost: [null as number | null, Validators.min(0)],
+      combinedShippingPackagingCost: [null as number | null, Validators.min(0)],
       sellingPrice: [0, [Validators.required, Validators.min(0)]],
       mrp: [0, [Validators.required, Validators.min(0)]],
       minimumStock: [0, Validators.min(0)],
@@ -393,19 +438,30 @@ export class ProductFormComponent implements OnDestroy {
   private readonly router: Router,
   private readonly snackBar: MatSnackBar,
     private readonly dialog: MatDialog,
+    private readonly features: FeatureService,
   ) {
     this.productId = route.snapshot.paramMap.get('id');
     this.copySourceId = this.productId ? null : route.snapshot.queryParamMap.get('copyFrom');
+    this.updateReturnWindowValidation();
+    this.formSubscriptions.add(this.form.controls.returnPolicyMode.valueChanges.subscribe(() => this.updateReturnWindowValidation()));
+    this.pricingPreviewSubscription = this.form.valueChanges.pipe(
+      debounceTime(250),
+      map(value => ({ sellingPrice: Number(value.sellingPrice) || 0, GSTPercentage: Number(value.gstPercentage) || 0, GstPricingType: value.gstPricingType === 'INCLUSIVE' ? 'INCLUSIVE' as const : 'EXCLUSIVE' as const })),
+      distinctUntilChanged((a, b) => a.sellingPrice === b.sellingPrice && a.GSTPercentage === b.GSTPercentage && a.GstPricingType === b.GstPricingType),
+      switchMap(value => value.sellingPrice >= 0 && value.GSTPercentage >= 0 && value.GSTPercentage <= 100 ? this.api.pricingPreview(value).pipe(catchError(() => of(null))) : of(null)),
+    ).subscribe(result => this.pricingPreview.set(result));
     forkJoin({
       categories: api.categories(),
       brands: api.brands(),
       units: api.units(),
       product: this.productId || this.copySourceId ? api.get(this.productId ?? this.copySourceId!) : of(null),
       nextCode: this.productId ? of(null) : api.nextCode(),
+      featureConfig: this.features.load(),
     })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: (data) => {
+          this.partnerSourceEnabled.set(data.featureConfig?.features.some(feature => feature.featureKey === 'PARTNER_SELLER_MANAGEMENT' && feature.effectiveEnabled) ?? false);
           this.categories.set(data.categories);
           this.flatCategories.set(this.flatten(data.categories));
           this.brands.set(data.brands.filter((x) => x.isActive));
@@ -420,6 +476,7 @@ export class ProductFormComponent implements OnDestroy {
             this.additionalBarcodes.set(this.copySourceId ? [] : (data.product.additionalBarcodes ?? []));
             this.specifications.set(this.copySourceId ? [] : (data.product.specifications ?? []).map((x) => ({ name: x.name, value: x.value, displayOrder: x.displayOrder })));
             if (!this.copySourceId) this.loadImages(data.product.productId);
+            if (!this.copySourceId && data.product.productId && this.partnerSourceEnabled()) this.loadPartnerListing(data.product.productId);
           }
         },
         error: () =>
@@ -427,31 +484,67 @@ export class ProductFormComponent implements OnDestroy {
       });
   }
   save(): void {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
+    const invalidSpecification = this.specifications().findIndex((item) => !item.name.trim() || !item.value.trim());
+    if (this.specifications().length > 50 || invalidSpecification >= 0) {
+      this.activeSection.set('additional');
+      this.specificationError.set(this.specifications().length > 50
+        ? 'A product can have at most 50 specifications.'
+        : 'Each specification needs both a name and a value.');
+      afterNextRender(() => document.getElementById(`spec-name-${Math.max(invalidSpecification, 0)}`)?.focus(), { injector: this.injector });
       return;
     }
-    this.saving.set(true);
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      const basicFields = ['productCode', 'productName', 'categoryId', 'brandId', 'unitId', 'gstPercentage', 'gstPricingType', 'barcodeType', 'purchasePrice', 'sellingPrice', 'mrp'];
+      const invalidBasic = basicFields.find((name) => this.form.controls[name as keyof typeof this.form.controls].invalid);
+      const invalidAdditional = Object.entries(this.form.controls).find(([name, control]) => !basicFields.includes(name) && control.invalid)?.[0];
+      if (invalidBasic || this.form.hasError('price')) {
+        this.activeSection.set('basic');
+        const target = invalidBasic ?? 'sellingPrice';
+        afterNextRender(() => document.querySelector<HTMLElement>(`[formControlName="${target}"]`)?.focus(), { injector: this.injector });
+      } else {
+        this.activeSection.set('additional');
+        const target = invalidAdditional ?? 'returnWindowDays';
+        afterNextRender(() => document.querySelector<HTMLElement>(`[formControlName="${target}"]`)?.focus(), { injector: this.injector });
+      }
+      return;
+    }
     const raw = this.form.getRawValue();
+    const partnerSelected=this.productSource()==='PARTNER';
+    if(partnerSelected&&!this.partnerSourceEnabled()){this.productSource.set('OWN');this.selectedPartnerId.set('');this.snackBar.open('Partner Seller Management is not enabled for this retailer. Product source was reset to Own Product.','Dismiss',{duration:5000});return;}
+    if(partnerSelected&&!this.selectedPartnerId()){this.activeSection.set('basic');this.snackBar.open('Choose an active, owner-verified partner seller.','Dismiss',{duration:5000});return;}
+    this.saving.set(true);
     const input = {
       ...raw,
       specifications: this.specifications().map((x, index) => ({ ...x, displayOrder: index })),
       barcode: raw.barcode || null,
       additionalBarcodes: this.additionalBarcodes(),
     } as ProductInput;
-    const request = this.productId
-      ? this.api.update(this.productId, input)
-      : this.api.create(input);
+    const request=this.partnerSourceEnabled()
+      ? this.api.saveWithSource(this.productId,input,partnerSelected?this.selectedPartnerId():null)
+      : this.productId ? this.api.update(this.productId,input) : this.api.create(input);
     request.subscribe({
       next: (product) => {
-        if (this.selectedImages.length) void this.uploadImagesSequentially(product.productId, !this.productId);
-        else this.finish(product.productId);
+        if(partnerSelected)this.partnerListingState.set('Listing pending owner review; partner checkout is disabled.');
+        this.afterProductSave(product.productId);
       },
       error: (error: unknown) => {
         this.saving.set(false);
         this.snackBar.open(this.saveError(error), 'Dismiss', { duration: 6000 });
       },
     });
+  }
+  private afterProductSave(productId:string):void {
+        this.saving.set(false);
+        if (this.selectedImages.length) void this.uploadImagesSequentially(productId, !this.productId);
+        else this.finish(productId);
+  }
+  private loadPartnerListing(productId:string):void {
+    this.api.partnerListing(productId).subscribe({next:listing=>{if(listing){this.productSource.set('PARTNER');this.selectedPartnerId.set(listing.partnerSellerId);this.partnerListingState.set(`${listing.listingStatus.replaceAll('_',' ')} · ${listing.verificationStatus.toLowerCase()}`);this.loadPartnerOptions();}},error:()=>this.partnerListingState.set('Partner source status could not be loaded. Refresh before changing the source.')});
+  }
+  loadPartnerOptions():void {
+    if(this.partnerOptions().length||this.partnerLoading())return;
+    this.partnerLoading.set(true);this.api.partnerSellers().subscribe({next:items=>this.partnerOptions.set(items),error:()=>this.snackBar.open('Eligible verified partners could not be loaded.','Retry',{duration:5000}),complete:()=>this.partnerLoading.set(false)});
   }
   private async uploadImagesSequentially(productId: string, navigateAfterPartialFailure: boolean): Promise<void> {
     const files = [...this.selectedImages];
@@ -489,9 +582,16 @@ export class ProductFormComponent implements OnDestroy {
     if (error.status === 503) return detail || 'The product database migration is not ready in this environment.';
     return detail || 'The product could not be saved due to a server error. Please try again or contact an administrator.';
   }
-  addSpecification(): void { this.specifications.update(items => [...items, { name: '', value: '', displayOrder: items.length }]); }
-  updateSpecification(index: number, field: 'name' | 'value', value: string): void { this.specifications.update(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item)); }
-  removeSpecification(index: number): void { this.specifications.update(items => items.filter((_, itemIndex) => itemIndex !== index)); }
+  private updateReturnWindowValidation(): void {
+    const control = this.form.controls.returnWindowDays;
+    control.setValidators(this.form.controls.returnPolicyMode.value === 'CUSTOM'
+      ? [Validators.required, Validators.min(0)]
+      : [Validators.min(0)]);
+    control.updateValueAndValidity({ emitEvent: false });
+  }
+  addSpecification(): void { this.specificationError.set(''); this.specifications.update(items => [...items, { name: '', value: '', displayOrder: items.length }]); }
+  updateSpecification(index: number, field: 'name' | 'value', value: string): void { this.specificationError.set(''); this.specifications.update(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item)); }
+  removeSpecification(index: number): void { this.specificationError.set(''); this.specifications.update(items => items.filter((_, itemIndex) => itemIndex !== index)); }
   moveSpecification(index: number, direction: -1 | 1): void { const target = index + direction; if (target < 0 || target >= this.specifications().length) return; this.specifications.update(items => { const copy = [...items]; [copy[index], copy[target]] = [copy[target], copy[index]]; return copy; }); }
   selectImage(event: Event): void {
     const files = Array.from((event.target as HTMLInputElement).files ?? []);
@@ -502,12 +602,12 @@ export class ProductFormComponent implements OnDestroy {
       this.snackBar.open(`${invalid.name}: choose a valid JPEG, PNG, or WebP image up to 5 MB.`, 'Dismiss', { duration: 5000 });
       return;
     }
-    if ((this.images().length + this.selectedImages.length + files.length) > 5) { this.snackBar.open('A product can have a maximum of 5 images.', 'Dismiss', { duration: 4000 }); return; }
+    if ((this.managedImageCount() + this.selectedImages.length + files.length) > 5) { this.snackBar.open('A product can have a maximum of 5 managed images.', 'Dismiss', { duration: 4000 }); return; }
     this.selectedImages.push(...files);
     this.selectedImagePreviews.update(previews => [...previews, ...files.map(file => URL.createObjectURL(file))]);
   }
   deleteImage(image: ProductImage): void {
-    if (!this.productId) return;
+    if (!this.productId || image.storageKind === 'EXTERNAL_URL') return;
     this.api.deleteProductImage(this.productId, image.productImageId).subscribe({
       next: () => {
         if (image.url.startsWith('blob:')) URL.revokeObjectURL(image.url);
@@ -527,6 +627,8 @@ export class ProductFormComponent implements OnDestroy {
     this.selectedImages = this.selectedImages.filter((_, i) => i !== index);
   }
   ngOnDestroy(): void {
+    this.pricingPreviewSubscription?.unsubscribe();
+    this.formSubscriptions.unsubscribe();
     this.releaseImageObjectUrls();
   }
   private loadImages(productId: string): void {
@@ -538,7 +640,8 @@ export class ProductFormComponent implements OnDestroy {
           this.imagePreview.set(null);
           return;
         }
-        forkJoin(images.map((image) => this.api.imageByUrl(image.url).pipe(
+        this.failedImageIds.set(new Set());
+        forkJoin(images.map((image) => image.storageKind === 'EXTERNAL_URL' ? of(image) : this.api.imageByUrl(image.url).pipe(
           map((blob) => {
             const url = URL.createObjectURL(blob);
             this.imageObjectUrls.push(url);

@@ -14,7 +14,8 @@ using WhatsBiz.Application.Features.Payments;
 namespace WhatsBiz.Infrastructure.Payments;
 
 public sealed class CommercePaymentService(IConfiguration configuration, IDataProtectionProvider protection,
-    ICurrentUserService currentUser, IPaymentGatewayResolver gateways, IErpPaymentPosting erpPayments, ILoyaltyService? loyalty = null) : ICommercePaymentService
+    ICurrentUserService currentUser, IPaymentGatewayResolver gateways, IErpPaymentPosting erpPayments,
+    IOutboundSafetyPolicy outboundSafety, ILoyaltyService? loyalty = null) : ICommercePaymentService
 {
     private const string Purpose = "WhatsBiz.Payments.Razorpay.Secrets.v1";
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Database connection unavailable.");
@@ -92,6 +93,7 @@ WHEN NOT MATCHED THEN INSERT(TenantId,OnlinePaymentEnabled,UpiEnabled,NetBanking
     public async Task<PaymentAttemptResult> CreateAttemptForTenantAsync(Guid trustedTenantId, CreatePaymentAttemptInput input, string actor, CancellationToken token)
     {
         var tenant = trustedTenantId; var provider = NormalizeProvider(input.Provider);
+        if (provider == PaymentProviders.Razorpay) outboundSafety.EnsureExternalDeliveryAllowed("Razorpay payments");
         var paymentMethod = NormalizeMethod(provider, input.PaymentMethod);
         InvoiceRow invoice; ConfigRow config; Guid paymentId = Guid.NewGuid(); int attempt; string reference;
         await using (var connection = await Open(tenant, token))
@@ -193,6 +195,7 @@ VALUES(@id,@tenant,@invoice,@provider,@method,@amount,N'INR',@status,@attempt,@r
 
     public async Task ProcessRazorpayWebhookAsync(ReadOnlyMemory<byte> rawBody, string signature, string? eventId, CancellationToken token)
     {
+        outboundSafety.EnsureExternalDeliveryAllowed("Razorpay webhooks");
         var correlation = WebhookCorrelation(rawBody);
         if (correlation.PaymentId is null && correlation.ProviderReference is null && correlation.ProviderOrderId is null) throw new BusinessRuleException("Razorpay webhook cannot be correlated.");
         PaymentCorrelation payment;

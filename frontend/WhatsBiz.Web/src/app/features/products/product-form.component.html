@@ -5,236 +5,318 @@
       @if (copySourceId) {
         Enter a new product code and optional barcode. Product images are not copied.
       } @else {
-      <span class="required-note">Fields marked with * are required</span>
+        <span class="required-note">Fields marked with * are required</span>
       }
     </p>
   </div>
   <a mat-button routerLink="/products">Cancel</a>
 </header>
+
 @if (loading()) {
   <div class="loading"><mat-spinner /></div>
 } @else {
   <form [formGroup]="form" (ngSubmit)="save()">
-    <mat-card
-      ><mat-card-header><mat-card-title>Identity</mat-card-title></mat-card-header
-      ><mat-card-content class="grid">
-        <mat-form-field
-          ><mat-label>Product code</mat-label
-          ><input matInput formControlName="productCode" maxlength="50" required
-        /><mat-hint>Generated initially; you may enter your own tenant-unique code</mat-hint></mat-form-field>
-        <mat-form-field class="wide"
-          ><mat-label>Product name</mat-label
-          ><input matInput formControlName="productName" maxlength="250" required
-        /></mat-form-field>
-        <mat-form-field
-          ><mat-label>Category</mat-label
-          ><mat-select formControlName="categoryId" required>
-            @for (item of flatCategories(); track item.productCategoryId) {
-              <mat-option [value]="item.productCategoryId">{{ item.categoryName }}</mat-option>
-            }
-          </mat-select></mat-form-field
-        >
-        <div class="lookup-with-action">
-          <mat-form-field
-            ><mat-label>Brand</mat-label
-            ><mat-select formControlName="brandId" required>
-              @for (item of brands(); track item.brandId) {
-                <mat-option [value]="item.brandId">{{ item.brandName }}</mat-option>
-              }
-            </mat-select></mat-form-field
-          >
-          <button mat-button type="button" (click)="openMasterDialog('brand')">+ Add Brand</button>
-        </div>
-        <div class="lookup-with-action">
-          <mat-form-field
-            ><mat-label>Unit</mat-label
-            ><mat-select formControlName="unitId" required>
-              @for (item of units(); track item.unitId) {
-                <mat-option [value]="item.unitId"
-                  >{{ item.unitName }} ({{ item.shortName }})</mat-option
-                >
-              }
-            </mat-select></mat-form-field
-          >
-          <button mat-button type="button" (click)="openMasterDialog('unit')">+ Add Unit</button>
-        </div>
-        <div class="wide rich-field"><label>Short description</label><app-rich-text-editor formControlName="shortDescription" label="Short description" placeholder="A concise product summary"></app-rich-text-editor><small>Supports paragraphs, bold, italic, and lists.</small><div class="rich-preview"><span>Storefront preview</span><div [innerHTML]="form.controls.shortDescription.value || 'Your short description will appear here.'"></div></div></div>
-        <div class="wide rich-field"><label>Long description</label><app-rich-text-editor formControlName="longDescription" label="Long description" placeholder="Describe this product for customers"></app-rich-text-editor><small>Supports headings, lists, links, and tables. The storefront preview uses the sanitized content.</small><div class="rich-preview"><span>Storefront preview</span><div [innerHTML]="form.controls.longDescription.value || 'Your detailed product description will appear here.'"></div></div></div>
-      </mat-card-content
-    ></mat-card>
-    <mat-card><mat-card-header><mat-card-title>Product specifications</mat-card-title></mat-card-header><mat-card-content><p class="spec-help">Optional attributes shown separately on the storefront.</p><div class="spec-list">@for (spec of specifications(); track $index) { <div class="spec-entry"><mat-form-field><mat-label>Name</mat-label><input matInput [value]="spec.name" (input)="updateSpecification($index, 'name', $any($event.target).value)" maxlength="100" /></mat-form-field><mat-form-field><mat-label>Value</mat-label><input matInput [value]="spec.value" (input)="updateSpecification($index, 'value', $any($event.target).value)" maxlength="1000" /></mat-form-field><div class="spec-actions"><button mat-icon-button type="button" (click)="moveSpecification($index, -1)" aria-label="Move specification up"><mat-icon>arrow_upward</mat-icon></button><button mat-icon-button type="button" (click)="moveSpecification($index, 1)" aria-label="Move specification down"><mat-icon>arrow_downward</mat-icon></button><button mat-icon-button type="button" (click)="removeSpecification($index)" aria-label="Remove specification"><mat-icon>delete</mat-icon></button></div></div> } @empty { <p>No specifications added.</p> }<button mat-stroked-button type="button" (click)="addSpecification()"><mat-icon>add</mat-icon>Add specification</button></div></mat-card-content></mat-card>
-    <mat-card>
-      <mat-card-header><mat-card-title>Product Codes / Barcodes</mat-card-title></mat-card-header>
-      <mat-card-content>
-        <div class="grid">
+    <nav class="product-section-tabs" aria-label="Product form sections">
+      <button type="button" [class.active]="activeSection() === 'basic'" [attr.aria-pressed]="activeSection() === 'basic'" (click)="activeSection.set('basic')">Basic Details</button>
+      <button type="button" [class.active]="activeSection() === 'additional'" [attr.aria-pressed]="activeSection() === 'additional'" (click)="activeSection.set('additional')">Additional Details</button>
+    </nav>
+
+    <section class="product-form-section" [hidden]="activeSection() !== 'basic'" aria-label="Basic Details">
+      <p class="section-intro">Required product identity, classification, GST and pricing fields.</p>
+      <mat-card>
+        <mat-card-header><mat-card-title>Identity</mat-card-title></mat-card-header>
+        <mat-card-content class="grid">
           <mat-form-field>
-            <mat-label>Primary barcode</mat-label>
+            <mat-label>Product code</mat-label>
+            <input matInput formControlName="productCode" maxlength="50" required />
+            <mat-hint>Generated initially; you may enter your own tenant-unique code</mat-hint>
+            @if (form.controls.productCode.touched && form.controls.productCode.hasError('required')) { <mat-error>Product code is required.</mat-error> }
+            @if (form.controls.productCode.touched && form.controls.productCode.hasError('maxlength')) { <mat-error>Product code cannot exceed 50 characters.</mat-error> }
+          </mat-form-field>
+          <mat-form-field class="wide">
+            <mat-label>Product name</mat-label>
+            <input matInput formControlName="productName" maxlength="250" required />
+            @if (form.controls.productName.touched && form.controls.productName.hasError('required')) { <mat-error>Product name is required.</mat-error> }
+            @if (form.controls.productName.touched && form.controls.productName.hasError('maxlength')) { <mat-error>Product name cannot exceed 250 characters.</mat-error> }
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Category</mat-label>
+            <mat-select formControlName="categoryId" required>
+              @for (item of flatCategories(); track item.productCategoryId) { <mat-option [value]="item.productCategoryId">{{ item.categoryName }}</mat-option> }
+            </mat-select>
+            @if (form.controls.categoryId.touched && form.controls.categoryId.hasError('required')) { <mat-error>Choose a category.</mat-error> }
+          </mat-form-field>
+          <div class="lookup-with-action">
+            <mat-form-field>
+              <mat-label>Brand</mat-label>
+              <mat-select formControlName="brandId" required>
+                @for (item of brands(); track item.brandId) { <mat-option [value]="item.brandId">{{ item.brandName }}</mat-option> }
+              </mat-select>
+              @if (form.controls.brandId.touched && form.controls.brandId.hasError('required')) { <mat-error>Choose a brand.</mat-error> }
+            </mat-form-field>
+            <button mat-button type="button" (click)="openMasterDialog('brand')">+ Add Brand</button>
+          </div>
+          <div class="lookup-with-action">
+            <mat-form-field>
+              <mat-label>Unit</mat-label>
+              <mat-select formControlName="unitId" required>
+                @for (item of units(); track item.unitId) { <mat-option [value]="item.unitId">{{ item.unitName }} ({{ item.shortName }})</mat-option> }
+              </mat-select>
+              @if (form.controls.unitId.touched && form.controls.unitId.hasError('required')) { <mat-error>Choose a unit.</mat-error> }
+            </mat-form-field>
+            <button mat-button type="button" (click)="openMasterDialog('unit')">+ Add Unit</button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      @if (partnerSourceEnabled()) {
+      <mat-card>
+        <mat-card-header><mat-card-title>Product source</mat-card-title></mat-card-header>
+        <mat-card-content class="grid">
+          <mat-form-field>
+            <mat-label>Seller source</mat-label>
+            <mat-select [value]="productSource()" (selectionChange)="productSource.set($event.value); $event.value === 'PARTNER' ? loadPartnerOptions() : null">
+              <mat-option value="OWN">Own product</mat-option>
+              @if (partnerSourceEnabled()) { <mat-option value="PARTNER">Partner seller product</mat-option> }
+            </mat-select>
+            <mat-hint>Partner checkout remains disabled pending the approved financial model.</mat-hint>
+          </mat-form-field>
+          @if(productSource()==='PARTNER'){
+            <mat-form-field>
+              <mat-label>Verified partner seller <span class="wb-required-marker">*</span></mat-label>
+              <mat-select [value]="selectedPartnerId()" (selectionChange)="selectedPartnerId.set($event.value)">
+                @for(seller of partnerOptions();track seller.partnerSellerId){<mat-option [value]="seller.partnerSellerId">{{seller.sellerName}} · {{seller.sellerType}}</mat-option>}
+              </mat-select>
+              @if(partnerLoading()){<mat-hint>Loading verified partners…</mat-hint>}
+              @if(!partnerLoading()&&!partnerOptions().length){<mat-hint>No active, owner-verified partners are available.</mat-hint>}
+            </mat-form-field>
+            <p class="wide section-intro">Partner products are saved with storefront visibility disabled until the existing product approval and partner listing review rules allow publication. Customer checkout remains unavailable.</p>
+            @if(partnerListingState()){<p class="wide" role="status">Current listing: {{partnerListingState()}}</p>}
+          }
+        </mat-card-content>
+      </mat-card>
+      }
+
+      <mat-card>
+        <mat-card-header><mat-card-title>Barcode Information</mat-card-title></mat-card-header>
+        <mat-card-content class="grid barcode-information-grid">
+          <mat-form-field>
+            <mat-label>Barcode type</mat-label>
+            <mat-select formControlName="barcodeType" required>
+              @for (type of barcodeTypes; track type) { <mat-option [value]="type">{{ type }}</mat-option> }
+            </mat-select>
+            @if (form.controls.barcodeType.touched && form.controls.barcodeType.hasError('required')) { <mat-error>Choose a barcode type.</mat-error> }
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Barcode number / text (optional)</mat-label>
             <input matInput formControlName="barcode" maxlength="100" />
           </mat-form-field>
-          <mat-form-field>
-            <mat-label>Primary code type</mat-label>
-            <mat-select formControlName="barcodeType">
-              @for (type of barcodeTypes; track type) {
-                <mat-option [value]="type">{{ type }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-          <div>
-            <button mat-stroked-button type="button" (click)="openScanner('primary')">
-              <mat-icon>photo_camera</mat-icon> Scan Primary Barcode
-            </button>
-          </div>
-        </div>
+          <div><button mat-stroked-button type="button" (click)="openScanner('primary')"><mat-icon>photo_camera</mat-icon> Scan Barcode</button></div>
+        </mat-card-content>
+      </mat-card>
 
-        <div class="codes-header">
-          <div>
-            <h3>Additional manufacturer / custom codes</h3>
+      <mat-card>
+        <mat-card-header><mat-card-title>Tax and pricing</mat-card-title></mat-card-header>
+        <mat-card-content class="grid">
+          <mat-form-field>
+            <mat-label>GST %</mat-label>
+            <input matInput type="number" formControlName="gstPercentage" min="0" max="100" required />
+            @if (form.controls.gstPercentage.touched && form.controls.gstPercentage.invalid) { <mat-error>Enter a GST rate from 0 to 100.</mat-error> }
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>GST pricing type</mat-label>
+            <mat-select formControlName="gstPricingType" required>
+              <mat-option value="EXCLUSIVE">Exclusive of GST</mat-option>
+              <mat-option value="INCLUSIVE">Inclusive of GST</mat-option>
+            </mat-select>
+            <mat-hint>Choose whether the selling price already includes GST.</mat-hint>
+            @if (form.controls.gstPricingType.touched && form.controls.gstPricingType.hasError('required')) { <mat-error>Choose a GST pricing type.</mat-error> }
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Purchase price</mat-label>
+            <input matInput type="number" formControlName="purchasePrice" min="0" required />
+            @if (form.controls.purchasePrice.touched && form.controls.purchasePrice.invalid) { <mat-error>Purchase price must be zero or greater.</mat-error> }
+          </mat-form-field>
+          <mat-form-field><mat-label>Packaging cost (optional)</mat-label><input matInput type="number" formControlName="packagingCost" min="0" /></mat-form-field>
+          <mat-form-field><mat-label>Shipping cost (optional)</mat-label><input matInput type="number" formControlName="shippingCost" min="0" /></mat-form-field>
+          <mat-form-field><mat-label>Combined shipping + packaging (optional)</mat-label><input matInput type="number" formControlName="combinedShippingPackagingCost" min="0" /><mat-hint>Use when the supplier provides only one combined amount.</mat-hint></mat-form-field>
+          <mat-form-field>
+            <mat-label>Selling price</mat-label>
+            <input matInput type="number" formControlName="sellingPrice" min="0" required />
+            @if (form.controls.sellingPrice.touched && form.controls.sellingPrice.invalid) { <mat-error>Selling price must be zero or greater.</mat-error> }
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>MRP</mat-label>
+            <input matInput type="number" formControlName="mrp" min="0" required />
+            @if (form.controls.mrp.touched && form.controls.mrp.invalid) { <mat-error>MRP must be zero or greater.</mat-error> }
+          </mat-form-field>
+          @if (pricingPreview(); as preview) { <p class="wide pricing-preview">GST: {{ preview.gstAmount | currency:'INR' }} · Customer price: {{ preview.customerTotal | currency:'INR' }} ({{ preview.gstPricingType === 'INCLUSIVE' ? 'includes GST' : 'plus GST' }}).</p> }
+        </mat-card-content>
+      </mat-card>
+      @if (form.hasError('price') && (form.controls.sellingPrice.touched || form.controls.purchasePrice.touched)) {
+        <p class="error" role="alert">Selling price must be greater than or equal to purchase price.</p>
+      }
+    </section>
+
+    <section class="product-form-section" [hidden]="activeSection() !== 'additional'" aria-label="Additional Details">
+      <p class="section-intro">Optional descriptions, identifiers, inventory settings, specifications and media.</p>
+      <mat-card>
+        <mat-card-header><mat-card-title>Descriptions</mat-card-title></mat-card-header>
+        <mat-card-content>
+          <div class="wide rich-field">
+            <label>Short description (optional)</label>
+            <app-rich-text-editor formControlName="shortDescription" label="Short description" placeholder="A concise product summary"></app-rich-text-editor>
+            <small>Supports paragraphs, bold, italic, and lists.</small>
+            <div class="rich-preview"><span>Storefront preview</span><div [innerHTML]="form.controls.shortDescription.value || 'Your short description will appear here.'"></div></div>
+          </div>
+          <div class="wide rich-field">
+            <label>Long description (optional)</label>
+            <app-rich-text-editor formControlName="longDescription" label="Long description" placeholder="Describe this product for customers"></app-rich-text-editor>
+            <small>Supports headings, lists, links, and tables. The storefront preview uses sanitized content.</small>
+            <div class="rich-preview"><span>Storefront preview</span><div [innerHTML]="form.controls.longDescription.value || 'Your detailed description will appear here.'"></div></div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card>
+        <mat-card-header><mat-card-title>Tax identifiers (optional)</mat-card-title></mat-card-header>
+        <mat-card-content class="grid">
+          <mat-form-field><mat-label>HSN code</mat-label><input matInput formControlName="hsnCode" /></mat-form-field>
+          <mat-form-field><mat-label>SAC code</mat-label><input matInput formControlName="sacCode" /></mat-form-field>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card>
+        <mat-card-header><mat-card-title>Product specifications</mat-card-title></mat-card-header>
+        <mat-card-content>
+          <p class="spec-help">Optional attributes shown separately on the storefront.</p>
+          @if (specificationError()) { <p class="error" role="alert">{{ specificationError() }}</p> }
+          <div class="spec-list">
+            @for (spec of specifications(); track $index) {
+              <div class="spec-entry">
+                <mat-form-field><mat-label>Name</mat-label><input matInput [id]="'spec-name-' + $index" [value]="spec.name" (input)="updateSpecification($index, 'name', $any($event.target).value)" maxlength="100" /></mat-form-field>
+                <mat-form-field><mat-label>Value</mat-label><input matInput [value]="spec.value" (input)="updateSpecification($index, 'value', $any($event.target).value)" maxlength="1000" /></mat-form-field>
+                <div class="spec-actions">
+                  <button mat-icon-button type="button" (click)="moveSpecification($index, -1)" aria-label="Move specification up"><mat-icon>arrow_upward</mat-icon></button>
+                  <button mat-icon-button type="button" (click)="moveSpecification($index, 1)" aria-label="Move specification down"><mat-icon>arrow_downward</mat-icon></button>
+                  <button mat-icon-button type="button" (click)="removeSpecification($index)" aria-label="Remove specification"><mat-icon>delete</mat-icon></button>
+                </div>
+              </div>
+            } @empty { <p>No specifications added.</p> }
+            <button mat-stroked-button type="button" (click)="addSpecification()"><mat-icon>add</mat-icon>Add specification</button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card>
+        <mat-card-header><mat-card-title>Additional manufacturer / custom codes</mat-card-title></mat-card-header>
+        <mat-card-content>
+
+          <div class="codes-header">
             <p>Store the decoded value only. URLs and QR contents are never opened or executed.</p>
           </div>
-        </div>
-
-        <div class="code-entry">
-          <mat-form-field>
-            <mat-label>Additional code</mat-label>
-            <input matInput [(ngModel)]="newBarcode" (ngModelChange)="additionalCodeError.set('')" [ngModelOptions]="{ standalone: true }" maxlength="450" />
-          </mat-form-field>
-          <mat-form-field>
-            <mat-label>Type</mat-label>
-            <mat-select [(ngModel)]="newBarcodeType" [ngModelOptions]="{ standalone: true }">
-              @for (type of barcodeTypes; track type) {
-                <mat-option [value]="type">{{ type }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-          <div class="code-entry-actions">
-            <button mat-stroked-button type="button" (click)="openScanner('additional')">
-              <mat-icon>qr_code_scanner</mat-icon> Scan Additional Code
-            </button>
-            <button mat-flat-button type="button" (click)="addManualBarcode()">Add Code</button>
+          <div class="code-entry">
+            <mat-form-field><mat-label>Additional code</mat-label><input matInput [(ngModel)]="newBarcode" (ngModelChange)="additionalCodeError.set('')" [ngModelOptions]="{ standalone: true }" maxlength="450" /></mat-form-field>
+            <mat-form-field>
+              <mat-label>Type</mat-label>
+              <mat-select [(ngModel)]="newBarcodeType" [ngModelOptions]="{ standalone: true }">
+                @for (type of barcodeTypes; track type) { <mat-option [value]="type">{{ type }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+            <div class="code-entry-actions">
+              <button mat-stroked-button type="button" (click)="openScanner('additional')"><mat-icon>qr_code_scanner</mat-icon> Scan Additional Code</button>
+              <button mat-flat-button type="button" (click)="addManualBarcode()">Add Code</button>
+            </div>
           </div>
-        </div>
-        @if (additionalCodeError()) {
-          <p class="additional-code-error" role="alert">{{ additionalCodeError() }}</p>
-        }
+          @if (additionalCodeError()) { <p class="additional-code-error" role="alert">{{ additionalCodeError() }}</p> }
+          @if (additionalBarcodes().length) {
+            <div class="codes-table-wrap">
+              <table class="codes-table">
+                <thead><tr><th scope="col">Code</th><th scope="col">Type</th><th scope="col">Action</th></tr></thead>
+                <tbody>
+                  @for (code of additionalBarcodes(); track code.barcode) {
+                    <tr><td class="code-value">{{ code.barcode }}</td><td>{{ code.barcodeType }}</td><td><button mat-button color="warn" type="button" (click)="removeBarcode(code)">Remove</button></td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else { <p>No additional codes linked.</p> }
+        </mat-card-content>
+      </mat-card>
 
-        @if (additionalBarcodes().length) {
-          <div class="codes-table-wrap">
-            <table class="codes-table">
-              <thead><tr><th scope="col">Code</th><th scope="col">Type</th><th scope="col">Action</th></tr></thead>
-              <tbody>
-                @for (code of additionalBarcodes(); track code.barcode) {
-                  <tr>
-                    <td class="code-value">{{ code.barcode }}</td>
-                    <td>{{ code.barcodeType }}</td>
-                    <td><button mat-button color="warn" type="button" (click)="removeBarcode(code)">Remove</button></td>
-                  </tr>
+      <mat-card>
+        <mat-card-header><mat-card-title>Inventory and dimensions</mat-card-title></mat-card-header>
+        <mat-card-content class="grid">
+          <mat-form-field><mat-label>Minimum stock</mat-label><input matInput type="number" formControlName="minimumStock" min="0" /></mat-form-field>
+          <mat-form-field><mat-label>Maximum stock</mat-label><input matInput type="number" formControlName="maximumStock" min="0" /></mat-form-field>
+          <mat-form-field><mat-label>Reorder level</mat-label><input matInput type="number" formControlName="reorderLevel" min="0" /></mat-form-field>
+          <mat-form-field><mat-label>Weight</mat-label><input matInput type="number" formControlName="weight" min="0" /></mat-form-field>
+          <mat-form-field><mat-label>Customer pack size</mat-label><input matInput formControlName="packSize" maxlength="50" placeholder="e.g. 500 g, 1 L, 12 pcs" /></mat-form-field>
+          <mat-form-field><mat-label>Length</mat-label><input matInput type="number" formControlName="length" min="0" /></mat-form-field>
+          <mat-form-field><mat-label>Width</mat-label><input matInput type="number" formControlName="width" min="0" /></mat-form-field>
+          <mat-form-field><mat-label>Height</mat-label><input matInput type="number" formControlName="height" min="0" /></mat-form-field>
+          <mat-card class="wide">
+            <mat-card-header><mat-card-title>Return policy</mat-card-title></mat-card-header>
+            <mat-card-content class="grid">
+              <mat-form-field>
+                <mat-label>Policy</mat-label>
+                <mat-select formControlName="returnPolicyMode"><mat-option value="INHERIT_DEFAULT">Use store default</mat-option><mat-option value="CUSTOM">Custom</mat-option><mat-option value="NON_RETURNABLE">Non-returnable</mat-option></mat-select>
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Return window (days)</mat-label>
+                <input matInput type="number" formControlName="returnWindowDays" min="0" max="3650" [required]="form.controls.returnPolicyMode.value === 'CUSTOM'" />
+                @if (form.controls.returnWindowDays.touched && form.controls.returnWindowDays.hasError('required')) { <mat-error>Custom return policies require return days.</mat-error> }
+              </mat-form-field>
+              <mat-form-field class="wide"><mat-label>Policy conditions (optional)</mat-label><textarea matInput formControlName="returnPolicyDescription" maxlength="1000" rows="2" placeholder="Example: Unused items in original packaging"></textarea></mat-form-field>
+              <p class="wide">Zero days means returns are accepted only on the delivery date. Non-returnable products cannot be returned.</p>
+            </mat-card-content>
+          </mat-card>
+          <div class="checks">
+            <mat-checkbox formControlName="isBatchManaged">Batch managed</mat-checkbox>
+            <mat-checkbox formControlName="isSerialManaged">Serial managed</mat-checkbox>
+            <mat-checkbox formControlName="isActive">Active</mat-checkbox>
+            <mat-checkbox formControlName="isWhatsAppVisible">Available on WhatsApp Ecommerce</mat-checkbox>
+          </div>
+          <p class="wide">Turn this off to keep the product in ERP, inventory, and POS while hiding it from WhatsApp customers.</p>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card>
+        <mat-card-header><mat-card-title>Product images</mat-card-title></mat-card-header>
+        <mat-card-content class="media">
+          <div class="gallery">
+            @for (image of images(); track image.productImageId) {
+              <div class="image-tile" [class.primary]="image.isPrimary">@if(!failedImageIds().has(image.productImageId)){<img [src]="image.url" [alt]="image.fileName" referrerpolicy="no-referrer" (error)="imageLoadFailed(image)"/>}@else{<span class="image-fallback" role="img" aria-label="Image unavailable">Image unavailable</span>}<small>{{ image.isPrimary ? 'Primary image' : image.storageKind === 'EXTERNAL_URL' ? 'Shopify image · external' : 'Saved image' }}</small><span class="image-name" [title]="image.fileName">{{ image.fileName }}</span>@if(image.storageKind !== 'EXTERNAL_URL'){<button type="button" mat-stroked-button color="warn" (click)="deleteImage(image)">Remove</button>}</div>
+            }
+            @for (preview of selectedImagePreviews(); track preview; let i = $index) {
+              <div class="image-tile"><img [src]="preview" alt="Selected product image preview" /><small>Selected image</small><span class="image-name" [title]="selectedImageName(i)">{{ selectedImageName(i) }}</span><button type="button" mat-stroked-button color="warn" (click)="removeSelectedImage(i)">Remove</button></div>
+            }
+            @if (!images().length && !selectedImagePreviews().length) { <span>No images selected.</span> }
+          </div>
+          <div>
+            <button type="button" mat-stroked-button (click)="imageInput.click()">Add images</button>
+            <input #imageInput hidden type="file" multiple accept="image/png,image/jpeg,image/webp" (change)="selectImage($event)" />
+            <p>{{ managedImageCount() + selectedImagesCount() }} of 5 managed images. Shopify external images are not copied to KhataDhari storage. The first uploaded image is the primary managed image.</p>
+            @if(externalImageCount()){<p>{{ externalImageCount() }} Shopify external image(s), shown in source order and read directly from Shopify.</p>}
+            @if (imageUploadSummary()) { <p class="upload-summary" role="status">{{ imageUploadSummary() }}</p> }
+            @if (imageUploadStates().length) {
+              <ul class="upload-status" aria-label="Image upload status">
+                @for (upload of imageUploadStates(); track upload.index) {
+                  <li><span class="upload-file-name" [title]="upload.fileName">{{ upload.fileName }}</span><span class="upload-state" [class]="upload.status">{{ upload.status === 'success' ? 'Uploaded' : upload.status === 'failed' ? 'Failed' : upload.status === 'uploading' ? 'Uploading…' : 'Waiting' }}</span></li>
                 }
-              </tbody>
-            </table>
+              </ul>
+            }
           </div>
-        } @else {
-          <p>No additional codes linked.</p>
-        }
-      </mat-card-content>
-    </mat-card>
-    <mat-card
-      ><mat-card-header><mat-card-title>Tax and pricing</mat-card-title></mat-card-header
-      ><mat-card-content class="grid">
-        <mat-form-field
-          ><mat-label>HSN code</mat-label
-          ><input matInput formControlName="hsnCode" /></mat-form-field
-        ><mat-form-field
-          ><mat-label>SAC code</mat-label
-          ><input matInput formControlName="sacCode" /></mat-form-field
-        ><mat-form-field
-          ><mat-label>GST %</mat-label
-          ><input matInput type="number" formControlName="gstPercentage" min="0" max="100"
-        /></mat-form-field>
-        <mat-form-field
-          ><mat-label>Purchase price</mat-label
-          ><input matInput type="number" formControlName="purchasePrice" min="0" /></mat-form-field
-        ><mat-form-field
-          ><mat-label>Selling price</mat-label
-          ><input matInput type="number" formControlName="sellingPrice" min="0" /></mat-form-field
-        ><mat-form-field
-          ><mat-label>MRP</mat-label><input matInput type="number" formControlName="mrp" min="0"
-        /></mat-form-field> </mat-card-content
-    ></mat-card>
-    <mat-card
-      ><mat-card-header><mat-card-title>Inventory and dimensions</mat-card-title></mat-card-header
-      ><mat-card-content class="grid">
-        <mat-form-field
-          ><mat-label>Minimum stock</mat-label
-          ><input matInput type="number" formControlName="minimumStock" min="0" /></mat-form-field
-        ><mat-form-field
-          ><mat-label>Maximum stock</mat-label
-          ><input matInput type="number" formControlName="maximumStock" min="0" /></mat-form-field
-        ><mat-form-field
-          ><mat-label>Reorder level</mat-label
-          ><input matInput type="number" formControlName="reorderLevel" min="0"
-        /></mat-form-field>
-        <mat-form-field
-          ><mat-label>Weight</mat-label
-          ><input matInput type="number" formControlName="weight" min="0" /></mat-form-field
-        ><mat-form-field
-          ><mat-label>Customer pack size</mat-label
-          ><input matInput formControlName="packSize" maxlength="50" placeholder="e.g. 500 g, 1 L, 12 pcs" /></mat-form-field
-        ><mat-form-field
-          ><mat-label>Length</mat-label
-          ><input matInput type="number" formControlName="length" min="0" /></mat-form-field
-        ><mat-form-field
-          ><mat-label>Width</mat-label
-          ><input matInput type="number" formControlName="width" min="0" /></mat-form-field
-        ><mat-form-field
-          ><mat-label>Height</mat-label
-          ><input matInput type="number" formControlName="height" min="0"
-        /></mat-form-field>
-        <mat-card class="wide"><mat-card-header><mat-card-title>Return policy</mat-card-title></mat-card-header><mat-card-content><mat-form-field><mat-label>Policy</mat-label><mat-select formControlName="returnPolicyMode"><mat-option value="INHERIT_DEFAULT">Use store default</mat-option><mat-option value="CUSTOM">Custom</mat-option><mat-option value="NON_RETURNABLE">Non-returnable</mat-option></mat-select></mat-form-field><mat-form-field><mat-label>Return window (days)</mat-label><input matInput type="number" formControlName="returnWindowDays" min="0" max="3650" /></mat-form-field><mat-form-field class="wide"><mat-label>Policy conditions (optional)</mat-label><textarea matInput formControlName="returnPolicyDescription" maxlength="1000" rows="2" placeholder="Example: Unused items in original packaging"></textarea></mat-form-field><p class="wide">Zero days means returns are accepted only on the delivery date. Non-returnable products cannot be returned.</p></mat-card-content></mat-card><div class="checks">
-          <mat-checkbox formControlName="isBatchManaged">Batch managed</mat-checkbox
-          ><mat-checkbox formControlName="isSerialManaged">Serial managed</mat-checkbox
-          ><mat-checkbox formControlName="isActive">Active</mat-checkbox
-          ><mat-checkbox formControlName="isWhatsAppVisible"
-            >Available on WhatsApp Ecommerce</mat-checkbox
-          >
-        </div>
-        <p class="wide">Turn this off to keep the product in ERP, inventory, and POS while hiding it from WhatsApp customers.</p>
-      </mat-card-content></mat-card
-    >
-    <mat-card
-      ><mat-card-header><mat-card-title>Product images (up to 5)</mat-card-title></mat-card-header
-      ><mat-card-content class="media">
-        <div class="gallery">@for (image of images(); track image.productImageId) {<div class="image-tile" [class.primary]="image.isPrimary"><img [src]="image.url" [alt]="image.fileName" /><small>{{ image.isPrimary ? 'Primary image' : 'Saved image' }}</small><span class="image-name" [title]="image.fileName">{{ image.fileName }}</span><button type="button" mat-stroked-button color="warn" (click)="deleteImage(image)">Remove</button></div>} @for (preview of selectedImagePreviews(); track preview; let i = $index) {<div class="image-tile"><img [src]="preview" alt="Selected product image preview" /><small>Selected image</small><span class="image-name" [title]="selectedImageName(i)">{{ selectedImageName(i) }}</span><button type="button" mat-stroked-button color="warn" (click)="removeSelectedImage(i)">Remove</button></div>} @if (!images().length && !selectedImagePreviews().length) {<span>No images selected.</span>}</div>
-        <div>
-          <button type="button" mat-stroked-button (click)="imageInput.click()">
-            Add images</button
-          ><input
-            #imageInput
-            hidden
-            type="file"
-            multiple
-            accept="image/png,image/jpeg,image/webp"
-            (change)="selectImage($event)"
-          />
-          <p>{{ images().length + selectedImagesCount() }} of 5 images. The first uploaded image is used as the primary catalog image.</p>
-          @if (imageUploadSummary()) { <p class="upload-summary" role="status">{{ imageUploadSummary() }}</p> }
-          @if (imageUploadStates().length) { <ul class="upload-status" aria-label="Image upload status">@for (upload of imageUploadStates(); track upload.index) { <li><span class="upload-file-name" [title]="upload.fileName">{{ upload.fileName }}</span><span class="upload-state" [class]="upload.status">{{ upload.status === 'success' ? 'Uploaded' : upload.status === 'failed' ? 'Failed' : upload.status === 'uploading' ? 'Uploading…' : 'Waiting' }}</span></li> }</ul> }
-        </div></mat-card-content
-      ></mat-card
-    >
-    @if (form.hasError('price')) {
-      <p class="error">Selling price must be greater than or equal to purchase price.</p>
-    }
+        </mat-card-content>
+      </mat-card>
+    </section>
+
     <footer>
-      <button mat-flat-button type="submit" [disabled]="form.invalid || saving()">
-        @if (saving()) {
-          <mat-spinner diameter="20" />
-        } @else {
-          Save product
-        }
+      <a mat-button routerLink="/products">Cancel</a>
+      <button mat-flat-button type="submit" [disabled]="saving()">
+        @if (saving()) { <mat-spinner diameter="20" /> } @else { Save product }
       </button>
     </footer>
   </form>
-  @if (scannerOpen()) {
-    <app-barcode-scanner (scanned)="scanned($event)" (closed)="scannerOpen.set(false)" />
-  }
+  @if (scannerOpen()) { <app-barcode-scanner (scanned)="scanned($event)" (closed)="scannerOpen.set(false)" /> }
 }

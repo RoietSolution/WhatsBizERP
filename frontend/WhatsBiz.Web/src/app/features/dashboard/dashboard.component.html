@@ -25,6 +25,21 @@
         </button>
       </div></app-page-header
     >
+    <section class="mobile-module-access" aria-label="Business modules">
+      @for (module of mobileModules(); track module.route) {
+        <a class="module-card" [routerLink]="module.route">
+          <span class="module-icon material-symbols-rounded" aria-hidden="true">{{ module.icon }}</span>
+          <span class="module-label">{{ module.label }}</span>
+          <span class="module-arrow material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+        </a>
+      }
+    </section>
+    @if (dataLoadError()) {
+      <div class="dashboard-load-error" role="status">
+        <span>Some dashboard data could not load. Your module shortcuts remain available.</span>
+        <button type="button" (click)="load(true)">Retry</button>
+      </div>
+    }
     <section class="kpi-grid" aria-label="Key performance indicators">
       @for (kpi of kpis(); track kpi.label) {
         <app-summary-card
@@ -49,7 +64,7 @@
         </div>
       </header>
       <nav>
-        @for (action of quickActions; track action.label) {
+        @for (action of quickActions(); track action.label) {
           <a [routerLink]="action.route" [attr.aria-label]="action.label"
             ><span class="material-symbols-rounded">{{ action.icon }}</span
             ><span>{{ action.label }}</span

@@ -45,6 +45,28 @@ public sealed class ProductMasterCodeGenerationTests
     }
 
     [Fact]
+    public async Task TenantPrivateBrandCreationDoesNotReuseAnotherTenantsPrivateBrand()
+    {
+        await using var db = CreateDb();
+        var tenantA = Guid.NewGuid();
+        var tenantB = Guid.NewGuid();
+        var currentUserB = new CurrentUser(tenantB);
+        var repositoryB = new ProductRepository(db, currentUserB);
+        var mapper = Mapper();
+        var privateBrandB = await new CreateBrandCommandHandler(repositoryB, currentUserB, mapper)
+            .Handle(new CreateBrandCommand(new(null, "Shared Vendor Name", null, null, true), TenantPrivate: true), default);
+
+        var currentUserA = new CurrentUser(tenantA);
+        var repositoryA = new ProductRepository(db, currentUserA);
+        var privateBrandA = await new CreateBrandCommandHandler(repositoryA, currentUserA, mapper)
+            .Handle(new CreateBrandCommand(new(null, "Shared Vendor Name", null, null, true), TenantPrivate: true), default);
+
+        privateBrandA.BrandId.Should().NotBe(privateBrandB.BrandId);
+        (await repositoryA.GetBrandsAsync(default)).Select(x => x.BrandId).Should().Contain(privateBrandA.BrandId).And.NotContain(privateBrandB.BrandId);
+        (await repositoryB.GetBrandsAsync(default)).Select(x => x.BrandId).Should().Contain(privateBrandB.BrandId).And.NotContain(privateBrandA.BrandId);
+    }
+
+    [Fact]
     public async Task BlankCodeOnEditPreservesTheExistingGeneratedCode()
     {
         await using var db = CreateDb();
@@ -83,11 +105,11 @@ public sealed class ProductMasterCodeGenerationTests
         return configuration.CreateMapper();
     }
 
-    private sealed class CurrentUser : ICurrentUserService
+    private sealed class CurrentUser(Guid? tenantId = null) : ICurrentUserService
     {
-        private readonly Guid tenantId = Guid.NewGuid();
         public Guid? UserId => Guid.NewGuid();
-        public Guid? TenantId => tenantId;
+        public Guid? TenantId => tenantId ?? currentTenantId;
+        private readonly Guid currentTenantId = Guid.NewGuid();
         public string? Username => "master-code-test";
         public string? Email => null;
         public IReadOnlyCollection<string> Roles => [];

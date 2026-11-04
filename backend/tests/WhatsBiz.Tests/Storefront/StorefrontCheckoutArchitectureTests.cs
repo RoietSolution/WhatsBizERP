@@ -41,6 +41,49 @@ public sealed class StorefrontCheckoutArchitectureTests
         source.Should().NotContain("KeySecret").And.NotContain("WebhookSecret");
     }
 
+    [Fact]
+    public void CartPreviewUsesASeparateRateLimitAndNeverAcceptsAServiceabilityPincode()
+    {
+        var method = typeof(StoreController).GetMethod(nameof(StoreController.CartPreview));
+        method.Should().NotBeNull();
+        method!.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true).Should().ContainSingle();
+        method.GetCustomAttribute<EnableRateLimitingAttribute>()!.PolicyName.Should().Be("StorefrontCartPreview");
+
+        var source = File.ReadAllText(Path.Combine(Root(), "backend", "src", "WhatsBiz.Api", "Controllers", "StoreController.cs"));
+        source.Should().Contain("input with { Pincode = null }");
+    }
+
+    [Fact]
+    public void CustomerCartUsesPreviewPathInsteadOfDeliveryCheckClient()
+    {
+        var root = Root();
+        var cart = File.ReadAllText(Path.Combine(root, "frontend", "KhataDhari.Customer", "src", "app", "pages", "cart.page.ts"));
+        cart.Should().Contain("previewQuote").And.Contain("if(!this.isCheckoutPage())return;");
+        cart.Should().NotContain("data.checkDelivery");
+    }
+
+    [Fact]
+    public void CheckoutStillRejectsUnavailableDeliveryBeforeCreatingAnOrder()
+    {
+        var source = File.ReadAllText(Path.Combine(Root(), "backend", "src", "WhatsBiz.Infrastructure", "Storefront", "StorefrontCheckoutService.cs"));
+
+        source.Should().Contain("if (!quote.IsDeliveryEnabled)")
+            .And.Contain("if (!quote.IsPincodeServiceable)")
+            .And.Contain("var order = await pos.PostForTenant");
+        source.IndexOf("if (!quote.IsPincodeServiceable)", StringComparison.Ordinal)
+            .Should().BeLessThan(source.IndexOf("var order = await pos.PostForTenant", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExpectedPayableIsOnlyAComparisonGuardBeforeCustomerAndOrderWrites()
+    {
+        var source = File.ReadAllText(Path.Combine(Root(), "backend", "src", "WhatsBiz.Infrastructure", "Storefront", "StorefrontCheckoutService.cs"));
+        var guard = source.IndexOf("StorefrontPricingPolicy.EnsureExpectedPayable(input.ExpectedPayableAmount, quote.FinalPayableAmount)", StringComparison.Ordinal);
+        guard.Should().BeGreaterThan(source.IndexOf("if (!quote.IsPincodeServiceable)", StringComparison.Ordinal));
+        guard.Should().BeLessThan(source.IndexOf("var customerId = authenticated?.Id ?? await FindOrCreateCustomer", StringComparison.Ordinal));
+        guard.Should().BeLessThan(source.IndexOf("var order = await pos.PostForTenant", StringComparison.Ordinal));
+    }
+
     private static string Root()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

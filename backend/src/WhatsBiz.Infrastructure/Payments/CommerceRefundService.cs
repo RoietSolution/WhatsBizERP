@@ -14,7 +14,7 @@ namespace WhatsBiz.Infrastructure.Payments;
 // attempt is never sent again; reconciliation reads the provider instead.
 public sealed class CommerceRefundService(IConfiguration configuration,
     IDataProtectionProvider protection, IPaymentGatewayResolver gateways,
-    IErpRefundSettlement erp) : ICommerceRefundService
+    IErpRefundSettlement erp, IOutboundSafetyPolicy outboundSafety) : ICommerceRefundService
 {
     private const string SecretPurpose = "WhatsBiz.Payments.Razorpay.Secrets.v1";
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection")
@@ -79,6 +79,7 @@ public sealed class CommerceRefundService(IConfiguration configuration,
     public async Task<StorefrontRefundDto> StartRazorpayAsync(Guid tenantId, Guid refundId,
         CancellationToken token)
     {
+        outboundSafety.EnsureExternalDeliveryAllowed("Razorpay refunds");
         var row=await Read(tenantId,refundId,token);
         if(row.Provider!="RAZORPAY" || string.IsNullOrWhiteSpace(row.ProviderPaymentId))
             throw new BusinessRuleException("A verified Razorpay collection is required.");
@@ -131,6 +132,7 @@ public sealed class CommerceRefundService(IConfiguration configuration,
     public async Task<StorefrontRefundDto> ReconcileRazorpayAsync(Guid tenantId,Guid refundId,
         CancellationToken token)
     {
+        outboundSafety.EnsureExternalDeliveryAllowed("Razorpay reconciliation");
         var row=await Read(tenantId,refundId,token);
         if(row.Provider!="RAZORPAY" || row.Status=="REFUND_REQUIRED")
             throw new BusinessRuleException("No Razorpay refund attempt is awaiting reconciliation.");
@@ -221,6 +223,7 @@ public sealed class CommerceRefundService(IConfiguration configuration,
     public async Task ProcessRazorpayRefundWebhookAsync(ReadOnlyMemory<byte> rawBody,
         string signature,CancellationToken token)
     {
+        outboundSafety.EnsureExternalDeliveryAllowed("Razorpay refund webhooks");
         // Unverified identifiers are used only to locate the tenant's verification key.
         Guid? marker=null; string? providerRefundId=null; string? paymentId=null; string? eventType=null;
         try

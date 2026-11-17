@@ -34,13 +34,71 @@ public sealed class FeatureService(ApplicationDbContext db, IMemoryCache cache, 
         [FeatureKeys.PartnerSettlements] = [FeatureKeys.PartnerCommissions, FeatureKeys.Finance],
         [FeatureKeys.CityMarketplace] = [FeatureKeys.Administration, FeatureKeys.Products],
         [FeatureKeys.MultiChannelOrderIntake] = [FeatureKeys.Pos, FeatureKeys.Products, FeatureKeys.Customers],
-        [FeatureKeys.GuestVisitorAnalytics] = [FeatureKeys.Analytics]
+        [FeatureKeys.GuestVisitorAnalytics] = [FeatureKeys.Analytics],
+        [FeatureKeys.MarketplaceCheckout] = [FeatureKeys.Pos, FeatureKeys.Products, FeatureKeys.Inventory, FeatureKeys.DeliveryManagement]
     };
 
     public async Task<bool> IsEnabledAsync(Guid tenantId, string featureKey, CancellationToken cancellationToken = default)
         => FeatureKeys.RequiresFreshEvaluation(featureKey)
             ? (await GetTenantConfigurationCoreAsync(tenantId, cancellationToken)).Features.Any(x => x.FeatureKey.Equals(featureKey, StringComparison.OrdinalIgnoreCase) && x.EffectiveEnabled)
             : (await GetEffectiveFeaturesAsync(tenantId, cancellationToken)).TryGetValue(featureKey, out var enabled) && enabled;
+
+    public async Task<IReadOnlyCollection<Guid>> GetEnabledTenantIdsAsync(string featureKey, IReadOnlyCollection<Guid> tenantIds, CancellationToken cancellationToken = default)
+    {
+        if (tenantIds.Count == 0) return [];
+
+        var catalog = await db.Database.SqlQueryRaw<FeatureGraphRow>("""
+            SELECT f.FeatureKey, parent.FeatureKey ParentFeatureKey
+            FROM core.Features f LEFT JOIN core.Features parent ON parent.FeatureId=f.ParentFeatureId
+            WHERE f.IsActive=1
+            """).ToListAsync(cancellationToken);
+        var byKey = catalog.ToDictionary(x => x.FeatureKey, StringComparer.OrdinalIgnoreCase);
+        var closure = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void Include(string key)
+        {
+            if (!closure.Add(key) || !byKey.TryGetValue(key, out var row)) return;
+            if (!string.IsNullOrWhiteSpace(row.ParentFeatureKey)) Include(row.ParentFeatureKey);
+            if (Dependencies.TryGetValue(key, out var dependencies))
+                foreach (var dependency in dependencies) Include(dependency);
+        }
+        Include(featureKey);
+        if (!byKey.ContainsKey(featureKey)) return [];
+
+        var tenantCsv = string.Join(',', tenantIds.Distinct());
+        var featureCsv = string.Join(',', closure);
+        var rows = await db.Database.SqlQueryRaw<FeatureTenantBatchRow>("""
+            SELECT t.TenantId,f.FeatureId,f.FeatureKey,f.Name FeatureName,f.FeatureType,parent.FeatureKey ParentFeatureKey,
+                   f.Version,f.SortOrder,CAST(ISNULL(tf.IsEnabled,0) AS bit) ConfiguredEnabled,
+                   CAST(ISNULL(planf.IsEnabled,0) AS bit) SubscriptionAllowed,t.DisplayName,f.IsActive,f.ReleaseState
+            FROM core.Tenants t CROSS JOIN core.Features f
+            LEFT JOIN core.Features parent ON parent.FeatureId=f.ParentFeatureId
+            OUTER APPLY (SELECT TOP(1) s.PlanId FROM core.Subscriptions s JOIN core.Plans p ON p.PlanId=s.PlanId AND p.IsActive=1
+                         WHERE s.TenantId=t.TenantId AND s.IsActive=1 AND s.StartDate<=SYSUTCDATETIME()
+                           AND (s.EndDate IS NULL OR s.EndDate>=SYSUTCDATETIME()) ORDER BY s.StartDate DESC) subscriptionPlan
+            LEFT JOIN core.PlanFeatures planf ON planf.PlanId=subscriptionPlan.PlanId AND planf.FeatureId=f.FeatureId
+            OUTER APPLY (SELECT TOP(1) tf.IsEnabled FROM core.TenantFeatures tf
+                         WHERE tf.TenantId=t.TenantId AND tf.FeatureId=f.FeatureId AND tf.IsActive=1
+                           AND (tf.StartDate IS NULL OR tf.StartDate<=SYSUTCDATETIME()) AND (tf.EndDate IS NULL OR tf.EndDate>=SYSUTCDATETIME())
+                         ORDER BY tf.ModifiedOn DESC,tf.CreatedOn DESC) tf
+            WHERE t.IsActive=1 AND f.IsActive=1
+              AND t.TenantId IN (SELECT TRY_CONVERT(uniqueidentifier,value) FROM STRING_SPLIT({0},','))
+              AND f.FeatureKey IN (SELECT value FROM STRING_SPLIT({1},','))
+            """, tenantCsv, featureCsv).ToListAsync(cancellationToken);
+
+        var options = globalOptions.Value;
+        var disabled = new HashSet<string>(options.DisabledFeatures, StringComparer.OrdinalIgnoreCase);
+        var enabled = new List<Guid>();
+        foreach (var group in rows.GroupBy(x => x.TenantId))
+        {
+            var inputs = group.Select(row => new FeatureEvaluationInput(row.FeatureId,row.FeatureKey,row.FeatureName,row.FeatureType,
+                row.ParentFeatureKey,row.Version,row.SortOrder,row.ConfiguredEnabled,row.SubscriptionAllowed,
+                (row.Version.Equals("V1",StringComparison.OrdinalIgnoreCase)?options.V1:options.V2)&&!disabled.Contains(row.FeatureKey),
+                row.IsActive&&row.ReleaseState!="DISABLED",Dependencies.TryGetValue(row.FeatureKey,out var deps)?deps:[])).ToArray();
+            if (FeatureAccessEvaluator.Evaluate(inputs).Any(x => x.FeatureKey.Equals(featureKey,StringComparison.OrdinalIgnoreCase)&&x.EffectiveEnabled))
+                enabled.Add(group.Key);
+        }
+        return enabled;
+    }
 
     public async Task<IReadOnlyDictionary<string, bool>> GetEffectiveFeaturesAsync(Guid tenantId, CancellationToken cancellationToken = default)
     {
@@ -146,6 +204,15 @@ public sealed class FeatureService(ApplicationDbContext db, IMemoryCache cache, 
         public string FeatureType { get; set; } = ""; public string? ParentFeatureKey { get; set; } public string Version { get; set; } = ""; public int SortOrder { get; set; }
         public bool ConfiguredEnabled { get; set; } public bool SubscriptionAllowed { get; set; } public string TenantName { get; set; } = ""; public string? DisplayName { get; set; }
         public string? PlanKey { get; set; } public string? PlanName { get; set; } public bool IsActive { get; set; } public string ReleaseState { get; set; } = "";
+    }
+    private sealed class FeatureGraphRow { public string FeatureKey { get; set; } = ""; public string? ParentFeatureKey { get; set; } }
+    private sealed class FeatureTenantBatchRow
+    {
+        public Guid TenantId { get; set; } public Guid FeatureId { get; set; } public string FeatureKey { get; set; } = "";
+        public string FeatureName { get; set; } = ""; public string FeatureType { get; set; } = ""; public string? ParentFeatureKey { get; set; }
+        public string Version { get; set; } = ""; public int SortOrder { get; set; } public bool ConfiguredEnabled { get; set; }
+        public bool SubscriptionAllowed { get; set; } public string? DisplayName { get; set; } public bool IsActive { get; set; }
+        public string ReleaseState { get; set; } = "";
     }
     private sealed class FeatureTenantSummaryRow { public Guid TenantId { get; set; } public string TenantKey { get; set; } = ""; public string TenantName { get; set; } = ""; public string? PlanKey { get; set; } public string? PlanName { get; set; } public string? DisplayName { get; set; } }
 }

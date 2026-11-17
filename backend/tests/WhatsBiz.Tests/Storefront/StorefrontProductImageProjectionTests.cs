@@ -35,4 +35,18 @@ public sealed class StorefrontProductImageProjectionTests
         gallery.PrimaryUrl.Should().Contain("/api/store/");
         gallery.Images.Should().ContainSingle().Which.IsPrimary.Should().BeTrue();
     }
+
+    [Fact]
+    public void PreservesManagedImageDimensionsForResponsiveSrcsetGeneration()
+    {
+        var managedId = Guid.NewGuid();
+        var gallery = StorefrontProductImageProjection.Project("smoke-store", Guid.NewGuid(), [],
+            [new ManagedStorefrontProductImage(managedId, true, 1000, 1200, 250, 300)]);
+
+        var primary = gallery.Images.Should().ContainSingle().Which;
+        primary.Width.Should().Be(1000);
+        primary.Height.Should().Be(1200);
+        primary.ThumbnailWidth.Should().Be(250);
+        primary.ThumbnailHeight.Should().Be(300);
+    }
 }

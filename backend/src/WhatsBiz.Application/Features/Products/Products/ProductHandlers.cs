@@ -162,23 +162,39 @@ internal static class ProductIdentifierPolicy
     }
 }
 
-public sealed class DeleteProductCommandHandler(IProductRepository repository, ICurrentUserService currentUser) : IRequestHandler<DeleteProductCommand>
+public sealed class DeleteProductCommandHandler(IProductRepository repository, IProductImageCleanupScheduler cleanup, ICurrentUserService currentUser) : IRequestHandler<DeleteProductCommand>
 {
     public async Task Handle(DeleteProductCommand request, CancellationToken cancellationToken)
     {
         var product = await repository.GetAsync(request.ProductId, true, cancellationToken) ?? throw new EntityNotFoundException("Product was not found.");
         var modifiedOn = DateTimeOffset.UtcNow;
+        product.IsActiveBeforeDelete = product.IsActive;
+        product.DeletedOnUtc = modifiedOn;
         product.IsDeleted = true;
         product.IsActive = false;
         product.ModifiedOn = modifiedOn;
         product.ModifiedBy = currentUser.Username;
-        foreach (var barcode in product.Barcodes.Where(x => !x.IsDeleted))
-        {
-            barcode.IsDeleted = true;
-            barcode.IsActive = false;
-            barcode.ModifiedOn = modifiedOn;
-            barcode.ModifiedBy = currentUser.Username;
-        }
+        await cleanup.ScheduleProductAsync(product.TenantId, product.ProductId, currentUser.Username ?? "unknown", modifiedOn, cancellationToken);
+        await repository.SaveChangesAsync(cancellationToken);
+    }
+}
+
+public sealed class RestoreProductCommandHandler(IProductRepository repository, IProductImageCleanupScheduler cleanup, ICurrentUserService currentUser) : IRequestHandler<RestoreProductCommand>
+{
+    public async Task Handle(RestoreProductCommand request, CancellationToken cancellationToken)
+    {
+        var product = await repository.GetDeletedAsync(request.ProductId, true, cancellationToken) ?? throw new EntityNotFoundException("Deleted product was not found.");
+        var now = DateTimeOffset.UtcNow;
+        if (product.DeletedOnUtc is null)
+            throw new BusinessRuleException("The product recovery period has expired.");
+        if (!await cleanup.CancelProductAsync(product.TenantId, product.ProductId, cancellationToken))
+            throw new BusinessRuleException("The product recovery period has expired or image cleanup has started; the product cannot be restored.");
+        product.IsDeleted = false;
+        product.IsActive = product.IsActiveBeforeDelete ?? false;
+        product.IsActiveBeforeDelete = null;
+        product.DeletedOnUtc = null;
+        product.ModifiedOn = now;
+        product.ModifiedBy = currentUser.Username;
         await repository.SaveChangesAsync(cancellationToken);
     }
 }
@@ -242,7 +258,7 @@ public sealed class UploadProductImageCommandHandler(IProductRepository reposito
             var image = new ProductImage { ProductImageId = imageId, TenantId = tenantId, ProductId = request.ProductId, CreatedBy = currentUser.Username, IsPrimary = images.Count == 0, FileName = optimized.FileName, ContentType = optimized.ContentType, ImageData = database ? optimized.CatalogData : [], ThumbnailData = database ? optimized.ThumbnailData : [], StorageProvider = stored.Provider, ObjectKey = stored.ObjectKey, ThumbnailObjectKey = stored.ThumbnailObjectKey, CatalogSizeBytes = stored.CatalogSizeBytes, ThumbnailSizeBytes = stored.ThumbnailSizeBytes, ContentHash = stored.ContentHash, ThumbnailContentType = "image/webp", Width = optimized.Width, Height = optimized.Height, ThumbnailWidth = optimized.ThumbnailWidth, ThumbnailHeight = optimized.ThumbnailHeight };
             repository.Add(image);
             try { await repository.SaveChangesAsync(cancellationToken); }
-            catch { await storage.DeleteAsync(new(tenantId, stored.Provider, stored.ObjectKey, stored.ThumbnailObjectKey), CancellationToken.None); throw; }
+            catch { try { await storage.DeleteAsync(new(tenantId, request.ProductId, imageId, stored.Provider, stored.ObjectKey, stored.ThumbnailObjectKey), CancellationToken.None); } catch { /* preserve the original database error; storage logs the cleanup failure */ } throw; }
             return new ProductImageDto(image.ProductImageId, image.ProductId, image.FileName, image.ContentType, image.IsPrimary, $"/api/products/{request.ProductId}/images/{image.ProductImageId}");
         }
         finally { gate.Release(); }
@@ -289,7 +305,7 @@ public sealed class GetProductImagesQueryHandler(IProductRepository repository) 
 }
 public sealed class GetProductImageByIdQueryHandler(IProductRepository repository,IProductImageStorage storage) : IRequestHandler<GetProductImageByIdQuery, ProductImageFile?> { public async Task<ProductImageFile?> Handle(GetProductImageByIdQuery request, CancellationToken cancellationToken) { var image = await repository.GetImageByIdAsync(request.ProductId, request.ImageId, false, cancellationToken);if(image is null)return null;var content=await storage.ReadAsync(new(image.TenantId,image.StorageProvider,request.Thumbnail?image.ThumbnailObjectKey:image.ObjectKey,request.Thumbnail?image.ThumbnailData:image.ImageData,request.Thumbnail?image.ThumbnailContentType:image.ContentType),cancellationToken);return content is null?null:new(image.FileName,content.ContentType,content.Content); } }
 
-public sealed class DeleteProductImageCommandHandler(IProductRepository repository, ICurrentUserService currentUser,IProductImageStorage storage) : IRequestHandler<DeleteProductImageCommand> { public async Task Handle(DeleteProductImageCommand request, CancellationToken cancellationToken) { var product = await repository.GetAsync(request.ProductId, true, cancellationToken) ?? throw new EntityNotFoundException("Product was not found."); var image = await repository.GetImageByIdAsync(request.ProductId, request.ImageId, true, cancellationToken) ?? throw new EntityNotFoundException("Product image was not found.");var deletion=new ProductImageStorageDeleteRequest(image.TenantId,image.StorageProvider,image.ObjectKey,image.ThumbnailObjectKey); image.IsDeleted = true; image.IsActive = false; image.ImageData = []; image.ThumbnailData = []; image.ModifiedOn = DateTimeOffset.UtcNow; image.ModifiedBy = currentUser.Username; var remaining = (await repository.GetImagesAsync(request.ProductId, false, cancellationToken)).Where(x => x.ProductImageId != image.ProductImageId).ToArray(); if (image.IsPrimary && remaining.Length > 0) remaining.First().IsPrimary = true; product.ImageUrl = remaining.FirstOrDefault()?.ProductImageId is Guid primary ? $"/api/products/{request.ProductId}/images/{primary}" : null; await repository.SaveChangesAsync(cancellationToken);await storage.DeleteAsync(deletion,cancellationToken); } }
+public sealed class DeleteProductImageCommandHandler(IProductRepository repository, IProductImageCleanupScheduler cleanup, ICurrentUserService currentUser) : IRequestHandler<DeleteProductImageCommand> { public async Task Handle(DeleteProductImageCommand request, CancellationToken cancellationToken) { var product = await repository.GetAsync(request.ProductId, true, cancellationToken) ?? throw new EntityNotFoundException("Product was not found."); var image = await repository.GetImageByIdAsync(request.ProductId, request.ImageId, true, cancellationToken) ?? throw new EntityNotFoundException("Product image was not found."); var now = DateTimeOffset.UtcNow; image.IsDeleted = true; image.IsActive = false; image.ModifiedOn = now; image.ModifiedBy = currentUser.Username; var remaining = (await repository.GetImagesAsync(request.ProductId, false, cancellationToken)).Where(x => x.ProductImageId != image.ProductImageId).ToArray(); if (image.IsPrimary && remaining.Length > 0) remaining.First().IsPrimary = true; product.ImageUrl = remaining.FirstOrDefault()?.ProductImageId is Guid primary ? $"/api/products/{request.ProductId}/images/{primary}" : null; await cleanup.ScheduleImageAsync(image, currentUser.Username ?? "unknown", now, cancellationToken); await repository.SaveChangesAsync(cancellationToken); } }
 
 public sealed class SetProductStatusCommandHandler(IProductRepository repository, ICurrentUserService currentUser) : IRequestHandler<SetProductStatusCommand>
 {

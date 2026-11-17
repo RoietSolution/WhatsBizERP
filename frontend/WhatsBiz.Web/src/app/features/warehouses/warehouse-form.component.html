@@ -134,7 +134,50 @@
           </section>
         }
       </div></mat-tab
-    ></mat-tab-group
+    >@if (id) {
+      <mat-tab label="Storefront fulfilment">
+        <div class="fulfilment-panel">
+          @if (fulfilmentError()) { <p class="eligibility-error" role="alert">{{ fulfilmentError() }}</p> }
+          @if (fulfilment(); as settings) {
+            <p class="fulfilment-result" [class.eligible]="settings.isMarketplaceEligible">
+              {{ settings.isMarketplaceEligible ? 'Eligible for configured service areas' : 'Not eligible for marketplace allocation' }}
+            </p>
+            @if (!settings.storeDeliveryEnabled) {
+              <p class="fulfilment-notice">Storefront delivery is disabled. Enable it in Storefront Delivery settings before enabling a warehouse.</p>
+            } @else if (!settings.warehouseIsActive) {
+              <p class="fulfilment-notice">Activate this warehouse on the General tab before enabling storefront fulfilment.</p>
+            } @else {
+              <p class="pincode-help">
+                Assign only areas this warehouse can serve. The retailer’s current {{ settings.deliveryCoverageMode }} delivery rules are also checked at allocation time.
+                @if (settings.deliveryCoverageMode === 'ALLOWLIST') {
+                  Supported retailer pincodes: {{ settings.retailerServiceablePincodes.length ? settings.retailerServiceablePincodes.join(', ') : 'none configured' }}.
+                } @else {
+                  Enter specific six-digit pincodes served by this warehouse; retailer exclusions still apply.
+                }
+              </p>
+              @for (area of fulfilmentAreas(); track area.sellerKind + (area.partnerSellerId ?? 'owned'); let i = $index) {
+                <section class="seller-area">
+                  <div class="seller-area-head">
+                    <h3>{{ area.sellerName }}</h3>
+                    <mat-checkbox [checked]="area.isEnabled" (change)="updateFulfilmentArea(i, { isEnabled: $event.checked })">
+                      Enable for storefront fulfilment
+                    </mat-checkbox>
+                  </div>
+                  <mat-form-field appearance="outline" class="area-pincodes">
+                    <mat-label>Warehouse service pincodes</mat-label>
+                    <textarea matInput [value]="area.pincodesText" (input)="updateFulfilmentArea(i, { pincodesText: $any($event.target).value })" placeholder="411001&#10;411002" rows="3"></textarea>
+                    <mat-hint>Enter one six-digit pincode per line. Only configured and retailer-serviceable pincodes can be allocated.</mat-hint>
+                  </mat-form-field>
+                </section>
+              }
+            }
+          } @else if (!fulfilmentError()) {
+            <p class="fulfilment-notice">Loading warehouse eligibility settings…</p>
+          }
+        </div>
+      </mat-tab>
+    }
+    </mat-tab-group
   >
   <footer>
     <button mat-flat-button type="submit" [disabled]="form.invalid || saving()">

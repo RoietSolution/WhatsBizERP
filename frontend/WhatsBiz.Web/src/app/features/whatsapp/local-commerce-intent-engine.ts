@@ -56,14 +56,14 @@ const STOP_WORDS = new Set([
   'show', 'me', 'the', 'a', 'an', 'some', 'find', 'want', 'need', 'please', 'product', 'products',
   'item', 'items', 'under', 'below', 'less', 'than', 'up', 'to', 'within', 'between', 'above',
   'over', 'more', 'and', 'or', 'of', 'for', 'in', 'on', 'at', 'is', 'are', 'i', 'would', 'like',
-  'dikhao', 'dikhana', 'batao', 'chahiye', 'mujhe', 'ke', 'ka', 'ki', 'se', 'kam', 'zyada', 'jyada',
+  'dikhao', 'dikhana', 'batao', 'bhejo', 'chahiye', 'mujhe', 'ke', 'ka', 'ki', 'se', 'kam', 'zyada', 'jyada',
   'tak', 'andar', 'rupees', 'rupee', 'rs', 'inr', 'colour', 'color',
   '\u092e\u0941\u091d\u0947', '\u0926\u093f\u0916\u093e\u0913', '\u091a\u093e\u0939\u093f\u090f',
   '\u0915\u0947', '\u0915\u093e', '\u0915\u0940', '\u0938\u0947', '\u0915\u092e', '\u091c\u094d\u092f\u093e\u0926\u093e',
   '\u0924\u0915', '\u0915\u0947', '\u0905\u0902\u0926\u0930', '\u0914\u0930', '\u0938\u093f\u0932\u094d\u0915',
 ]);
 
-const HINGLISH_WORDS = /\b(dikhao|dikhana|chahiye|batao|mujhe|andar|tak|kam|zyada|jyada|saree|sari|shirt|tshirt)\b/i;
+const HINGLISH_WORDS = /\b(dikhao|dikhana|batao|bhejo|chahiye|mujhe|andar|tak|kam|zyada|jyada|saree|sari|shirt|tshirt)\b/i;
 const DEVANAGARI = /[\u0900-\u097f]/;
 
 export class LocalCommerceIntentEngine {
@@ -175,6 +175,7 @@ export class LocalCommerceIntentEngine {
       if (conceptMatch || contains(normalized, categoryText)) return category;
     }
     for (const concept of concepts) {
+      if (concept !== 'tshirt' && concept !== 'shirt' && concept !== 'saree') continue;
       const productCategoryIds = products
         .filter(product => CONCEPT_ALIASES[concept].some(alias => contains(normalize(product.productName), normalize(alias))))
         .map(product => product.categoryId);
@@ -185,8 +186,9 @@ export class LocalCommerceIntentEngine {
   }
 
   private resolveProduct(normalized: string, concepts: Set<Concept>, products: DemoProduct[]) {
-    const terms = normalized.split(/\s+/).filter(x => x.length > 1 && !STOP_WORDS.has(x) && !/^\d/.test(x));
-    if (!terms.length || [...concepts].some(x => x === 'tshirt' || x === 'shirt' || x === 'saree')) return undefined;
+    const terms = normalized.split(/\s+/).filter(x => x.length > 1 && !STOP_WORDS.has(x) && !/^\d/.test(x) &&
+      ![...concepts].some(concept => CONCEPT_ALIASES[concept].some(alias => normalize(alias) === x)));
+    if (!terms.length) return undefined;
     return products.find(product => terms.some(term => contains(normalize(product.productName), term)));
   }
 
@@ -246,7 +248,7 @@ function parsePrice(text: string): PriceRange {
   const upper = /above|over|more than|greater than|se zyada|se jyada|से ज्यादा|से अधिक/i.test(text);
   if (standalone !== undefined || (lower || upper) && /\d/.test(text)) {
     const value = standalone ?? Number(text.match(/\d+(?:\.\d+)?/)?.[0]);
-    return { min: upper ? value : undefined, max: lower ? value : undefined, consumedTokens: [String(value)] };
+    return { min: upper ? value : undefined, max: lower || !upper ? value : undefined, consumedTokens: [String(value)] };
   }
   return { consumedTokens: [] };
 }

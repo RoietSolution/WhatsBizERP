@@ -7,7 +7,9 @@ export class CartService {
   constructor(private readonly activity: StorefrontActivityService) {}
   private readonly activeStore = signal('');
   private activeCustomer = '';
+  private readonly userMutation = signal(0);
   readonly storeKey = computed(() => this.activeStore());
+  readonly userMutationVersion = this.userMutation.asReadonly();
   readonly lines = signal<CartLine[]>([]);
   readonly itemCount = computed(() => this.lines().reduce((sum, line) => sum + line.quantity, 0));
   readonly total = computed(() => this.lines().reduce((sum, line) => sum + line.product.sellingPrice * line.quantity, 0));
@@ -17,6 +19,7 @@ export class CartService {
     if (this.activeStore() === normalized) return;
     this.activeStore.set(normalized);
     this.activeCustomer = '';
+    this.userMutation.set(this.readMutationRevision(normalized, ''));
     this.lines.set(this.read(this.storageKey(normalized, '')));
   }
 
@@ -31,6 +34,7 @@ export class CartService {
     const ownedLines = nextCustomer ? this.read(ownedKey) : this.read(this.storageKey(storeKey, ''));
     const adoptedGuest = nextCustomer && !ownedLines.length ? guestLines : [];
     this.activeCustomer = nextCustomer;
+    this.userMutation.set(this.readMutationRevision(storeKey, nextCustomer));
     this.lines.set(ownedLines.length ? ownedLines : adoptedGuest);
     this.persist();
     if (nextCustomer && adoptedGuest.length) this.removeStorage(this.storageKey(storeKey, ''));
@@ -46,14 +50,18 @@ export class CartService {
     });
     this.persist();
     this.activity.record(this.activeStore(), 'ADD_TO_CART', product.id);
+    this.recordUserMutation();
     return true;
   }
 
   adjust(productId: string, change: number): void {
+    const before = this.lines();
     this.lines.update((lines) => lines
       .map((line) => line.product.id === productId ? { ...line, quantity: Math.max(0, line.quantity + change) } : line)
       .filter((line) => line.quantity > 0));
     this.persist();
+    const after = this.lines();
+    if (after.length !== before.length || after.some((line, index) => line.product.id !== before[index]?.product.id || line.quantity !== before[index]?.quantity)) this.recordUserMutation();
   }
 
   refreshProducts(products: readonly Product[]): void {
@@ -66,12 +74,35 @@ export class CartService {
   }
 
   remove(productId: string): void {
+    const before = this.lines();
     this.lines.update((lines) => lines.filter((line) => line.product.id !== productId));
     this.persist();
+    if (this.lines().length !== before.length) this.recordUserMutation();
     this.activity.record(this.activeStore(), 'REMOVE_FROM_CART', productId);
   }
 
-  clear(): void { this.lines.set([]); this.persist(); }
+  clear(): void { const hadItems = this.lines().length > 0; this.lines.set([]); this.persist(); if (hadItems) this.recordUserMutation(); }
+
+  revisionStorageKey(storeKey: string, customerId: string | null): string {
+    return `${this.storageKey(this.normalizeStore(storeKey), customerId?.trim().toLowerCase() ?? '')}:revision`;
+  }
+
+  private recordUserMutation(): void {
+    const revision = this.userMutation() + 1;
+    this.userMutation.set(revision);
+    if (typeof localStorage === 'undefined') return;
+    try { localStorage.setItem(this.revisionStorageKey(this.activeStore(), this.activeCustomer), String(revision)); } catch {
+      // In-memory cart changes remain available when browser storage is blocked.
+    }
+  }
+
+  private readMutationRevision(storeKey: string, customerId: string): number {
+    if (typeof localStorage === 'undefined') return 0;
+    try {
+      const revision = Number(localStorage.getItem(this.revisionStorageKey(storeKey, customerId)) ?? 0);
+      return Number.isSafeInteger(revision) && revision >= 0 ? revision : 0;
+    } catch { return 0; }
+  }
 
   private persist(): void {
     const storeKey = this.activeStore();

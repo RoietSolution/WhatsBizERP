@@ -4,12 +4,15 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../environments/environment';
 
 type ConsentInit = 'PROMPT' | 'READY' | 'UNAVAILABLE';
+export type AnalyticsGrantResult = 'SAVED' | 'UNAVAILABLE' | 'REQUEST_FAILED' | 'STORAGE_FAILED';
+export type ConsentRejectionResult = 'SAVED' | 'PREFERENCE_STORAGE_FAILED' | 'WITHDRAWAL_FAILED';
 interface EventInput { eventId: string; eventType: string; productId?: string; categoryId?: string; searchTerm?: string; resultCount?: number; engagedSeconds?: number; }
 
 @Injectable({ providedIn: 'root' })
 export class StorefrontActivityService {
   private readonly queued = new Map<string, EventInput[]>();
   private readonly lastSearch = new Map<string, { term: string; at: number }>();
+  private readonly deniedStores = new Set<string>();
   private readonly eventUrl = (store: string) => `${environment.apiBaseUrl}/api/store/${encodeURIComponent(store)}/visitor-analytics`;
   private choiceKey(store: string): string { return `khata-dhari-analytics-choice:${store.toLowerCase()}`; }
   private visitorKey(store: string): string { return `khata-dhari-analytics-visitor:${store.toLowerCase()}`; }
@@ -23,31 +26,51 @@ export class StorefrontActivityService {
     const choice = this.localChoice(storeKey);
     if (choice === 'DENIED') return 'UNAVAILABLE';
     if (choice !== 'GRANTED') return 'PROMPT';
-    await this.createSessionConsent(storeKey, status.noticeVersion).catch(() => undefined);
+    const consent = await this.createSessionConsent(storeKey, status.noticeVersion).catch(() => null);
+    if (consent) {
+      try { this.persistSession(storeKey, consent.visitor, consent.session); }
+      catch { return 'UNAVAILABLE'; }
+    }
     return this.hasSession(storeKey) ? 'READY' : 'UNAVAILABLE';
   }
 
-  async grantConsent(storeKey: string): Promise<boolean> {
+  async grantConsent(storeKey: string): Promise<AnalyticsGrantResult> {
     const status = await firstValueFrom(this.http.get<{ available: boolean; noticeVersion: string }>(`${this.eventUrl(storeKey)}/status`)).catch(() => null);
-    if (!status?.available) return false;
+    if (!status) return 'REQUEST_FAILED';
+    if (!status.available) return 'UNAVAILABLE';
+    const consent = await this.createSessionConsent(storeKey, status.noticeVersion).catch(() => null);
+    if (!consent) return 'REQUEST_FAILED';
     try {
-      await this.createSessionConsent(storeKey, status.noticeVersion);
+      this.persistSession(storeKey, consent.visitor, consent.session);
       localStorage.setItem(this.choiceKey(storeKey), 'GRANTED');
-      return true;
-    } catch { return false; }
+      this.deniedStores.delete(storeKey.toLowerCase());
+      return 'SAVED';
+    } catch {
+      // If the browser cannot persist an opt-in, keep tracking disabled in this
+      // page session and remove any stale grant where storage remains writable.
+      this.deniedStores.add(storeKey.toLowerCase());
+      try { localStorage.removeItem(this.choiceKey(storeKey)); } catch { /* storage remains unavailable */ }
+      return 'STORAGE_FAILED';
+    }
   }
 
-  async rejectOrWithdraw(storeKey: string): Promise<void> {
+  async rejectOrWithdraw(storeKey: string): Promise<ConsentRejectionResult> {
+    const key = storeKey.toLowerCase();
+    this.deniedStores.add(key);
+    let preferenceSaved = false;
+    try { localStorage.setItem(this.choiceKey(storeKey), 'DENIED'); preferenceSaved = true; } catch { /* tracking remains disabled in memory */ }
     const visitor = this.readStorage(localStorage, this.visitorKey(storeKey));
     const session = this.readStorage(sessionStorage, this.sessionKey(storeKey));
     if (visitor && session) {
-      await firstValueFrom(this.http.delete(`${this.eventUrl(storeKey)}/consent`, { params: { visitorId: visitor, sessionId: session } })).catch(() => undefined);
+      try { await firstValueFrom(this.http.delete(`${this.eventUrl(storeKey)}/consent`, { params: { visitorId: visitor, sessionId: session } })); }
+      catch { return 'WITHDRAWAL_FAILED'; }
     }
     this.clearStore(storeKey);
-    try { localStorage.setItem(this.choiceKey(storeKey), 'DENIED'); } catch { /* storage may be blocked */ }
+    return preferenceSaved ? 'SAVED' : 'PREFERENCE_STORAGE_FAILED';
   }
 
   resetChoice(storeKey: string): void {
+    this.deniedStores.delete(storeKey.toLowerCase());
     try { localStorage.removeItem(this.choiceKey(storeKey)); } catch { /* storage may be blocked */ }
   }
 
@@ -78,7 +101,7 @@ export class StorefrontActivityService {
     void firstValueFrom(this.http.post(`${environment.apiBaseUrl}/api/store/${encodeURIComponent(storeKey)}/search-events`, { keyword, anonymousSessionId: sessionId })).catch(() => undefined);
   }
 
-  private async createSessionConsent(storeKey: string, noticeVersion: string): Promise<void> {
+  private async createSessionConsent(storeKey: string, noticeVersion: string): Promise<{ visitor: string; session: string }> {
     let visitor = this.readStorage(localStorage, this.visitorKey(storeKey));
     let session = this.readStorage(sessionStorage, this.sessionKey(storeKey));
     if (!visitor) visitor = crypto.randomUUID();
@@ -89,7 +112,12 @@ export class StorefrontActivityService {
     const campaignSource = query.get('utm_source'); const campaignMedium = query.get('utm_medium'); const campaignName = query.get('utm_campaign');
     const trafficSource = campaignSource || campaignMedium || campaignName ? 'CAMPAIGN' : this.referrerSource();
     await firstValueFrom(this.http.post(`${this.eventUrl(storeKey)}/consent`, { visitorId: visitor, sessionId: session, granted: true, noticeVersion, viewportCategory, trafficSource, campaignSource, campaignMedium, campaignName }));
-    localStorage.setItem(this.visitorKey(storeKey), visitor); sessionStorage.setItem(this.sessionKey(storeKey), session);
+    return { visitor, session };
+  }
+
+  private persistSession(storeKey: string, visitor: string, session: string): void {
+    localStorage.setItem(this.visitorKey(storeKey), visitor);
+    sessionStorage.setItem(this.sessionKey(storeKey), session);
   }
 
   private referrerSource(): string {
@@ -108,9 +136,9 @@ export class StorefrontActivityService {
     const batch = queue.splice(0, 50); if (!queue.length) this.queued.delete(key);
     await firstValueFrom(this.http.post(`${this.eventUrl(storeKey)}/events`, { sessionId, events: batch })).catch(() => undefined);
   }
-  private hasConsent(store: string): boolean { return this.localChoice(store) === 'GRANTED' && this.hasSession(store); }
+  private hasConsent(store: string): boolean { return !this.deniedStores.has(store.toLowerCase()) && this.localChoice(store) === 'GRANTED' && this.hasSession(store); }
   private hasSession(store: string): boolean { return !!this.readStorage(sessionStorage, this.sessionKey(store)); }
   private localChoice(store: string): string { try { return localStorage.getItem(this.choiceKey(store)) ?? ''; } catch { return ''; } }
   private readStorage(storage: Storage, key: string): string { try { return storage.getItem(key) ?? ''; } catch { return ''; } }
-  private clearStore(store: string): void { try { localStorage.removeItem(this.visitorKey(store)); sessionStorage.removeItem(this.sessionKey(store)); } catch { /* storage may be blocked */ } this.queued.delete(store.toLowerCase()); }
+  private clearStore(store: string): void { try { localStorage.removeItem(this.visitorKey(store)); } catch { /* storage may be blocked */ } try { sessionStorage.removeItem(this.sessionKey(store)); } catch { /* storage may be blocked */ } this.queued.delete(store.toLowerCase()); }
 }

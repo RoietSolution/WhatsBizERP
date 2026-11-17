@@ -71,7 +71,7 @@ public sealed class POSDocumentServiceTests
         var html = service.InvoiceHtml(invoice, "58MM", new(company, new(0, 0, 20)));
 
         html.Should().Contain(".paper-58mm .items tr{display:grid");
-        html.Should().Contain(".paper-58mm .items{display:block;font-size:10.5px}");
+        html.Should().Contain(".paper-58mm .items{display:block;font-size:12px}");
         html.Should().NotContain(".paper-58mm .items{font-size:7px}");
     }
 

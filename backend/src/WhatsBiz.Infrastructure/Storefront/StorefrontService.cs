@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
 using ImageMagick;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.EntityFrameworkCore;
+using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Application.Common.Features;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Infrastructure.Products;
@@ -14,7 +16,9 @@ using WhatsBiz.Infrastructure.Suppliers;
 namespace WhatsBiz.Infrastructure.Storefront;
 
 public sealed class StorefrontService(ApplicationDbContext db, IProductImageStorage images,
-    IStorefrontMediaStorage? presentationImages = null, ICommercePaymentService? payments = null, IFeatureService? features = null, IStorefrontAvailabilityService? availability = null) : IStorefrontService
+    IStorefrontMediaStorage? presentationImages = null, ICommercePaymentService? payments = null, IFeatureService? features = null,
+    IStorefrontAvailabilityService? availability = null, IProductImageOptimizer? imageOptimizer = null,
+    IMemoryCache? imageThumbnailCache = null) : IStorefrontService
 {
     private static readonly Regex StoreKeyPattern = new("^[A-Z0-9_-]{1,100}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
@@ -66,7 +70,8 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
             configuration?.Tagline ?? "Good things, close to home.", configuration?.LogoMediaId is null ? null : $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/logo?v={configuration.LogoMediaId.Value:N}",
             configuration?.AccentColor ?? "#145c43", configuration?.DeliveryMessage ?? "Fresh picks, close to home.", configuration?.FreeDeliveryThreshold,
             configuration?.ShowProductRatings ?? true, configuration?.ShowProductReviews ?? true, banners, methods,
-            configuration?.AllCategoryMediaId is null ? null : $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/categories/all", customerRewardsEnabled, string.IsNullOrWhiteSpace(tenant.DisplayName) ? tenant.Name : tenant.DisplayName.Trim(), featured, orderContactNumber);
+            configuration?.AllCategoryMediaId is null ? null : $"/api/store/{Uri.EscapeDataString(tenant.TenantKey)}/presentation/categories/all", customerRewardsEnabled, string.IsNullOrWhiteSpace(tenant.DisplayName) ? tenant.Name : tenant.DisplayName.Trim(), featured, orderContactNumber,
+            configuration is { DeliveryEnabled: true, FreeDeliveryEnabled: true, FreeDeliveryThreshold: > 0 }, configuration?.DefaultReturnWindowDays);
     }
 
     public async Task<IReadOnlyCollection<StorefrontCategoryDto>?> GetCategoriesAsync(string storeKey, CancellationToken token)
@@ -99,21 +104,56 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
             .ToArray();
     }
 
-    public async Task<IReadOnlyCollection<StorefrontProductDto>?> GetProductsAsync(string storeKey, CancellationToken token) => (await GetProductsAsync(storeKey, 1, int.MaxValue, null, token))?.Items;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "This public compatibility overload delegates to the tenant-scoped storefront service query.")]
+    public async Task<IReadOnlyCollection<StorefrontProductDto>?> GetProductsAsync(string storeKey, CancellationToken token) => (await GetProductsAsync(storeKey, 1, int.MaxValue, (Guid?)null, token))?.Items;
     public Task<StorefrontProductPageDto?> GetProductsAsync(string storeKey, int page, int pageSize, CancellationToken token)
-        => GetProductsAsync(storeKey, page, pageSize, null, token);
+        => GetProductsAsync(storeKey, page, pageSize, (Guid?)null, token);
 
     public async Task<StorefrontProductPageDto?> GetProductsAsync(string storeKey, int page, int pageSize, Guid? categoryId, CancellationToken token)
+        => await GetProductsAsync(storeKey, page, pageSize, new StorefrontProductQuery(categoryId), token);
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1725:Parameter names should match base declaration", Justification = "This overload accepts a structured product query rather than the categoryId-only compatibility overload.")]
+    public async Task<StorefrontProductPageDto?> GetProductsAsync(string storeKey, int page, int pageSize, StorefrontProductQuery filters, CancellationToken token)
     {
         var tenant = await ResolveTenantAsync(storeKey, token);
         if (tenant is null) return null;
-        var query = EligibleProducts(tenant.TenantId);
-        if (categoryId.HasValue)
+        var eligible = EligibleProducts(tenant.TenantId);
+        var bounds = await eligible.GroupBy(_ => 1)
+            .Select(group => new { Minimum = group.Min(product => product.SellingPrice), Maximum = group.Max(product => product.SellingPrice) })
+            .SingleOrDefaultAsync(token);
+        var query = eligible;
+        if (filters.CategoryId.HasValue)
         {
-            var categoryIds = await DescendantCategoryIdsAsync(categoryId.Value, token);
+            var categoryIds = await DescendantCategoryIdsAsync(filters.CategoryId.Value, token);
             query = query.Where(product => categoryIds.Contains(product.CategoryId));
         }
-        var ordered = query.Include(product => product.Category).Include(product => product.Unit).Include(product => product.Specifications).OrderBy(product => product.ProductName); var total = await ordered.CountAsync(token); var products = await ordered.Skip((page - 1) * pageSize).Take(pageSize).ToArrayAsync(token); var items = await MapProductsAsync(tenant.TenantId, tenant.TenantKey, products, false, token); return new StorefrontProductPageDto(items, page, pageSize, total, page * pageSize < total);
+        if (filters.MinPrice.HasValue) query = query.Where(product => product.SellingPrice >= filters.MinPrice.Value);
+        if (filters.MaxPrice.HasValue) query = query.Where(product => product.SellingPrice <= filters.MaxPrice.Value);
+        if (filters.InStockOnly)
+        {
+            query = query.Where(product => db.InventoryBalances
+                .Where(balance => balance.ProductId == product.ProductId
+                    && EF.Property<Guid?>(balance, "TenantId") == tenant.TenantId
+                    && db.Warehouses.Any(warehouse => warehouse.WarehouseId == balance.WarehouseId
+                        && EF.Property<Guid?>(warehouse, "TenantId") == tenant.TenantId
+                        && warehouse.IsActive && !warehouse.IsDeleted))
+                .Sum(balance => balance.QuantityOnHand - balance.QuantityReserved) > 0m);
+        }
+
+        var sortBy = (filters.SortBy ?? "RECOMMENDED").Trim().ToUpperInvariant();
+        IQueryable<Product> ordered = sortBy switch
+        {
+            "PRICE_LOW_TO_HIGH" => query.OrderBy(product => product.SellingPrice).ThenBy(product => product.ProductId),
+            "PRICE_HIGH_TO_LOW" => query.OrderByDescending(product => product.SellingPrice).ThenBy(product => product.ProductId),
+            "NEWEST" => query.OrderByDescending(product => product.CreatedOn).ThenBy(product => product.ProductId),
+            "RECOMMENDED" => query.OrderBy(product => product.ProductName).ThenBy(product => product.ProductId),
+            _ => throw new ArgumentException("The requested storefront product sort is not supported.", nameof(filters))
+        };
+        var total = await ordered.CountAsync(token);
+        var products = await ordered.Include(product => product.Category).Include(product => product.Unit).Include(product => product.Specifications)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToArrayAsync(token);
+        var items = await MapProductsAsync(tenant.TenantId, tenant.TenantKey, products, false, token);
+        return new StorefrontProductPageDto(items, page, pageSize, total, page * pageSize < total, bounds?.Minimum, bounds?.Maximum, SupportsNewestSort: true);
     }
 
     private async Task<Guid[]> DescendantCategoryIdsAsync(Guid rootId, CancellationToken token)
@@ -158,11 +198,49 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
             .Where(row => row.TenantId == tenant.TenantId && row.ProductId == productId && row.IsActive && !row.IsDeleted && (!imageId.HasValue || row.ProductImageId == imageId.Value))
             .OrderByDescending(row => row.IsPrimary).ThenBy(row => row.CreatedOn).FirstOrDefaultAsync(token);
         if (image is null) return null;
-        var content = await images.ReadAsync(new(image.TenantId, image.StorageProvider, thumbnail ? image.ThumbnailObjectKey : image.ObjectKey, thumbnail ? image.ThumbnailData : image.ImageData, thumbnail ? image.ThumbnailContentType : image.ContentType), token);
-        return content is null ? null : new(content.ContentType, content.Content);
+        if (!thumbnail)
+        {
+            var original = await images.ReadAsync(new(image.TenantId, image.StorageProvider, image.ObjectKey, image.ImageData, image.ContentType), token);
+            return original is null ? null : new(original.ContentType, original.Content);
+        }
+
+        if (!string.IsNullOrWhiteSpace(image.ThumbnailObjectKey) || image.ThumbnailData is { Length: > 0 })
+        {
+            var storedThumbnail = await images.ReadAsync(new(image.TenantId, image.StorageProvider, image.ThumbnailObjectKey, image.ThumbnailData, image.ThumbnailContentType), token);
+            if (storedThumbnail is not null) return new(storedThumbnail.ContentType, storedThumbnail.Content);
+        }
+
+        var cacheVersion = image.RowVersion.Length > 0
+            ? Convert.ToHexString(image.RowVersion)
+            : $"{image.CreatedOn.UtcTicks}:{image.ModifiedOn?.UtcTicks}:{image.ContentHash}";
+        var cacheKey = $"StorefrontProductThumbnail:{image.TenantId:N}:{image.ProductId:N}:{image.ProductImageId:N}:{cacheVersion}";
+        if (imageThumbnailCache?.TryGetValue(cacheKey, out ProductImageStorageContent? cachedThumbnail) == true && cachedThumbnail is not null)
+            return new(cachedThumbnail.ContentType, cachedThumbnail.Content);
+
+        // Older catalog rows may predate generated WebP thumbnails. Build a response-only
+        // thumbnail from the tenant-scoped original; do not mutate metadata or storage on GET.
+        var source = await images.ReadAsync(new(image.TenantId, image.StorageProvider, image.ObjectKey, image.ImageData, image.ContentType), token);
+        if (source is null || imageOptimizer is null) return source is null ? null : new(source.ContentType, source.Content);
+        try
+        {
+            var optimized = await imageOptimizer.OptimizeAsync(image.FileName, source.ContentType, source.Content, token);
+            if (optimized.ThumbnailData.Length == 0) return new(source.ContentType, source.Content);
+            var generated = new ProductImageStorageContent(optimized.ThumbnailData, "image/webp");
+            imageThumbnailCache?.Set(cacheKey, generated, new MemoryCacheEntryOptions()
+                .SetSize(1).SetSlidingExpiration(TimeSpan.FromHours(8)).SetAbsoluteExpiration(TimeSpan.FromDays(1)));
+            return new(generated.ContentType, generated.Content);
+        }
+        catch (BusinessRuleException)
+        {
+            // Preserve legacy image availability when a stored original cannot be transformed.
+            return new(source.ContentType, source.Content);
+        }
     }
 
-    public async Task<StorefrontImage?> GetPresentationImageAsync(string storeKey, string resource, Guid? categoryId, CancellationToken token)
+    public Task<StorefrontImage?> GetPresentationImageAsync(string storeKey, string resource, Guid? categoryId, CancellationToken token)
+        => GetPresentationImageAsync(storeKey, resource, categoryId, false, token);
+
+    public async Task<StorefrontImage?> GetPresentationImageAsync(string storeKey, string resource, Guid? categoryId, bool thumbnail, CancellationToken token)
     {
         var tenant = await ResolveTenantAsync(storeKey, token);
         if (tenant is null || presentationImages is null) return null;
@@ -178,7 +256,15 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
         if (mediaId is null) return null;
         var media = await db.StorefrontMedia.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenant.TenantId && x.MediaId == mediaId, token);
         if (media is null) return null;
-        var content = await presentationImages.ReadStorefrontAsync(new(media.TenantId, media.StorageProvider, media.ObjectKey, media.ImageData ?? [], media.ContentType), token);
+        var hasThumbnail = !string.IsNullOrWhiteSpace(media.ThumbnailObjectKey) || media.ThumbnailData is { Length: > 0 };
+        var useThumbnail = thumbnail && hasThumbnail;
+        ProductImageStorageContent? content = null;
+        if (useThumbnail)
+            content = await presentationImages.ReadStorefrontAsync(new(media.TenantId, media.StorageProvider,
+                media.ThumbnailObjectKey, media.ThumbnailData ?? [],
+                !string.IsNullOrWhiteSpace(media.ThumbnailContentType) ? media.ThumbnailContentType : media.ContentType), token);
+        content ??= await presentationImages.ReadStorefrontAsync(new(media.TenantId, media.StorageProvider,
+            media.ObjectKey, media.ImageData ?? [], media.ContentType), token);
         return content is null ? null : new(content.ContentType, content.Content);
     }
 
@@ -211,9 +297,15 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
             && (x.StartsAt == null || x.StartsAt <= now) && (x.EndsAt == null || x.EndsAt >= now)).Select(x => x.MediaId);
     }
 
-    private IQueryable<Product> EligibleProducts(Guid tenantId) => db.Products.AsNoTracking()
+    private IQueryable<Product> EligibleProducts(Guid tenantId)
+    {
+        // These service unit tests use EF InMemory, which cannot translate the
+        // SQL Server approval UDF. SQL-backed integration tests cover the gate;
+        // every other provider keeps the fail-closed database predicate.
+        var enforceSqlPublication = db.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory";
+        return db.Products.AsNoTracking()
         .Where(product => product.TenantId == tenantId && product.IsActive && !product.IsDeleted && product.IsWhatsAppVisible
-            && ApplicationDbContext.IsProductPubliclyApproved(tenantId, product.ProductId)
+            && (!enforceSqlPublication || ApplicationDbContext.IsProductPubliclyApproved(tenantId, product.ProductId))
             && (!db.PartnerProductListings.Any(x => x.OperatingTenantId == tenantId && x.ProductId == product.ProductId)
                 || db.PartnerProductListings.Any(x => x.OperatingTenantId == tenantId && x.ProductId == product.ProductId && x.ListingStatus == "APPROVED"
                     && db.PartnerSellers.Any(s => s.OperatingTenantId == tenantId && s.PartnerSellerId == x.PartnerSellerId && s.SellerStatus == "ACTIVE" && s.VerificationStatus == "VERIFIED")))
@@ -221,6 +313,7 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
             && db.ProductCategories.Any(category => category.ProductCategoryId == product.CategoryId && category.IsActive && !category.IsDeleted)
             && db.Set<TenantUnitOfMeasure>().Any(link => link.TenantId == tenantId && link.UnitId == product.UnitId)
             && db.UnitsOfMeasure.Any(unit => unit.UnitId == product.UnitId && unit.IsActive && !unit.IsDeleted));
+    }
 
     private async Task<IReadOnlyCollection<StorefrontProductDto>> MapProductsAsync(Guid tenantId, string storeKey, IReadOnlyCollection<Product> products, bool includeGallery, CancellationToken token)
     {
@@ -242,7 +335,7 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
         var imageRows = await db.ProductImages.AsNoTracking()
             .Where(image => image.TenantId == tenantId && ids.Contains(image.ProductId) && image.IsActive && !image.IsDeleted)
             .OrderByDescending(image => image.IsPrimary).ThenBy(image => image.CreatedOn)
-            .Select(image => new { image.ProductId, image.ProductImageId, image.IsPrimary }).ToArrayAsync(token);
+            .Select(image => new { image.ProductId, image.ProductImageId, image.IsPrimary, image.Width, image.Height, image.ThumbnailWidth, image.ThumbnailHeight }).ToArrayAsync(token);
         var imageIds = imageRows.GroupBy(image => image.ProductId).ToDictionary(group => group.Key, group => group.ToArray());
         var externalImages = await db.ProductExternalImages.AsNoTracking().Where(image => image.TenantId == tenantId && ids.Contains(image.ProductId))
             .Select(image => new { image.ExternalImageId, image.ProductId, image.ImageUrl, image.IsPrimary, image.DisplayOrder }).ToArrayAsync(token);
@@ -258,15 +351,18 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
             imageIds.TryGetValue(product.ProductId, out var gallery);
             externalByProduct.TryGetValue(product.ProductId, out var externalGallery);
             var projectedGallery = StorefrontProductImageProjection.Project(storeKey, product.ProductId,
-                externalGallery ?? [], (gallery ?? []).Select(image => new ManagedStorefrontProductImage(image.ProductImageId, image.IsPrimary)));
-            var galleryDtos = includeGallery ? projectedGallery.Images : null;
+                externalGallery ?? [], (gallery ?? []).Select(image => new ManagedStorefrontProductImage(image.ProductImageId, image.IsPrimary,
+                    image.Width > 0 ? image.Width : null, image.Height > 0 ? image.Height : null,
+                    image.ThumbnailWidth > 0 ? image.ThumbnailWidth : null, image.ThumbnailHeight > 0 ? image.ThumbnailHeight : null)));
+            // Lists need only the primary image to build responsive cards; details retain the full gallery.
+            var galleryDtos = includeGallery ? projectedGallery.Images : projectedGallery.Images.Where(image => image.IsPrimary).Take(1).ToArray();
             return new StorefrontProductDto(
             product.ProductId,
             product.CategoryId,
             product.ProductName,
             product.ShortDescription ?? string.Empty,
             product.LongDescription,
-            product.Specifications.Where(x => x.IsActive && !x.IsDeleted).OrderBy(x => x.DisplayOrder).Select(x => new StorefrontProductSpecificationDto(x.Name, x.Value)).ToArray(),
+            CustomerSpecifications(product),
             projectedGallery.PrimaryUrl,
             product.SellingPrice,
             product.MRP > product.SellingPrice ? product.MRP : null,
@@ -308,6 +404,20 @@ public sealed class StorefrontService(ApplicationDbContext db, IProductImageStor
         if (product.Weight is > 0 && !string.IsNullOrWhiteSpace(weightUnit))
             return $"{product.Weight.Value:0.####} {weightUnit.Trim()} · {unit.Trim()}";
         return product.Weight is > 0 ? $"{product.Weight.Value:0.####} {unit.Trim()}" : unit.Trim();
+    }
+
+    private static IReadOnlyCollection<StorefrontProductSpecificationDto> CustomerSpecifications(Product product)
+    {
+        var active = product.Specifications.Where(specification => specification.IsActive && !specification.IsDeleted).ToArray();
+        var weightUnit = active.FirstOrDefault(specification => string.Equals(specification.Name,
+            ShopifyProductWeightProjection.WeightUnitSpecificationName, StringComparison.OrdinalIgnoreCase))?.Value.Trim();
+        var specifications = active.Where(specification => !string.Equals(specification.Name,
+            ShopifyProductWeightProjection.WeightUnitSpecificationName, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(specification => specification.DisplayOrder)
+            .Select(specification => new StorefrontProductSpecificationDto(specification.Name, specification.Value)).ToList();
+        if (product.Weight is > 0 && !string.IsNullOrWhiteSpace(weightUnit))
+            specifications.Insert(0, new StorefrontProductSpecificationDto("Weight", $"{product.Weight.Value:0.####} {weightUnit}"));
+        return specifications;
     }
 
     private static StorefrontPaymentMethodDto ToPaymentMethod(EnabledPaymentMethod method) => method.Provider switch

@@ -15,7 +15,7 @@ public sealed record StoredProductImage(string Provider, string? ObjectKey, stri
 public sealed record ProductImageStorageReadRequest(Guid TenantId, string Provider, string? ObjectKey,
     byte[] DatabaseContent, string ContentType);
 public sealed record ProductImageStorageContent(byte[] Content, string ContentType);
-public sealed record ProductImageStorageDeleteRequest(Guid TenantId, string Provider, string? ObjectKey, string? ThumbnailObjectKey);
+public sealed record ProductImageStorageDeleteRequest(Guid TenantId, Guid ProductId, Guid ImageId, string Provider, string? ObjectKey, string? ThumbnailObjectKey);
 
 public interface IProductImageStorage
 {

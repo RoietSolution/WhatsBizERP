@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using WhatsBiz.Application.Common.Interfaces;
+using WhatsBiz.Application.Features.Warehouses;
+using WhatsBiz.Application.Features.Storefront;
+using WhatsBiz.Application.Features.Payments;
 using WhatsBiz.Infrastructure.Customers;
 using WhatsBiz.Infrastructure.DemoRequests;
 using WhatsBiz.Infrastructure.Identity;
@@ -14,6 +17,7 @@ using WhatsBiz.Infrastructure.Purchases;
 using WhatsBiz.Infrastructure.Suppliers;
 using WhatsBiz.Infrastructure.Warehouses;
 using WhatsBiz.Infrastructure.Outbound;
+using WhatsBiz.Infrastructure.Storefront;
 
 namespace WhatsBiz.Infrastructure;
 
@@ -71,6 +75,12 @@ public static class DependencyInjection
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddSingleton<ICustomerSpreadsheetService, CustomerSpreadsheetService>();
         services.AddScoped<IWarehouseRepository, WarehouseRepository>();
+        services.AddScoped<WarehouseStorefrontFulfilmentService>();
+        services.AddScoped<IWarehouseStorefrontFulfilmentService>(provider => provider.GetRequiredService<WarehouseStorefrontFulfilmentService>());
+        services.AddScoped<IMarketplaceOrderAllocationService, MarketplaceOrderAllocationService>();
+        services.AddScoped<IMarketplaceOrderLifecycleService, MarketplaceOrderLifecycleService>();
+        services.AddScoped<IMarketplacePartnerSettlementService, MarketplacePartnerSettlementService>();
+        services.AddHostedService<MarketplaceReservationExpiryWorker>();
         services.AddSingleton<IWarehouseSpreadsheetService, WarehouseSpreadsheetService>();
         services.AddScoped<IInventoryRepository, InventoryRepository>();
         services.AddScoped<IInventoryService, InventoryService>();

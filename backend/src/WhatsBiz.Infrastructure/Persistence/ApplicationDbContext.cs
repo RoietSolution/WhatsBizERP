@@ -19,7 +19,7 @@ namespace WhatsBiz.Infrastructure.Persistence;
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, ICurrentUserService? currentUser = null)
     : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
 {
-    private static readonly Type[] TenantOwnedTypes = [typeof(Supplier), typeof(Warehouse), typeof(SalesInvoice), typeof(PurchaseInvoice), typeof(ProductExternalImage), typeof(SupplierCatalogImportProfile), typeof(SupplierCatalogProduct), typeof(SupplierCatalogImportHistory)];
+    private static readonly Type[] TenantOwnedTypes = [typeof(Supplier), typeof(Warehouse), typeof(SalesInvoice), typeof(PurchaseInvoice), typeof(ProductExternalImage), typeof(SupplierCatalogImportProfile), typeof(SupplierCatalogProduct), typeof(SupplierCatalogImportHistory), typeof(RetailerShopifyProductSource), typeof(RetailerShopifyProductImportHistory), typeof(ShopifyInventoryImportHistory)];
     public static bool IsProductPubliclyApproved(Guid tenantId, Guid productId) => throw new NotSupportedException("SQL translation only.");
     public static byte[] ProductPublicContentHash(Guid tenantId, Guid productId) => throw new NotSupportedException("SQL translation only.");
 
@@ -54,10 +54,14 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductImageCleanupJob> ProductImageCleanupJobs => Set<ProductImageCleanupJob>();
     public DbSet<ProductExternalImage> ProductExternalImages => Set<ProductExternalImage>();
     public DbSet<SupplierCatalogImportProfile> SupplierCatalogImportProfiles => Set<SupplierCatalogImportProfile>();
     public DbSet<SupplierCatalogProduct> SupplierCatalogProducts => Set<SupplierCatalogProduct>();
     public DbSet<SupplierCatalogImportHistory> SupplierCatalogImportHistory => Set<SupplierCatalogImportHistory>();
+    public DbSet<RetailerShopifyProductSource> RetailerShopifyProductSources => Set<RetailerShopifyProductSource>();
+    public DbSet<RetailerShopifyProductImportHistory> RetailerShopifyProductImportHistory => Set<RetailerShopifyProductImportHistory>();
+    public DbSet<ShopifyInventoryImportHistory> ShopifyInventoryImportHistory => Set<ShopifyInventoryImportHistory>();
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<WhatsBiz.Infrastructure.Storefront.PublicRoute> PublicRoutes => Set<WhatsBiz.Infrastructure.Storefront.PublicRoute>();
     public DbSet<WhatsBiz.Infrastructure.Storefront.MarketplaceCity> MarketplaceCities => Set<WhatsBiz.Infrastructure.Storefront.MarketplaceCity>();
@@ -138,6 +142,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         ConfigureCommerceCollections(builder);
         ConfigureStorefrontPresentation(builder);
         ConfigureSuppliers(builder);
+        ConfigureRetailerImports(builder);
         ConfigureCustomers(builder);
         ConfigureCustomerNormalization(builder);
         ConfigureCustomerGroups(builder);
@@ -244,12 +249,37 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         b.Entity<SupplierCatalogImportHistory>(e => { e.ToTable("SupplierCatalogImportHistory", "purchase"); e.HasKey(x => x.ImportId); e.Property(x => x.Format).HasMaxLength(20); e.Property(x => x.SourceFileHash).HasMaxLength(64).IsFixedLength().IsUnicode(false); e.Property(x => x.ImportedBy).HasMaxLength(256); e.HasIndex(x=>new{x.TenantId,x.SupplierId,x.ImportedOn}).HasDatabaseName("IX_SupplierCatalogImportHistory_TenantSupplierDate"); e.HasOne<Supplier>().WithMany().HasForeignKey(x=>x.SupplierId).OnDelete(DeleteBehavior.Restrict); });
     }
 
+    private static void ConfigureRetailerImports(ModelBuilder b)
+    {
+        b.Entity<RetailerShopifyProductSource>(e =>
+        {
+            e.ToTable("RetailerShopifyProductSources", "integration"); e.HasKey(x => x.SourceId);
+            e.Property(x => x.SourceStore).HasMaxLength(255); e.Property(x => x.Handle).HasMaxLength(250); e.Property(x => x.VariantSku).HasMaxLength(150);
+            e.HasIndex(x => new { x.TenantId, x.SourceStore, x.Handle, x.VariantSku }).IsUnique().HasDatabaseName("UX_RetailerShopifyProductSources_Identity");
+            e.HasIndex(x => new { x.TenantId, x.ProductId }).HasDatabaseName("IX_RetailerShopifyProductSources_Product");
+            e.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+        });
+        b.Entity<RetailerShopifyProductImportHistory>(e =>
+        {
+            e.ToTable("RetailerShopifyProductImportHistory", "integration"); e.HasKey(x => x.ImportId);
+            e.Property(x => x.SourceStore).HasMaxLength(255); e.Property(x => x.SourceFileName).HasMaxLength(260); e.Property(x => x.SourceFileHash).HasMaxLength(64).IsFixedLength().IsUnicode(false); e.Property(x => x.ImportedBy).HasMaxLength(256);
+            e.HasIndex(x => new { x.TenantId, x.SourceStore, x.SourceFileHash }).IsUnique().HasDatabaseName("UX_RetailerShopifyProductImportHistory_File");
+        });
+        b.Entity<ShopifyInventoryImportHistory>(e =>
+        {
+            e.ToTable("ShopifyInventoryImportHistory", "integration"); e.HasKey(x => x.ImportId);
+            e.Property(x => x.SourceStore).HasMaxLength(255); e.Property(x => x.SourceFileName).HasMaxLength(260); e.Property(x => x.SourceFileHash).HasMaxLength(64).IsFixedLength().IsUnicode(false); e.Property(x => x.WarehouseMappingsJson).HasColumnType("nvarchar(max)"); e.Property(x => x.ResultsJson).HasColumnType("nvarchar(max)"); e.Property(x => x.ImportedBy).HasMaxLength(256);
+            e.HasIndex(x => new { x.TenantId, x.SourceStore, x.SourceFileHash }).IsUnique().HasDatabaseName("UX_ShopifyInventoryImportHistory_File");
+        });
+    }
+
     private static void ConfigureProductMaster(ModelBuilder builder)
     {
         builder.Entity<ProductCategory>(entity => { ConfigureAudit(entity); entity.ToTable("ProductCategories", "master"); entity.HasKey(x => x.ProductCategoryId); entity.Property(x => x.CategoryCode).HasMaxLength(50); entity.Property(x => x.CategoryName).HasMaxLength(200); entity.Property(x => x.Description).HasMaxLength(1000); entity.HasIndex(x => x.CategoryCode).IsUnique().HasFilter("[IsDeleted] = 0"); entity.HasOne(x => x.ParentCategory).WithMany().HasForeignKey(x => x.ParentCategoryId).OnDelete(DeleteBehavior.Restrict); });
         builder.Entity<Brand>(entity => { ConfigureAudit(entity); entity.ToTable("Brands", "master"); entity.HasKey(x => x.BrandId); entity.Property(x => x.BrandCode).HasMaxLength(50); entity.Property(x => x.BrandName).HasMaxLength(200); entity.Property(x => x.Description).HasMaxLength(1000); entity.Property(x => x.Logo).HasMaxLength(500); entity.HasIndex(x => x.BrandCode).IsUnique().HasFilter("[IsDeleted] = 0"); });
         builder.Entity<UnitOfMeasure>(entity => { ConfigureAudit(entity); entity.ToTable("UnitsOfMeasure", "master"); entity.HasKey(x => x.UnitId); entity.Property(x => x.UnitCode).HasMaxLength(50); entity.Property(x => x.UnitName).HasMaxLength(200); entity.Property(x => x.ShortName).HasMaxLength(20); entity.HasIndex(x => x.UnitCode).IsUnique().HasFilter("[IsDeleted] = 0"); });
         builder.Entity<Product>(entity => { ConfigureAudit(entity); entity.ToTable("Products", "master"); entity.HasKey(x => x.ProductId); entity.Property(x => x.ProductCode).HasMaxLength(50); entity.Property(x => x.Barcode).HasMaxLength(100); entity.Property(x => x.ProductName).HasMaxLength(250); entity.Property(x => x.ShortDescription).HasColumnType("nvarchar(max)"); entity.Property(x => x.ReturnPolicyMode).HasMaxLength(20); entity.Property(x => x.ReturnPolicyDescription).HasMaxLength(1000); entity.Property(x => x.HSNCode).HasMaxLength(20); entity.Property(x => x.SACCode).HasMaxLength(20); entity.Property(x => x.ImageUrl).HasMaxLength(2048); entity.Property(x => x.PackSize).HasMaxLength(50); foreach (var property in new[] { nameof(Product.PurchasePrice), nameof(Product.PackagingCost), nameof(Product.ShippingCost), nameof(Product.CombinedShippingPackagingCost), nameof(Product.SellingPrice), nameof(Product.MRP), nameof(Product.MinimumStock), nameof(Product.MaximumStock), nameof(Product.ReorderLevel), nameof(Product.Weight), nameof(Product.Length), nameof(Product.Width), nameof(Product.Height) }) entity.Property(property).HasPrecision(18, 4); entity.Property(x => x.GSTPercentage).HasPrecision(5, 2); entity.HasIndex(x => new { x.TenantId, x.ProductCode }).IsUnique().HasDatabaseName("UX_Products_ProductCode").HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0"); entity.HasIndex(x => new { x.TenantId, x.Barcode }).IsUnique().HasDatabaseName("UX_Products_Tenant_Barcode").HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0"); entity.HasOne(x => x.Category).WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict); entity.HasOne(x => x.Brand).WithMany().HasForeignKey(x => x.BrandId).OnDelete(DeleteBehavior.Restrict); entity.HasOne(x => x.Unit).WithMany().HasForeignKey(x => x.UnitId).OnDelete(DeleteBehavior.Restrict); });
+        builder.Entity<ProductImageCleanupJob>(entity => { entity.ToTable("ProductImageCleanupJobs", "master"); entity.HasKey(x => x.JobId); entity.Property(x => x.Source).HasMaxLength(20); entity.Property(x => x.RequestedBy).HasMaxLength(256); entity.Property(x => x.Status).HasMaxLength(20); entity.Property(x => x.LastError).HasMaxLength(2000); entity.Property(x => x.StorageProvider).HasMaxLength(20); entity.Property(x => x.ObjectKey).HasMaxLength(1024); entity.Property(x => x.ThumbnailObjectKey).HasMaxLength(1024); entity.Property(x => x.ContentHash).HasMaxLength(64).IsUnicode(false); entity.Property(x => x.RowVersion).IsRowVersion(); entity.HasIndex(x => new { x.Status, x.NextAttemptAtUtc, x.DeleteAfterUtc }).HasDatabaseName("IX_ProductImageCleanupJobs_Ready"); entity.HasIndex(x => new { x.TenantId, x.ProductImageId }).IsUnique().HasDatabaseName("UX_ProductImageCleanupJobs_Tenant_Image").HasFilter("[ProductImageId] IS NOT NULL"); entity.HasIndex(x => new { x.TenantId, x.ProductId }).IsUnique().HasDatabaseName("UX_ProductImageCleanupJobs_Tenant_Product").HasFilter("[Source] = N'PRODUCT_DELETE' AND [ProductImageId] IS NULL"); });
         builder.Entity<ProductExternalImage>(e => { e.ToTable("ProductExternalImages", "master"); e.HasKey(x => x.ExternalImageId); e.Property(x => x.ImageUrl).HasMaxLength(2048); e.HasIndex(x => new { x.TenantId, x.ProductId, x.DisplayOrder }); e.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade); e.HasOne<Supplier>().WithMany().HasForeignKey(x => x.SupplierId).OnDelete(DeleteBehavior.Restrict); });
         builder.Entity<ProductSpecification>(entity => { ConfigureAudit(entity); entity.ToTable("ProductSpecifications", "master"); entity.HasKey(x => x.ProductSpecificationId); entity.Property(x => x.Name).HasMaxLength(100); entity.Property(x => x.Value).HasMaxLength(1000); entity.HasIndex(x => new { x.TenantId, x.ProductId, x.Name }).IsUnique().HasDatabaseName("UX_ProductSpecifications_Tenant_Product_Name").HasFilter("[IsDeleted] = 0"); entity.HasOne<Product>().WithMany(x => x.Specifications).HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade); });
         builder.Entity<ProductImage>(entity => { ConfigureAudit(entity); entity.ToTable("ProductImages", "master"); entity.HasKey(x => x.ProductImageId); entity.Property(x => x.FileName).HasMaxLength(255); entity.Property(x => x.ContentType).HasMaxLength(100); entity.Property(x => x.ThumbnailContentType).HasMaxLength(100); entity.Property(x => x.StorageProvider).HasMaxLength(20); entity.Property(x => x.ObjectKey).HasMaxLength(1024); entity.Property(x => x.ThumbnailObjectKey).HasMaxLength(1024); entity.Property(x => x.ContentHash).HasMaxLength(64).IsUnicode(false); entity.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade); });

@@ -40,6 +40,12 @@ public sealed record PlatformPaymentQuery(Guid? TenantId = null, DateTimeOffset?
 public sealed record PagedPaymentsDto(IReadOnlyCollection<CommercePaymentDto> Items, long TotalCount, int PageNumber, int PageSize,
     decimal TotalPaid = 0, long SuccessfulCollectionCount = 0);
 public sealed record VerifyDirectUpiInput(string? Reference);
+public sealed record MarketplaceCodCollectionInput(Guid FulfilmentGroupId, decimal Amount,
+    string PaymentMethod, string? ReceiptReference, string IdempotencyKey);
+public sealed record MarketplaceCodAssignmentInput(Guid FulfilmentGroupId, string Reason, string IdempotencyKey);
+public sealed record MarketplaceCodCollectionResult(Guid OrderId, string Status, decimal Amount,
+    Guid? FulfilmentGroupId, Guid? CollectorUserId, DateTimeOffset? CollectedAt,
+    string? ReceiptReference, bool IsReplay);
 
 public sealed record PaymentGatewayConfiguration(string Provider, string? KeyId, string? KeySecret,
     string? WebhookSecret, bool IsTestMode, string? UpiVpa, string? PayeeName);
@@ -99,4 +105,8 @@ public interface ICommercePaymentService
     Task<PaymentSettingsDto> SaveOptionsForTenantAsync(Guid trustedTenantId, SavePaymentOptions input, string actor, CancellationToken token);
     Task<CommercePaymentDto> VerifyDirectUpiAsync(Guid paymentId, VerifyDirectUpiInput input, Guid userId, string actor, CancellationToken token);
     Task ProcessRazorpayWebhookAsync(ReadOnlyMemory<byte> rawBody, string signature, string? eventId, CancellationToken token);
+    Task<MarketplaceCodCollectionResult> CollectMarketplaceCodAsync(Guid orderId,
+        MarketplaceCodCollectionInput input, string actor, CancellationToken token);
+    Task<MarketplaceCodCollectionResult> AssignMarketplaceCodCollectionAsync(Guid tenantId, Guid orderId,
+        MarketplaceCodAssignmentInput input, Guid actorUserId, string actor, CancellationToken token);
 }

@@ -1,70 +1,53 @@
 import { Routes } from '@angular/router';
-import { CartPage } from './pages/cart.page';
-import { OrdersPage } from './pages/orders.page';
-import { OrdersPhase3Page } from './pages/orders-phase3.page';
-import { OrderDetailsPage } from './pages/order-details.page';
-import { OrderDetailsPhase3Page } from './pages/order-details-phase3.page';
-import { ProductDetailsPage } from './pages/product-details.page';
-import { StoreHomePage } from './pages/store-home.page';
 import { StoreShell } from './store-shell';
-import { WelcomePage } from './pages/welcome.page';
-import { StoreDirectoryPage } from './pages/store-directory.page';
-import { WishlistPage } from './pages/wishlist.page';
-import { WishlistPhase4Page } from './pages/wishlist-phase4.page';
-import { CustomerAuthPage } from './pages/customer-auth.page';
-import { AccountPage } from './pages/account.page';
-import { OfferDetailsPage } from './pages/offer-details.page';
 import { customerAuthGuard } from './customer-auth.guard';
-import { AddressesPage } from './pages/addresses.page';
-import { StorefrontContentPage } from './pages/storefront-content.page';
-import { AccountProfilePage } from './pages/account-profile.page';
-import { RewardsPage } from './pages/rewards.page';
-import { CustomerReferralLandingPage } from './pages/customer-referral-landing.page';
-import { FeedbackPage } from './pages/feedback.page';
-import { PaymentReturnPage } from './pages/payment-return.page';
+import { customStoreDomainMatcher } from './custom-store-domain';
+
+const storeChildren: Routes = [
+      { path: '', loadComponent: () => import('./pages/store-home.page').then(m => m.StoreHomePage), pathMatch: 'full', data: { freeDeliveryProgress: true } },
+      { path: 'categories', loadComponent: () => import('./pages/store-home.page').then(m => m.StoreHomePage), data: { freeDeliveryProgress: true } },
+      { path: 'products', loadComponent: () => import('./pages/store-home.page').then(m => m.StoreHomePage), data: { freeDeliveryProgress: true } },
+      { path: 'stores', loadComponent: () => import('./pages/store-home.page').then(m => m.StoreHomePage), data: { freeDeliveryProgress: true } },
+      { path: 'search', loadComponent: () => import('./pages/store-home.page').then(m => m.StoreHomePage), data: { freeDeliveryProgress: true } },
+      { path: 'products/:productId', loadComponent: () => import('./pages/product-details.page').then(m => m.ProductDetailsPage) },
+      { path: 'offers/:offerId', loadComponent: () => import('./pages/offer-details.page').then(m => m.OfferDetailsPage) },
+      { path: 'cart', loadComponent: () => import('./pages/cart.page').then(m => m.CartPage), canActivate: [customerAuthGuard], data: { freeDeliveryProgress: true } },
+      { path: 'checkout', loadComponent: () => import('./pages/cart.page').then(m => m.CartPage), canActivate: [customerAuthGuard] },
+      { path: 'orders', loadComponent: () => import('./pages/orders-phase3.page').then(m => m.OrdersPhase3Page), canActivate: [customerAuthGuard] },
+      { path: 'orders/:orderId', loadComponent: () => import('./pages/order-details-phase3.page').then(m => m.OrderDetailsPhase3Page), canActivate: [customerAuthGuard] },
+      { path: 'wishlist', loadComponent: () => import('./pages/wishlist-phase4.page').then(m => m.WishlistPhase4Page) },
+      { path: 'auth', loadComponent: () => import('./pages/customer-auth.page').then(m => m.CustomerAuthPage) },
+      { path: 'payment-return', loadComponent: () => import('./pages/payment-return.page').then(m => m.PaymentReturnPage) },
+      { path: 'feedback', loadComponent: () => import('./pages/feedback.page').then(m => m.FeedbackPage) },
+      { path: 'account', loadComponent: () => import('./pages/account.page').then(m => m.AccountPage), canActivate: [customerAuthGuard], children: [
+        { path: '', redirectTo: 'profile', pathMatch: 'full' },
+        { path: 'profile', loadComponent: () => import('./pages/account-profile.page').then(m => m.AccountProfilePage) },
+        { path: 'wishlist', loadComponent: () => import('./pages/wishlist-phase4.page').then(m => m.WishlistPhase4Page) },
+        { path: 'orders', loadComponent: () => import('./pages/orders-phase3.page').then(m => m.OrdersPhase3Page) },
+        { path: 'rewards', loadComponent: () => import('./pages/rewards.page').then(m => m.RewardsPage) },
+        { path: 'addresses', loadComponent: () => import('./pages/addresses.page').then(m => m.AddressesPage) },
+        { path: 'support', loadComponent: () => import('./pages/storefront-content.page').then(m => m.StorefrontContentPage), data: { kind: 'support' } },
+        { path: 'reviews', loadComponent: () => import('./pages/storefront-content.page').then(m => m.StorefrontContentPage), data: { kind: 'reviews' } },
+        { path: 'terms', loadComponent: () => import('./pages/storefront-content.page').then(m => m.StorefrontContentPage), data: { kind: 'terms' } },
+        { path: 'terms-and-conditions', loadComponent: () => import('./pages/storefront-content.page').then(m => m.StorefrontContentPage), data: { kind: 'terms' } },
+        { path: 'privacy', loadComponent: () => import('./pages/storefront-content.page').then(m => m.StorefrontContentPage), data: { kind: 'privacy' } },
+        { path: 'cancellation-return-refund', loadComponent: () => import('./pages/storefront-content.page').then(m => m.StorefrontContentPage), data: { kind: 'cancellation' } },
+        { path: 'feedback', loadComponent: () => import('./pages/feedback.page').then(m => m.FeedbackPage) },
+      ] },
+      { path: 'addresses', loadComponent: () => import('./pages/addresses.page').then(m => m.AddressesPage), canActivate: [customerAuthGuard] },
+      { path: 'support', loadComponent: () => import('./pages/storefront-content.page').then(m => m.StorefrontContentPage), canActivate: [customerAuthGuard], data: { kind: 'support' } },
+      { path: 'terms', loadComponent: () => import('./pages/storefront-content.page').then(m => m.StorefrontContentPage), data: { kind: 'terms' } },
+      { path: 'terms-and-conditions', loadComponent: () => import('./pages/storefront-content.page').then(m => m.StorefrontContentPage), data: { kind: 'terms' } },
+      { path: 'privacy', loadComponent: () => import('./pages/storefront-content.page').then(m => m.StorefrontContentPage), data: { kind: 'privacy' } },
+      { path: 'cancellation-return-refund', loadComponent: () => import('./pages/storefront-content.page').then(m => m.StorefrontContentPage), data: { kind: 'cancellation' } },
+      { path: 'reviews', loadComponent: () => import('./pages/storefront-content.page').then(m => m.StorefrontContentPage), canActivate: [customerAuthGuard], data: { kind: 'reviews' } },
+];
 
 export const routes: Routes = [
-  { path: '', component: StoreDirectoryPage, pathMatch: 'full' },
-  { path: 'ref/:code', component: CustomerReferralLandingPage },
-  {
-    path: ':storeKey',
-    component: StoreShell,
-    children: [
-      { path: '', component: StoreHomePage, pathMatch: 'full' },
-      { path: 'categories', component: StoreHomePage },
-      { path: 'products', component: StoreHomePage },
-      { path: 'stores', component: StoreHomePage },
-      { path: 'search', component: StoreHomePage },
-      { path: 'products/:productId', component: ProductDetailsPage },
-      { path: 'offers/:offerId', component: OfferDetailsPage },
-      { path: 'cart', component: CartPage, canActivate: [customerAuthGuard] },
-      { path: 'checkout', component: CartPage, canActivate: [customerAuthGuard] },
-      { path: 'orders', component: OrdersPhase3Page, canActivate: [customerAuthGuard] },
-      { path: 'orders/:orderId', component: OrderDetailsPhase3Page, canActivate: [customerAuthGuard] },
-      { path: 'wishlist', component: WishlistPhase4Page },
-      { path: 'auth', component: CustomerAuthPage },
-      { path: 'payment-return', component: PaymentReturnPage },
-      { path: 'feedback', component: FeedbackPage },
-      { path: 'account', component: AccountPage, canActivate: [customerAuthGuard], children: [
-        { path: '', redirectTo: 'profile', pathMatch: 'full' },
-        { path: 'profile', component: AccountProfilePage },
-        { path: 'wishlist', component: WishlistPhase4Page },
-        { path: 'orders', component: OrdersPhase3Page },
-        { path: 'rewards', component: RewardsPage },
-        { path: 'addresses', component: AddressesPage },
-        { path: 'support', component: StorefrontContentPage, data: { kind: 'support' } },
-        { path: 'reviews', component: StorefrontContentPage, data: { kind: 'reviews' } },
-        { path: 'terms', component: StorefrontContentPage, data: { kind: 'terms' } },
-        { path: 'privacy', component: StorefrontContentPage, data: { kind: 'privacy' } },
-        { path: 'feedback', component: FeedbackPage },
-      ] },
-      { path: 'addresses', component: AddressesPage, canActivate: [customerAuthGuard] },
-      { path: 'support', component: StorefrontContentPage, canActivate: [customerAuthGuard], data: { kind: 'support' } },
-      { path: 'terms', component: StorefrontContentPage, data: { kind: 'terms' } },
-      { path: 'privacy', component: StorefrontContentPage, data: { kind: 'privacy' } },
-      { path: 'reviews', component: StorefrontContentPage, canActivate: [customerAuthGuard], data: { kind: 'reviews' } },
-    ],
-  },
+  { matcher: customStoreDomainMatcher, component: StoreShell, children: storeChildren },
+  { path: '', loadComponent: () => import('./pages/store-directory.page').then(m => m.StoreDirectoryPage), pathMatch: 'full' },
+  { path: 'ref/:code', loadComponent: () => import('./pages/customer-referral-landing.page').then(m => m.CustomerReferralLandingPage) },
+  { path: ':storeKey', component: StoreShell, children: storeChildren },
   { path: '**', redirectTo: '' },
 ];
 

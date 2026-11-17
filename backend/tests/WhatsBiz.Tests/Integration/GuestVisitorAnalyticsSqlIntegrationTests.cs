@@ -17,7 +17,7 @@ public sealed class GuestVisitorAnalyticsSqlIntegrationTests
     private const string FixtureAuthorizationVariable = "WHATS_BIZ_V82_SQL_FIXTURE_AUTHORIZATION";
     private const string FixtureAuthorizationValue = "I_AUTHORIZE_V82_SQL_FIXTURES";
 
-    [Fact(Timeout = 90_000)]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact(Timeout = 90_000)]
     public async Task V82ConstraintsAndRetentionWorkerAreTenantScopedAndCleanUpSafely()
     {
         var connectionString = SqlIntegrationDatabase.ConnectionString;

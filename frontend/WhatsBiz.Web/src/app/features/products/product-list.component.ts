@@ -25,7 +25,7 @@ import { ProductApiService } from './product-api.service';
 import { ProductListItem } from './product.models';
 import { ProductHistoryDialogComponent } from './product-history-dialog.component';
 import { ProductShareDialogComponent } from './product-share-dialog.component';
-import { SupplierCatalogImportDialogComponent } from './supplier-catalog-import-dialog.component';
+import { ProductImportDialogComponent } from './product-import-dialog.component';
 import { ProductImportTemplatesDialogComponent } from './product-import-templates-dialog.component';
 
 @Component({
@@ -202,7 +202,7 @@ export class ProductListComponent implements OnDestroy {
     }
     else if (e.action === 'template')
       this.dialog.open(ProductImportTemplatesDialogComponent, { width: '620px', maxWidth: 'calc(100vw - 24px)' });
-    else if (e.action === 'import') this.dialog.open(SupplierCatalogImportDialogComponent, { width: '900px', maxWidth: 'calc(100vw - 24px)', autoFocus: false }).afterClosed().subscribe(result => { if(result==='ERP') this.fileInput()?.nativeElement.click(); else if(result==='IMPORTED') this.load(); });
+    else if (e.action === 'import') this.dialog.open(ProductImportDialogComponent, { width: '900px', maxWidth: 'calc(100vw - 24px)', autoFocus: false }).afterClosed().subscribe(result => { if(result==='ERP') this.fileInput()?.nativeElement.click(); else if(result==='IMPORTED') this.load(); });
     else if (e.action === 'export')
       this.api
         .export(
@@ -300,7 +300,7 @@ export class ProductListComponent implements OnDestroy {
   remove(rows: ProductListItem[]) {
     this.dialog
       .open(ConfirmDialogComponent, {
-        data: { title: 'Delete products', message: `Delete ${rows.length} selected product(s)?` },
+        data: { title: 'Delete products', message: `Delete ${rows.length} selected product(s)? They will no longer be available for sale. Managed images will be retained temporarily while the product can be recovered, then eligible images will be removed automatically.` },
       })
       .afterClosed()
       .subscribe((ok) => {

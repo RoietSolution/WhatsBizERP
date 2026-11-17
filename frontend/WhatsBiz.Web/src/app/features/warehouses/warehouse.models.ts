@@ -78,3 +78,19 @@ export interface PagedWarehouses {
   pageNumber: number;
   pageSize: number;
 }
+export interface WarehouseStorefrontSellerArea {
+  sellerKind: 'OWNED' | 'PARTNER';
+  partnerSellerId?: string | null;
+  sellerName: string;
+  isEnabled: boolean;
+  pincodes: string[];
+}
+export interface WarehouseStorefrontFulfilment {
+  warehouseId: string;
+  warehouseIsActive: boolean;
+  storeDeliveryEnabled: boolean;
+  deliveryCoverageMode: string;
+  isMarketplaceEligible: boolean;
+  retailerServiceablePincodes: string[];
+  sellerAreas: WarehouseStorefrontSellerArea[];
+}

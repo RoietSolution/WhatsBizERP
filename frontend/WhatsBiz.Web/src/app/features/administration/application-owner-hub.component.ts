@@ -24,6 +24,7 @@ export class ApplicationOwnerHubComponent {
     { title: 'City Marketplaces', description: 'Create and publish city routes and assign eligible directory-published retailers.', icon: 'location_city', route: '/application-owner/marketplace-cities' },
     { title: 'Marketplace Search Analytics', description: 'Review aggregated search trends and zero-result terms across cities and retailer storefronts.', icon: 'manage_search', route: '/application-owner/search-analytics' },
     { title: 'Marketplace Visitor Analytics', description: 'Review aggregated, consented storefront visitor activity for enabled retailers.', icon: 'visibility', route: '/application-owner/visitor-analytics' },
+    { title: 'Customer Policies', description: 'Prepare and publish versioned storefront Terms and Privacy Notices with approval records.', icon: 'policy', route: '/application-owner/customer-policies' },
     { title: 'Partner Seller Verification', description: 'Review partner seller verification requests from operating retailers.', icon: 'verified_user', route: '/application-owner/partner-verification' },
     { title: 'Tenant Features', description: 'Enroll retailers and control plan feature access.', icon: 'account_tree', route: '/admin/features' },
     { title: 'Demo Requests', description: 'Review website leads and manage their sales status.', icon: 'campaign', route: '/admin/demo-requests' },

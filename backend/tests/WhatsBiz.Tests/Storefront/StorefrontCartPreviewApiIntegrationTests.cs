@@ -12,7 +12,7 @@ namespace WhatsBiz.Tests.Storefront;
 [Collection("SQL storefront preview")]
 public sealed class StorefrontCartPreviewApiIntegrationTests
 {
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task GuestPreviewWithNoPincodeReturnsBackendPricingWithoutCustomerSession()
     {
         // Preview must work on a normal connection without concurrent readers.

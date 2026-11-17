@@ -17,8 +17,8 @@ public sealed class StorefrontCampaignsController(IStorefrontCampaignService cam
     [HttpGet] public Task<IReadOnlyCollection<StorefrontCampaign>> List(CancellationToken token)=>campaigns.ListAsync(Tenant,token);
     [HttpPost] public Task<StorefrontCampaign> Create(SaveStorefrontCampaign input,CancellationToken token)=>campaigns.SaveAsync(Tenant,null,input,token);
     [HttpPut("{id:guid}")] public Task<StorefrontCampaign> Update(Guid id,SaveStorefrontCampaign input,CancellationToken token)=>campaigns.SaveAsync(Tenant,id,input,token);
-    [HttpPost("{id:guid}/image"), RequestSizeLimit(6*1024*1024)]
-    public async Task<IActionResult> Upload(Guid id,[FromForm] IFormFile file,CancellationToken token)
+    [HttpPost("{id:guid}/image"), RequestSizeLimit(6*1024*1024), Consumes("multipart/form-data")]
+    public async Task<IActionResult> Upload(Guid id,IFormFile file,CancellationToken token)
     {if(file.Length is <=0 or >5242880)return BadRequest(new{message="Choose an image up to 5 MB."});await using var content=file.OpenReadStream();await campaigns.UploadAsync(Tenant,id,file.FileName,content,token);return NoContent();}
     [HttpGet("{id:guid}/image"), ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
     public async Task<IActionResult> Image(Guid id,CancellationToken token)

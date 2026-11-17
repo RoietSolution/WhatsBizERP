@@ -67,6 +67,9 @@ public sealed class ProductsController(ISender sender, IEntityCodeService codes,
     [HttpDelete("{id:guid}"), HasPermission(Permissions.Product.Delete)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken) { await sender.Send(new DeleteProductCommand(id), cancellationToken); return NoContent(); }
 
+    [HttpPost("{id:guid}/restore"), HasPermission(Permissions.Product.Edit)]
+    public async Task<IActionResult> Restore(Guid id, CancellationToken cancellationToken) { await sender.Send(new RestoreProductCommand(id), cancellationToken); return NoContent(); }
+
     [HttpGet("export"), HasPermission(Permissions.Product.View)]
     public async Task<IActionResult> Export([FromQuery] string? search, [FromQuery] bool? isActive, CancellationToken cancellationToken) => File(await sender.Send(new ExportProductsQuery(search, isActive), cancellationToken), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "products.xlsx");
 

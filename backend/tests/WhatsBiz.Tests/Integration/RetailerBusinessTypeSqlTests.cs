@@ -16,7 +16,7 @@ namespace WhatsBiz.Tests.Integration;
 [Collection("SQL EF compatibility")]
 public sealed class RetailerBusinessTypeSqlTests
 {
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task LegacyProfilesPreservedAndOnboardingDraftUsesValidatedCatalogUntilRollback()
     {
         await using var connection=new SqlConnection(SqlIntegrationDatabase.ConnectionString);

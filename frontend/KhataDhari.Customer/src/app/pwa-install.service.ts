@@ -38,7 +38,16 @@ export class PwaInstallService {
     const theme = this.document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     if (theme) theme.content = store.accentColor;
     const icon = this.document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-    if (icon && store.logoUrl) icon.href = store.logoUrl;
+    if (icon && store.logoUrl) {
+      const originalUrl = store.logoUrl;
+      icon.onerror = null;
+      icon.removeAttribute('type');
+      icon.onerror = () => {
+        icon.onerror = null;
+        icon.href = originalUrl;
+      };
+      icon.href = this.thumbnailUrl(originalUrl);
+    }
     const dismissed = localStorage.getItem(this.dismissKey()) === '1';
     this.canInstall.set(!this.installed && !dismissed && this.deferredPrompt !== null);
     this.iosInstallHint.set(!this.installed && this.isIos() && !dismissed);
@@ -87,6 +96,10 @@ export class PwaInstallService {
   private isIos(): boolean {
     return /iPhone|iPad|iPod/i.test(navigator.userAgent)
       || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
+  private thumbnailUrl(url: string): string {
+    return `${url}${url.includes('?') ? '&' : '?'}thumbnail=true`;
   }
 
   private dismissKey(): string {

@@ -1,0 +1,24 @@
+<main class="snapshot-page">
+  <header><div><h1>Shopify Daily Stock Update</h1><p>Reconcile absolute “On hand (current)” quantities through inventory verification. Preview makes no stock changes.</p></div></header>
+  <section class="upload-card">
+    <label>Shopify source store<input [ngModel]="sourceStore()" (ngModelChange)="sourceStore.set($event)" placeholder="shop-name.myshopify.com" autocomplete="url"></label>
+    <label>Inventory CSV or Excel (.csv, .xlsx)<input type="file" accept=".csv,.xlsx,text/csv" (change)="chooseFile($event)"></label>
+    @if(file()){<p class="file-meta">{{file()!.name}} · {{file()!.size | number}} bytes</p>}
+    <div class="location-mapping"><h2>Shopify location mapping</h2><p>Map each file location to an existing active warehouse. Warehouses are not created automatically.</p>
+      @for(location of locations();track location){<label>{{location}}<select [ngModel]="mappings[location] || ''" (ngModelChange)="mappings[location]=$event"><option value="">Select warehouse…</option>@for(w of warehouses();track w.warehouseId){<option [value]="w.warehouseId">{{w.warehouseName}} ({{w.warehouseCode}})</option>}</select></label>}
+    </div>
+    <button type="button" class="primary" (click)="previewFile()" [disabled]="busy() || !file()">{{busy()?'Processing…':'Preview snapshot'}}</button>
+    @if(error()){<div class="error" role="alert">{{error()}}</div>}
+  </section>
+  @if(preview();as p){
+    <section class="result-card"><div class="summary"><strong>{{p.rows.length}} rows</strong><span>{{countStatus('READY')}} adjustments</span><span>{{countStatus('UNCHANGED')}} unchanged</span><span>{{countStatus('ERROR')}} issues</span></div>
+      @if(p.alreadyImported){<div class="warning">This exact source file was already committed for this Shopify store.</div>}
+      <nav class="filters" aria-label="Filter preview rows"><button type="button" [class.selected]="view()==='all'" (click)="view.set('all')">All</button><button type="button" [class.selected]="view()==='changed'" (click)="view.set('changed')">Changed</button><button type="button" [class.selected]="view()==='unmatched'" (click)="view.set('unmatched')">Unmatched</button><button type="button" [class.selected]="view()==='errors'" (click)="view.set('errors')">Errors</button><button type="button" class="refresh" (click)="refresh()" [disabled]="busy()">Refresh stock</button></nav>
+      <div class="table-wrap"><table><thead><tr><th>SKU</th><th>Product</th><th>Warehouse</th><th>ERP Current</th><th>File Quantity</th><th>Adjustment</th><th>HSN / COO</th><th>Status</th></tr></thead><tbody>@for(row of rows();track row.key){<tr><td>{{row.sku||'—'}}<small>{{row.handle}}</small></td><td>{{row.productName||'Unmatched'}}</td><td>{{row.warehouseName||row.location||'—'}}<small>{{row.location}}</small></td><td>{{row.current}}</td><td>{{row.target??'—'}}</td><td [class.negative]="row.adjustment<0">{{row.adjustment>0?'+':''}}{{row.adjustment}}</td><td>{{row.hsnCode||'—'}}<small>{{row.countryOfOrigin||''}}</small></td><td><strong [class.error-text]="row.status==='ERROR'">{{row.status}}</strong>@for(message of row.errors;track message){<small class="error-text">{{message}}</small>}@for(w of row.warnings;track w){<small class="warning">{{w}}</small>}</td></tr>}</tbody></table></div>
+      @if(hasHsnMetadata()){<label class="metadata-opt-in"><input type="checkbox" [(ngModel)]="applyHsnMetadata"> Also update nonblank HSN codes on matched products (requires Product Edit permission). Country of origin is shown for review; KhataDhari has no corresponding product field.</label>}
+      <footer><span>Missing products in the file are left untouched. Reserved/committed stock remains protected by inventory validation.</span><div><button type="button" (click)="exportErrors()" [disabled]="!hasErrors()">Download error report</button><button type="button" (click)="refresh()" [disabled]="busy()">Refresh preview</button><button type="button" class="primary" (click)="commit()" [disabled]="busy() || p.alreadyImported || hasErrors()">{{busy()?'Updating…':'Confirm Update'}}</button></div></footer>
+    </section>
+  }
+  @if(result();as r){<div class="success" role="status">Inventory snapshot complete: {{r.importedRows}} adjusted, {{r.skippedRows}} unchanged, {{r.failedRows}} failed.</div>}
+  <section class="history-card"><h2>Recent Shopify stock imports</h2>@if(history().length){<div class="table-wrap"><table><thead><tr><th>Imported</th><th>File</th><th>Shopify store</th><th>Adjusted</th><th>Unchanged</th><th>Failed</th><th>User</th></tr></thead><tbody>@for(item of history();track item.importId){<tr><td>{{item.importedOn | date:'medium'}}</td><td>{{item.sourceFileName}}</td><td>{{item.sourceStore}}</td><td>{{item.importedRows}}</td><td>{{item.skippedRows}}</td><td>{{item.failedRows}}</td><td>{{item.importedBy||'—'}}</td></tr>}</tbody></table></div>}@else{<p>No completed Shopify stock imports are recorded.</p>}</section>
+</main>

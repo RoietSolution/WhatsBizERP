@@ -12,7 +12,7 @@ public sealed class SupplierCatalogV83SqlIntegrationTests
     private const string WriteAuthorizationVariable = "WHATS_BIZ_V83_ROLLBACK_TEST_AUTHORIZATION";
     private const string WriteAuthorizationValue = "I_AUTHORIZE_ROLLBACK_ONLY_V83_TESTS";
 
-    [Fact(Timeout = 90_000)]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact(Timeout = 90_000)]
     public async Task V83MigrationAndSupplierCatalogConstraintsAreTenantScopedAndRollbackOnly()
     {
         var rawConnectionString = SqlIntegrationDatabase.ConnectionString;

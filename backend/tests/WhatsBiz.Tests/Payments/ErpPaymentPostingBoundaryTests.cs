@@ -103,7 +103,7 @@ public sealed class ErpPaymentPostingBoundaryTests
     public void CommerceDuplicateAndPaidCancellationGuardsRemain()
     {
         var commerce = Read("backend/src/WhatsBiz.Infrastructure/Payments/CommercePaymentService.cs");
-        commerce.Should().Contain("if(status==CommercePaymentStatuses.Paid)return;");
+        commerce.Should().Contain("if(status==CommercePaymentStatuses.Paid)return false;");
         commerce.Should().Contain("INSERT commerce.PaymentApplications");
         var cancellation = Read("backend/src/WhatsBiz.Infrastructure/Storefront/StorefrontCancellationService.cs");
         cancellation.Should().Contain("Paid-order cancellation requires a verified finance reversal");

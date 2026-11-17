@@ -6,7 +6,7 @@ namespace WhatsBiz.Application.Features.Storefront;
 public sealed record StorefrontBannerDto(string Slot, string ImageUrl, string? Title, string? Subtitle, string? TargetUrl, int DisplayOrder, Guid? PromotionId = null);
 public sealed record StorefrontPaymentMethodDto(string Code, string Label, string Description, bool IsDefault, bool UsesHostedPaymentPage, string Provider);
 public sealed record StorefrontStoreDto(string StoreKey, string Name, string Tagline, string? LogoUrl, string AccentColor,
-    string DeliveryMessage, decimal? FreeDeliveryThreshold, bool ShowProductRatings, bool ShowProductReviews, IReadOnlyCollection<StorefrontBannerDto> Banners, IReadOnlyCollection<StorefrontPaymentMethodDto> PaymentMethods, string? AllCategoryImageUrl = null, bool CustomerRewardsEnabled = false, string? DisplayName = null, IReadOnlyCollection<StorefrontCategoryDto>? FeaturedCategories = null, string? OrderContactNumber = null);
+    string DeliveryMessage, decimal? FreeDeliveryThreshold, bool ShowProductRatings, bool ShowProductReviews, IReadOnlyCollection<StorefrontBannerDto> Banners, IReadOnlyCollection<StorefrontPaymentMethodDto> PaymentMethods, string? AllCategoryImageUrl = null, bool CustomerRewardsEnabled = false, string? DisplayName = null, IReadOnlyCollection<StorefrontCategoryDto>? FeaturedCategories = null, string? OrderContactNumber = null, bool FreeDeliveryEnabled = false, int? DefaultReturnWindowDays = null);
 public sealed record StorefrontCategoryDto(Guid Id, string Name, string? ImageUrl, Guid? ParentId = null);
 public sealed record StorefrontCategoryOptionDto(Guid Id, string Name, Guid? ParentId);
 public sealed record StorefrontProductDto(Guid Id, Guid CategoryId, string Name, string Description, string? LongDescription, IReadOnlyCollection<StorefrontProductSpecificationDto> Specifications, string? ImageUrl, decimal SellingPrice, decimal? CompareAtPrice, string Availability, string? PackSize, decimal? AverageRating, int RatingCount, string ReturnPolicyMode = "INHERIT_DEFAULT", int? ReturnWindowDays = null, bool IsReturnable = true, IReadOnlyCollection<StorefrontProductImageDto>? Images = null, string? ReturnPolicyDescription = null, decimal GstPercentage = 0, string GstPricingType = "EXCLUSIVE", string? AvailabilityMessage = null, string? AvailabilityWindow = null, string? AvailabilityDeliveryWindow = null, DateTimeOffset? AvailabilityNextTransition = null, bool CanOrderNow = true, string? AvailabilityReason = null, DateTimeOffset? NextOrderOpenAtUtc = null, DateTimeOffset? NextOrderCloseAtUtc = null, DateTimeOffset? AvailabilityServerNowUtc = null, string? AvailabilityTimeZoneId = null, bool IsPurchasable = true, Guid? PartnerSellerId = null, string? SellerName = null, string? NotPurchasableReason = null);
@@ -14,9 +14,11 @@ public sealed record StorefrontProductAvailability(string Status, string? Schedu
 public sealed record StorefrontAvailabilityScheduleDto(Guid ScheduleId, string ScheduleName, bool IsEnabled, string OrderStartTime, string OrderEndTime, string DeliveryStartTime, string DeliveryEndTime, byte WeekdayMask, string TimeZoneId, string? CustomerTitle, string? CustomerMessage, bool ShowAnnouncement, IReadOnlyCollection<Guid> ProductIds, IReadOnlyCollection<Guid> CategoryIds, IReadOnlyCollection<Guid>? CategoryCoveredProductIds = null);
 public sealed record SaveStorefrontAvailabilityScheduleInput(string ScheduleName, bool IsEnabled, string OrderStartTime, string OrderEndTime, string DeliveryStartTime, string DeliveryEndTime, byte WeekdayMask, string? TimeZoneId, string? CustomerTitle, string? CustomerMessage, bool ShowAnnouncement, IReadOnlyCollection<Guid>? ProductIds = null, IReadOnlyCollection<Guid>? CategoryIds = null);
 public sealed record StorefrontAvailabilityAnnouncementDto(Guid ScheduleId, string ScheduleName, string Title, string? Message, string OrderWindowLabel, string DeliveryWindowLabel, string Status, DateTimeOffset? NextTransitionAt, IReadOnlyCollection<Guid> ProductIds, DateTimeOffset? NextOrderOpenAtUtc = null, DateTimeOffset? NextOrderCloseAtUtc = null, DateTimeOffset? ServerNowUtc = null, string? TimeZoneId = null);
-public sealed record StorefrontProductImageDto(Guid Id, string Url, string ThumbnailUrl, bool IsPrimary);
+public sealed record StorefrontProductImageDto(Guid Id, string Url, string ThumbnailUrl, bool IsPrimary,
+    int? Width = null, int? Height = null, int? ThumbnailWidth = null, int? ThumbnailHeight = null);
 public sealed record StorefrontProductSpecificationDto(string Name, string Value);
-public sealed record StorefrontProductPageDto(IReadOnlyCollection<StorefrontProductDto> Items, int PageNumber, int PageSize, int TotalCount, bool HasMore);
+public sealed record StorefrontProductPageDto(IReadOnlyCollection<StorefrontProductDto> Items, int PageNumber, int PageSize, int TotalCount, bool HasMore, decimal? MinimumPrice = null, decimal? MaximumPrice = null, bool SupportsNewestSort = false);
+public sealed record StorefrontProductQuery(Guid? CategoryId = null, decimal? MinPrice = null, decimal? MaxPrice = null, bool InStockOnly = false, string SortBy = "RECOMMENDED");
 public sealed record StorefrontOfferDto(Guid OfferId, string Title, string? BannerImageUrl, string? ShortDescription, string? DetailedDescription, string? PromoCode, string BenefitDescription, DateTimeOffset? ValidFrom, DateTimeOffset? ValidUntil, decimal MinimumOrderAmount, string? EligibleItemsDescription, decimal? MaximumDiscount, int? UsageLimitPerCustomer, string? TermsAndConditions, string? CtaLabel, string Status);
 public sealed record StorefrontImage(string ContentType, byte[] Content);
 public sealed record StorefrontCheckoutItem(Guid ProductId, decimal Quantity);
@@ -26,7 +28,7 @@ public sealed record StorefrontCheckoutInput(string CustomerName, string Mobile,
     string? City = null, string? District = null, string? State = null, string? Country = "India", decimal? ExpectedPayableAmount = null);
 public sealed record StorefrontCheckoutResult(Guid OrderId, string OrderNumber, decimal Amount,
     string Currency, Guid PaymentId, string? CheckoutUrl, string PaymentProvider, string PaymentStatus, string? CustomerMessage,
-    string? CustomerSessionToken, string PaymentMethod = "COD");
+    string? CustomerSessionToken, string PaymentMethod = "COD", bool MayArriveSeparately = false);
 public sealed record StorefrontPaymentReturnDto(Guid OrderId, string OrderNumber, Guid PaymentId, string PaymentStatus, string CustomerMessage, string? RetryUrl = null);
 
 public interface IStorefrontService
@@ -35,10 +37,14 @@ public interface IStorefrontService
     Task<IReadOnlyCollection<StorefrontCategoryDto>?> GetCategoriesAsync(string storeKey, CancellationToken token);
     Task<StorefrontProductPageDto?> GetProductsAsync(string storeKey, int page, int pageSize, CancellationToken token);
     Task<StorefrontProductPageDto?> GetProductsAsync(string storeKey, int page, int pageSize, Guid? categoryId, CancellationToken token);
+    Task<StorefrontProductPageDto?> GetProductsAsync(string storeKey, int page, int pageSize, StorefrontProductQuery query, CancellationToken token)
+        => GetProductsAsync(storeKey, page, pageSize, query.CategoryId, token);
     Task<StorefrontProductDto?> GetProductAsync(string storeKey, Guid productId, CancellationToken token);
     Task<StorefrontOfferDto?> GetOfferAsync(string storeKey, Guid offerId, CancellationToken token);
     Task<StorefrontImage?> GetProductImageAsync(string storeKey, Guid productId, Guid? imageId, bool thumbnail, CancellationToken token);
     Task<StorefrontImage?> GetPresentationImageAsync(string storeKey, string resource, Guid? categoryId, CancellationToken token);
+    Task<StorefrontImage?> GetPresentationImageAsync(string storeKey, string resource, Guid? categoryId, bool thumbnail, CancellationToken token)
+        => GetPresentationImageAsync(storeKey, resource, categoryId, token);
     Task<StorefrontImage?> GetPwaIconAsync(string storeKey, int size, CancellationToken token);
 }
 
@@ -98,20 +104,23 @@ public sealed record StorefrontCustomerAddressDto(Guid AddressId, string Recipie
 public sealed record StorefrontCustomerAddressInput(string RecipientName, string Mobile, string AddressLine1, string? AddressLine2, string? Landmark, string City, string State, string Pincode, string AddressType, bool IsDefault = false);
 public sealed record StorefrontCustomerOrderLineDto(Guid ProductId, string ProductName, string? PackSize, decimal Quantity, decimal LineTotal, bool IsReturnable = false, int? ReturnWindowDays = null, DateTimeOffset? DeliveredAt = null, DateTimeOffset? ReturnDeadline = null, string ReturnStatus = "NOT_ELIGIBLE", string? ReturnPolicyDescription = null, Guid? InvoiceItemId = null, decimal ReturnedQuantity = 0, decimal ReturnableQuantity = 0, decimal ReturnRequestedQuantity = 0, string? ReturnRequestStatus = null, Guid? ReturnRequestId = null);
 public sealed record StorefrontOrderMilestoneDto(string Code, string Label, string State, DateTimeOffset? OccurredAt);
+public sealed record StorefrontDeliveryItemDto(Guid ProductId,string ProductName,decimal Quantity);
+public sealed record StorefrontDeliveryGroupDto(int GroupNumber,string Status,string? TrackingReference,DateTimeOffset? ReadyAt,DateTimeOffset? DispatchedAt,DateTimeOffset? DeliveredAt,IReadOnlyCollection<StorefrontDeliveryItemDto> Items);
 public sealed record StorefrontCustomerOrderDto(Guid Id, string OrderNumber, DateTimeOffset PlacedAt,
     string Status, decimal Total, string? DeliveryStatus, string? TrackingNumber, string PaymentMethod, string PaymentStatus,
-    int ItemCount, IReadOnlyCollection<StorefrontCustomerOrderLineDto>? Lines = null, IReadOnlyCollection<StorefrontOrderMilestoneDto>? Timeline = null, decimal DeliveryCharge = 0, decimal PromotionDiscount = 0, string? PromotionName = null, decimal MerchandiseAmount = 0, StorefrontCancellationDto? Cancellation = null, decimal MerchandiseTaxAmount = 0, decimal MerchandiseSubtotal = 0, IReadOnlyCollection<StorefrontReturnRequestDto>? ReturnRequests = null);
+    int ItemCount, IReadOnlyCollection<StorefrontCustomerOrderLineDto>? Lines = null, IReadOnlyCollection<StorefrontOrderMilestoneDto>? Timeline = null, decimal DeliveryCharge = 0, decimal PromotionDiscount = 0, string? PromotionName = null, decimal MerchandiseAmount = 0, StorefrontCancellationDto? Cancellation = null, decimal MerchandiseTaxAmount = 0, decimal MerchandiseSubtotal = 0, IReadOnlyCollection<StorefrontReturnRequestDto>? ReturnRequests = null, IReadOnlyCollection<StorefrontDeliveryGroupDto>? FulfilmentGroups = null,string? RefundStatus=null);
 public sealed record StorefrontCartQuoteInput(IReadOnlyCollection<StorefrontCheckoutItem> Items, string? Pincode, string? PromoCode = null);
 public sealed record StorefrontIntakeQuoteLine(Guid ProductId, string ProductCode, string ProductName, decimal Quantity,
     decimal UnitPrice, decimal TaxPercentage, decimal CompareAtPrice, string GstPricingType,
     string UnitName, string? UnitShortName);
 public sealed record StorefrontIntakeQuoteDto(StorefrontCartQuoteDto Pricing, IReadOnlyCollection<StorefrontIntakeQuoteLine> Items);
 public sealed record StorefrontCartFulfillmentWarning(string Code, string Message, IReadOnlyCollection<Guid>? ProductIds = null);
-public sealed record StorefrontCartQuoteDto(decimal EligibleAmount, decimal? FreeDeliveryThreshold, decimal RemainingAmount, int ProgressPercent, bool IsFreeDeliveryUnlocked, bool IsDeliveryEnabled = false, bool IsPincodeServiceable = false, decimal MerchandiseAmount = 0, decimal MerchandiseTaxAmount = 0, decimal StandardDeliveryCharge = 0, bool FreeDeliveryEnabled = false, decimal DeliveryCharge = 0, decimal PromotionDiscount = 0, string? PromotionName = null, Guid? PromotionId = null, decimal FinalPayableAmount = 0, decimal MerchandiseSubtotal = 0, string? PromotionCode = null, decimal ProductSavings = 0, decimal IncludedTaxAmount = 0, decimal AdditionalTaxAmount = 0, IReadOnlyCollection<StorefrontCartFulfillmentWarning>? FulfillmentWarnings = null);
+public sealed record StorefrontCartQuoteDto(decimal EligibleAmount, decimal? FreeDeliveryThreshold, decimal RemainingAmount, int ProgressPercent, bool IsFreeDeliveryUnlocked, bool IsDeliveryEnabled = false, bool IsPincodeServiceable = false, decimal MerchandiseAmount = 0, decimal MerchandiseTaxAmount = 0, decimal StandardDeliveryCharge = 0, bool FreeDeliveryEnabled = false, decimal DeliveryCharge = 0, decimal PromotionDiscount = 0, string? PromotionName = null, Guid? PromotionId = null, decimal FinalPayableAmount = 0, decimal MerchandiseSubtotal = 0, string? PromotionCode = null, decimal ProductSavings = 0, decimal IncludedTaxAmount = 0, decimal AdditionalTaxAmount = 0, IReadOnlyCollection<StorefrontCartFulfillmentWarning>? FulfillmentWarnings = null, bool MayArriveSeparately = false);
 public sealed record StorefrontWishlistInput(IReadOnlyCollection<Guid> ProductIds);
 public sealed record StorefrontOtpRequest(string MobileNumber);
 public sealed record StorefrontOtpChallengeDto(Guid ChallengeId, DateTimeOffset ExpiresAt, int ResendAfterSeconds);
-public sealed record StorefrontOtpVerifyInput(Guid ChallengeId, string MobileNumber, string Otp, string? Name, string? Email, bool IsRegistration = true, string? Password = null, string? ConfirmPassword = null, bool ReplacePassword = false);
+public sealed record StorefrontOtpVerifyInput(Guid ChallengeId, string MobileNumber, string Otp, string? Name, string? Email, bool IsRegistration = true, string? Password = null, string? ConfirmPassword = null, bool ReplacePassword = false, bool? AcceptTerms = null, Guid? TermsPolicyId = null, string? TermsContentHash = null, bool? AcknowledgePrivacy = null, Guid? PrivacyPolicyId = null, string? PrivacyContentHash = null);
+public sealed record StorefrontCustomerPolicyDto(Guid PolicyId, string PolicyType, string Version, string LanguageCode, string Content, string ContentHash, DateTimeOffset EffectiveAtUtc, bool IsPublished, bool AcceptanceRequired);
 public sealed record StorefrontPasswordSignInInput(string MobileNumber, string Password);
 public sealed record StorefrontPasswordResetInput(Guid ChallengeId, string MobileNumber, string Otp, string NewPassword, string ConfirmPassword);
 public sealed record StorefrontChangePasswordInput(string CurrentPassword, string NewPassword, string ConfirmPassword);

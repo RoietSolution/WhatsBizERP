@@ -1,5 +1,7 @@
 using AutoMapper;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using WhatsBiz.Application;
 using WhatsBiz.Application.Features.Products.DTOs;
 using WhatsBiz.Application.Features.Products.Mappings;
 using WhatsBiz.Domain.Products;
@@ -40,6 +42,18 @@ public sealed class ProductMappingProfileTests
         var category = mapper.Map<ProductCategoryDto>(new ProductCategory());
 
         Assert.Empty(category.Children);
+    }
+
+    [Fact]
+    public void ApplicationDependencyInjectionRegistersValidAutoMapperConfiguration()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddApplication();
+
+        using var provider = services.BuildServiceProvider();
+        var resolvedMapper = provider.GetRequiredService<IMapper>();
+        resolvedMapper.ConfigurationProvider.AssertConfigurationIsValid();
     }
 
     private static Product CreateProduct() => new()

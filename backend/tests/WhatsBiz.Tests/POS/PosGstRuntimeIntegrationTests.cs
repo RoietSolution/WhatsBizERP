@@ -8,7 +8,7 @@ namespace WhatsBiz.Tests.POS;
 
 public sealed class PosGstRuntimeIntegrationTests
 {
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task PosGstBaselineKnownInclusiveModeIsCurrentlyDoubleTaxed()
     {
         await using var connection = new SqlConnection(SqlIntegrationDatabase.ConnectionString);
@@ -28,7 +28,7 @@ public sealed class PosGstRuntimeIntegrationTests
         await transaction.RollbackAsync();
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task MixedInclusiveAndExclusiveHeldInvoiceUsesPersistedProductModes()
     {
         await using var connection = new SqlConnection(SqlIntegrationDatabase.ConnectionString);
@@ -58,7 +58,7 @@ public sealed class PosGstRuntimeIntegrationTests
         await transaction.RollbackAsync();
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task CompletedMixedInvoiceReconcilesStockPaymentAndJournal()
     {
         await using var connection = new SqlConnection(SqlIntegrationDatabase.ConnectionString);
@@ -97,7 +97,7 @@ public sealed class PosGstRuntimeIntegrationTests
         await transaction.RollbackAsync();
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task PartialAndFullReturnsUsePersistedLineAmountsAndRestoreStock()
     {
         await using var connection = new SqlConnection(SqlIntegrationDatabase.ConnectionString);
@@ -135,7 +135,7 @@ public sealed class PosGstRuntimeIntegrationTests
         await transaction.RollbackAsync();
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task PosPostingRejectsMismatchedTenantContext()
     {
         await using var connection = new SqlConnection(SqlIntegrationDatabase.ConnectionString);
@@ -155,7 +155,7 @@ public sealed class PosGstRuntimeIntegrationTests
         await transaction.RollbackAsync();
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task SingleFullReturnAndDuplicateRetryUseOriginalPersistedAmounts()
     {
         await using var connection = new SqlConnection(SqlIntegrationDatabase.ConnectionString);
@@ -180,7 +180,7 @@ public sealed class PosGstRuntimeIntegrationTests
         await transaction.RollbackAsync();
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task MixedInclusiveExclusiveReturnUsesOriginalInvoiceAmounts()
     {
         await using var connection = new SqlConnection(SqlIntegrationDatabase.ConnectionString);

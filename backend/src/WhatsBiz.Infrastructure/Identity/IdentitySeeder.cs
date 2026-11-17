@@ -33,6 +33,7 @@ public sealed class IdentitySeeder(
         var roleClaims = await roles.GetClaimsAsync(role); foreach (var permission in Permissions.All) if (!roleClaims.Any(x => x.Type == CustomClaimTypes.Permission && x.Value == permission)) EnsureSucceeded(await roles.AddClaimAsync(role, new Claim(CustomClaimTypes.Permission, permission)));
         const string deliveryRoleName = "DeliveryAgent"; var deliveryRole=await roles.FindByNameAsync(deliveryRoleName);if(deliveryRole is null){deliveryRole=new ApplicationRole(deliveryRoleName);EnsureSucceeded(await roles.CreateAsync(deliveryRole));}
         var deliveryClaims=await roles.GetClaimsAsync(deliveryRole);foreach(var permission in new[]{Permissions.Delivery.View,Permissions.Delivery.UpdateStatus,Permissions.Delivery.Confirm,Permissions.Delivery.RecordCod})if(!deliveryClaims.Any(x=>x.Type==CustomClaimTypes.Permission&&x.Value==permission))EnsureSucceeded(await roles.AddClaimAsync(deliveryRole,new Claim(CustomClaimTypes.Permission,permission)));
+        var deliveryPosView=deliveryClaims.FirstOrDefault(x=>x.Type==CustomClaimTypes.Permission&&x.Value==Permissions.POS.View);if(deliveryPosView is not null)EnsureSucceeded(await roles.RemoveClaimAsync(deliveryRole,deliveryPosView));
         var bootstrap = bootstrapOptions.Value.Administrator;
         if (bootstrap.Enabled)
             await BootstrapAdministratorAsync(scope.ServiceProvider, users, bootstrap, roleName, cancellationToken);

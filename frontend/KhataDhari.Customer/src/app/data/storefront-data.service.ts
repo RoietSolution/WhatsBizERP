@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@angular/core';
-import { AvailabilityAnnouncement, CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer, StorefrontReturnRequest } from '../models/storefront.models';
+import { AvailabilityAnnouncement, CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductCatalogFilters, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer, StorefrontReturnRequest } from '../models/storefront.models';
 import { STOREFRONT_DATA_PROVIDER, StorefrontDataProvider } from './storefront-data.provider';
 
 @Injectable({ providedIn: 'root' })
@@ -20,7 +20,7 @@ export class StorefrontDataService {
     return request;
   }
   getCategories(storeKey: string): Promise<Category[]> { return this.provider.getCategories(storeKey); }
-  getProducts(storeKey: string, page = 1, pageSize = 24, categoryId?: string): Promise<ProductPage> { return this.provider.getProducts(storeKey, page, pageSize, categoryId); }
+  getProducts(storeKey: string, page = 1, pageSize = 24, categoryId?: string, filters?: ProductCatalogFilters): Promise<ProductPage> { return this.provider.getProducts(storeKey, page, pageSize, categoryId, filters); }
   getAvailabilityAnnouncements(storeKey:string): Promise<AvailabilityAnnouncement[]> { return this.provider.getAvailabilityAnnouncements(storeKey); }
   getProduct(storeKey: string, id: string): Promise<Product | null> { return this.provider.getProduct(storeKey, id); }
   getOffer(storeKey: string, id: string): Promise<StorefrontOffer | null> { return this.provider.getOffer(storeKey, id); }

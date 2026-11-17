@@ -3,11 +3,12 @@ using WhatsBiz.Api.Authorization;
 using WhatsBiz.Application.Common.Features;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Delivery;
+using WhatsBiz.Application.Features.Payments;
 using WhatsBiz.SharedKernel;
 namespace WhatsBiz.Api.Controllers;
 
 [ApiController,Route("api/deliveries"),RequireFeature(FeatureKeys.DeliveryManagement)]
-public sealed class DeliveriesController(IDeliveryService service,ICurrentUserService current) : ControllerBase
+public sealed class DeliveriesController(IDeliveryService service,ICommercePaymentService payments,ICurrentUserService current) : ControllerBase
 {
  private Guid Tenant=>current.TenantId??throw new UnauthorizedAccessException("A tenant context is required.");private Guid UserId=>current.UserId??throw new UnauthorizedAccessException("A user identity is required.");private string Actor=>current.Username??UserId.ToString();private bool Manage=>current.Permissions.Contains(Permissions.Delivery.Manage);
  [HttpGet,HasPermission(Permissions.Delivery.Manage)] public Task<DeliveryDashboardDto> List([FromQuery]string? status,[FromQuery]Guid? agentId,[FromQuery]string? paymentType,[FromQuery]string? search,[FromQuery]DateTimeOffset? from,[FromQuery]DateTimeOffset? to,CancellationToken t)=>service.Deliveries(Tenant,new(status,agentId,paymentType,search,from,to),t);
@@ -21,13 +22,49 @@ public sealed class DeliveriesController(IDeliveryService service,ICurrentUserSe
  [HttpPost("{id:guid}/confirm-delivery"),HasPermission(Permissions.Delivery.Confirm)] public Task<DeliveryDto> Confirm(Guid id,ConfirmOtpInput input,CancellationToken t)=>service.ConfirmOtp(Tenant,id,UserId,input,Actor,Manage,t);
  [HttpPost("{id:guid}/confirm-delivery-without-otp"),HasPermission(Permissions.Delivery.Confirm)] public Task<DeliveryDto> ConfirmWithoutOtp(Guid id,ConfirmDeliveryWithoutOtpInput input,CancellationToken t)=>service.ConfirmWithoutOtp(Tenant,id,UserId,input,Actor,Manage,t);
  [HttpPost("{id:guid}/cod-collected"),HasPermission(Permissions.Delivery.RecordCod)] public Task<DeliveryDto> Cod(Guid id,CodCollectionInput input,CancellationToken t)=>service.RecordCod(Tenant,id,UserId,input,Actor,Manage,t);
+ [HttpPost("marketplace-orders/{orderId:guid}/fulfilment-groups/{groupId:guid}/cod-collected"),HasPermission(Permissions.Delivery.RecordCod)]
+ public Task<MarketplaceCodCollectionResult> MarketplaceCod(Guid orderId,Guid groupId,CodCollectionInput input,[FromHeader(Name="Idempotency-Key")] string idempotencyKey,CancellationToken t)
+     =>payments.CollectMarketplaceCodAsync(orderId,new(groupId,input.Amount,input.PaymentMethod,input.Reference,idempotencyKey),Actor,t);
+ [HttpPost("marketplace-orders/{orderId:guid}/cod-collection/assign"),HasPermission(Permissions.Delivery.Manage)]
+ public Task<MarketplaceCodCollectionResult> AssignMarketplaceCod(Guid orderId,MarketplaceCodAssignmentInput input,CancellationToken t)
+     =>payments.AssignMarketplaceCodCollectionAsync(Tenant,orderId,input,UserId,Actor,t);
+ [HttpGet("marketplace-orders/{orderId:guid}/fulfilment-groups"),HasPermission(Permissions.Delivery.View)]
+ public Task<IReadOnlyCollection<MarketplaceFulfilmentGroupDto>> MarketplaceGroups(Guid orderId,CancellationToken t)
+     =>service.MarketplaceGroups(Tenant,orderId,UserId,Manage,t);
+ [HttpGet("marketplace-orders/assigned"),HasPermission(Permissions.Delivery.View)]
+ public Task<IReadOnlyCollection<MarketplaceDeliveryOrderDto>> MarketplaceAssignedOrders(CancellationToken t)
+     =>service.MarketplaceDeliveryOrders(Tenant,UserId,Manage,t);
+ [HttpPost("marketplace-orders/{orderId:guid}/fulfilment-groups/{groupId:guid}/request-otp"),HasPermission(Permissions.Delivery.Confirm)]
+ public async Task<IActionResult> RequestMarketplaceGroupOtp(Guid orderId,Guid groupId,CancellationToken t){await service.RequestMarketplaceGroupOtp(Tenant,orderId,groupId,UserId,Actor,Manage,t);return NoContent();}
+ [HttpPost("marketplace-orders/{orderId:guid}/fulfilment-groups/{groupId:guid}/assign"),HasPermission(Permissions.Delivery.Assign)]
+ public Task<MarketplaceFulfilmentGroupDto> AssignMarketplaceGroup(Guid orderId,Guid groupId,MarketplaceGroupAssignmentInput input,CancellationToken t)
+     =>service.AssignMarketplaceGroup(Tenant,orderId,groupId,input,UserId,Actor,Manage,current.Permissions.Contains(Permissions.Delivery.Assign),t);
+ [HttpPost("marketplace-orders/{orderId:guid}/fulfilment-groups/{groupId:guid}/status"),HasPermission(Permissions.Delivery.UpdateStatus)]
+ public Task<MarketplaceFulfilmentGroupDto> MarketplaceGroupStatus(Guid orderId,Guid groupId,MarketplaceGroupTransitionInput input,CancellationToken t)
+     =>service.TransitionMarketplaceGroup(Tenant,orderId,groupId,input,UserId,Actor,Manage,current.Permissions.Contains(Permissions.Delivery.Confirm),current.Permissions.Contains(Permissions.Delivery.OverrideOtp),t);
+ [HttpPost("marketplace-orders/{orderId:guid}/fulfilment-groups/{groupId:guid}/confirm-delivery"),HasPermission(Permissions.Delivery.Confirm)]
+ public Task<MarketplaceFulfilmentGroupDto> ConfirmMarketplaceGroup(Guid orderId,Guid groupId,ConfirmDeliveryWithoutOtpInput input,CancellationToken t)
+     =>service.TransitionMarketplaceGroup(Tenant,orderId,groupId,new("DELIVERED",input.Reason),UserId,Actor,Manage,true,false,t);
+ [HttpPost("marketplace-orders/{orderId:guid}/fulfilment-groups/{groupId:guid}/confirm-delivery-otp"),HasPermission(Permissions.Delivery.Confirm)]
+ public Task<MarketplaceFulfilmentGroupDto> ConfirmMarketplaceGroupOtp(Guid orderId,Guid groupId,ConfirmOtpInput input,CancellationToken t)
+     =>service.TransitionMarketplaceGroup(Tenant,orderId,groupId,new("DELIVERED",Otp:input.Otp),UserId,Actor,Manage,true,false,t);
+ [HttpPost("marketplace-orders/{orderId:guid}/fulfilment-groups/{groupId:guid}/cancel"),HasPermission(Permissions.Delivery.Manage)]
+ public Task<MarketplaceGroupCancellationResult> CancelMarketplaceGroup(Guid orderId,Guid groupId,MarketplaceGroupCancellationInput input,CancellationToken t)
+     =>service.CancelMarketplaceGroup(Tenant,orderId,groupId,input,UserId,Actor,Manage,t);
+ [HttpPost("marketplace-orders/{orderId:guid}/fulfilment-groups/{groupId:guid}/override-delivered"),HasPermission(Permissions.Delivery.OverrideOtp)]
+ public Task<MarketplaceFulfilmentGroupDto> OverrideMarketplaceGroup(Guid orderId,Guid groupId,OverrideDeliveryInput input,CancellationToken t)
+     =>service.TransitionMarketplaceGroup(Tenant,orderId,groupId,new("DELIVERED",input.Reason),UserId,Actor,Manage,true,true,t);
  [HttpPost("{id:guid}/failed"),HasPermission(Permissions.Delivery.UpdateStatus)] public Task<DeliveryDto> Failed(Guid id,FailDeliveryInput input,CancellationToken t)=>service.Fail(Tenant,id,UserId,input,Actor,Manage,t);
  [HttpPost("{id:guid}/reschedule"),HasPermission(Permissions.Delivery.UpdateStatus)] public Task<DeliveryDto> Reschedule(Guid id,RescheduleDeliveryInput input,CancellationToken t)=>service.Reschedule(Tenant,id,UserId,input,Actor,Manage,t);
  [HttpPost("{id:guid}/override-delivered"),HasPermission(Permissions.Delivery.OverrideOtp)] public Task<DeliveryDto> Override(Guid id,OverrideDeliveryInput input,CancellationToken t)=>service.OverrideDelivered(Tenant,id,input,UserId,Actor,t);
 }
 [ApiController,Route("api/delivery"),RequireFeature(FeatureKeys.DeliveryManagement)]
 public sealed class MyDeliveryController(IDeliveryService service,ICurrentUserService current) : ControllerBase
-{ [HttpGet("my-deliveries"),HasPermission(Permissions.Delivery.View)] public Task<IReadOnlyCollection<DeliveryDto>> Mine([FromQuery]string? status,CancellationToken t)=>service.MyDeliveries(current.TenantId??throw new UnauthorizedAccessException("A tenant context is required."),current.UserId??throw new UnauthorizedAccessException("A user identity is required."),status,t); }
+{
+ [HttpGet("my-deliveries"),HasPermission(Permissions.Delivery.View)] public Task<IReadOnlyCollection<DeliveryDto>> Mine([FromQuery]string? status,CancellationToken t)=>service.MyDeliveries(current.TenantId??throw new UnauthorizedAccessException("A tenant context is required."),current.UserId??throw new UnauthorizedAccessException("A user identity is required."),status,t);
+ [HttpGet("marketplace-fulfilment-requirements"),HasPermission(Permissions.Delivery.View)]
+ public async Task<DeliveryVerificationRequirementsDto> MarketplaceRequirements(CancellationToken t){var settings=await service.Settings(current.TenantId??throw new UnauthorizedAccessException("A tenant context is required."),t);return new(settings.RequireDeliveryOtp,settings.RequireCodConfirmation);}
+}
 [ApiController,Route("api/delivery-agents"),RequireFeature(FeatureKeys.DeliveryManagement)]
 public sealed class DeliveryAgentsController(IDeliveryService service,ICurrentUserService current) : ControllerBase
 {

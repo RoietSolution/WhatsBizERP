@@ -96,6 +96,8 @@ public sealed class Product : ProductMasterEntity
     public bool IsBatchManaged { get; set; }
     public bool IsSerialManaged { get; set; }
     public bool IsWhatsAppVisible { get; set; } = true;
+    public DateTimeOffset? DeletedOnUtc { get; set; }
+    public bool? IsActiveBeforeDelete { get; set; }
     public string ReturnPolicyMode { get; set; } = "INHERIT_DEFAULT";
     public int? ReturnWindowDays { get; set; }
     public string? ReturnPolicyDescription { get; set; }
@@ -149,6 +151,31 @@ public sealed class ProductImage : ProductMasterEntity
     public int ThumbnailWidth { get; set; }
     public int ThumbnailHeight { get; set; }
     public bool IsPrimary { get; set; }
+}
+
+/// <summary>Durable, tenant-scoped audit and retry record for managed product media cleanup.</summary>
+public sealed class ProductImageCleanupJob
+{
+    public Guid JobId { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ProductId { get; set; }
+    public Guid? ProductImageId { get; set; }
+    public string Source { get; set; } = "PRODUCT_DELETE";
+    public string RequestedBy { get; set; } = string.Empty;
+    public DateTimeOffset RequestedAtUtc { get; set; }
+    public DateTimeOffset DeleteAfterUtc { get; set; }
+    public string Status { get; set; } = "PENDING";
+    public int AttemptCount { get; set; }
+    public DateTimeOffset? NextAttemptAtUtc { get; set; }
+    public DateTimeOffset? LeaseUntilUtc { get; set; }
+    public Guid? LeaseToken { get; set; }
+    public DateTimeOffset? CompletedAtUtc { get; set; }
+    public string? LastError { get; set; }
+    public string StorageProvider { get; set; } = "DATABASE";
+    public string? ObjectKey { get; set; }
+    public string? ThumbnailObjectKey { get; set; }
+    public string? ContentHash { get; set; }
+    public byte[] RowVersion { get; set; } = [];
 }
 
 public sealed class ProductBarcode : ProductMasterEntity

@@ -129,7 +129,7 @@ describe('WhatsAppCommerceDemoComponent', () => {
 
     component.place();
 
-    expect(api.order).toHaveBeenCalledWith('customer-1', 'warehouse-1', [{ productId: 'product-1', quantity: 1 }], 'Main Road', 'WALK_IN', 'COD', 0);
+    expect(api.order).toHaveBeenCalledWith('customer-1', 'warehouse-1', [{ productId: 'product-1', quantity: 1 }], 'Main Road', 'WALK_IN', 'COD', 0, 'tenant-1');
   });
 
   it('identifies META_TEST without changing MOCK behavior', () => {

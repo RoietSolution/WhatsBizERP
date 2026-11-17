@@ -226,12 +226,38 @@ public sealed class PaymentArchitectureTests
         service.Should().Contain("if(!verified.SignatureValid)")
             .And.Contain("PaymentProviderEvents WITH(UPDLOCK,HOLDLOCK)")
             .And.Contain("if(added==0)")
-            .And.Contain("if(verified.IsPaid)await ApplySuccessfulPayment")
+            .And.Contain("if(verified.IsPaid)paymentApplied=await ApplySuccessfulPayment")
             .And.Contain("Status=CASE WHEN Status=N'PAID' THEN Status ELSE N'FAILED' END");
         var cart = File.ReadAllText(Path.Combine(root, "frontend", "KhataDhari.Customer", "src", "app", "pages", "cart.page.ts"));
         cart.Should().NotContain("status='PAID'").And.NotContain("paymentStatus='PAID'");
         var payments = File.ReadAllText(Path.Combine(root, "frontend", "WhatsBiz.Web", "src", "app", "features", "payments", "payment-list.component.html"));
         payments.Should().Contain("row.provider==='DIRECT_UPI' && row.status==='PENDING_VERIFICATION'");
+    }
+
+    [Fact]
+    public void MarketplacePaymentUsesAllocationCompletionAndParentLevelCodCollection()
+    {
+        var root=Root();
+        var service=File.ReadAllText(Path.Combine(root,"backend","src","WhatsBiz.Infrastructure","Payments","CommercePaymentService.cs"));
+        var controller=File.ReadAllText(Path.Combine(root,"backend","src","WhatsBiz.Api","Controllers","DeliveriesController.cs"));
+        service.Should().Contain("commerce.Marketplace_CompleteOrder")
+            .And.Contain("MarketplacePaymentReconciliations")
+            .And.Contain("MARKETPLACE_COD_COLLECT")
+            .And.Contain("var codReplay = provider == PaymentProviders.Cod && invoice.MarketplaceLifecycleStatus == \"POSTED\"")
+            .And.Contain("MarketplaceCodCollections")
+            .And.Contain("CollectionStatus='COLLECTED'")
+            .And.Contain("if (invoice.OrderType != \"MARKETPLACE\") await UpdateFailed");
+        var marketplaceApply=service.IndexOf("if(orderType==\"MARKETPLACE\")",service.IndexOf("private async Task<bool> ApplySuccessfulPayment(SqlConnection",StringComparison.Ordinal),StringComparison.Ordinal);
+        var legacy=service.IndexOf("sales.POS_TransitionHeldInvoice",StringComparison.Ordinal);
+        marketplaceApply.Should().BeGreaterThanOrEqualTo(0);
+        legacy.Should().BeGreaterThan(marketplaceApply);
+        controller.Should().Contain("marketplace-orders/{orderId:guid}/fulfilment-groups/{groupId:guid}/cod-collected")
+            .And.Contain("Permissions.Delivery.RecordCod")
+            .And.Contain("Permissions.Delivery.Manage");
+        var migration=File.ReadAllText(Path.Combine(root,"database","migrations","V88-MarketplacePaymentReconciliation.sql"));
+        var validator=File.ReadAllText(Path.Combine(root,"database","migrations","validators","V88-MarketplacePaymentReconciliation.validate.sql"));
+        migration.Should().Contain("MarketplacePaymentReconciliations").And.Contain("REFUND_REQUIRED").And.Contain("UQ_MarketplacePaymentReconciliations_TenantPayment");
+        validator.Should().Contain("MarketplacePaymentReconciliations");
     }
     private static string Root(){var d=new DirectoryInfo(AppContext.BaseDirectory);while(d is not null&&!Directory.Exists(Path.Combine(d.FullName,"database")))d=d.Parent;return d?.FullName??throw new InvalidOperationException("Repository root not found.");}
     private sealed class ClientFactory(HttpMessageHandler handler):IHttpClientFactory{public HttpClient CreateClient(string name)=>new(handler,false){BaseAddress=new Uri("https://api.razorpay.com/v1/")};}

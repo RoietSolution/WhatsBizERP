@@ -2,15 +2,15 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { AvailabilityAnnouncement, AvailabilityRequest, CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer, StorefrontPaymentReturn } from '../models/storefront.models';
+import { AvailabilityAnnouncement, AvailabilityRequest, CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductCatalogFilters, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer, StorefrontPaymentReturn } from '../models/storefront.models';
 import { StorefrontDataProvider } from './storefront-data.provider';
 import { CustomerSessionService } from '../customer-session.service';
 
-interface ApiStore { storeKey: string; name: string; tagline?: string; logoUrl?: string | null; allCategoryImageUrl?: string | null; featuredCategories?: ApiCategory[]; accentColor?: string; deliveryMessage?: string; freeDeliveryThreshold?:number|null; banners?: Array<{slot:'PRIMARY'|'SECONDARY';imageUrl:string;title?:string;subtitle?:string;targetUrl?:string;displayOrder:number;promotionId?:string|null}>; showProductRatings?:boolean; showProductReviews?:boolean; paymentMethods?: Array<{code:'UPI'|'NET_BANKING'|'COD';provider:'RAZORPAY'|'COD';label:string;description:string;isDefault:boolean;usesHostedPaymentPage:boolean}>; customerRewardsEnabled?: boolean; orderContactNumber?: string | null; }
+interface ApiStore { storeKey: string; name: string; tagline?: string; logoUrl?: string | null; allCategoryImageUrl?: string | null; featuredCategories?: ApiCategory[]; accentColor?: string; deliveryMessage?: string; freeDeliveryThreshold?:number|null; freeDeliveryEnabled?:boolean; defaultReturnWindowDays?:number; banners?: Array<{slot:'PRIMARY'|'SECONDARY';imageUrl:string;title?:string;subtitle?:string;targetUrl?:string;displayOrder:number;promotionId?:string|null}>; showProductRatings?:boolean; showProductReviews?:boolean; paymentMethods?: Array<{code:'UPI'|'NET_BANKING'|'COD';provider:'RAZORPAY'|'COD';label:string;description:string;isDefault:boolean;usesHostedPaymentPage:boolean}>; customerRewardsEnabled?: boolean; orderContactNumber?: string | null; }
 interface ApiCategory { id: string; name: string; imageUrl?: string | null; parentId?: string | null; }
 interface ApiOffer extends StorefrontOffer {}
-interface ApiProductPage { items: ApiProduct[]; pageNumber: number; pageSize: number; totalCount: number; hasMore: boolean; }
-interface ApiProductImage { id: string; url: string; thumbnailUrl: string; isPrimary: boolean; }
+interface ApiProductPage { items: ApiProduct[]; pageNumber: number; pageSize: number; totalCount: number; hasMore: boolean; minimumPrice?: number | null; maximumPrice?: number | null; supportsNewestSort?: boolean; }
+interface ApiProductImage { id: string; url: string; thumbnailUrl: string; isPrimary: boolean; width?: number | null; height?: number | null; thumbnailWidth?: number | null; thumbnailHeight?: number | null; }
 interface ApiProduct { id: string; categoryId: string; name: string; description?: string | null; longDescription?: string | null; specifications?: Array<{name:string;value:string}>; imageUrl?: string | null; images?: ApiProductImage[] | null; sellingPrice: number; compareAtPrice?: number | null; gstPercentage?: number; gstPricingType?: 'INCLUSIVE' | 'EXCLUSIVE'; availability: 'ORDERING_OPEN'|'ORDERING_CLOSED'|'AVAILABLE_NOW'|'AVAILABLE_LATER'|'UNAVAILABLE_TODAY'|'OUT_OF_STOCK'|'INACTIVE'|'IN_STOCK'; availabilityMessage?: string|null; availabilityWindow?: string|null; availabilityDeliveryWindow?: string|null; availabilityNextTransition?: string|null; canOrderNow?: boolean; availabilityReason?: string|null; nextOrderOpenAtUtc?: string|null; nextOrderCloseAtUtc?: string|null; availabilityServerNowUtc?: string|null; availabilityTimeZoneId?: string|null; isPurchasable?:boolean; partnerSellerId?:string|null; sellerName?:string|null; notPurchasableReason?:string|null; packSize?: string | null; averageRating?: number | null; ratingCount?: number; returnPolicyMode?: "INHERIT_DEFAULT" | "CUSTOM" | "NON_RETURNABLE"; returnWindowDays?: number | null; isReturnable?: boolean; returnPolicyDescription?: string | null; }
 
 @Injectable({ providedIn: 'root' })
@@ -21,7 +21,7 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
     let store: ApiStore;
     try { store = await firstValueFrom(this.http.get<ApiStore>(this.url(storeKey))); }
     catch (error) { if (error instanceof HttpErrorResponse && error.status === 404) return null; throw error; }
-    return { storeKey: store.storeKey, name: store.name, tagline: store.tagline ?? 'Good things, close to home.', logoUrl: this.asset(store.logoUrl), allCategoryImageUrl:this.asset(store.allCategoryImageUrl), featuredCategories:(store.featuredCategories??[]).map(category=>({id:category.id,name:category.name,parentId:category.parentId??null,imageUrl:this.asset(category.imageUrl)})), accentColor: store.accentColor ?? '#145c43', freeDeliveryThreshold:store.freeDeliveryThreshold??undefined, deliveryMessage: store.deliveryMessage ?? 'Fresh picks, close to home.', showProductRatings:store.showProductRatings??true, showProductReviews:store.showProductReviews??true, banners:(store.banners??[]).map(b=>({...b,imageUrl:this.asset(b.imageUrl)!})),paymentMethods:store.paymentMethods??[],customerRewardsEnabled:store.customerRewardsEnabled===true,orderContactNumber:store.orderContactNumber??undefined };
+    return { storeKey: store.storeKey, name: store.name, tagline: store.tagline ?? 'Good things, close to home.', logoUrl: this.asset(store.logoUrl), allCategoryImageUrl:this.asset(store.allCategoryImageUrl), featuredCategories:(store.featuredCategories??[]).map(category=>({id:category.id,name:category.name,parentId:category.parentId??null,imageUrl:this.asset(category.imageUrl)})), accentColor: store.accentColor ?? '#145c43', freeDeliveryThreshold:store.freeDeliveryThreshold??undefined, freeDeliveryEnabled:store.freeDeliveryEnabled===true, defaultReturnWindowDays:Number.isInteger(store.defaultReturnWindowDays)&&store.defaultReturnWindowDays!>=0?store.defaultReturnWindowDays:undefined, deliveryMessage: store.deliveryMessage ?? 'Fresh picks, close to home.', showProductRatings:store.showProductRatings??true, showProductReviews:store.showProductReviews??true, banners:(store.banners??[]).map(b=>({...b,imageUrl:this.asset(b.imageUrl)!})),paymentMethods:store.paymentMethods??[],customerRewardsEnabled:store.customerRewardsEnabled===true,orderContactNumber:store.orderContactNumber??undefined };
   }
 
   async getCategories(storeKey: string): Promise<Category[]> {
@@ -29,7 +29,16 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
     return categories.map((category) => ({ id: category.id, name: category.name, parentId: category.parentId ?? null, imageUrl:this.asset(category.imageUrl) }));
   }
 
-  async getProducts(storeKey: string, page = 1, pageSize = 24, categoryId?: string): Promise<ProductPage> { const result = await firstValueFrom(this.http.get<ApiProductPage>(`${this.url(storeKey)}/products`, { params: { page, pageSize, ...(categoryId ? { categoryId } : {}) } })); return { ...result, items: result.items.map((product) => this.mapProduct(product)) }; }
+  async getProducts(storeKey: string, page = 1, pageSize = 24, categoryId?: string, filters?: ProductCatalogFilters): Promise<ProductPage> {
+    const result = await firstValueFrom(this.http.get<ApiProductPage>(`${this.url(storeKey)}/products`, { params: {
+      page, pageSize, ...(categoryId ? { categoryId } : {}),
+      ...(filters?.minPrice !== undefined ? { minPrice: filters.minPrice } : {}),
+      ...(filters?.maxPrice !== undefined ? { maxPrice: filters.maxPrice } : {}),
+      ...(filters?.inStockOnly ? { inStockOnly: true } : {}),
+      ...(filters?.sortBy ? { sortBy: filters.sortBy } : {})
+    } }));
+    return { ...result, items: result.items.map((product) => this.mapProduct(product)) };
+  }
   async getAvailabilityAnnouncements(storeKey:string):Promise<AvailabilityAnnouncement[]>{return await firstValueFrom(this.http.get<AvailabilityAnnouncement[]>(`${this.url(storeKey)}/availability-announcements`));}
 
   async getProduct(storeKey: string, productId: string): Promise<Product | null> {
@@ -88,7 +97,7 @@ export class HttpStorefrontDataProvider implements StorefrontDataProvider {
       longDescription: product.longDescription ?? undefined,
       specifications: product.specifications ?? [],
       imageUrl: this.asset(product.imageUrl) ?? '/images/product-placeholder.svg',
-      images: (product.images ?? []).map(image => ({ id: image.id, url: this.asset(image.url)!, thumbnailUrl: this.asset(image.thumbnailUrl)!, isPrimary: image.isPrimary })),
+      images: (product.images ?? []).map(image => ({ id: image.id, url: this.asset(image.url)!, thumbnailUrl: this.asset(image.thumbnailUrl)!, isPrimary: image.isPrimary, width: image.width, height: image.height, thumbnailWidth: image.thumbnailWidth, thumbnailHeight: image.thumbnailHeight })),
       sellingPrice: product.sellingPrice,
       gstPercentage: product.gstPercentage ?? 0,
       gstPricingType: product.gstPricingType ?? 'EXCLUSIVE',

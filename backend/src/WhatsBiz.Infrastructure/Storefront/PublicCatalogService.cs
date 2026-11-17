@@ -98,7 +98,7 @@ public sealed class PublicCatalogService(ApplicationDbContext db, ICurrentUserSe
         await db.SaveChangesAsync(ct); if(transaction is not null) await transaction.CommitAsync(ct);
     }
 
-    public async Task<object> Queue(Guid? tenant, string? status, DateTimeOffset? since, DateTimeOffset? until, int page, CancellationToken ct)
+    public async Task<object> Queue(Guid? tenant, string? status, DateTimeOffset? since, DateTimeOffset? until, string? category, int page, CancellationToken ct)
     {
         RequireOwner();
         // Filtering effective state occurs in SQL, including content edits made by any import/image path.
@@ -116,6 +116,7 @@ public sealed class PublicCatalogService(ApplicationDbContext db, ICurrentUserSe
                     && a.ContentHash != ApplicationDbContext.ProductPublicContentHash(p.TenantId,p.ProductId) ? "CHANGES_PENDING" : a.Status,
                 ContentVersion = ApplicationDbContext.ProductPublicContentHash(p.TenantId,p.ProductId), ReviewVersion = a == null ? null : a.Version };
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.Status == status);
+        if (!string.IsNullOrWhiteSpace(category)) query = query.Where(x => x.CategoryName == category);
         if (since.HasValue) query = query.Where(x => x.SubmittedAt >= since);
         if (until.HasValue) query = query.Where(x => x.SubmittedAt <= until);
         var pendingTotal=await db.Set<ProductPublication>().AsNoTracking().CountAsync(x=>x.Status=="PENDING_APPROVAL"&&
@@ -125,6 +126,9 @@ public sealed class PublicCatalogService(ApplicationDbContext db, ICurrentUserSe
             Items = items.Select(x => new { x.ProductId, x.TenantId, x.StoreName, x.ProductName, x.ProductCode, x.CategoryName, x.MRP, x.SellingPrice, x.GSTPercentage, x.GstPricingType, x.PrimaryImageId, x.SubmittedAt, x.Status,
                 ContentVersion = Convert.ToBase64String(x.ContentVersion), ReviewVersion = x.ReviewVersion is null ? null : Convert.ToBase64String(x.ReviewVersion) }).ToArray() };
     }
+
+    public Task<object> Queue(Guid? tenant, string? status, DateTimeOffset? since, DateTimeOffset? until, int page, CancellationToken ct)
+        => Queue(tenant, status, since, until, null, page, ct);
 
     public async Task<IReadOnlyCollection<CatalogBatchItem>> SubmitMany(IReadOnlyCollection<Guid> productIds, bool commit, CancellationToken ct)
     {

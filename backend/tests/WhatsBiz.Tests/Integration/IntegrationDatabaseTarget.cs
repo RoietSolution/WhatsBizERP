@@ -16,10 +16,23 @@ internal static class IntegrationDatabaseTarget
     internal static void AssertApproved(SqlConnectionStringBuilder builder)
     {
         var target = Configuration.Value;
-        if (!string.Equals(builder.DataSource, target.Server, StringComparison.OrdinalIgnoreCase) ||
+        if (!MatchesApprovedTcpEndpoint(builder.DataSource, target.Server) ||
             !string.Equals(builder.InitialCatalog, target.Database, StringComparison.OrdinalIgnoreCase) ||
             target.ProtectedDatabases.Contains(builder.InitialCatalog, StringComparer.OrdinalIgnoreCase))
             throw new InvalidOperationException("SQL integration test target does not match the centrally approved disposable database.");
+    }
+
+    private static bool MatchesApprovedTcpEndpoint(string dataSource, string expectedServer)
+    {
+        var endpoint = dataSource.Trim();
+        if (endpoint.StartsWith("tcp:", StringComparison.OrdinalIgnoreCase)) endpoint = endpoint[4..];
+        var comma = endpoint.LastIndexOf(',');
+        if (comma >= 0)
+        {
+            if (!int.TryParse(endpoint[(comma + 1)..], out var port) || port != 1433) return false;
+            endpoint = endpoint[..comma];
+        }
+        return string.Equals(endpoint, expectedServer, StringComparison.OrdinalIgnoreCase);
     }
 
     private static TargetConfiguration Load()

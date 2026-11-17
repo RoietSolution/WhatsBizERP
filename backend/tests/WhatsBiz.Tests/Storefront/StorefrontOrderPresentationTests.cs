@@ -35,6 +35,24 @@ public sealed class StorefrontOrderPresentationTests
     public void PrepaidPaymentStateControlsCustomerOrderStatus(string invoice, string? delivery, string payment, string method, string expected)
         => StorefrontOrderPresentation.Status(invoice, delivery, payment, method).Should().Be(expected);
 
+    [Theory]
+    [InlineData("PENDING", "Confirmed")]
+    [InlineData("PREPARING", "Preparing")]
+    [InlineData("READY_FOR_DISPATCH", "Packed")]
+    [InlineData("OUT_FOR_DELIVERY", "Out for delivery")]
+    [InlineData("DELIVERY_FAILED", "Delivery attention required")]
+    public void CustomerFulfilmentGroupsUseFriendlyStatusLabels(string status,string expected)
+        =>StorefrontOrderPresentation.DeliveryGroupStatus(status).Should().Be(expected);
+
+    [Theory]
+    [InlineData("REVIEW_REQUIRED","Refund review required")]
+    [InlineData("REFUND_REQUIRED","Refund required")]
+    [InlineData("REFUND_PENDING","Refund in progress")]
+    [InlineData("REFUNDED","Refunded")]
+    [InlineData("NONE",null)]
+    public void CustomerRefundStateUsesFriendlyLabels(string status,string? expected)
+        =>StorefrontOrderPresentation.RefundStatusLabel(status).Should().Be(expected);
+
     [Fact]
     public void FailedPrepaidPaymentDoesNotExposeFulfillmentMilestones()
     {

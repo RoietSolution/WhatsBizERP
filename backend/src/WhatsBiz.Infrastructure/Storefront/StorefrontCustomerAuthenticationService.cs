@@ -63,6 +63,20 @@ public sealed class CustomerOtpSender(StorefrontOtpPolicy policy, IConfiguration
         {
             if (string.IsNullOrWhiteSpace(endpoint)) endpoint = "https://2factor.in/API/V1/OTP/SEND";
             var apiKey = configuration["StorefrontOtp:ApiKey"];
+            if (IsTwoFactorManualOtpEndpoint(endpoint))
+            {
+                if (string.IsNullOrWhiteSpace(apiKey)
+                    || otp.Length != 6 || !otp.All(char.IsAsciiDigit)
+                    || !normalizedMobile.All(char.IsAsciiDigit)
+                    || !TryBuildTwoFactorManualOtpUri(endpoint, apiKey, "+91" + normalizedMobile, otp, out var manualOtpUri))
+                    throw new InvalidOperationException("The 2Factor manual OTP endpoint, API key, mobile number, or OTP is invalid.");
+                using var manualOtpRequest = new HttpRequestMessage(HttpMethod.Post, manualOtpUri);
+                using var manualOtpResponse = await clients.CreateClient("StorefrontOtp").SendAsync(manualOtpRequest, token);
+                var manualOtpResponseBody = await manualOtpResponse.Content.ReadAsStringAsync(token);
+                if (!manualOtpResponse.IsSuccessStatusCode || !HttpCustomerMessageProvider.TwoFactorAccepted(manualOtpResponseBody, out _))
+                    throw new InvalidOperationException("The 2Factor OTP provider rejected the request.");
+                return;
+            }
             var template = configuration["StorefrontOtp:TemplateName"];
             if (!HttpCustomerMessageProvider.TryTwoFactorEndpoint(endpoint, out var twoFactorUri)
                 || string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(template))
@@ -87,6 +101,28 @@ public sealed class CustomerOtpSender(StorefrontOtpPolicy policy, IConfiguration
         request.Content = JsonContent.Create(new { recipient = "+91" + normalizedMobile, message = $"Your KhataDhari verification code is {otp}. It expires in 5 minutes.", referenceId = challengeId });
         using var response = await clients.CreateClient("StorefrontOtp").SendAsync(request, token);
         if (!response.IsSuccessStatusCode) throw new InvalidOperationException("The customer OTP provider rejected the request.");
+    }
+
+    private static bool IsTwoFactorManualOtpEndpoint(string endpoint)
+        => endpoint.Contains("/SMS/", StringComparison.OrdinalIgnoreCase)
+            && (endpoint.Contains("/AUTOGEN/OTP1", StringComparison.OrdinalIgnoreCase)
+                || endpoint.Contains("{otp_code}", StringComparison.OrdinalIgnoreCase)
+                || endpoint.Contains(":otp_code", StringComparison.OrdinalIgnoreCase));
+
+    private static bool TryBuildTwoFactorManualOtpUri(string endpoint, string apiKey, string phoneNumber, string otp, out Uri uri)
+    {
+        var apiKeySegment = Uri.EscapeDataString(apiKey);
+        var phoneSegment = Uri.EscapeDataString(phoneNumber);
+        var otpSegment = Uri.EscapeDataString(otp);
+        var expanded = endpoint
+            .Replace("{api_key}", apiKeySegment, StringComparison.OrdinalIgnoreCase)
+            .Replace(":api_key", apiKeySegment, StringComparison.OrdinalIgnoreCase)
+            .Replace("{phone_number}", phoneSegment, StringComparison.OrdinalIgnoreCase)
+            .Replace(":phone_number", phoneSegment, StringComparison.OrdinalIgnoreCase)
+            .Replace("{otp_code}", otpSegment, StringComparison.OrdinalIgnoreCase)
+            .Replace(":otp_code", otpSegment, StringComparison.OrdinalIgnoreCase)
+            .Replace("/AUTOGEN/OTP1", "/" + otpSegment, StringComparison.OrdinalIgnoreCase);
+        return HttpCustomerMessageProvider.TryTwoFactorEndpoint(expanded, out uri);
     }
 }
 
@@ -209,7 +245,7 @@ public sealed partial class StorefrontCustomerAuthenticationService(
         // OTP login must authenticate an existing customer; only the explicit signup
         // flow may create one. This also prevents a password-reset OTP from creating
         // a new account when the supplied mobile number is unknown.
-        var customerId = await ResolveCustomer(connection, transaction, tenantId.Value, mobile, name, email, passwordHash, input.ReplacePassword, input.IsRegistration, token);
+        var customerId = await ResolveCustomer(connection, transaction, tenantId.Value, storeKey, mobile, name, email, passwordHash, input, token);
         if (customerId is null)
         {
             await transaction.RollbackAsync(token);
@@ -305,7 +341,7 @@ public sealed partial class StorefrontCustomerAuthenticationService(
     private static string? NormalizeEmail(string? value) => string.IsNullOrWhiteSpace(value) ? null
         : MailAddress.TryCreate(value.Trim(), out var address) && value.Trim().Length <= 256 ? address.Address.ToLowerInvariant() : null;
 
-    private static async Task<Guid?> ResolveCustomer(SqlConnection connection, SqlTransaction transaction, Guid tenantId, string mobile, string? name, string? email, string? passwordHash, bool replacePassword, bool allowCreate, CancellationToken token)
+    private static async Task<Guid?> ResolveCustomer(SqlConnection connection, SqlTransaction transaction, Guid tenantId, string storeKey, string mobile, string? name, string? email, string? passwordHash, StorefrontOtpVerifyInput input, CancellationToken token)
     {
         await using var find = new SqlCommand("""
             SELECT TOP(1) CustomerId FROM sales.Customers WITH(UPDLOCK,HOLDLOCK)
@@ -317,16 +353,56 @@ public sealed partial class StorefrontCustomerAuthenticationService(
         if(await find.ExecuteScalarAsync(token) is Guid existing)
         {
             await using var update = new SqlCommand("UPDATE sales.Customers SET MobileNormalized=@mobile,CustomerName=COALESCE(NULLIF(@name,N''),CustomerName),Email=COALESCE(@email,Email),StorefrontPasswordHash=CASE WHEN @replacePassword=1 THEN @password ELSE StorefrontPasswordHash END,ModifiedOn=SYSUTCDATETIME(),ModifiedBy=N'STOREFRONT_OTP' WHERE CustomerId=@id AND TenantId=@tenant;",connection,transaction);
-            update.Parameters.AddWithValue("@mobile",mobile);update.Parameters.AddWithValue("@name",name??(object)DBNull.Value);update.Parameters.AddWithValue("@password",passwordHash??(object)DBNull.Value);update.Parameters.AddWithValue("@replacePassword",replacePassword);update.Parameters.AddWithValue("@email",email??(object)DBNull.Value);update.Parameters.AddWithValue("@id",existing);update.Parameters.AddWithValue("@tenant",tenantId);await update.ExecuteNonQueryAsync(token);
+            update.Parameters.AddWithValue("@mobile",mobile);update.Parameters.AddWithValue("@name",name??(object)DBNull.Value);update.Parameters.AddWithValue("@password",passwordHash??(object)DBNull.Value);update.Parameters.AddWithValue("@replacePassword",input.ReplacePassword);update.Parameters.AddWithValue("@email",email??(object)DBNull.Value);update.Parameters.AddWithValue("@id",existing);update.Parameters.AddWithValue("@tenant",tenantId);await update.ExecuteNonQueryAsync(token);
             return existing;
         }
-        if (!allowCreate) return null;
+        if (!input.IsRegistration) return null;
+        var terms = await ReadRequiredPolicy(connection, transaction, tenantId, "CUSTOMER_TERMS", input.TermsPolicyId, input.TermsContentHash, input.AcceptTerms == true, token);
+        var privacy = await ReadRequiredPolicy(connection, transaction, tenantId, "PRIVACY_NOTICE", input.PrivacyPolicyId, input.PrivacyContentHash, input.AcknowledgePrivacy == true, token);
         var id=Guid.NewGuid();
         await using var insert=new SqlCommand("""
             INSERT sales.Customers(CustomerId,TenantId,CustomerCode,CustomerName,CustomerType,Email,Mobile,MobileNormalized,StorefrontPasswordHash,Currency,CreditLimit,OpeningBalance,IsGSTRegistered,IsActive,IsDeleted,Remarks,CreatedBy)
             VALUES(@id,@tenant,@code,@name,N'RETAIL',@email,@mobile,@mobile,@password,N'INR',0,0,0,1,0,N'Verified storefront customer',N'STOREFRONT_OTP');
             """,connection,transaction);
-        insert.Parameters.AddWithValue("@id",id);insert.Parameters.AddWithValue("@tenant",tenantId);insert.Parameters.AddWithValue("@code",$"WEB-{id:N}"[..16]);insert.Parameters.AddWithValue("@name",name??$"Customer {mobile[^4..]}");insert.Parameters.AddWithValue("@email",email??(object)DBNull.Value);insert.Parameters.AddWithValue("@mobile",mobile);insert.Parameters.AddWithValue("@password",passwordHash??(object)DBNull.Value);await insert.ExecuteNonQueryAsync(token);return id;
+        insert.Parameters.AddWithValue("@id",id);insert.Parameters.AddWithValue("@tenant",tenantId);insert.Parameters.AddWithValue("@code",$"WEB-{id:N}"[..16]);insert.Parameters.AddWithValue("@name",name??$"Customer {mobile[^4..]}");insert.Parameters.AddWithValue("@email",email??(object)DBNull.Value);insert.Parameters.AddWithValue("@mobile",mobile);insert.Parameters.AddWithValue("@password",passwordHash??(object)DBNull.Value);await insert.ExecuteNonQueryAsync(token);
+        await RecordPolicyAcceptance(connection, transaction, tenantId, id, terms, storeKey, token);
+        await RecordPolicyAcceptance(connection, transaction, tenantId, id, privacy, storeKey, token);
+        return id;
+    }
+
+    private static async Task<(Guid Id, string Version, byte[] Hash)> ReadRequiredPolicy(SqlConnection connection, SqlTransaction transaction, Guid tenantId, string type, Guid? submittedId, string? submittedHash, bool accepted, CancellationToken token)
+    {
+        if (!accepted || submittedId is null || string.IsNullOrWhiteSpace(submittedHash))
+            throw new BusinessRuleException("Please accept the current Terms & Conditions and acknowledge the Privacy Policy to create your account.");
+        await using var command = new SqlCommand("""
+            SELECT TOP(1) PolicyId,Version,ContentHash FROM commerce.StorefrontPolicies WITH(UPDLOCK,HOLDLOCK)
+            WHERE PolicyId=@id AND PolicyType=@type AND (TenantId=@tenant OR TenantId IS NULL)
+              AND LanguageCode=N'en' AND IsPublished=1 AND IsActive=1 AND AcceptanceRequired=1 AND EffectiveAtUtc<=SYSUTCDATETIME()
+              AND (TenantId=@tenant OR NOT EXISTS(SELECT 1 FROM commerce.StorefrontPolicies tenantPolicy WITH(UPDLOCK,HOLDLOCK) WHERE tenantPolicy.PolicyType=@type AND tenantPolicy.TenantId=@tenant AND tenantPolicy.LanguageCode=N'en' AND tenantPolicy.IsPublished=1 AND tenantPolicy.IsActive=1 AND tenantPolicy.AcceptanceRequired=1 AND tenantPolicy.EffectiveAtUtc<=SYSUTCDATETIME()))
+            ORDER BY CASE WHEN TenantId=@tenant THEN 0 ELSE 1 END;
+            """, connection, transaction);
+        command.Parameters.AddWithValue("@id", submittedId.Value); command.Parameters.AddWithValue("@type", type); command.Parameters.AddWithValue("@tenant", tenantId);
+        await using var reader = await command.ExecuteReaderAsync(token);
+        if (!await reader.ReadAsync(token)) throw new BusinessRuleException("The current customer policy is unavailable. Please try again later.");
+        var id = reader.GetGuid(0); var version = reader.GetString(1); var hash = (byte[])reader[2];
+        if (!CryptographicOperations.FixedTimeEquals(hash, DecodeHash(submittedHash))) throw new BusinessRuleException("The customer policy changed. Review the current policy and try again.");
+        return (id, version, hash);
+    }
+
+    private static byte[] DecodeHash(string value)
+    {
+        try { var hash = Convert.FromHexString(value); return hash.Length == 32 ? hash : new byte[32]; }
+        catch (FormatException) { return new byte[32]; }
+    }
+
+    private static async Task RecordPolicyAcceptance(SqlConnection connection, SqlTransaction transaction, Guid tenantId, Guid customerId, (Guid Id, string Version, byte[] Hash) policy, string storeKey, CancellationToken token)
+    {
+        await using var command = new SqlCommand("""
+            INSERT commerce.StorefrontPolicyAcceptances(AcceptanceId,TenantId,CustomerId,PolicyId,PolicyType,PolicyVersion,ContentHash,AcceptedAtUtc,AcceptanceSource,StoreKey)
+            VALUES(NEWID(),@tenant,@customer,@policy,(SELECT PolicyType FROM commerce.StorefrontPolicies WHERE PolicyId=@policy),@version,@hash,SYSUTCDATETIME(),N'CUSTOMER_SIGNUP',@storeKey);
+            """, connection, transaction);
+        command.Parameters.AddWithValue("@tenant", tenantId); command.Parameters.AddWithValue("@customer", customerId); command.Parameters.AddWithValue("@policy", policy.Id); command.Parameters.AddWithValue("@version", policy.Version); command.Parameters.AddWithValue("@hash", policy.Hash); command.Parameters.AddWithValue("@storeKey", storeKey.Trim().ToUpperInvariant());
+        await command.ExecuteNonQueryAsync(token);
     }
 
     private async Task<Guid?> ResolveTenant(string storeKey,CancellationToken token)

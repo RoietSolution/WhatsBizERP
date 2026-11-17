@@ -70,6 +70,9 @@ export class InventoryApiService {
     if (productId) p = p.set('productId', productId);
     return this.http.get('/api/inventory/balance/export', { params: p, responseType: 'blob' });
   }
+  previewShopifyInventory(file: File, sourceStore: string, warehouseMappings: Record<string, string>) { const data = new FormData(); data.append('file', file); data.append('sourceStore', sourceStore); data.append('warehouseMappingsJson', JSON.stringify(warehouseMappings)); return this.http.post<any>('/api/inventory/shopify-import/preview', data); }
+  commitShopifyInventory(file: File, sourceStore: string, warehouseMappings: Record<string, string>, expectedRows: { key: string; current: number }[], applyHsnMetadata: boolean) { const data = new FormData(); data.append('file', file); data.append('sourceStore', sourceStore); data.append('warehouseMappingsJson', JSON.stringify(warehouseMappings)); data.append('expectedRowsJson', JSON.stringify(expectedRows)); data.append('applyHsnMetadata', String(applyHsnMetadata)); return this.http.post<any>('/api/inventory/shopify-import/commit', data); }
+  shopifyInventoryHistory() { return this.http.get<any[]>('/api/inventory/shopify-import/history'); }
   products() {
     return this.http.get<{ items: ProductOption[] }>('/api/products', {
       params: new HttpParams().set('pageSize', 200),

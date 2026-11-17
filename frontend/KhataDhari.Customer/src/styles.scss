@@ -38,7 +38,7 @@ shop-orders-page .bottom { padding-top: 12px; border-top: 1px solid var(--store-
 shop-orders-page .status { display: inline-flex; align-items: center; min-height: 25px; padding: 4px 9px; border-radius: 999px; font-size: 10px; }
 shop-orders-page article > a { display: inline-flex; align-items: center; min-height: 40px; margin-top: 4px; font-size: 12px; }
 @media (max-width: 620px) { shop-orders-page .orders article { padding: 14px; } shop-orders-page .top b { font-size: 14px; } shop-orders-page .bottom { align-items: flex-start; line-height: 1.55; } }
-html { min-width: 320px; min-height: 100%; background: var(--store-background); scroll-behavior: smooth; }
+html { min-height: 100%; background: var(--store-background); scroll-behavior: smooth; }
 body { margin: 0; color: var(--store-text); background: var(--store-background); font-family: 'DM Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
 button, input, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
@@ -67,3 +67,7 @@ a { color: inherit; }
 .return-form button:disabled { cursor: not-allowed; opacity: .55; }
 @media (min-width: 621px) { .return-form { grid-template-columns: 120px minmax(0, 1fr); align-items: end; } .return-form > label:last-of-type { grid-column: 1 / -1; } .return-form > button { justify-self: end; } }
 @media (max-width: 620px) { .return-form { padding: 12px; } .return-form > button { width: 100%; } }
+shop-store-shell .brand picture { display:block; flex:0 0 42px; width:42px; height:42px; }
+shop-store-shell .pwa-install-icon picture { display:block; width:100%; height:100%; }
+shop-store-home .category-icon picture { display:block; width:100%; height:100%; }
+@media (min-width:768px) and (max-width:1199px), (max-width:767px) { shop-store-shell .brand picture { flex-basis:38px; width:38px; height:38px; } }

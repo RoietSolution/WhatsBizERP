@@ -246,6 +246,36 @@ public sealed class StorefrontPricingPolicyTests
         result.FinalPayableAmount.Should().Be(990);
     }
 
+    [Fact]
+    public void RemovingCodePromoExcludesItButPreservesProductSavings()
+    {
+        var codeOffer = Offer("MINIMUM_PURCHASE", "FLAT", 60, 0) with { PromoCode = "SAVE60" };
+
+        var withCode = StorefrontPricingPolicy.Calculate([new(1, 600, 0, 700)], new(false, 0, false, null),
+            null, false, [codeOffer], false, false, Now, "SAVE60");
+        var withoutCode = StorefrontPricingPolicy.Calculate([new(1, 600, 0, 700)], new(false, 0, false, null),
+            null, false, [codeOffer], false, false, Now);
+
+        withCode.PromotionDiscount.Should().Be(60m);
+        withCode.FinalPayableAmount.Should().Be(540m);
+        withoutCode.PromotionDiscount.Should().Be(0m);
+        withoutCode.FinalPayableAmount.Should().Be(600m);
+        withoutCode.ProductSavings.Should().Be(100m);
+    }
+
+    [Fact]
+    public void NoCodeRequestStillAllowsAutomaticOffersWithoutPromoCodes()
+    {
+        var automaticOffer = Offer("MINIMUM_PURCHASE", "FLAT", 20, 0);
+
+        var result = StorefrontPricingPolicy.Calculate([Item(100)], new(false, 0, false, null),
+            null, false, [automaticOffer], false, false, Now);
+
+        result.PromotionDiscount.Should().Be(20m);
+        result.PromotionCode.Should().BeNull();
+        result.FinalPayableAmount.Should().Be(80m);
+    }
+
     [Theory]
     [InlineData(350, 150, 40, 390)]
     [InlineData(500, 0, 0, 500)]

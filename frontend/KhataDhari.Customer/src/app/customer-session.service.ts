@@ -16,13 +16,18 @@ export class CustomerSessionService {
   isAuthenticated(storeKey:string):boolean{return !!this.token(storeKey);}
   establish(storeKey:string,token:string,customer?:StorefrontCustomer):void{if(!storeKey||!token)return;const normalized=storeKey.trim().toLowerCase();if(this.currentStoreKey!==normalized||this.token(normalized)!==token||(!!customer&&!!this.customer()&&this.customer()!.id!==customer.id))this.resetMemory();this.currentStoreKey=normalized;localStorage.setItem(this.key(normalized),token);this.restoreError.set(false);this.restoring.set(false);this.active.set(true);if(customer){const mapped=this.withAssetUrl(customer);this.customer.set(this.displayProfile(mapped,normalized));this.customerId.set(mapped.id);this.saveCustomerId(normalized,mapped.id);void this.hydrateProfileImage(normalized,mapped);}}
   clear(storeKey:string):void{const normalized=storeKey.trim().toLowerCase();localStorage.removeItem(this.key(normalized));localStorage.removeItem(this.customerKey(normalized));if(this.currentStoreKey===normalized){this.resetMemory();this.active.set(false);}this.restoring.set(false);this.restoreError.set(false);this.restorePromise=null;this.restorePromiseStore='';}
-  restore(storeKey:string):Promise<void>{
+  selectStore(storeKey:string):void{
     const normalized=storeKey.trim().toLowerCase(),token=this.token(normalized);
     if(this.currentStoreKey!==normalized||(this.loadedToken&&this.loadedToken!==token)){this.resetMemory();this.currentStoreKey=normalized;this.active.set(false);}
-    if(!token){this.clear(normalized);return Promise.resolve();}
+    if(!token){this.clear(normalized);return;}
+    if(!this.customerId()){const known=this.readCustomerId(normalized);if(known)this.customerId.set(known);}
+    this.active.set(true);
+  }
+  restore(storeKey:string):Promise<void>{
+    const normalized=storeKey.trim().toLowerCase();this.selectStore(normalized);const token=this.token(normalized);
+    if(!token)return Promise.resolve();
     if(this.restorePromise&&this.restorePromiseStore===normalized)return this.restorePromise;
     if(this.loadedToken===token&&Date.now()-this.loadedAt<5*60*1000&&this.customer()&&!this.restoreError())return Promise.resolve();
-    if(!this.customerId()){const known=this.readCustomerId(normalized);if(known)this.customerId.set(known);}
     this.active.set(true);this.restoring.set(true);this.restoreError.set(false);this.restorePromiseStore=normalized;
     const request=this.refresh(normalized);this.restorePromise=request;
     return request.finally(()=>{if(this.restorePromise===request){this.restoring.set(false);this.restorePromise=null;}});

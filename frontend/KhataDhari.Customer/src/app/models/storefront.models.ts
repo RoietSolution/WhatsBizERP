@@ -8,6 +8,8 @@ export interface Store {
   accentColor: string;
   deliveryMessage: string;
   freeDeliveryThreshold?: number;
+  freeDeliveryEnabled?: boolean;
+  defaultReturnWindowDays?: number;
   showProductRatings: boolean;
   showProductReviews: boolean;
   banners: StoreBanner[];
@@ -65,11 +67,13 @@ export interface Product {
   badge?: string; returnPolicyMode?: "INHERIT_DEFAULT" | "CUSTOM" | "NON_RETURNABLE"; returnWindowDays?: number; isReturnable?: boolean; returnPolicyDescription?: string;
 }
 
-export interface ProductImage { id: string; url: string; thumbnailUrl: string; isPrimary: boolean; }
+export interface ProductImage { id: string; url: string; thumbnailUrl: string; isPrimary: boolean; width?: number | null; height?: number | null; thumbnailWidth?: number | null; thumbnailHeight?: number | null; }
 
 export interface ProductSpecification { name: string; value: string; }
 
-export interface ProductPage { items: Product[]; pageNumber: number; pageSize: number; totalCount: number; hasMore: boolean; }
+export type ProductSortOption = 'RECOMMENDED' | 'PRICE_LOW_TO_HIGH' | 'PRICE_HIGH_TO_LOW' | 'NEWEST';
+export interface ProductCatalogFilters { minPrice?: number; maxPrice?: number; inStockOnly?: boolean; sortBy?: ProductSortOption; }
+export interface ProductPage { items: Product[]; pageNumber: number; pageSize: number; totalCount: number; hasMore: boolean; minimumPrice?: number | null; maximumPrice?: number | null; supportsNewestSort?: boolean; }
 export interface AvailabilityRequest { id:string; productId:string; status:string; requestedAtUtc:string; }
 export interface MissingProductRequest { id:string; keyword:string; searches:number; interestedCustomers:number; status:string; lastRequestedAtUtc:string; }
 export function discountPercent(product: Product): number | null { const original = product.compareAtPrice; if (!original || original <= 0 || product.sellingPrice >= original) return null; return Math.round(((original - product.sellingPrice) / original) * 100); }
@@ -107,14 +111,18 @@ export interface CustomerOrder {
   merchandiseSubtotal?: number;
   cancellation?: CustomerOrderCancellation;
   returnRequests?: StorefrontReturnRequest[];
+  fulfilmentGroups?: CustomerDeliveryGroup[];
+  refundStatus?: string;
 }
 
+export interface CustomerDeliveryGroup { groupNumber:number;status:string;trackingReference?:string|null;readyAt?:string|null;dispatchedAt?:string|null;deliveredAt?:string|null;items:CustomerDeliveryItem[]; }
+export interface CustomerDeliveryItem { productId:string;productName:string;quantity:number; }
 export interface CustomerOrderCancellation { canRequest:boolean;unavailableReason?:string;requestStatus?:string;reason?:string;refundableAmount:number;refundStatus:string;refundAmount:number;refundedAt?:string;refundNeedsReconciliation?:boolean;decisionNote?:string; }
 export interface CustomerOrderLine { productId:string;productName:string;packSize?:string;quantity:number;lineTotal:number;isReturnable?:boolean;returnWindowDays?:number;deliveredAt?:string;returnDeadline?:string;returnStatus?:string;returnPolicyDescription?:string;invoiceItemId?:string;returnedQuantity?:number;returnableQuantity:number;returnRequestedQuantity?:number;returnRequestStatus?:string;returnRequestId?:string; }
 export interface StorefrontReturnRequest { requestId:string;orderId:string;invoiceItemId:string;orderNumber:string;productName:string;productCode?:string;quantity:number;reason:string;explanation?:string;status:string;requestedAtUtc:string;decidedAtUtc?:string;decisionNote?:string; }
 export interface OrderMilestone { code:string;label:string;state:string;occurredAt?:string; }
 export interface CartFulfillmentWarning { code:string; message:string; productIds?:string[]; }
-export interface CartQuote { eligibleAmount:number;freeDeliveryThreshold?:number;remainingAmount:number;progressPercent:number;isFreeDeliveryUnlocked:boolean;isDeliveryEnabled:boolean;isPincodeServiceable:boolean;merchandiseAmount:number;merchandiseTaxAmount:number;merchandiseSubtotal:number;standardDeliveryCharge:number;freeDeliveryEnabled:boolean;deliveryCharge:number;promotionDiscount:number;promotionName?:string;promotionId?:string;finalPayableAmount:number; promotionCode?: string; productSavings?: number; fulfillmentWarnings?: CartFulfillmentWarning[]; }
+export interface CartQuote { eligibleAmount:number;freeDeliveryThreshold?:number;remainingAmount:number;progressPercent:number;isFreeDeliveryUnlocked:boolean;isDeliveryEnabled:boolean;isPincodeServiceable:boolean;merchandiseAmount:number;merchandiseTaxAmount:number;merchandiseSubtotal:number;standardDeliveryCharge:number;freeDeliveryEnabled:boolean;deliveryCharge:number;promotionDiscount:number;promotionName?:string;promotionId?:string;finalPayableAmount:number; promotionCode?: string; productSavings?: number; fulfillmentWarnings?: CartFulfillmentWarning[]; mayArriveSeparately?:boolean; }
 export interface CheckoutCustomer {
   expectedPayableAmount?: number;
   customerName: string;

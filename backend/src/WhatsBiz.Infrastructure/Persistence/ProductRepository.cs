@@ -30,6 +30,7 @@ public sealed class ProductRepository(ApplicationDbContext context, ICurrentUser
 
     public async Task<IReadOnlyCollection<Product>> GetManyAsync(IReadOnlyCollection<Guid> ids, bool tracking, CancellationToken cancellationToken) { var query = TenantProducts.Where(x => !x.IsDeleted && ids.Contains(x.ProductId)); if (!tracking) query = query.AsNoTracking(); return await query.ToArrayAsync(cancellationToken); }
     public async Task<Product?> GetAsync(Guid id, bool tracking, CancellationToken cancellationToken) { var query = TenantProducts.Include(x => x.Category).Include(x => x.Brand).Include(x => x.Unit).Include(x => x.Barcodes).Include(x => x.Specifications).Where(x => !x.IsDeleted); if (!tracking) query = query.AsNoTracking(); var product = await query.SingleOrDefaultAsync(x => x.ProductId == id, cancellationToken); if (product is not null && !tracking) await ResolvePrimaryImageUrls([product], cancellationToken); return product; }
+    public Task<Product?> GetDeletedAsync(Guid id, bool tracking, CancellationToken cancellationToken) { var query = TenantProducts.Where(x => x.ProductId == id && x.IsDeleted); if (!tracking) query = query.AsNoTracking(); return query.SingleOrDefaultAsync(cancellationToken); }
     private async Task ResolvePrimaryImageUrls(IReadOnlyCollection<Product> products, CancellationToken token)
     {
         if (products.Count == 0) return;

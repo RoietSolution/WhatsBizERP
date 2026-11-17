@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Application.Common.Interfaces;
+using WhatsBiz.Application.Common.Features;
 using WhatsBiz.Application.Features.Payments;
 using WhatsBiz.Application.Features.POS;
 using WhatsBiz.Application.Features.Storefront;
@@ -21,18 +22,46 @@ public sealed partial class StorefrontCheckoutService(
     IStorefrontCustomerBlacklistService blacklist,
     IStorefrontAutomatedNotificationService automatedNotifications,
     IStorefrontAvailabilityService availability,
-    ILogger<StorefrontCheckoutService> logger) : IStorefrontCheckoutService
+    ILogger<StorefrontCheckoutService> logger,
+    IFeatureService features,
+    IMarketplaceOrderAllocationService marketplaceAllocation) : IStorefrontCheckoutService
 {
+    private sealed record CheckoutIdempotencyRequest(
+        Guid TenantId,
+        Guid CustomerId,
+        string CustomerName,
+        string RecipientName,
+        string Mobile,
+        string? Email,
+        string DeliveryAddress,
+        string? Pincode,
+        string? AddressLine1,
+        string? AddressLine2,
+        string? Landmark,
+        string? City,
+        string? District,
+        string? State,
+        string Country,
+        IReadOnlyCollection<StorefrontCheckoutItem> Items,
+        string? PromoCode,
+        decimal ExpectedPayableAmount,
+        string PaymentMethod);
+
     private string ConnectionString => configuration.GetConnectionString("DefaultConnection")
         ?? throw new InvalidOperationException("Database connection unavailable.");
 
     private async Task RejectPartnerSellerCheckout(Guid tenantId,IReadOnlyCollection<StorefrontCheckoutItem> items,CancellationToken token)
     {
+        if (await ContainsPartnerSellerItems(tenantId, items, token))
+            throw new BusinessRuleException("This partner-seller product is listed for discovery only. Online ordering will be enabled after seller, payment and invoicing arrangements are approved.");
+    }
+
+    private async Task<bool> ContainsPartnerSellerItems(Guid tenantId,IReadOnlyCollection<StorefrontCheckoutItem> items,CancellationToken token)
+    {
         await using var connection=await Open(tenantId,token);
         await using var command=new SqlCommand("SELECT TOP(1) 1 FROM OPENJSON(@items) WITH(ProductId uniqueidentifier,Quantity decimal(18,4)) j JOIN commerce.PartnerProductListings l ON l.OperatingTenantId=@tenant AND l.ProductId=j.ProductId",connection);
         command.Parameters.AddWithValue("@tenant",tenantId);command.Parameters.AddWithValue("@items",JsonSerializer.Serialize(items));
-        if(await command.ExecuteScalarAsync(token)is not null)
-            throw new BusinessRuleException("This partner-seller product is listed for discovery only. Online ordering will be enabled after seller, payment and invoicing arrangements are approved.");
+        return await command.ExecuteScalarAsync(token)is not null;
     }
 
     public async Task<StorefrontDeliveryAvailabilityDto?> CheckDeliveryAsync(string storeKey, string pincode, CancellationToken token)
@@ -75,10 +104,22 @@ public sealed partial class StorefrontCheckoutService(
         var tenantId = await ResolveTenant(storeKey, token);
         if (tenantId is null) return null;
         var items = NormalizeItems(input.Items);
-        var (_, lines, warnings) = await PriceCart(tenantId.Value, JsonSerializer.Serialize(items), items.Length, false, token);
+        var marketplaceEnabled = await features.IsEnabledAsync(tenantId.Value, FeatureKeys.MarketplaceCheckout, token);
+        var (_, lines, initialWarnings) = await PriceCart(tenantId.Value, JsonSerializer.Serialize(items), items.Length, false, token,
+            checkCommonWarehouse: !marketplaceEnabled);
+        IReadOnlyCollection<StorefrontCartFulfillmentWarning> warnings = initialWarnings;
+        var mayArriveSeparately = false;
+        if (marketplaceEnabled && !string.IsNullOrWhiteSpace(input.Pincode))
+        {
+            var eligibility = await marketplaceAllocation.CheckAvailabilityAsync(tenantId.Value, items, input.Pincode, token);
+            mayArriveSeparately = eligibility.IsEligible && eligibility.MayArriveSeparately;
+            warnings = eligibility.IsEligible ? [] : [new(eligibility.ReasonCode ?? "MARKETPLACE_UNAVAILABLE",
+                eligibility.CustomerMessage ?? "These items are not currently available for delivery to this address.")];
+        }
         var authenticated = string.IsNullOrWhiteSpace(customerSessionToken) ? null
             : await customers.GetSessionAsync(storeKey, customerSessionToken, token);
-        return await CalculateQuote(tenantId.Value, lines, input.Pincode, authenticated?.Id, input.PromoCode, warnings, token);
+        var quote = await CalculateQuote(tenantId.Value, lines, input.Pincode, authenticated?.Id, input.PromoCode, warnings, token);
+        return quote with { MayArriveSeparately = mayArriveSeparately };
     }
 
     public async Task<StorefrontIntakeQuoteDto> QuoteIntakeAsync(Guid tenantId,
@@ -93,7 +134,6 @@ public sealed partial class StorefrontCheckoutService(
             throw new BusinessRuleException("A valid delivery pincode is required before quoting delivery.");
         if (fulfillment == "PICKUP") pincode = null;
 
-        await RejectPartnerSellerCheckout(tenantId, normalizedItems, token);
         var (_, lines, warnings) = await PriceCart(tenantId, JsonSerializer.Serialize(normalizedItems), normalizedItems.Length, false, token);
         if (warnings.Count != 0)
             throw new BusinessRuleException("The selected products are not currently available together from a fulfillment warehouse.");
@@ -252,7 +292,10 @@ public sealed partial class StorefrontCheckoutService(
 
         var tenantId = await ResolveTenant(storeKey, token)
             ?? throw new EntityNotFoundException("Store was not found.");
-        await RejectPartnerSellerCheckout(tenantId,items,token);
+        var marketplaceFeatureEnabled = await features.IsEnabledAsync(tenantId, FeatureKeys.MarketplaceCheckout, token);
+        var containsPartnerProduct = await ContainsPartnerSellerItems(tenantId, items, token);
+        if (!marketplaceFeatureEnabled && containsPartnerProduct)
+            throw new BusinessRuleException("This partner-seller product is listed for discovery only. Online ordering will be enabled after seller, payment and invoicing arrangements are approved.");
         var method = NormalizePaymentMethod(input.PaymentMethod);
         var provider = method == "COD" ? PaymentProviders.Cod : PaymentProviders.Razorpay;
         var methods = await payments.GetEnabledMethodsForTenantAsync(tenantId, token);
@@ -260,7 +303,9 @@ public sealed partial class StorefrontCheckoutService(
             throw new BusinessRuleException("The selected payment method is not currently available for this store.");
 
         var cartJson = JsonSerializer.Serialize(items);
-        var (warehouseId, lines, _) = await PriceCart(tenantId, cartJson, items.Length, true, token);
+        var (warehouseId, lines, _) = await PriceCart(tenantId, cartJson, items.Length, !marketplaceFeatureEnabled, token,
+            checkCommonWarehouse: true);
+        var useMarketplaceOrder = marketplaceFeatureEnabled && (containsPartnerProduct || warehouseId is null);
         var authenticated = string.IsNullOrWhiteSpace(customerSessionToken) ? null : await customers.GetSessionAsync(storeKey, customerSessionToken, token);
         if (await blacklist.IsBlockedAsync(tenantId, authenticated?.Mobile ?? mobile, token))
             throw new BusinessRuleException("Orders are temporarily unavailable for this phone number. You may continue to browse and contact the store for assistance.");
@@ -272,42 +317,68 @@ public sealed partial class StorefrontCheckoutService(
             throw new BusinessRuleException("Delivery is not currently available for this store.");
         if (!quote.IsPincodeServiceable)
             throw new BusinessRuleException("Sorry, delivery is not available at this pincode yet.");
+        if (input.ExpectedPayableAmount is null)
+            throw new BusinessRuleException("Refresh the order total before checkout.");
         StorefrontPricingPolicy.EnsureExpectedPayable(input.ExpectedPayableAmount, quote.FinalPayableAmount);
         var customerId = authenticated?.Id ?? await FindOrCreateCustomer(tenantId, customerName, mobile, email, token);
-        var posItems = lines.Select(line => new POSItemInput(line.ProductId, null, line.Quantity,
+        var idempotencyRequest = new CheckoutIdempotencyRequest(tenantId, customerId, customerName, recipientName,
+            mobile, email, address, pincode, line1, line2, landmark, city, district, state, country,
+            items.OrderBy(item => item.ProductId).ToArray(),
+            string.IsNullOrWhiteSpace(input.PromoCode) ? null : input.PromoCode.Trim().ToUpperInvariant(),
+            quote.FinalPayableAmount, method);
+        var idempotencyFingerprint = JsonSerializer.Serialize(idempotencyRequest);
+        var catalogueItems = lines.Select(line => new POSItemInput(line.ProductId, null, line.Quantity,
             line.UnitPrice, 0, 0, line.TaxPercentage)).ToArray();
-        var orderRequest = new POSPostRequest(null, null, customerId, warehouseId!.Value, null,
+        var posItems = lines.Select(line => new POSItemInput(line.ProductId, null, line.Quantity,
+            useMarketplaceOrder ? StorefrontPricingPolicy.TaxExclusiveUnitPrice(line.UnitPrice, line.TaxPercentage, line.GstPricingType) : line.UnitPrice,
+            0, 0, line.TaxPercentage)).ToArray();
+        var orderRequest = new POSPostRequest(null, null, customerId, warehouseId ?? Guid.Empty, null,
             JsonSerializer.Serialize(posItems), "[]", quote.PromotionDiscount, 0, "Storefront order awaiting payment/collection",
             "HELD", false, null, "STOREFRONT", tenantId, "STOREFRONT",
             DeliveryCharge: quote.DeliveryCharge, PromotionDiscountAmount: quote.PromotionDiscount,
             AppliedPromotionId: quote.PromotionId, AppliedPromotionName: quote.PromotionName,
             FreeDeliveryApplied: quote.IsFreeDeliveryUnlocked, FreeDeliveryThresholdSnapshot: quote.FreeDeliveryThreshold,
             ServicePincode: pincode);
-        var order = await pos.PostForTenant(orderRequest, tenantId, $"STOREFRONT:{tenantId:N}:{requestKey:N}", token);
+        Guid orderId; string orderNumber; IReadOnlyCollection<MarketplaceFulfilmentAllocationGroup> fulfilmentGroups = [];
+        if (useMarketplaceOrder)
+        {
+            var allocated = await marketplaceAllocation.CreateHeldOrderAsync(tenantId,
+                $"STOREFRONT:{tenantId:N}:{requestKey:N}",
+                new(orderRequest, address, pincode ?? string.Empty, null, DateTimeOffset.UtcNow.AddMinutes(20),
+                    JsonSerializer.Serialize(catalogueItems), quote.FinalPayableAmount, idempotencyFingerprint), token);
+            orderId = allocated.OrderId; orderNumber = allocated.OrderNumber;
+            fulfilmentGroups = allocated.FulfilmentGroups;
+        }
+        else
+        {
+            var order = await pos.PostForTenant(orderRequest, tenantId, $"STOREFRONT:{tenantId:N}:{requestKey:N}", token,
+                idempotencyRequest);
+            orderId = order.InvoiceId; orderNumber = order.InvoiceNumber;
+        }
 
-        await UpdateOrderMetadata(tenantId, order.InvoiceId, address, method, recipientName, mobile, line1, line2, landmark, city, district, state, country, token);
-        var existing = await ExistingPayment(tenantId, order.InvoiceId, provider, method, token);
+        await UpdateOrderMetadata(tenantId, orderId, address, method, recipientName, mobile, line1, line2, landmark, city, district, state, country, token);
+        var existing = await ExistingPayment(tenantId, orderId, provider, method, token);
         if (existing is not null)
         {
-            await QueueOrderNotificationSafely(tenantId, order.InvoiceId, token);
-            return new(order.InvoiceId, order.InvoiceNumber, existing.Value.Amount, "INR", existing.Value.PaymentId,
-                provider == PaymentProviders.Cod ? null : existing.Value.Url, provider, existing.Value.Status, CustomerMessage(method), null, method);
+            await QueueOrderNotificationSafely(tenantId, orderId, token);
+            return new(orderId, orderNumber, existing.Value.Amount, "INR", existing.Value.PaymentId,
+                provider == PaymentProviders.Cod ? null : existing.Value.Url, provider, existing.Value.Status, CustomerMessage(method, fulfilmentGroups.Count > 1), null, method, fulfilmentGroups.Count > 1);
         }
 
         var attempt = await payments.CreateAttemptForTenantAsync(tenantId,
-            new(order.InvoiceId, provider, method, provider == PaymentProviders.Razorpay ? PaymentReturnUrl(storeKey, order.InvoiceId) : null), "STOREFRONT", token);
+            new(orderId, provider, method, provider == PaymentProviders.Razorpay ? PaymentReturnUrl(storeKey, orderId) : null), "STOREFRONT", token);
         var checkoutUrl = attempt.PaymentAction ?? attempt.Payment.PaymentLink;
         if (provider == PaymentProviders.Cod) checkoutUrl = null;
         if (provider == PaymentProviders.Razorpay && (string.IsNullOrWhiteSpace(checkoutUrl)
             || !Uri.TryCreate(checkoutUrl, UriKind.Absolute, out var checkoutUri)
             || checkoutUri.Scheme != Uri.UriSchemeHttps))
         {
-            StorefrontCheckoutLogs.InvalidPaymentAction(logger, tenantId, order.InvoiceId, provider);
+            StorefrontCheckoutLogs.InvalidPaymentAction(logger, tenantId, orderId, provider);
             throw new BusinessRuleException("Online payment is currently unavailable. Please try again.");
         }
-        await QueueOrderNotificationSafely(tenantId, order.InvoiceId, token);
-        return new(order.InvoiceId, order.InvoiceNumber, attempt.Payment.Amount,
-            attempt.Payment.Currency, attempt.Payment.PaymentId, checkoutUrl, provider, attempt.Payment.Status, CustomerMessage(method), null, method);
+        await QueueOrderNotificationSafely(tenantId, orderId, token);
+        return new(orderId, orderNumber, attempt.Payment.Amount,
+            attempt.Payment.Currency, attempt.Payment.PaymentId, checkoutUrl, provider, attempt.Payment.Status, CustomerMessage(method, fulfilmentGroups.Count > 1), null, method, fulfilmentGroups.Count > 1);
     }
 
     public async Task<StorefrontPaymentReturnDto?> GetPaymentStatusAsync(string storeKey, Guid orderId,
@@ -342,6 +413,16 @@ ORDER BY p.AttemptNumber DESC;", connection);
 
     private string? PaymentReturnUrl(string storeKey, Guid orderId)
     {
+        var customMapping = configuration.GetSection("StorefrontDomains:Mappings").GetChildren()
+            .Where(item => bool.TryParse(item["Verified"], out var verified) && verified
+                && string.Equals(item["StoreKey"]?.Trim(), storeKey, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(item => bool.TryParse(item["Canonical"], out var canonical) && canonical)
+            .FirstOrDefault();
+        var customOrigin = customMapping?["Origin"];
+        if (Uri.TryCreate(customOrigin, UriKind.Absolute, out var customRoot)
+            && customRoot.Scheme == Uri.UriSchemeHttps && string.IsNullOrEmpty(customRoot.UserInfo) && customRoot.AbsolutePath == "/"
+            && string.IsNullOrEmpty(customRoot.Query) && string.IsNullOrEmpty(customRoot.Fragment))
+            return new Uri(customRoot, $"payment-return?orderId={Uri.EscapeDataString(orderId.ToString("D"))}").ToString();
         var configured = configuration["Storefront:PublicBaseUrl"] ?? configuration["Storefront:BaseUrl"];
         if (!Uri.TryCreate(configured, UriKind.Absolute, out var root) || root.Scheme != Uri.UriSchemeHttps && root.Scheme != Uri.UriSchemeHttp)
             return null;
@@ -398,7 +479,7 @@ WHERE i.TenantId=@tenant AND i.InvoiceId=@order AND i.CustomerId=@customer;", co
     }
 
     private async Task<(Guid? WarehouseId, IReadOnlyCollection<PricedLine> Lines, IReadOnlyCollection<StorefrontCartFulfillmentWarning> Warnings)> PriceCart(
-        Guid tenantId, string cartJson, int expectedItems, bool requireFulfillment, CancellationToken token)
+        Guid tenantId, string cartJson, int expectedItems, bool requireFulfillment, CancellationToken token, bool checkCommonWarehouse = true)
     {
         await using var connection = await Open(tenantId, token);
         Guid? warehouseId = null;
@@ -444,7 +525,7 @@ WHERE i.TenantId=@tenant AND i.InvoiceId=@order AND i.CustomerId=@customer;", co
         if (lines.Count != expectedItems)
             throw new BusinessRuleException("One or more cart items are no longer available.");
         var warnings = new List<StorefrontCartFulfillmentWarning>();
-        if (!requireFulfillment)
+        if (!requireFulfillment && checkCommonWarehouse)
         {
             await using var warehouse = new SqlCommand("""
                 SELECT TOP(1) w.WarehouseId
@@ -460,7 +541,9 @@ WHERE i.TenantId=@tenant AND i.InvoiceId=@order AND i.CustomerId=@customer;", co
                 """, connection);
             warehouse.Parameters.AddWithValue("@tenant", tenantId);
             warehouse.Parameters.AddWithValue("@items", cartJson);
-            if (await warehouse.ExecuteScalarAsync(token) is not Guid)
+            if (await warehouse.ExecuteScalarAsync(token) is Guid selectedWarehouse)
+                warehouseId = selectedWarehouse;
+            else
                 warnings.Add(new("NO_COMMON_FULFILLMENT_WAREHOUSE", "These items can be priced, but they are not currently available together from one fulfillment warehouse."));
         }
         return (warehouseId, lines, warnings);
@@ -563,9 +646,13 @@ WHERE i.TenantId=@tenant AND i.InvoiceId=@order AND i.CustomerId=@customer;", co
         if (value is "COD" or "UPI" or "NET_BANKING") return value;
         throw new BusinessRuleException("Select a supported payment method.");
     }
-    private static string CustomerMessage(string method) => method == "COD"
-        ? "Your order is confirmed for cash payment on delivery."
-        : "Payment is processing. The order will update when Razorpay confirms it.";
+    private static string CustomerMessage(string method, bool mayArriveSeparately = false)
+    {
+        var message = method == "COD"
+            ? "Your order is confirmed for cash payment on delivery."
+            : "Payment is processing. The order will update when Razorpay confirms it.";
+        return mayArriveSeparately ? $"{message} Your order contains items that may arrive in separate deliveries." : message;
+    }
     [GeneratedRegex("^[A-Z0-9_-]{1,100}$", RegexOptions.CultureInvariant)] private static partial Regex StoreKeyPattern();
     [GeneratedRegex("[^0-9]+", RegexOptions.CultureInvariant)] private static partial Regex Digits();
     private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

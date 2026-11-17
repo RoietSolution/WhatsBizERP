@@ -48,7 +48,7 @@ describe('LocalCommerceIntentEngine', () => {
   it('clarifies an attribute and price without inventing a category', () => {
     const result = search('red under 1000');
     expect(result.products).toEqual([]);
-    expect(result.clarificationCategories.map(x => x.categoryName)).toEqual(['T-Shirts', 'Sarees', 'Stationery']);
+    expect(result.clarificationCategories.map(x => x.categoryName)).toEqual(['T-Shirts', 'Sarees']);
   });
 
   it('keeps results within the supplied tenant catalogue', () => {

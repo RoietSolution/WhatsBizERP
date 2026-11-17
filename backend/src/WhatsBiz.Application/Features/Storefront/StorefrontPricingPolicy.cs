@@ -30,7 +30,9 @@ public static class StorefrontPricingPolicy
         var tax = includedTax + additionalTax;
         var merchandise = subtotal + additionalTax;
         var validPincode = pincode?.Length == 6 && pincode.All(char.IsAsciiDigit);
-        var eligible = promotions.Where(x => (promotionCode is null || string.Equals(x.PromoCode, promotionCode, StringComparison.OrdinalIgnoreCase)) && x.IsActive && x.MinimumPurchaseAmount <= merchandise
+        var eligible = promotions.Where(x => (promotionCode is null
+                ? string.IsNullOrWhiteSpace(x.PromoCode)
+                : string.Equals(x.PromoCode, promotionCode, StringComparison.OrdinalIgnoreCase)) && x.IsActive && x.MinimumPurchaseAmount <= merchandise
             && (x.StartsAt is null || x.StartsAt <= now) && (x.EndsAt is null || x.EndsAt > now)
             && (x.OfferType == "MINIMUM_PURCHASE" || x.OfferType == "FIRST_ORDER" && verifiedCustomer && !hasQualifyingOrder)
             && (x.UsageLimitPerCustomer is null || verifiedCustomer && x.PreviousUses < x.UsageLimitPerCustomer.Value))

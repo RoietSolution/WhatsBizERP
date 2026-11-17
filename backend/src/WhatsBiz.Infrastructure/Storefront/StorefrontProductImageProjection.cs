@@ -3,7 +3,8 @@ using WhatsBiz.Infrastructure.Suppliers;
 
 namespace WhatsBiz.Infrastructure.Storefront;
 
-public sealed record ManagedStorefrontProductImage(Guid Id, bool IsPrimary);
+public sealed record ManagedStorefrontProductImage(Guid Id, bool IsPrimary, int? Width = null, int? Height = null,
+    int? ThumbnailWidth = null, int? ThumbnailHeight = null);
 public sealed record ExternalStorefrontProductImage(Guid Id, string Url, int DisplayOrder, bool IsPrimary);
 public sealed record StorefrontProductGallery(string? PrimaryUrl, IReadOnlyCollection<StorefrontProductImageDto> Images);
 
@@ -34,7 +35,8 @@ public static class StorefrontProductImageProjection
                 image.Id,
                 $"/api/store/{Uri.EscapeDataString(storeKey)}/products/{productId}/image?imageId={image.Id}",
                 $"/api/store/{Uri.EscapeDataString(storeKey)}/products/{productId}/image?imageId={image.Id}&thumbnail=true",
-                primaryExternal.SafeUrl is null && (hasManagedPrimary ? image.IsPrimary : index == 0))))
+                primaryExternal.SafeUrl is null && (hasManagedPrimary ? image.IsPrimary : index == 0),
+                image.Width, image.Height, image.ThumbnailWidth, image.ThumbnailHeight)))
             .ToArray();
         return new(primaryUrl, images);
     }

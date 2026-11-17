@@ -20,7 +20,7 @@ namespace WhatsBiz.Tests.POS;
 [Collection("SQL phase 2 full sale reversal")]
 public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper output)
 {
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task PaidStorefrontApprovalReversesAndPreparesRefundWithoutSettlingMoney()
     {
         var fixture=await Fixture.CreateAsync();
@@ -46,7 +46,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         output.WriteLine("PAID_CANCELLATION_APPROVAL {0}",status);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task PaidStorefrontRejectionAndWrongTenantDoNotReverseSale()
     {
         var fixture=await Fixture.CreateAsync();
@@ -67,7 +67,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         (await fixture.SnapshotAsync(invoice)).Status.Should().Be("COMPLETED");
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task AdvancedDeliveryCannotStartPaidApproval()
     {
         var fixture=await Fixture.CreateAsync();
@@ -84,7 +84,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         status.ApprovalStatus.Should().Be("REQUESTED");
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task ConcurrentPaidApprovalHasOneReversalAndOneRefundObligation()
     {
         var fixture=await Fixture.CreateAsync();
@@ -102,7 +102,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         (await fixture.SnapshotAsync(invoice)).StockRestorationCount.Should().Be(1);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task UncollectedHeldCodUsesExistingVoidWithoutReversalOrRefund()
     {
         var fixture=await Fixture.CreateAsync();
@@ -120,7 +120,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         output.WriteLine("HELD_COD_CANCELLATION {0}",status);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task ApprovedRazorpayCancellationStaysPendingThroughUnknownThenSettlesOnce()
     {
         var fixture=await Fixture.CreateAsync();
@@ -156,7 +156,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         gateway.CreateCalls.Should().Be(1);
     }
 
-    [Theory]
+    [WhatsBiz.Tests.Integration.SqlIntegrationTheory]
     [InlineData("DIRECT_UPI","UPI",false)]
     [InlineData("COD","CASH",true)]
     public async Task ApprovedManualCancellationSettlesOnlyAfterExternalConfirmation(
@@ -184,7 +184,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         after.BankOutCount.Should().Be(cash?0:1);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task ConfirmedBankRefundSettlesExactlyOnceAfterFullReversal()
     {
         var fixture = await Fixture.CreateAsync();
@@ -213,7 +213,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         output.WriteLine("PHASE3_BANK {0}", result);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task ConfirmedCollectedCodCashRefundUsesCashBook()
     {
         var fixture = await Fixture.CreateAsync();
@@ -229,7 +229,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         output.WriteLine("PHASE3_COD {0}", result);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task ManualDirectUpiConfirmationPostsOneBankRefund()
     {
         var fixture=await Fixture.CreateAsync();
@@ -251,7 +251,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         output.WriteLine("PHASE3_UPI {0}",result);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task UnknownRazorpayOutcomeCannotDispatchTwiceAndReconcilesBeforeSettlement()
     {
         var fixture=await Fixture.CreateAsync();
@@ -292,7 +292,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         output.WriteLine("PHASE3_RAZORPAY_UNKNOWN {0}",after);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task SettlementRejectsWrongTenantAndExcessBeforeMoneyMoves()
     {
         var fixture=await Fixture.CreateAsync();
@@ -312,7 +312,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         snapshot.RefundStatus.Should().Be("REFUND_PENDING");
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task ConcurrentConfirmedSettlementPostsOnlyOneFinancialEffect()
     {
         var fixture=await Fixture.CreateAsync();
@@ -329,7 +329,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         snapshot.CustomerDebit.Should().Be(440m);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task CommercePreparationUsesPhase2ObligationAndIsIdempotent()
     {
         var fixture=await Fixture.CreateAsync();
@@ -349,7 +349,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         output.WriteLine("PHASE3_PREPARED {0}",first);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task FailureAfterRefundJournalPostingRollsBackMoneyOutAndStatus()
     {
         var fixture=await Fixture.CreateAsync();
@@ -373,7 +373,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         (await fixture.RefundSnapshotAsync(invoice,refund)).RefundJournalCount.Should().Be(1);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task AcceptedRazorpayRefundIsNotFinanciallySettledUntilProviderProcessesIt()
     {
         var fixture=await Fixture.CreateAsync();
@@ -392,7 +392,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         gateway.CreateCalls.Should().Be(1);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task DefinitivelyFailedRazorpayAttemptCanRetryWithNewAttemptIdentity()
     {
         var fixture=await Fixture.CreateAsync();
@@ -411,7 +411,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         snapshot.RefundJournalCount.Should().Be(1);
         snapshot.BankOutAmount.Should().Be(440m);
     }
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task PaidPromotionDeliverySaleReversesOnceWithoutRefundOrReceiptReversal()
     {
         var fixture = await Fixture.CreateAsync();
@@ -457,7 +457,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         (await fixture.SnapshotAsync(invoice)).Should().Be(after);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task SavedGstIsInvertedAndUncollectedCompletedSaleHasNoRefund()
     {
         var fixture = await Fixture.CreateAsync();
@@ -475,7 +475,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         output.WriteLine("GST_AFTER {0}", after);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task CollectedCodRequiresRefundButDoesNotCreateCashOutflow()
     {
         var fixture = await Fixture.CreateAsync();
@@ -494,7 +494,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         output.WriteLine("COD_AFTER {0}", after);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task ImmediatePosInlineReceiptRemainsInsideOriginalSaleJournal()
     {
         var fixture = await Fixture.CreateAsync();
@@ -522,7 +522,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         output.WriteLine("INLINE_POS_AFTER {0}", after);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task ConcurrentReversalCallsProduceOneJournalAndOneStockRestoration()
     {
         var fixture=await Fixture.CreateAsync();
@@ -537,7 +537,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         after.StockQuantity.Should().Be(10m);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task PriorReturnAdvancedDeliveryAndWrongTenantFailClosed()
     {
         var fixture = await Fixture.CreateAsync();
@@ -562,7 +562,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         (await fixture.SnapshotAsync(foreign)).ReversalRows.Should().Be(1);
     }
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task FailureAfterJournalWriteRollsBackFinanceStockAndBusinessState()
     {
         var fixture = await Fixture.CreateAsync();
@@ -579,7 +579,7 @@ public sealed class ErpSaleReversalRuntimeIntegrationTests(ITestOutputHelper out
         output.WriteLine("ROLLED_BACK {0}", after);
     }
 
-    [Theory]
+    [WhatsBiz.Tests.Integration.SqlIntegrationTheory]
     [InlineData("UNASSIGNED")]
     [InlineData("ASSIGNED")]
     [InlineData("READY_FOR_PICKUP")]

@@ -67,8 +67,8 @@ public sealed class SupplierCatalogImportController(ApplicationDbContext db, ICu
         return Ok(ToDto(profile));
     }
 
-    [HttpPost("preview"), HasPermission(Permissions.Product.Create), RequestSizeLimit(10*1024*1024)]
-    public async Task<IActionResult> Preview(Guid supplierId, [FromForm] IFormFile file, CancellationToken token)
+    [HttpPost("preview"), HasPermission(Permissions.Product.Create), RequestSizeLimit(10*1024*1024), Consumes("multipart/form-data")]
+    public async Task<IActionResult> Preview(Guid supplierId, IFormFile file, CancellationToken token)
     {
         if (!await SupplierExists(supplierId, token)) return NotFound();
         if(file.Length is <=0 or >10*1024*1024) return BadRequest(new { message="The import file must be between 1 byte and 10 MB." });
@@ -132,8 +132,8 @@ public sealed class SupplierCatalogImportController(ApplicationDbContext db, ICu
         return Ok(new { supplierId,format="SHOPIFY",rows=preview,totalRows=preview.Length,existingCategoryCount=preview.Count(x=>x.categoryStatus=="EXISTING"),newCategoryCount=preview.Count(x=>x.categoryStatus=="NEW"),needsMappingCount=preview.Count(x=>x.categoryStatus=="NEEDS_MAPPING") });
     }
 
-    [HttpPost("import"), HasPermission(Permissions.Product.Create), RequestSizeLimit(14*1024*1024)]
-    public async Task<IActionResult> Import(Guid supplierId,[FromForm] IFormFile file,[FromForm] string selectionsJson,CancellationToken token)
+    [HttpPost("import"), HasPermission(Permissions.Product.Create), RequestSizeLimit(14*1024*1024), Consumes("multipart/form-data")]
+    public async Task<IActionResult> Import(Guid supplierId,IFormFile file,[FromForm] string selectionsJson,CancellationToken token)
     {
         if(!await SupplierExists(supplierId,token))return NotFound();
         if(file is null||file.Length is <=0 or >10*1024*1024)return BadRequest(new{message="The import file must be between 1 byte and 10 MB."});
@@ -200,7 +200,8 @@ public sealed class SupplierCatalogImportController(ApplicationDbContext db, ICu
                 if(product is null)
                 {
                     var code="SUP-"+Hash(tenant.ToString("N")+"|"+supplierId.ToString("N")+"|"+(row.SupplierSku??sourceIdentity))[..42];
-                    product=new Product{TenantId=tenant,ProductCode=code,ProductName=row.Title!,CategoryId=category.ProductCategoryId,BrandId=rowBrand!.BrandId,UnitId=rowUnit!.UnitId,GSTPercentage=gst.Value,GstPricingType=ShopifyCatalogPricingPolicy.GstPricingType,PurchasePrice=row.ProductCost!.Value,CombinedShippingPackagingCost=row.CombinedShippingPackagingCost!.Value,SellingPrice=sellingPrice!.Value,MRP=row.Mrp!.Value,IsActive=ShopifyCatalogStatusPolicy.ResolveForPersistence(row.ProposedIsActive,true,false,false),IsWhatsAppVisible=false,ImageUrl=row.ImageUrl,ShortDescription=row.DescriptionText,LongDescription=ProductDescriptionSanitizer.Sanitize(row.DescriptionHtml,100000),CreatedBy=user.Username};
+                    product=new Product{TenantId=tenant,ProductCode=code,ProductName=row.Title!,CategoryId=category.ProductCategoryId,BrandId=rowBrand!.BrandId,UnitId=rowUnit!.UnitId,GSTPercentage=gst.Value,GstPricingType=ShopifyCatalogPricingPolicy.GstPricingType,PurchasePrice=row.ProductCost!.Value,CombinedShippingPackagingCost=row.CombinedShippingPackagingCost!.Value,SellingPrice=sellingPrice!.Value,MRP=row.Mrp!.Value,IsActive=ShopifyCatalogStatusPolicy.ResolveForPersistence(row.ProposedIsActive,true,false,false),IsWhatsAppVisible=false,ImageUrl=row.ImageUrl,CreatedBy=user.Username};
+                    ShopifyProductDescriptionMapping.ApplyToNewProduct(product,row.DescriptionHtml);
                     db.Products.Add(product);
                 }
                 ShopifyCatalogPricingPolicy.ApplyRetailerPricing(product,row,gst.Value);
@@ -210,7 +211,7 @@ public sealed class SupplierCatalogImportController(ApplicationDbContext db, ICu
                 {
                     if(ownedFields.GetValueOrDefault("productName"))product.ProductName=row.Title!;
                     if(ownedFields.GetValueOrDefault("cost")){product.PurchasePrice=row.ProductCost??product.PurchasePrice;product.CombinedShippingPackagingCost=row.CombinedShippingPackagingCost;}
-                    if(ownedFields.GetValueOrDefault("description")){product.ShortDescription=row.DescriptionText;product.LongDescription=ProductDescriptionSanitizer.Sanitize(row.DescriptionHtml,100000);}
+                    ShopifyProductDescriptionMapping.ApplyToExistingProduct(product,row.DescriptionHtml,ownedFields.GetValueOrDefault("description"));
                     if(ShopifyCatalogImageProjection.ShouldReplaceSupplierImages(ownedFields.GetValueOrDefault("images"),row.Images))product.ImageUrl=row.ImageUrl;
                     if(ownedFields.GetValueOrDefault("status"))product.IsActive=ShopifyCatalogStatusPolicy.ResolveForPersistence(row.ProposedIsActive,false,product.IsActive,true);
                     // Supplier refreshes never write retailer-controlled selling price, MRP, activation or visibility.

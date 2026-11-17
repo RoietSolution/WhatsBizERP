@@ -18,7 +18,7 @@ namespace WhatsBiz.Tests.Payments;
 [Collection("SQL phase 1 commerce payment")]
 public sealed class CommercePaymentRuntimeIntegrationTests(ITestOutputHelper output)
 {
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task VerifiedWebhookAndReplayPostOneErpReceipt()
     {
         var connectionString = SqlIntegrationDatabase.ConnectionString;

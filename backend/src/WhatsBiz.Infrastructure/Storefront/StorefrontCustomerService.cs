@@ -85,11 +85,24 @@ public sealed class StorefrontCustomerService(
         await using var connection = await Open(session.TenantId, token);
         await using var command = new SqlCommand("""
             SELECT TOP(100) i.InvoiceId,i.InvoiceNumber,i.InvoiceDate,i.Status,i.GrandTotal,
-              CASE WHEN d.DeliveryStatus=N'UNASSIGNED' AND d.ReadyAt IS NOT NULL THEN N'READY_FOR_PICKUP' ELSE d.DeliveryStatus END,w.TrackingNumber,COALESCE(cp.PaymentMethod,w.PaymentType,N'UNKNOWN'),COALESCE(cp.Status,N'PENDING'),
-              (SELECT COUNT(1) FROM sales.SalesInvoiceItems x WHERE x.InvoiceId=i.InvoiceId)
+              CASE WHEN i.OrderType='MARKETPLACE' THEN md.DeliveryStatus WHEN d.DeliveryStatus=N'UNASSIGNED' AND d.ReadyAt IS NOT NULL THEN N'READY_FOR_PICKUP' ELSE d.DeliveryStatus END,w.TrackingNumber,COALESCE(cp.PaymentMethod,w.PaymentType,N'UNKNOWN'),COALESCE(cp.Status,N'PENDING'),
+              (SELECT COUNT(1) FROM sales.SalesInvoiceItems x WHERE x.InvoiceId=i.InvoiceId),
+              COALESCE((SELECT CASE WHEN COUNT(*)=0 THEN N'NONE' WHEN SUM(CASE WHEN r.RefundStatus='REVIEW_REQUIRED' THEN 1 ELSE 0 END)>0 THEN N'REVIEW_REQUIRED' WHEN SUM(CASE WHEN r.RefundStatus IN('REFUND_REQUIRED','REFUND_PENDING') THEN 1 ELSE 0 END)>0 THEN N'REFUND_REQUIRED' WHEN SUM(CASE WHEN r.RefundStatus='REFUNDED' THEN 1 ELSE 0 END)>0 THEN N'REFUNDED' ELSE N'NO_REFUND_REQUIRED' END FROM commerce.MarketplaceFulfilmentRefundObligations r WHERE r.TenantId=i.TenantId AND r.OrderId=i.InvoiceId),N'NONE')
             FROM sales.SalesInvoices i
             JOIN integration.WhatsAppCommerceOrders w ON w.TenantId=i.TenantId AND w.InvoiceId=i.InvoiceId AND w.SourceChannel=N'STOREFRONT'
             LEFT JOIN commerce.OrderDeliveries d ON d.TenantId=i.TenantId AND d.OrderId=i.InvoiceId
+            OUTER APPLY(SELECT CASE WHEN COUNT_BIG(*)=0 THEN NULL
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='CANCELLED' THEN 1 ELSE 0 END)=COUNT_BIG(*) THEN N'CANCELLED'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus IN('DELIVERED','CANCELLED') THEN 1 ELSE 0 END)=COUNT_BIG(*) AND SUM(CASE WHEN g.FulfilmentStatus='CANCELLED' THEN 1 ELSE 0 END)>0 THEN N'PARTIALLY_CANCELLED'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='CANCELLED' THEN 1 ELSE 0 END)=0 AND SUM(CASE WHEN g.FulfilmentStatus<>'DELIVERED' THEN 1 ELSE 0 END)=0 THEN N'DELIVERED'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='DELIVERED' THEN 1 ELSE 0 END)>0 THEN N'PARTIALLY_DELIVERED'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='DELIVERY_FAILED' THEN 1 ELSE 0 END)>0 THEN N'DELIVERY_ATTENTION'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='CANCELLED' THEN 1 ELSE 0 END)>0 THEN N'PARTIALLY_CANCELLED'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='OUT_FOR_DELIVERY' THEN 1 ELSE 0 END)>0 AND SUM(CASE WHEN g.FulfilmentStatus NOT IN('OUT_FOR_DELIVERY','DELIVERED','CANCELLED') THEN 1 ELSE 0 END)>0 THEN N'PARTIALLY_DISPATCHED'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='OUT_FOR_DELIVERY' THEN 1 ELSE 0 END)>0 THEN N'OUT_FOR_DELIVERY'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='READY_FOR_DISPATCH' THEN 1 ELSE 0 END)>0 THEN N'READY_FOR_PICKUP'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus IN('PREPARING','PENDING') THEN 1 ELSE 0 END)>0 THEN N'PREPARING' END DeliveryStatus
+              FROM commerce.MarketplaceFulfilmentGroups g WHERE g.TenantId=i.TenantId AND g.OrderId=i.InvoiceId) md
             OUTER APPLY(SELECT TOP(1) p.PaymentMethod,p.Status FROM commerce.CommercePayments p WHERE p.TenantId=i.TenantId AND p.InvoiceId=i.InvoiceId ORDER BY CASE WHEN p.Status IN(N'PAID',N'CAPTURED') THEN 0 ELSE 1 END,p.AttemptNumber DESC) cp
             WHERE i.TenantId=@tenant AND i.CustomerId=@customer
             ORDER BY i.InvoiceDate DESC;
@@ -103,7 +116,7 @@ public sealed class StorefrontCustomerService(
             var invoiceStatus = reader.GetString(3); var delivery = reader.IsDBNull(5) ? null : reader.GetString(5);
             var paymentMethod = reader.GetString(7); var paymentStatus = reader.GetString(8);
             result.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetDateTimeOffset(2), StorefrontOrderPresentation.Status(invoiceStatus, delivery, paymentStatus, paymentMethod),
-                reader.GetDecimal(4), delivery, reader.IsDBNull(6) ? null : reader.GetString(6), reader.GetString(7), StorefrontOrderPresentation.PaymentStatus(reader.GetString(8), reader.GetString(7)), reader.GetInt32(9)));
+                reader.GetDecimal(4), delivery, reader.IsDBNull(6) ? null : reader.GetString(6), reader.GetString(7), StorefrontOrderPresentation.PaymentStatus(reader.GetString(8), reader.GetString(7)), reader.GetInt32(9),RefundStatus:StorefrontOrderPresentation.RefundStatusLabel(reader.GetString(10))));
         }
         return result;
     }
@@ -114,16 +127,29 @@ public sealed class StorefrontCustomerService(
         if (session is null || orderId == Guid.Empty) return null;
         await using var connection = await Open(session.TenantId, token);
         await using var command = new SqlCommand("""
-            SELECT i.InvoiceNumber,i.InvoiceDate,i.Status,i.GrandTotal,CASE WHEN d.DeliveryStatus=N'UNASSIGNED' AND d.ReadyAt IS NOT NULL THEN N'READY_FOR_PICKUP' ELSE d.DeliveryStatus END,w.TrackingNumber,
-              COALESCE(cp.PaymentMethod,w.PaymentType,N'UNKNOWN'),COALESCE(cp.Status,N'PENDING'),d.ReadyAt,d.OutForDeliveryAt,d.DeliveredAt,d.FailedAt,d.UpdatedAt,i.DeliveryCharge,i.PromotionDiscountAmount,i.AppliedPromotionName,i.Subtotal+i.TaxAmount,i.TaxAmount,i.Subtotal
+            SELECT i.InvoiceNumber,i.InvoiceDate,i.Status,i.GrandTotal,CASE WHEN i.OrderType='MARKETPLACE' THEN md.DeliveryStatus WHEN d.DeliveryStatus=N'UNASSIGNED' AND d.ReadyAt IS NOT NULL THEN N'READY_FOR_PICKUP' ELSE d.DeliveryStatus END,w.TrackingNumber,
+              COALESCE(cp.PaymentMethod,w.PaymentType,N'UNKNOWN'),COALESCE(cp.Status,N'PENDING'),d.ReadyAt,d.OutForDeliveryAt,d.DeliveredAt,d.FailedAt,d.UpdatedAt,i.DeliveryCharge,i.PromotionDiscountAmount,i.AppliedPromotionName,i.Subtotal+i.TaxAmount,i.TaxAmount,i.Subtotal,i.OrderType,
+              COALESCE((SELECT CASE WHEN COUNT(*)=0 THEN N'NONE' WHEN SUM(CASE WHEN r.RefundStatus='REVIEW_REQUIRED' THEN 1 ELSE 0 END)>0 THEN N'REVIEW_REQUIRED' WHEN SUM(CASE WHEN r.RefundStatus IN('REFUND_REQUIRED','REFUND_PENDING') THEN 1 ELSE 0 END)>0 THEN N'REFUND_REQUIRED' WHEN SUM(CASE WHEN r.RefundStatus='REFUNDED' THEN 1 ELSE 0 END)>0 THEN N'REFUNDED' ELSE N'NO_REFUND_REQUIRED' END FROM commerce.MarketplaceFulfilmentRefundObligations r WHERE r.TenantId=i.TenantId AND r.OrderId=i.InvoiceId),N'NONE')
             FROM sales.SalesInvoices i
             JOIN integration.WhatsAppCommerceOrders w ON w.TenantId=i.TenantId AND w.InvoiceId=i.InvoiceId AND w.SourceChannel=N'STOREFRONT'
             LEFT JOIN commerce.OrderDeliveries d ON d.TenantId=i.TenantId AND d.OrderId=i.InvoiceId
+            OUTER APPLY(SELECT CASE WHEN COUNT_BIG(*)=0 THEN NULL
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='CANCELLED' THEN 1 ELSE 0 END)=COUNT_BIG(*) THEN N'CANCELLED'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus IN('DELIVERED','CANCELLED') THEN 1 ELSE 0 END)=COUNT_BIG(*) AND SUM(CASE WHEN g.FulfilmentStatus='CANCELLED' THEN 1 ELSE 0 END)>0 THEN N'PARTIALLY_CANCELLED'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='CANCELLED' THEN 1 ELSE 0 END)=0 AND SUM(CASE WHEN g.FulfilmentStatus<>'DELIVERED' THEN 1 ELSE 0 END)=0 THEN N'DELIVERED'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='DELIVERED' THEN 1 ELSE 0 END)>0 THEN N'PARTIALLY_DELIVERED'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='DELIVERY_FAILED' THEN 1 ELSE 0 END)>0 THEN N'DELIVERY_ATTENTION'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='CANCELLED' THEN 1 ELSE 0 END)>0 THEN N'PARTIALLY_CANCELLED'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='OUT_FOR_DELIVERY' THEN 1 ELSE 0 END)>0 AND SUM(CASE WHEN g.FulfilmentStatus NOT IN('OUT_FOR_DELIVERY','DELIVERED','CANCELLED') THEN 1 ELSE 0 END)>0 THEN N'PARTIALLY_DISPATCHED'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='OUT_FOR_DELIVERY' THEN 1 ELSE 0 END)>0 THEN N'OUT_FOR_DELIVERY'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus='READY_FOR_DISPATCH' THEN 1 ELSE 0 END)>0 THEN N'READY_FOR_PICKUP'
+              WHEN SUM(CASE WHEN g.FulfilmentStatus IN('PREPARING','PENDING') THEN 1 ELSE 0 END)>0 THEN N'PREPARING' END DeliveryStatus
+              FROM commerce.MarketplaceFulfilmentGroups g WHERE g.TenantId=i.TenantId AND g.OrderId=i.InvoiceId) md
             OUTER APPLY(SELECT TOP(1) p.PaymentMethod,p.Status FROM commerce.CommercePayments p WHERE p.TenantId=i.TenantId AND p.InvoiceId=i.InvoiceId ORDER BY CASE WHEN p.Status IN(N'PAID',N'CAPTURED') THEN 0 ELSE 1 END,p.AttemptNumber DESC) cp
             WHERE i.TenantId=@tenant AND i.CustomerId=@customer AND i.InvoiceId=@order;
             """, connection);
         command.Parameters.AddWithValue("@tenant", session.TenantId); command.Parameters.AddWithValue("@customer", session.CustomerId); command.Parameters.AddWithValue("@order", orderId);
-        string number, invoiceStatus, paymentMethod, paymentStatus; string? delivery, tracking; DateTimeOffset placed; decimal total;
+        string number, invoiceStatus, paymentMethod, paymentStatus, refundStatus; string? delivery, tracking; DateTimeOffset placed; decimal total;bool marketplaceOrder;
         DateTimeOffset? packed, outAt, delivered, failed, cancelled; decimal deliveryCharge,promotionDiscount,merchandiseAmount,merchandiseTaxAmount,merchandiseSubtotal; string? promotionName;
         await using (var reader = await command.ExecuteReaderAsync(token))
         {
@@ -133,6 +159,8 @@ public sealed class StorefrontCustomerService(
             packed=reader.IsDBNull(8)?null:reader.GetDateTimeOffset(8); outAt=reader.IsDBNull(9)?null:reader.GetDateTimeOffset(9); delivered=reader.IsDBNull(10)?null:reader.GetDateTimeOffset(10); failed=reader.IsDBNull(11)?null:reader.GetDateTimeOffset(11);
             cancelled=StorefrontOrderPresentation.Status(invoiceStatus,delivery,paymentStatus,paymentMethod)=="Cancelled"&&!reader.IsDBNull(12)?reader.GetDateTimeOffset(12):null;
             deliveryCharge=reader.GetDecimal(13);promotionDiscount=reader.GetDecimal(14);promotionName=reader.IsDBNull(15)?null:reader.GetString(15);merchandiseAmount=reader.GetDecimal(16);merchandiseTaxAmount=reader.GetDecimal(17);merchandiseSubtotal=reader.GetDecimal(18);
+            marketplaceOrder=reader.GetString(19)=="MARKETPLACE";
+            refundStatus=reader.GetString(20);
         }
         var defaultReturnDays = 7;
         await using (var defaults = new SqlCommand("SELECT COALESCE((SELECT DefaultReturnWindowDays FROM commerce.StorefrontConfigurations WHERE TenantId=@tenant),7);", connection))
@@ -158,10 +186,25 @@ public sealed class StorefrontCustomerService(
                 lines.Add(new(reader.GetGuid(1),reader.GetString(2),reader.IsDBNull(3)?null:reader.GetString(3),reader.GetDecimal(4),reader.GetDecimal(6),eligible,days,delivered,deadline,lineStatus,reader.IsDBNull(9)?null:reader.GetString(9),itemId,reader.GetDecimal(5),returnable,request.Requested==0?0:request.Requested,request.Status==null?null:request.Status,request.Id==Guid.Empty?null:request.Id));
             }
         }
+        IReadOnlyCollection<StorefrontDeliveryGroupDto>? fulfilmentGroups=null;
+        if(marketplaceOrder)
+        {
+            var groupMap=new Dictionary<int,(string Status,string? Tracking,DateTimeOffset? Ready,DateTimeOffset? Dispatched,DateTimeOffset? Delivered,List<StorefrontDeliveryItemDto> Items)>();
+            await using var groupItems=new SqlCommand("SELECT g.GroupNumber,g.FulfilmentStatus,g.TrackingReference,g.ReadyAt,g.DispatchedAt,g.DeliveredAt,i.ProductId,p.ProductName,a.AllocatedQuantity FROM commerce.MarketplaceFulfilmentGroups g JOIN commerce.MarketplaceFulfilmentGroupItems gi ON gi.TenantId=g.TenantId AND gi.FulfilmentGroupId=g.FulfilmentGroupId JOIN commerce.MarketplaceOrderAllocations a ON a.TenantId=gi.TenantId AND a.AllocationId=gi.AllocationId JOIN sales.SalesInvoiceItems i ON i.InvoiceId=a.OrderId AND i.InvoiceItemId=a.InvoiceItemId JOIN master.Products p ON p.TenantId=g.TenantId AND p.ProductId=i.ProductId WHERE g.TenantId=@tenant AND g.OrderId=@order ORDER BY g.GroupNumber,p.ProductName;",connection);
+            groupItems.Parameters.AddWithValue("@tenant",session.TenantId);groupItems.Parameters.AddWithValue("@order",orderId);
+            await using(var gr=await groupItems.ExecuteReaderAsync(token))while(await gr.ReadAsync(token))
+            {
+                var groupNumber=(int)gr.GetInt16(0);
+                if(!groupMap.TryGetValue(groupNumber,out var group))
+                {group=(gr.GetString(1),gr.IsDBNull(2)?null:gr.GetString(2),gr.IsDBNull(3)?null:gr.GetDateTimeOffset(3),gr.IsDBNull(4)?null:gr.GetDateTimeOffset(4),gr.IsDBNull(5)?null:gr.GetDateTimeOffset(5),[]);groupMap.Add(groupNumber,group);}
+                group.Items.Add(new(gr.GetGuid(6),gr.GetString(7),gr.GetDecimal(8)));
+            }
+            fulfilmentGroups=groupMap.OrderBy(x=>x.Key).Select(x=>new StorefrontDeliveryGroupDto(x.Key,StorefrontOrderPresentation.DeliveryGroupStatus(x.Value.Status),x.Value.Tracking,x.Value.Ready,x.Value.Dispatched,x.Value.Delivered,x.Value.Items)).ToArray();
+        }
         var status=StorefrontOrderPresentation.Status(invoiceStatus,delivery,paymentStatus,paymentMethod);
         return new(orderId,number,placed,status,total,delivery,tracking,paymentMethod,StorefrontOrderPresentation.PaymentStatus(paymentStatus,paymentMethod),lines.Count,lines,
             StorefrontOrderPresentation.Timeline(invoiceStatus,delivery,paymentStatus,paymentMethod,placed,packed,outAt,delivered,failed,cancelled),
-            deliveryCharge,promotionDiscount,promotionName,merchandiseAmount,null,merchandiseTaxAmount,merchandiseSubtotal);
+            deliveryCharge,promotionDiscount,promotionName,merchandiseAmount,null,merchandiseTaxAmount,merchandiseSubtotal,FulfilmentGroups:fulfilmentGroups,RefundStatus:StorefrontOrderPresentation.RefundStatusLabel(refundStatus));
     }
 
     public async Task<IReadOnlyCollection<StorefrontProductDto>?> GetWishlistAsync(string storeKey, string sessionToken, CancellationToken token)

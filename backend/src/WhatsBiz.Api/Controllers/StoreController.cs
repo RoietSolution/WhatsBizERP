@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Application.Features.Storefront;
+using WhatsBiz.Api.Configuration;
 
 namespace WhatsBiz.Api.Controllers;
 
@@ -29,9 +30,17 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
     }
 
     [HttpGet("products")]
-    public async Task<ActionResult<StorefrontProductPageDto>> GetProducts(string storeKey, [FromQuery] int page = 1, [FromQuery] int pageSize = 24, [FromQuery] Guid? categoryId = null, CancellationToken token = default)
+    public async Task<ActionResult<StorefrontProductPageDto>> GetProducts(string storeKey, [FromQuery] int page = 1, [FromQuery] int pageSize = 24,
+        [FromQuery] Guid? categoryId = null, [FromQuery] decimal? minPrice = null, [FromQuery] decimal? maxPrice = null,
+        [FromQuery] bool inStockOnly = false, [FromQuery] string sortBy = "RECOMMENDED", CancellationToken token = default)
     {
-        page = Math.Clamp(page, 1, 100000); pageSize = Math.Clamp(pageSize, 1, 50); var products = await storefront.GetProductsAsync(storeKey, page, pageSize, categoryId, token);
+        if (minPrice is < 0 or > 1_000_000_000m || maxPrice is < 0 or > 1_000_000_000m || (minPrice.HasValue && maxPrice.HasValue && minPrice > maxPrice))
+            return BadRequest(new { message = "Enter a valid non-negative product price range." });
+        sortBy = (sortBy ?? "RECOMMENDED").Trim().ToUpperInvariant();
+        if (sortBy is not ("RECOMMENDED" or "PRICE_LOW_TO_HIGH" or "PRICE_HIGH_TO_LOW" or "NEWEST"))
+            return BadRequest(new { message = "The requested product sort is not supported." });
+        page = Math.Clamp(page, 1, 100000); pageSize = Math.Clamp(pageSize, 1, 50);
+        var products = await storefront.GetProductsAsync(storeKey, page, pageSize, new StorefrontProductQuery(categoryId, minPrice, maxPrice, inStockOnly, sortBy), token);
         return products is null ? NotFound() : Ok(products);
     }
     [HttpGet("availability-announcements")]
@@ -92,7 +101,9 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         if (store is null) return NotFound();
         var key = store.StoreKey.ToLowerInvariant();
         var origin = ValidOrigin(shopOrigin) ?? ValidOrigin(Request.Headers.Referer.ToString());
-        var startUrl = $"{origin?.TrimEnd('/') ?? string.Empty}/{key}/";
+        var mappedStoreKey = StorefrontDomainMappings.ResolveStoreKey(HttpContext.RequestServices.GetRequiredService<IConfiguration>(), origin);
+        var customDomain = mappedStoreKey is not null && string.Equals(mappedStoreKey, key, StringComparison.OrdinalIgnoreCase);
+        var startUrl = customDomain ? $"{origin!.TrimEnd('/')}/" : $"{origin?.TrimEnd('/') ?? string.Empty}/{key}/";
         var shortName = store.Name.Trim();
         if (shortName.Length > 12) shortName = shortName[..12].TrimEnd();
         var manifest = new Dictionary<string, object?>
@@ -123,23 +134,23 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         => ToImage(await storefront.GetPwaIconAsync(storeKey, size, token));
     [HttpGet("presentation/logo")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
-    public async Task<IActionResult> GetLogo(string storeKey, CancellationToken token)
-        => ToImage(await storefront.GetPresentationImageAsync(storeKey, "logo", null, token));
+    public async Task<IActionResult> GetLogo(string storeKey, [FromQuery] bool thumbnail, CancellationToken token)
+        => ToImage(await storefront.GetPresentationImageAsync(storeKey, "logo", null, thumbnail, token));
 
     [HttpGet("presentation/banners/{slot}")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
-    public async Task<IActionResult> GetBanner(string storeKey, string slot, CancellationToken token)
-        => ToImage(await storefront.GetPresentationImageAsync(storeKey, $"banner-{slot}", null, token));
+    public async Task<IActionResult> GetBanner(string storeKey, string slot, [FromQuery] bool thumbnail, CancellationToken token)
+        => ToImage(await storefront.GetPresentationImageAsync(storeKey, $"banner-{slot}", null, thumbnail, token));
 
     [HttpGet("presentation/categories/{categoryId:guid}")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
-    public async Task<IActionResult> GetCategoryImage(string storeKey, Guid categoryId, CancellationToken token)
-        => ToImage(await storefront.GetPresentationImageAsync(storeKey, "category", categoryId, token));
+    public async Task<IActionResult> GetCategoryImage(string storeKey, Guid categoryId, [FromQuery] bool thumbnail, CancellationToken token)
+        => ToImage(await storefront.GetPresentationImageAsync(storeKey, "category", categoryId, thumbnail, token));
 
     [HttpGet("presentation/categories/all")]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
-    public async Task<IActionResult> GetAllCategoryImage(string storeKey, CancellationToken token)
-        => ToImage(await storefront.GetPresentationImageAsync(storeKey, "category-all", null, token));
+    public async Task<IActionResult> GetAllCategoryImage(string storeKey, [FromQuery] bool thumbnail, CancellationToken token)
+        => ToImage(await storefront.GetPresentationImageAsync(storeKey, "category-all", null, thumbnail, token));
 
     [HttpPost("customer-auth/otp/request")]
     [EnableRateLimiting("StorefrontOtpRequest")]
@@ -222,8 +233,8 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
     [HttpGet("feedback/{ticketId:guid}/attachments")]
     public async Task<IActionResult> FeedbackAttachments(string storeKey, Guid ticketId, CancellationToken token)
     { var customer=await customers.GetSessionAsync(storeKey,CustomerSessionToken(),token); var tenant=await feedback.ResolveTenantAsync(storeKey,token); if(customer is null||tenant is null)return Unauthorized(); return Ok(await feedback.AttachmentsAsync(tenant.Value,ticketId,customer.Id,false,token)); }
-    [HttpPost("feedback/{ticketId:guid}/attachments"), RequestSizeLimit(16 * 1024 * 1024)]
-    public async Task<ActionResult<StorefrontFeedbackAttachmentDto>> AddFeedbackAttachment(string storeKey, Guid ticketId, [FromForm(Name="file")] IFormFile file, CancellationToken token)
+    [HttpPost("feedback/{ticketId:guid}/attachments"), RequestSizeLimit(16 * 1024 * 1024), Consumes("multipart/form-data")]
+    public async Task<ActionResult<StorefrontFeedbackAttachmentDto>> AddFeedbackAttachment(string storeKey, Guid ticketId, IFormFile file, CancellationToken token)
     { if(file is null)return BadRequest(new{message="Choose an attachment."}); var customer=await customers.GetSessionAsync(storeKey,CustomerSessionToken(),token); var tenant=await feedback.ResolveTenantAsync(storeKey,token); if(customer is null||tenant is null)return Unauthorized(); await using var stream=file.OpenReadStream(); using var memory=new MemoryStream(); await stream.CopyToAsync(memory,token); try{return Ok(await feedback.AddAttachmentAsync(tenant.Value,ticketId,customer.Id,false,file.FileName,file.ContentType,memory.ToArray(),token));}catch(BusinessRuleException ex){return BadRequest(new{message=ex.Message});} }
     [HttpGet("feedback/{ticketId:guid}/attachments/{attachmentId:guid}")]
     public async Task<IActionResult> DownloadFeedbackAttachment(string storeKey, Guid ticketId, Guid attachmentId, CancellationToken token)
@@ -257,9 +268,9 @@ public sealed partial class StoreController(IStorefrontService storefront, IStor
         try { return await rewards.CaptureReferralAsync(storeKey, CustomerSessionToken(), input, token) ? NoContent() : Unauthorized(); }
         catch (BusinessRuleException exception) { return BadRequest(new { message = exception.Message }); }
     }
-    [HttpPost("session/profile-image")]
+    [HttpPost("session/profile-image"), Consumes("multipart/form-data")]
     [RequestSizeLimit(MaxProfileImageRequestBytes)]
-    public async Task<ActionResult<StorefrontCustomerDto>> UploadProfileImage(string storeKey, [FromForm(Name = "file")] IFormFile file, CancellationToken token)
+    public async Task<ActionResult<StorefrontCustomerDto>> UploadProfileImage(string storeKey, IFormFile file, CancellationToken token)
     {
         if (file is null || file.Length == 0) return BadRequest(new { message = "Choose an image to upload." });
         if (file.Length > MaxProfileImageBytes) return BadRequest(new { message = "Choose an image up to 5 MB." });

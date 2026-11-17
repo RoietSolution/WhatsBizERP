@@ -27,7 +27,7 @@ public sealed class SqlCommerceCollectionDefinition : ICollectionFixture<SqlComm
 [Collection("SQL commerce")]
 public sealed class SqlCommerceIntegrationTests(SqlCommerceFixture fixture)
 {
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task SqlBackedCommerceAndSecurityRegressionPasses()
     {
         await fixture.InitializeAsync();

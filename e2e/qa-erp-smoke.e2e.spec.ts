@@ -10,14 +10,28 @@ test('configured QA ERP shell loads at supported viewport widths', async ({ page
   await expect(page.locator('app-root')).toBeAttached();
   await expect(page).toHaveTitle(/KhataDhari ERP/i);
 
-  for (const width of [1440, 768, 390, 320]) {
+  for (const width of [360, 390, 768, 1366, 1920]) {
     await page.setViewportSize({ width, height: width <= 390 ? 844 : 960 });
-    await page.waitForLoadState('domcontentloaded');
-    const dimensions = await page.evaluate(() => ({
-      viewport: document.documentElement.clientWidth,
-      content: document.documentElement.scrollWidth,
-    }));
-    expect(dimensions.content, `No horizontal overflow at ${width}px`).toBeLessThanOrEqual(dimensions.viewport);
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    });
+    const dimensions = await page.evaluate(() => {
+      const viewport = document.documentElement.clientWidth;
+      const offenders = Array.from(document.querySelectorAll('body *')).map(element => {
+        const rect = element.getBoundingClientRect();
+        return {
+          tag: element.tagName.toLowerCase(),
+          id: element.id,
+          className: typeof element.className === 'string' ? element.className.slice(0, 100) : '',
+          right: Math.round(rect.right * 10) / 10,
+          width: Math.round(rect.width * 10) / 10,
+        };
+      }).filter(element => element.width > 0 && element.right > viewport + 0.5).slice(0, 8);
+      return { viewport, content: document.documentElement.scrollWidth, offenders };
+    });
+    expect(dimensions.content, `No horizontal overflow at ${width}px; overflowing elements: ${JSON.stringify(dimensions.offenders)}`)
+      .toBeLessThanOrEqual(dimensions.viewport);
     await page.screenshot({
       path: testInfo.outputPath(`qa-erp-shell-${width}px.png`),
       fullPage: true,

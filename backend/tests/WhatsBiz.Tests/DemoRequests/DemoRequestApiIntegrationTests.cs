@@ -15,7 +15,7 @@ public sealed class DemoRequestApiIntegrationTests
 {
     private static string ConnectionString => SqlIntegrationDatabase.ConnectionString;
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task PublicEndpointPersistsLeadAndCorsAllowsOnlyConfiguredWebsite()
     {
         await using (var gate = new SqlConnection(ConnectionString))

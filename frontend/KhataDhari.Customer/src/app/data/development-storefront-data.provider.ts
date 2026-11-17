@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer } from '../models/storefront.models';
+import { CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductCatalogFilters, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer } from '../models/storefront.models';
 import { StorefrontDataProvider } from './storefront-data.provider';
 
 const guturgoCategories: Category[] = [
@@ -12,7 +12,7 @@ const guturgoCategories: Category[] = [
 ];
 
 const guturgoProducts: Product[] = [
-  { id: 'amul-gold-milk', categoryId: 'dairy', name: 'Amul Gold Milk', description: 'Rich and creamy full-cream milk, perfect for your morning chai.', imageUrl: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=720&q=85', sellingPrice: 68, available: true, packSize: '1 L', averageRating:4.4, ratingCount:23, badge: 'Bestseller' },
+  { id: 'amul-gold-milk', categoryId: 'dairy', name: 'Amul Gold Milk', description: 'Rich and creamy full-cream milk, perfect for your morning chai.', imageUrl: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=720&q=85', sellingPrice: 68, available: true, packSize: '1 L', averageRating:4.4, ratingCount:23, badge: 'Bestseller', isReturnable: true, returnWindowDays: 7, returnPolicyMode: 'INHERIT_DEFAULT', specifications: [{name:'Pack size',value:'1 L'},{name:'Storage',value:'Keep refrigerated'}] },
   { id: 'amul-butter', categoryId: 'dairy', name: 'Amul Butter', description: 'A little butter makes everything better. Salted and delicious.', imageUrl: 'https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?auto=format&fit=crop&w=720&q=85', sellingPrice: 285, compareAtPrice: 300, available: true, packSize: '500 g' },
   { id: 'farm-eggs', categoryId: 'dairy', name: 'Farm Fresh Eggs', description: 'A fresh, protein-rich dozen from our trusted local farm.', imageUrl: 'https://images.unsplash.com/photo-1506976785307-8732e854ad03?auto=format&fit=crop&w=720&q=85', sellingPrice: 96, available: true, packSize: '12 pcs', badge: 'Fresh today' },
   { id: 'red-apples', categoryId: 'fruits', name: 'Kashmiri Red Apples', description: 'Crisp, sweet apples selected for freshness and flavour.', imageUrl: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=720&q=85', sellingPrice: 180, available: true, packSize: '1 kg' },
@@ -32,6 +32,9 @@ const demoStore: Store = {
   showProductRatings: true,
   showProductReviews: true,
   deliveryMessage: 'Free delivery on orders above â‚¹499',
+  freeDeliveryEnabled: true,
+  freeDeliveryThreshold: 499,
+  defaultReturnWindowDays: 7,
   banners: [],
   paymentMethods: [{code:'COD',provider:'COD',label:'Cash on Delivery',description:'Pay when your order is delivered',isDefault:false,usesHostedPaymentPage:false},{code:'UPI',provider:'RAZORPAY',label:'UPI',description:' (Powered by Razorpay)',isDefault:true,usesHostedPaymentPage:true},{code:'NET_BANKING',provider:'RAZORPAY',label:'Net Banking',description:' (Powered by Razorpay)',isDefault:false,usesHostedPaymentPage:true}],
   customerRewardsEnabled: true,
@@ -49,7 +52,18 @@ export class DevelopmentStorefrontDataProvider implements StorefrontDataProvider
     return storeKey.toLowerCase() === demoStore.storeKey ? guturgoCategories : [];
   }
 
-  async getProducts(storeKey: string, page = 1, pageSize = 24, categoryId?: string): Promise<ProductPage> { const all = (storeKey.toLowerCase() === demoStore.storeKey ? guturgoProducts : []).filter(product => !categoryId || product.categoryId === categoryId); const items = all.slice((page - 1) * pageSize, page * pageSize); return { items, pageNumber: page, pageSize, totalCount: all.length, hasMore: page * pageSize < all.length }; }
+  async getProducts(storeKey: string, page = 1, pageSize = 24, categoryId?: string, filters?: ProductCatalogFilters): Promise<ProductPage> {
+    const catalog = storeKey.toLowerCase() === demoStore.storeKey ? guturgoProducts : [];
+    const prices = catalog.map(product => product.sellingPrice);
+    let all = catalog.filter(product => (!categoryId || product.categoryId === categoryId)
+      && (filters?.minPrice === undefined || product.sellingPrice >= filters.minPrice)
+      && (filters?.maxPrice === undefined || product.sellingPrice <= filters.maxPrice)
+      && (!filters?.inStockOnly || product.available));
+    if (filters?.sortBy === 'PRICE_LOW_TO_HIGH') all = [...all].sort((a,b)=>a.sellingPrice-b.sellingPrice||a.id.localeCompare(b.id));
+    if (filters?.sortBy === 'PRICE_HIGH_TO_LOW') all = [...all].sort((a,b)=>b.sellingPrice-a.sellingPrice||a.id.localeCompare(b.id));
+    const items = all.slice((page - 1) * pageSize, page * pageSize);
+    return { items, pageNumber: page, pageSize, totalCount: all.length, hasMore: page * pageSize < all.length, minimumPrice: prices.length ? Math.min(...prices) : null, maximumPrice: prices.length ? Math.max(...prices) : null, supportsNewestSort: false };
+  }
 
   async getOffer(_storeKey:string,_offerId:string):Promise<StorefrontOffer|null>{return null;}
   async getProduct(storeKey: string, productId: string): Promise<Product | null> {

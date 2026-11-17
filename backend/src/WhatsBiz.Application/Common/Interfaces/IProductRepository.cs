@@ -7,6 +7,7 @@ public interface IProductRepository
 {
     Task<(IReadOnlyCollection<Product> Items, int TotalCount)> SearchAsync(string? search, bool? isActive, Guid? categoryId, Guid? brandId, string sortBy, bool descending, int pageNumber, int pageSize, CancellationToken cancellationToken);
     Task<Product?> GetAsync(Guid id, bool tracking, CancellationToken cancellationToken);
+    Task<Product?> GetDeletedAsync(Guid id, bool tracking, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<Product>> GetManyAsync(IReadOnlyCollection<Guid> ids, bool tracking, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<ProductHistoryDto>> GetHistoryAsync(Guid id, CancellationToken cancellationToken);
     Task<bool> ProductCodeExistsAsync(string code, Guid? excludingId, CancellationToken cancellationToken);
@@ -39,6 +40,13 @@ public interface IProductRepository
     Task<ProductImage?> GetImageByIdAsync(Guid productId, Guid imageId, bool tracking, CancellationToken cancellationToken);
     void Add(ProductImage image);
     Task SaveChangesAsync(CancellationToken cancellationToken);
+}
+
+public interface IProductImageCleanupScheduler
+{
+    Task ScheduleProductAsync(Guid tenantId, Guid productId, string requestedBy, DateTimeOffset requestedAtUtc, CancellationToken cancellationToken);
+    Task ScheduleImageAsync(ProductImage image, string requestedBy, DateTimeOffset requestedAtUtc, CancellationToken cancellationToken);
+    Task<bool> CancelProductAsync(Guid tenantId, Guid productId, CancellationToken cancellationToken);
 }
 
 public interface IProductSpreadsheetService

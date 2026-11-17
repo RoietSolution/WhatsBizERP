@@ -20,7 +20,7 @@ namespace WhatsBiz.Tests.Release;
 
 public sealed class ReleaseReadinessTests
 {
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task ApiSecurityHealthAuthenticationAndPermissionsAreReleaseReady()
     {
         Permissions.All.Should().OnlyHaveUniqueItems();

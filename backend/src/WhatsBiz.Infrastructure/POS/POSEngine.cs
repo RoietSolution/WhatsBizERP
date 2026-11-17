@@ -18,11 +18,11 @@ public sealed class POSEngine(
     public async Task<POSPostResult> Post(POSPostRequest r, CancellationToken token)
         => await PostInternal(r, currentUser.TenantId ?? throw new BusinessRuleException("A tenant context is required."), IdempotencyKeyReader.Read(httpContext), token);
 
-    public async Task<POSPostResult> PostForTenant(POSPostRequest r, Guid tenantId, string idempotencyKey, CancellationToken token)
+    public async Task<POSPostResult> PostForTenant(POSPostRequest r, Guid tenantId, string idempotencyKey, CancellationToken token, object? idempotencyRequest = null)
     {
         try
         {
-            return await idempotency.ExecuteForTenant(idempotencyKey, "POS_SALE", r, r.User, tenantId,
+            return await idempotency.ExecuteForTenant(idempotencyKey, "POS_SALE", idempotencyRequest ?? r, r.User, tenantId,
                 async (connection, transaction, ct) =>
                 {
                     // Public commerce only. Regular ERP PostInternal, historical invoices and

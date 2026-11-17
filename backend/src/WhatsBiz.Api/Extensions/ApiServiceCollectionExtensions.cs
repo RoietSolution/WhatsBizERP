@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.RateLimiting;
 using WhatsBiz.Api.Authorization;
 using WhatsBiz.Api.Health;
+using WhatsBiz.Api.Configuration;
 using WhatsBiz.Infrastructure.Identity;
 
 namespace WhatsBiz.Api.Extensions;
@@ -138,6 +139,10 @@ public static class CorsConfiguration
             .Where(origin => Uri.TryCreate(origin, UriKind.Absolute, out var uri)
                 && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
                 && string.IsNullOrEmpty(uri.PathAndQuery.Trim('/')))
+            .Concat(configuration.GetSection("StorefrontDomains:Mappings").GetChildren()
+                .Where(item => bool.TryParse(item["Verified"], out var verified) && verified)
+                .Select(item => StorefrontDomainMappings.NormalizeOrigin(item["Origin"]))
+                .OfType<string>())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }

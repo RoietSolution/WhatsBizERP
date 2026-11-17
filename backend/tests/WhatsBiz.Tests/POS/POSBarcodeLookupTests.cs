@@ -89,13 +89,15 @@ public sealed class POSBarcodeLookupTests
         await using var db = CreateDb();
         var product = Product(tenant, "STOCKED", "Stocked product");
         db.Products.Add(product);
-        db.InventoryBalances.Add(new InventoryBalance
+        var balance = new InventoryBalance
         {
             ProductId = product.ProductId,
             WarehouseId = warehouse,
             QuantityOnHand = 6,
             QuantityReserved = 2,
-        });
+        };
+        db.InventoryBalances.Add(balance);
+        db.Entry(balance).Property<Guid?>("TenantId").CurrentValue = tenant;
         db.InventorySettings.Add(new InventorySettings
         {
             InventorySettingsId = Guid.NewGuid(),

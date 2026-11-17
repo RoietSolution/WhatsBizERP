@@ -109,6 +109,7 @@ export const navigation: NavigationItem[] = [
         route: '/inventory/adjustment',
         permission: 'inventory.adjust',
       },
+      { label: 'Import / Update Stock', icon: 'upload_file', route: '/inventory/import-stock', permission: 'inventory.adjust' },
       {
         label: 'Transfers',
         icon: 'move_up',
@@ -267,6 +268,7 @@ export const navigation: NavigationItem[] = [
     role: 'ApplicationOwner',
     children: [
       { label: 'Owner Center', icon: 'dashboard', route: '/application-owner', role: 'ApplicationOwner' },
+      { label: 'Marketplace Visitor Analytics', icon: 'visibility', route: '/application-owner/visitor-analytics', permission: 'feature.manage', role: 'ApplicationOwner' },
       { label: 'Tenant Features', icon: 'account_tree', route: '/admin/features', permission: 'feature.manage', role: 'ApplicationOwner' },
       { label: 'Demo Requests', icon: 'campaign', route: '/admin/demo-requests', role: 'ApplicationOwner' },
       { label: 'WhatsApp Platform', icon: 'hub', route: '/admin/whatsapp-platform', permission: 'feature.manage', role: 'ApplicationOwner' },

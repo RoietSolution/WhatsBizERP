@@ -18,7 +18,7 @@ namespace WhatsBiz.Tests.Integration;
 [Collection("SQL EF compatibility")]
 public sealed class PublicCatalogSqlIntegrationTests
 {
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task MigrationRerunApprovalEditsImagesAndRevocationUntilRollback()
     {
         await using var connection=new SqlConnection(SqlIntegrationDatabase.ConnectionString);

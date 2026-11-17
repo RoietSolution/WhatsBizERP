@@ -105,7 +105,8 @@ public sealed class StorefrontCustomerAuthenticationTests
     public void OtpVerificationDerivesIdentityWithoutBrowserTenantOrCustomer()
     {
         typeof(StorefrontOtpVerifyInput).GetProperties().Select(x=>x.Name).Should()
-            .BeEquivalentTo(["ChallengeId","MobileNumber","Otp","Name","Email","IsRegistration","Password","ConfirmPassword","ReplacePassword"]);
+            .Contain(["ChallengeId","MobileNumber","Otp","Name","Email","IsRegistration","Password","ConfirmPassword","ReplacePassword",
+                "AcceptTerms","TermsPolicyId","TermsContentHash","AcknowledgePrivacy","PrivacyPolicyId","PrivacyContentHash"]);
         typeof(StorefrontOtpVerifyInput).GetProperties().Select(x=>x.Name).Should().NotContain(["TenantId","CustomerId"]);
     }
 
@@ -113,10 +114,12 @@ public sealed class StorefrontCustomerAuthenticationTests
     public void PasswordResetAndOtpLoginCannotCreateCustomersImplicitly()
     {
         var source=Read("backend/src/WhatsBiz.Infrastructure/Storefront/StorefrontCustomerAuthenticationService.cs");
-        source.Should().Contain("if (!allowCreate) return null;")
-            .And.Contain("input.IsRegistration, token")
+        source.Should().Contain("if (!input.IsRegistration) return null;")
+            .And.Contain("SignInPasswordAsync")
             .And.Contain("MobileNormalized IS NULL AND RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(Mobile")
             .And.NotContain("CustomerExists(tenantId.Value, mobile, token)");
+        source.IndexOf("if(await find.ExecuteScalarAsync(token) is Guid existing)",StringComparison.Ordinal)
+            .Should().BeLessThan(source.IndexOf("ReadRequiredPolicy(connection, transaction, tenantId, \"CUSTOMER_TERMS\"",StringComparison.Ordinal));
     }
 
     [Fact]
@@ -202,6 +205,28 @@ public sealed class StorefrontCustomerAuthenticationTests
         payload.RootElement.GetProperty("channel").GetString().Should().Be("SMS");
         payload.RootElement.GetProperty("template_name").GetString().Should().Be("LOGIN_OTP");
         payload.RootElement.GetProperty("var1").GetString().Should().Be("123456");
+    }
+
+    [Fact]
+    public async Task TwoFactorLegacyAutogenTemplateSendsTheErpGeneratedCodeInsteadOfRequestingProviderGeneratedOtp()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["StorefrontOtp:Provider"] = "2Factor",
+            ["StorefrontOtp:Endpoint"] = "https://2factor.in/API/V1/:api_key/SMS/:phone_number/AUTOGEN/OTP1",
+            ["StorefrontOtp:ApiKey"] = "test-key"
+        }).Build();
+        var handler = new OtpRecordingHandler();
+        var policy = new StorefrontOtpPolicy("Production", configuration);
+        var sender = new CustomerOtpSender(policy, configuration, new OtpClientFactory(handler));
+
+        await sender.SendAsync("9876543210", "123456", Guid.NewGuid(), CancellationToken.None);
+
+        handler.Uri!.Scheme.Should().Be("https");
+        Uri.UnescapeDataString(handler.Uri.AbsolutePath).Should().Be("/API/V1/test-key/SMS/+919876543210/123456");
+        handler.Method.Should().Be(HttpMethod.Post);
+        handler.Body.Should().BeEmpty();
+        handler.ApiKey.Should().BeNull();
     }
 
     [Fact]

@@ -13,7 +13,7 @@ namespace WhatsBiz.Tests.Integration;
 [Collection("SQL EF compatibility")]
 public sealed class ProductSharingLedgerIntegrationTests
 {
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task V71RerunsPreserveOverridesAndTenantScopedSendClaimsUntilRollback()
     {
         await using var connection = new SqlConnection(SqlIntegrationDatabase.ConnectionString);

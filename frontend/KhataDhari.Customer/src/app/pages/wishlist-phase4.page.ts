@@ -1,4 +1,3 @@
-import { CurrencyPipe } from '@angular/common';
 import { Component, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CustomerSessionService } from '../customer-session.service';
@@ -11,7 +10,7 @@ import { ProductCardComponent } from '../shared/product-card.component';
 @Component({
   selector: 'shop-wishlist-page',
   standalone: true,
-  imports: [CurrencyPipe, RouterLink, ProductCardComponent],
+  imports: [RouterLink, ProductCardComponent],
   template: `
     <section class="wishlist-page">
       <header class="wishlist-header"><div><span class="eyebrow">SAVED FOR LATER</span><h1>Your wishlist</h1><p>Keep the products you love close by.</p></div><a class="browse-link" [routerLink]="['/', storeKey]">Continue shopping <span aria-hidden="true">→</span></a></header>

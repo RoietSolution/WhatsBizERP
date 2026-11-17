@@ -22,7 +22,7 @@ describe('ShippingLabel4UpPreviewComponent', () => {
     const courier = label('courier'); courier.fulfillmentMethod = 'COURIER'; courier.trackingNumber = 'AWB-1';
     expect(component.deliveryMethod(pickup)).toBe('Store Pickup');
     expect(component.deliveryMethod(courier)).toBe('Courier Delivery');
-    expect(component.paymentIndicator(label('cod'))).toContain('Collect');
+    expect(component.paymentIndicator(label('cod'))).toContain('COD TO COLLECT');
     const paid = label('paid'); paid.paymentDue = false; paid.paymentCollected = true; paid.collectedAmount = 359;
     expect(component.paymentIndicator(paid)).toContain('COD PAID');
   });

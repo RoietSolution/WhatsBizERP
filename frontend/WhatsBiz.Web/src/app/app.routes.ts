@@ -228,6 +228,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/dashboard/guest-visitor-analytics.component').then(m => m.GuestVisitorAnalyticsComponent),
       },
       {
+        path: 'application-owner/customer-policies',
+        canActivate: [roleGuard, permissionGuard],
+        data: { platform: true, role: 'ApplicationOwner', permission: 'feature.manage', title: 'Customer Policies' },
+        loadComponent: () => import('./features/administration/storefront-policy-management.component').then(m => m.StorefrontPolicyManagementComponent),
+      },
+      {
         path: 'application-owner',
         canActivate: [roleGuard],
         data: { platform: true, role: 'ApplicationOwner', title: 'Application Owner Center' },
@@ -511,6 +517,7 @@ export const routes: Routes = [
       { path:'admin/storefront/notifications',canActivate:[permissionGuard,featureGuard],data:{...adminSettings,feature:'STOREFRONT_NOTIFICATIONS',title:'Storefront Notifications'},loadComponent:()=>import('./features/administration/storefront-notification-settings.component').then(m=>m.StorefrontNotificationSettingsComponent) },
       { path:'admin/storefront/cities',canActivate:[permissionGuard,featureGuard],data:{...adminSettings,feature:'CITY_MARKETPLACE',title:'City and Service Areas'},loadComponent:()=>import('./features/administration/retailer-cities.component').then(m=>m.RetailerCitiesComponent) },
       { path:'admin/storefront/partner-sellers',canActivate:[permissionGuard,featureGuard],data:{...adminSettings,feature:'PARTNER_SELLER_MANAGEMENT',title:'Partner Sellers'},loadComponent:()=>import('./features/administration/partner-sellers.component').then(m=>m.PartnerSellersComponent) },
+      { path:'admin/storefront/partner-settlements',canActivate:[permissionGuard,featureGuard],data:{permission:'supplier.outstanding.view',feature:'PARTNER_SETTLEMENTS',title:'Partner Supplier Settlements'},loadComponent:()=>import('./features/administration/partner-settlements.component').then(m=>m.PartnerSettlementsComponent) },
       {
         path: 'admin/whatsapp-platform',
         canActivate: [roleGuard, permissionGuard],
@@ -922,6 +929,12 @@ export const routes: Routes = [
           import('./features/inventory/stock-adjustment.component').then(
             (m) => m.StockAdjustmentComponent,
           ),
+      },
+      {
+        path: 'inventory/import-stock',
+        canActivate: [permissionGuard],
+        data: inventoryAdjust,
+        loadComponent: () => import('./features/inventory/shopify-inventory-import.component').then(m => m.ShopifyInventoryImportComponent),
       },
       {
         path: 'inventory/transfer',

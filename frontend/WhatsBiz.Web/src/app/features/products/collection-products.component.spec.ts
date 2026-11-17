@@ -42,7 +42,7 @@ describe('CollectionProductsComponent', () => {
         ],
       }),
     );
-    const productApi = jasmine.createSpyObj<ProductApiService>('ProductApiService', ['search']);
+    const productApi = jasmine.createSpyObj<ProductApiService>('ProductApiService', ['search', 'image']);
     productApi.search.and.returnValue(
       of({
         items: [
@@ -62,6 +62,8 @@ describe('CollectionProductsComponent', () => {
         pageSize: 50,
       }),
     );
+    productApi.image.and.returnValue(of(new Blob(['image'], { type: 'image/png' })));
+    spyOn(URL, 'createObjectURL').and.returnValue('blob:collection-product-image');
     const snack = jasmine.createSpyObj<MatSnackBar>('MatSnackBar', ['open']);
     const router = jasmine.createSpyObj<Router>('Router', ['navigate']);
 

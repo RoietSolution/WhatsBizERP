@@ -13,7 +13,12 @@ public sealed record GuestAnalyticsSummary(long Visitors, long Sessions, long En
     long? CompletedOrders, IReadOnlyDictionary<string,long> Devices,
     IReadOnlyDictionary<string,long> Browsers, IReadOnlyDictionary<string,long> OperatingSystems,
     IReadOnlyDictionary<string,long> TrafficSources,
-    IReadOnlyList<GuestAnalyticsProduct> MostViewedProducts);
+    IReadOnlyList<GuestAnalyticsProduct> MostViewedProducts,
+    GuestAnalyticsOwnerAvailability? Availability = null);
+public sealed record GuestAnalyticsOwnerAvailability(int ActiveRetailers, int FeatureEnabledRetailers,
+    int ReviewedPolicyRetailers, int EligibleRetailers, bool CollectionEnabled, bool RetentionCleanupEnabled,
+    bool RetentionWorkerHealthy, bool? SelectedRetailerActive, bool? SelectedFeatureEnabled,
+    bool? SelectedRetentionPolicyReviewed);
 public sealed record GuestAnalyticsProduct(Guid ProductId, string ProductName, long Views);
 public sealed record GuestAnalyticsTenantOption(Guid TenantId, string StoreName);
 

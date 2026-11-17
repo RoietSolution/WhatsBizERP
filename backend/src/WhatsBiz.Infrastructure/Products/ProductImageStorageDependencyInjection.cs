@@ -14,12 +14,18 @@ public static class ProductImageStorageDependencyInjection
             .Validate(x=>!x.Provider.Equals(ProductImageStorageProviders.Local,StringComparison.OrdinalIgnoreCase)||!string.IsNullOrWhiteSpace(x.LocalRootPath),"ProductImageStorage:LocalRootPath is required for LOCAL storage.")
             .Validate(x=>!x.Provider.Equals(ProductImageStorageProviders.S3,StringComparison.OrdinalIgnoreCase)||(!string.IsNullOrWhiteSpace(x.S3.BucketName)&&(!string.IsNullOrWhiteSpace(x.S3.Region)||!string.IsNullOrWhiteSpace(x.S3.ServiceUrl))),"S3 storage requires a bucket and either a region or service URL.")
             .Validate(x=>string.IsNullOrWhiteSpace(x.S3.AccessKey)==string.IsNullOrWhiteSpace(x.S3.SecretKey),"S3 access key and secret key must be supplied together.")
+            .Validate(x=>x.DeletionRetentionDays is >= 1 and <= 3650,"ProductImageStorage:DeletionRetentionDays must be between 1 and 3650.")
             .ValidateOnStart();
+        services.AddOptions<ProductImageCleanupOptions>()
+            .Bind(configuration.GetSection(ProductImageCleanupOptions.SectionName));
         services.AddSingleton<IExternalProductImageStore,LocalProductImageStore>();
         services.AddSingleton<IExternalProductImageStore,S3ProductImageStore>();
         services.AddSingleton<ProductImageStorage>();
         services.AddSingleton<IProductImageStorage>(provider=>provider.GetRequiredService<ProductImageStorage>());
         services.AddSingleton<IStorefrontMediaStorage>(provider=>provider.GetRequiredService<ProductImageStorage>());
+        services.AddScoped<IProductImageCleanupScheduler,ProductImageCleanupQueue>();
+        services.AddScoped<ProductImageCleanupProcessor>();
+        services.AddHostedService<ProductImageCleanupWorker>();
         return services;
     }
 }

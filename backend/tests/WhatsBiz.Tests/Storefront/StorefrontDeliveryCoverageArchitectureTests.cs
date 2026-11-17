@@ -33,8 +33,10 @@ public sealed class StorefrontDeliveryCoverageArchitectureTests
     {
         var auth = Read("frontend/KhataDhari.Customer/src/app/pages/customer-auth.page.ts");
         auth.Should().Contain("safeReturn??('/'+this.storeKey)")
-            .And.Contain("!returnUrl.startsWith('//')")
-            .And.Contain("!returnUrl.includes('://')");
+            .And.Contain("candidate.startsWith(prefix+'/')")
+            .And.Contain("!candidate.startsWith('//')")
+            .And.Contain("!candidate.includes('://')")
+            .And.Contain("!candidate.startsWith(`${prefix}/auth`)");
     }
 
     private static string FindRoot()

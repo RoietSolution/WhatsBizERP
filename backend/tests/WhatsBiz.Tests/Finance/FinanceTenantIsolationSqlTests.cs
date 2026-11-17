@@ -11,7 +11,7 @@ public sealed class FinanceTenantIsolationSqlTests
 {
     private static string ConnectionString => SqlIntegrationDatabase.ConnectionString;
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task TwoTenantPostingAndDashboardReadsAreIsolatedAndAtomic()
     {
         var marker = $"P3-SQL-{Guid.NewGuid():N}";

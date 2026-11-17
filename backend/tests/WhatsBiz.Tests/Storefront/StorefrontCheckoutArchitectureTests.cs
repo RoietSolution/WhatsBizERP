@@ -32,6 +32,37 @@ public sealed class StorefrontCheckoutArchitectureTests
     }
 
     [Fact]
+    public void CheckoutIdempotencyFingerprintCoversMutableDeliveryAndPaymentFields()
+    {
+        var source = File.ReadAllText(Path.Combine(Root(), "backend", "src", "WhatsBiz.Infrastructure", "Storefront", "StorefrontCheckoutService.cs"));
+        source.Should().Contain("CheckoutIdempotencyRequest")
+            .And.Contain("string DeliveryAddress")
+            .And.Contain("string PaymentMethod")
+            .And.Contain("string RecipientName")
+            .And.Contain("string Mobile")
+            .And.Contain("JsonSerializer.Serialize(idempotencyRequest)")
+            .And.Contain("idempotencyFingerprint), token")
+            .And.Contain("idempotencyRequest);");
+
+        var executor = File.ReadAllText(Path.Combine(Root(), "backend", "src", "WhatsBiz.Infrastructure", "Persistence", "SqlIdempotencyExecutor.cs"));
+        executor.Should().Contain("JsonSerializer.Serialize(request, JsonOptions)")
+            .And.Contain("FixedTimeEquals(existing.Value.Hash, hash)")
+            .And.Contain("The idempotency key was already used for a different request.");
+    }
+
+    [Fact]
+    public void StorefrontPaymentRetryReusesAnActiveAttemptUnderTheInvoiceLock()
+    {
+        var service = File.ReadAllText(Path.Combine(Root(), "backend", "src", "WhatsBiz.Infrastructure", "Payments", "CommercePaymentService.cs"));
+        service.Should().Contain("ReadInvoice(connection, tx, tenant, input.OrderId, true, token)")
+            .And.Contain("string.Equals(actor, \"STOREFRONT\", StringComparison.Ordinal)")
+            .And.Contain("Status IN(N'PENDING',N'PENDING_VERIFICATION',N'COD_PENDING')")
+            .And.Contain("return new(existingPayment,existingPayment.PaymentLink);");
+        service.IndexOf("activeAttempt", StringComparison.Ordinal)
+            .Should().BeLessThan(service.IndexOf("INSERT commerce.CommercePayments", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void CheckoutPricesServerSideAndUsesTenantScopedPaymentCreation()
     {
         var source = File.ReadAllText(Path.Combine(Root(), "backend", "src", "WhatsBiz.Infrastructure", "Storefront", "StorefrontCheckoutService.cs"));

@@ -4,7 +4,10 @@
       <h1>{{ s.supplierName }}</h1>
       <p>{{ s.supplierCode }} · {{ s.isActive ? 'Active' : 'Inactive' }}</p>
     </div>
-    <a mat-flat-button [routerLink]="['/suppliers', s.supplierId, 'edit']">Edit</a>
+    <div class="actions">
+      @if (canImportSupplierCatalog) { <button mat-stroked-button type="button" (click)="openSupplierCatalogImport()">Import supplier catalogue</button> }
+      <a mat-flat-button [routerLink]="['/suppliers', s.supplierId, 'edit']">Edit</a>
+    </div>
   </header>
   <mat-tab-group
     ><mat-tab label="General"

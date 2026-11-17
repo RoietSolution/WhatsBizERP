@@ -6,7 +6,7 @@ namespace WhatsBiz.Tests.Delivery;
 
 public sealed class DeliveryListProjectionSqlTests
 {
-    [Fact(Timeout = 30_000)]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact(Timeout = 30_000)]
     public async Task DeliveryListProjectionMaterializesOptionalCollectionFieldsWithTheirActualSqlTypes()
     {
         await using var connection = new SqlConnection(SqlIntegrationDatabase.ConnectionString);

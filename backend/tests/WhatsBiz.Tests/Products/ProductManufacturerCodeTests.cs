@@ -2,6 +2,7 @@ using AutoMapper;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using WhatsBiz.Application.Common.Exceptions;
 using WhatsBiz.Application.Common.Interfaces;
 using WhatsBiz.Application.Features.Products.DTOs;
@@ -9,6 +10,7 @@ using WhatsBiz.Application.Features.Products.Mappings;
 using WhatsBiz.Application.Features.Products.Products;
 using WhatsBiz.Domain.Products;
 using WhatsBiz.Infrastructure.Persistence;
+using WhatsBiz.Infrastructure.Products;
 
 namespace WhatsBiz.Tests.Products;
 
@@ -20,7 +22,7 @@ public sealed class ProductManufacturerCodeTests
         const string qr = " https://manufacturer.example/products/ABC?lot=26 ";
         var tenant = Guid.NewGuid();
         await using var db = CreateDb();
-        var references = SeedReferences(db);
+        var references = SeedReferences(db, tenant);
         var handler = Handler(db, tenant);
 
         var result = await handler.Handle(new CreateProductCommand(Input(references) with
@@ -41,7 +43,7 @@ public sealed class ProductManufacturerCodeTests
     {
         var tenant = Guid.NewGuid();
         await using var db = CreateDb();
-        var references = SeedReferences(db);
+        var references = SeedReferences(db, tenant);
         var handler = Handler(db, tenant);
 
         await handler.Handle(new CreateProductCommand(Input(references) with
@@ -63,7 +65,7 @@ public sealed class ProductManufacturerCodeTests
     {
         var tenant = Guid.NewGuid();
         await using var db = CreateDb();
-        var references = SeedReferences(db);
+        var references = SeedReferences(db, tenant);
         var first = Product(tenant, references, "Existing product", "SHARED");
         db.Products.Add(first);
         await db.SaveChangesAsync();
@@ -82,7 +84,7 @@ public sealed class ProductManufacturerCodeTests
         var firstTenant = Guid.NewGuid();
         var secondTenant = Guid.NewGuid();
         await using var db = CreateDb();
-        var references = SeedReferences(db);
+        var references = SeedReferences(db, firstTenant, secondTenant);
         var first = Product(firstTenant, references, "First retailer product", null);
         db.Products.Add(first);
         db.ProductBarcodes.Add(new ProductBarcode { TenantId = firstTenant, ProductId = first.ProductId, Barcode = "MANUFACTURER-SHARED", BarcodeType = BarcodeTypes.Code128 });
@@ -98,11 +100,11 @@ public sealed class ProductManufacturerCodeTests
     }
 
     [Fact]
-    public async Task DeletingProductSoftDeletesItsAdditionalIdentifiers()
+    public async Task ProductDeletionRetainsImageAndBusinessIdentifiersForRecovery()
     {
         var tenant = Guid.NewGuid();
         await using var db = CreateDb();
-        var references = SeedReferences(db);
+        var references = SeedReferences(db, tenant);
         var product = Product(tenant, references, "Deleted product", null);
         db.Products.Add(product);
         db.ProductBarcodes.Add(new ProductBarcode
@@ -114,12 +116,68 @@ public sealed class ProductManufacturerCodeTests
         });
         await db.SaveChangesAsync();
 
-        await new DeleteProductCommandHandler(new ProductRepository(db, new CurrentUser(tenant)), new CurrentUser(tenant))
+        var currentUser = new CurrentUser(tenant);
+        var cleanup = new ProductImageCleanupQueue(db, Options.Create(new ProductImageStorageOptions { DeletionRetentionDays = 30 }));
+        var image = new ProductImage { TenantId = tenant, ProductId = product.ProductId, StorageProvider = ProductImageStorageProviders.Database, ImageData = [7], ThumbnailData = [8] };
+        db.ProductImages.Add(image);
+        await db.SaveChangesAsync();
+        await new DeleteProductCommandHandler(new ProductRepository(db, currentUser), cleanup, currentUser)
             .Handle(new DeleteProductCommand(product.ProductId), default);
 
         var barcode = await db.ProductBarcodes.SingleAsync();
-        barcode.IsDeleted.Should().BeTrue();
-        barcode.IsActive.Should().BeFalse();
+        barcode.IsDeleted.Should().BeFalse();
+        barcode.IsActive.Should().BeTrue();
+        (await db.ProductImages.SingleAsync()).ImageData.Should().Equal(7);
+        (await db.ProductImageCleanupJobs.CountAsync(x => x.ProductImageId == image.ProductImageId && x.Status == "PENDING")).Should().Be(1);
+        (await db.ProductImageCleanupJobs.CountAsync(x => x.ProductImageId == null && x.Status == "PENDING")).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ProductCanBeRestoredBeforeCleanupAndPendingJobsAreCancelled()
+    {
+        var tenant = Guid.NewGuid();
+        await using var db = CreateDb();
+        var references = SeedReferences(db, tenant);
+        var product = Product(tenant, references, "Recoverable product", null);
+        product.IsActive = false;
+        db.Products.Add(product);
+        db.ProductImages.Add(new ProductImage { TenantId = tenant, ProductId = product.ProductId, StorageProvider = ProductImageStorageProviders.Database, ImageData = [4] });
+        await db.SaveChangesAsync();
+        var currentUser = new CurrentUser(tenant);
+        var cleanup = new ProductImageCleanupQueue(db, Options.Create(new ProductImageStorageOptions { DeletionRetentionDays = 30 }));
+        var repository = new ProductRepository(db, currentUser);
+
+        await new DeleteProductCommandHandler(repository, cleanup, currentUser).Handle(new DeleteProductCommand(product.ProductId), default);
+        await new RestoreProductCommandHandler(repository, cleanup, currentUser).Handle(new RestoreProductCommand(product.ProductId), default);
+
+        product.IsDeleted.Should().BeFalse();
+        product.IsActive.Should().BeFalse("the original activation state must be restored");
+        (await db.ProductImages.SingleAsync()).ImageData.Should().Equal(4);
+        (await db.ProductImageCleanupJobs.Where(x => x.Source == "PRODUCT_DELETE").AllAsync(x => x.Status == "CANCELLED")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ProductDeactivationDoesNotScheduleCleanupOrChangeImages()
+    {
+        var tenant = Guid.NewGuid(); await using var db = CreateDb(); var refs = SeedReferences(db, tenant);
+        var product = Product(tenant, refs, "Inactive product", null); var image = new ProductImage { TenantId = tenant, ProductId = product.ProductId, ImageData = [1, 2], ThumbnailData = [3] };
+        db.Products.Add(product); db.ProductImages.Add(image); await db.SaveChangesAsync();
+        await new SetProductStatusCommandHandler(new ProductRepository(db, new CurrentUser(tenant)), new CurrentUser(tenant)).Handle(new SetProductStatusCommand(product.ProductId, false), default);
+        (await db.ProductImages.SingleAsync()).ImageData.Should().Equal(1, 2); (await db.ProductImages.SingleAsync()).IsDeleted.Should().BeFalse();
+        (await db.ProductImageCleanupJobs.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RemovingGalleryImageRetainsBytesAndSchedulesDelayedIdempotentCleanup()
+    {
+        var tenant = Guid.NewGuid(); await using var db = CreateDb(); var refs = SeedReferences(db, tenant);
+        var product = Product(tenant, refs, "Gallery product", null); var image = new ProductImage { TenantId = tenant, ProductId = product.ProductId, IsPrimary = true, ImageData = [9], ThumbnailData = [8] };
+        db.Products.Add(product); db.ProductImages.Add(image); await db.SaveChangesAsync();
+        var user = new CurrentUser(tenant); var queue = new ProductImageCleanupQueue(db, Options.Create(new ProductImageStorageOptions { DeletionRetentionDays = 12 }));
+        await new DeleteProductImageCommandHandler(new ProductRepository(db, user), queue, user).Handle(new DeleteProductImageCommand(product.ProductId, image.ProductImageId), default);
+        var deleted = await db.ProductImages.SingleAsync(); var job = await db.ProductImageCleanupJobs.SingleAsync();
+        deleted.IsDeleted.Should().BeTrue(); deleted.ImageData.Should().Equal(9); deleted.ThumbnailData.Should().Equal(8);
+        job.Status.Should().Be("PENDING"); job.DeleteAfterUtc.Should().BeAfter(DateTimeOffset.UtcNow.AddDays(11)); job.DeleteAfterUtc.Should().BeBefore(DateTimeOffset.UtcNow.AddDays(13));
     }
 
     [Fact]
@@ -170,7 +228,7 @@ public sealed class ProductManufacturerCodeTests
         return configuration.CreateMapper();
     }
 
-    private static (Guid Category, Guid Brand, Guid Unit) SeedReferences(ApplicationDbContext db)
+    private static (Guid Category, Guid Brand, Guid Unit) SeedReferences(ApplicationDbContext db, params Guid[] tenants)
     {
         var category = new ProductCategory { CategoryCode = Guid.NewGuid().ToString("N"), CategoryName = "Category" };
         var brand = new Brand { BrandCode = Guid.NewGuid().ToString("N"), BrandName = "Brand" };
@@ -178,8 +236,23 @@ public sealed class ProductManufacturerCodeTests
         db.ProductCategories.Add(category);
         db.Brands.Add(brand);
         db.UnitsOfMeasure.Add(unit);
+        foreach (var tenant in tenants)
+        {
+            AddTenantLink(db, "TenantProductCategory", "ProductCategoryId", tenant, category.ProductCategoryId);
+            AddTenantLink(db, "TenantBrand", "BrandId", tenant, brand.BrandId);
+            AddTenantLink(db, "TenantUnitOfMeasure", "UnitId", tenant, unit.UnitId);
+        }
         db.SaveChanges();
         return (category.ProductCategoryId, brand.BrandId, unit.UnitId);
+    }
+
+    private static void AddTenantLink(ApplicationDbContext db, string entityName, string keyName, Guid tenantId, Guid keyValue)
+    {
+        var type = db.Model.GetEntityTypes().Single(entity => entity.ClrType.Name == entityName).ClrType;
+        var link = Activator.CreateInstance(type, nonPublic: true)!;
+        type.GetProperty("TenantId")!.SetValue(link, tenantId);
+        type.GetProperty(keyName)!.SetValue(link, keyValue);
+        db.Add(link);
     }
 
     private static ProductInput Input((Guid Category, Guid Brand, Guid Unit) refs) =>

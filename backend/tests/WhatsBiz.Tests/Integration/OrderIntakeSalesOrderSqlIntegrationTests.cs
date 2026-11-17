@@ -12,7 +12,7 @@ namespace WhatsBiz.Tests.Integration;
 [Collection("SQL EF compatibility")]
 public sealed class OrderIntakeSalesOrderSqlIntegrationTests
 {
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task V79V80TenantScopedQuoteAndSalesOrderSchemaRollsBackAllFixtures()
     {
         await using var connection = new SqlConnection(SqlIntegrationDatabase.ConnectionString);

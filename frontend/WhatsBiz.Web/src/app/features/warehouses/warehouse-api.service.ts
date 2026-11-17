@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { PagedWarehouses, Warehouse, WarehouseInput, WarehouseType } from './warehouse.models';
+import { PagedWarehouses, Warehouse, WarehouseInput, WarehouseType, WarehouseStorefrontFulfilment } from './warehouse.models';
 @Injectable({ providedIn: 'root' })
 export class WarehouseApiService {
   constructor(private readonly http: HttpClient) {}
@@ -25,6 +25,12 @@ export class WarehouseApiService {
   }
   get(id: string) {
     return this.http.get<Warehouse>(`/api/warehouses/${id}`);
+  }
+  getStorefrontFulfilment(id: string) {
+    return this.http.get<WarehouseStorefrontFulfilment>(`/api/warehouses/${id}/storefront-fulfilment`);
+  }
+  saveStorefrontFulfilment(id: string, sellerAreas: WarehouseStorefrontFulfilment['sellerAreas']) {
+    return this.http.put<WarehouseStorefrontFulfilment>(`/api/warehouses/${id}/storefront-fulfilment`, { sellerAreas });
   }
   create(value: WarehouseInput) {
     return this.http.post<Warehouse>('/api/warehouses', value);

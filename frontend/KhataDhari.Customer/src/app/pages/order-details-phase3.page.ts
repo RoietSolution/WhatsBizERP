@@ -17,16 +17,48 @@ import { codDueLabel, orderStatusLabel, paymentLabel } from '../order-status-pre
       @if (loading()) { <p class="state" role="status">Loading order details...</p> }
       @else if (!order()) { <p class="state">This order was not found for your account.</p> }
       @else if (order(); as current) {
+        @let fulfilmentGroups = current.fulfilmentGroups ?? [];
         <header class="order-heading"><div><span class="eyebrow">ORDER DETAILS</span><h1>{{ current.orderNumber }}</h1><time [attr.datetime]="current.placedAt">{{ current.placedAt | date:'medium' }}</time></div><strong>{{ current.total | currency:'INR' }}</strong></header>
 
         <div class="detail-grid">
           <article class="detail-card tracking-card"><div class="section-heading"><div><span class="eyebrow">DELIVERY</span><h2>Order progress</h2></div><span class="status-badge" [class]="statusClass(current.status)">{{ orderStatusLabel(current.status) }}</span></div>
-            @if (current.timeline?.length) { <ol class="timeline">@for (step of current.timeline || []; track step.code) { <li [class.complete]="step.state==='complete'" [class.current]="step.state==='current'" [class.exception]="step.state==='exception'"><span class="dot" aria-hidden="true">{{ step.state==='complete' ? '✓' : step.state==='current'||step.state==='exception' ? '•' : '○' }}</span><div><strong>{{ step.label }}</strong>@if (step.occurredAt) { <time>{{ step.occurredAt | date:'medium' }}</time> }</div></li> }</ol> } @else { <p class="muted">Delivery tracking updates will appear here when available.</p> }
+            @if (fulfilmentGroups.length) { <p class="muted">{{ orderStatusLabel(current.status) }} across {{ fulfilmentGroups.length }} deliveries. See each delivery below for its latest progress.</p> } @else if (current.timeline?.length) { <ol class="timeline">@for (step of current.timeline || []; track step.code) { <li [class.complete]="step.state==='complete'" [class.current]="step.state==='current'" [class.exception]="step.state==='exception'"><span class="dot" aria-hidden="true">{{ step.state==='complete' ? '✓' : step.state==='current'||step.state==='exception' ? '•' : '○' }}</span><div><strong>{{ step.label }}</strong>@if (step.occurredAt) { <time>{{ step.occurredAt | date:'medium' }}</time> }</div></li> }</ol> } @else { <p class="muted">Delivery tracking updates will appear here when available.</p> }
             @if (current.trackingNumber) { <p class="tracking-number"><b>Tracking number</b> {{ current.trackingNumber }}</p> }
           </article>
 
           <article class="detail-card summary-card"><div class="section-heading"><div><span class="eyebrow">SUMMARY</span><h2>Order summary</h2></div></div><dl class="summary-list"><div><dt>Items</dt><dd>{{ current.itemCount }}</dd></div><div><dt>Payment</dt><dd>{{ paymentLabel(current.paymentStatus, current.paymentMethod) }}</dd></div>@if (current.deliveryStatus) { <div><dt>Delivery</dt><dd>{{ orderStatusLabel(current.deliveryStatus) }}</dd></div> }</dl>@if (codDueLabel(current)) { <p class="payment-note">{{ codDueLabel(current) }}</p> }</article>
         </div>
+
+        @if (fulfilmentGroups.length) {
+          <article class="detail-card fulfilments-card" aria-label="Separate deliveries">
+            <div class="section-heading"><div><span class="eyebrow">DELIVERY PROGRESS</span><h2>{{ fulfilmentGroups.length }} separate deliveries</h2></div></div>
+            <p class="payment-note">One order total and one payment cover all deliveries in this order.</p>
+            @if (current.paymentMethod.toUpperCase() === 'COD' && isPaymentCollected(current.paymentStatus)) { <p class="payment-note collected-note">The full order amount has been collected. No further payment is due for later deliveries.</p> }
+            <div class="delivery-groups">
+              @for (group of fulfilmentGroups; track group.groupNumber; let index = $index) {
+                <section class="delivery-group">
+                  <header class="delivery-group-heading"><div><span class="eyebrow">DELIVERY {{ index + 1 }} OF {{ fulfilmentGroups.length }}</span><h3>{{ groupStatusLabel(group.status) }}</h3></div><span class="status-badge" [class]="groupStatusClass(group.status)">{{ groupStatusLabel(group.status) }}</span></header>
+                  <div class="delivery-items">
+                    @for (item of group.items; track item.productId) {
+                      <div class="delivery-item">
+                        @if (lineImages()[item.productId]) { <img [src]="lineImages()[item.productId]" [alt]="item.productName" /> } @else { <span class="delivery-image-placeholder" aria-hidden="true">□</span> }
+                        <strong>{{ item.productName }}</strong><span class="delivery-quantity">Qty {{ item.quantity }}</span>
+                      </div>
+                    }
+                  </div>
+                  <ol class="delivery-timeline" [class.exception]="isGroupException(group.status)">
+                    <li [class.complete]="groupStatusKey(group.status) === 'READY_FOR_DISPATCH' || group.dispatchedAt || group.deliveredAt" [class.current]="['PENDING','PREPARING'].includes(groupStatusKey(group.status))"><span class="timeline-dot"></span><div><strong>Preparing</strong></div></li>
+                    <li [class.complete]="group.dispatchedAt || group.deliveredAt" [class.current]="groupStatusKey(group.status) === 'READY_FOR_DISPATCH'"><span class="timeline-dot"></span><div><strong>Ready for dispatch</strong>@if (group.readyAt) { <time>{{ group.readyAt | date:'medium' }}</time> }</div></li>
+                    <li [class.complete]="group.dispatchedAt || group.deliveredAt" [class.current]="groupStatusKey(group.status) === 'OUT_FOR_DELIVERY'"><span class="timeline-dot"></span><div><strong>Out for delivery</strong>@if (group.dispatchedAt) { <time>{{ group.dispatchedAt | date:'medium' }}</time> }</div></li>
+                    <li [class.complete]="group.deliveredAt" [class.current]="groupStatusKey(group.status) === 'DELIVERED'"><span class="timeline-dot"></span><div><strong>{{ finalDeliveryStepLabel(group.status) }}</strong>@if (group.deliveredAt) { <time>{{ group.deliveredAt | date:'medium' }}</time> }</div></li>
+                  </ol>
+                  @if (group.trackingReference) { <p class="tracking-number"><b>Tracking reference</b> <span>{{ group.trackingReference }}</span></p> }
+                </section>
+              }
+            </div>
+            @if (current.refundStatus && current.refundStatus !== 'No refund due') { <p class="refund-note" [class.review]="current.refundStatus === 'Refund review required'"><b>{{ refundStatusLabel(current.refundStatus) }}</b>@if (current.refundStatus === 'Refund review required') { <span>We are reviewing the amount before confirming any refund.</span> } @else if (current.refundStatus === 'Refund required') { <span>A refund is due and is awaiting processing.</span> } @else if (current.refundStatus === 'Refund in progress') { <span>Refund processing is in progress. It is not yet complete.</span> }</p> }
+          </article>
+        }
 
         <article class="detail-card products-card"><div class="section-heading"><div><span class="eyebrow">ITEMS</span><h2>Ordered products</h2></div></div><div class="line-list">@for (line of current.lines || []; track line.productId) { <div class="product-line">@if (lineImages()[line.productId]) { <img [src]="lineImages()[line.productId]" [alt]="line.productName" /> } @else { <span class="product-placeholder" aria-hidden="true">□</span> }<div class="product-copy"><strong>{{ line.productName }}</strong>@if (line.packSize) { <small>{{ line.packSize }}</small> }<small>Quantity {{ line.quantity }}</small></div><strong class="line-total">{{ line.lineTotal | currency:'INR' }}</strong></div> }</div><div class="totals"><div><span>Merchandise subtotal</span><b>{{ (current.merchandiseSubtotal ?? ((current.merchandiseAmount ?? current.total) - (current.merchandiseTaxAmount ?? 0))) | currency:'INR' }}</b></div>@if (current.promotionDiscount) { <div><span>{{ current.promotionName || 'Storefront offer' }}</span><b class="discount">-{{ current.promotionDiscount | currency:'INR' }}</b></div> }<div><span>GST</span><b>{{ (current.merchandiseTaxAmount ?? 0) | currency:'INR' }}</b></div><div><span>Delivery charges</span><b>{{ current.deliveryCharge ? (current.deliveryCharge | currency:'INR') : 'FREE' }}</b></div><div class="grand-total"><span>Total payable</span><b>{{ current.total | currency:'INR' }}</b></div></div></article>
 
@@ -47,6 +79,13 @@ export class OrderDetailsPhase3Page implements OnInit {
   constructor(private readonly route:ActivatedRoute, private readonly data:StorefrontDataService, private readonly session:CustomerSessionService){}
   ngOnInit():void{this.storeKey=this.route.parent?.snapshot.paramMap.get('storeKey')??'';void this.load();}
   orderStatusLabel=(status:string|null|undefined)=>orderStatusLabel(status); paymentLabel=(status:string|null|undefined,method?:string|null)=>paymentLabel(status,method); codDueLabel=codDueLabel;
+  groupStatusKey(status:string|null|undefined):string { const value=(status??'').trim().toUpperCase().replaceAll(' ','_'); return ({CONFIRMED:'PENDING',PACKED:'READY_FOR_DISPATCH','OUT_FOR_DELIVERY':'OUT_FOR_DELIVERY','DELIVERY_ATTENTION_REQUIRED':'DELIVERY_FAILED'} as Record<string,string>)[value]??value; }
+  groupStatusLabel(status:string|null|undefined):string { const value=this.groupStatusKey(status); return ({PENDING:'Confirmed',PREPARING:'Preparing',READY_FOR_DISPATCH:'Packed',OUT_FOR_DELIVERY:'Out for delivery',DELIVERED:'Delivered',DELIVERY_FAILED:'Delivery attempt needs attention',CANCELLED:'Cancelled'} as Record<string,string>)[value]??status??'Delivery status unavailable'; }
+  groupStatusClass(status:string|null|undefined):string { const value=this.groupStatusKey(status); return ['DELIVERED'].includes(value)?'success':['DELIVERY_FAILED','CANCELLED'].includes(value)?'danger':['OUT_FOR_DELIVERY','READY_FOR_DISPATCH'].includes(value)?'':'warning'; }
+  isGroupException(status:string|null|undefined):boolean { return ['DELIVERY_FAILED','CANCELLED'].includes(this.groupStatusKey(status)); }
+  finalDeliveryStepLabel(status:string|null|undefined):string { const value=this.groupStatusKey(status); return value==='CANCELLED'?'Delivery cancelled':value==='DELIVERY_FAILED'?'Delivery needs attention':'Delivered'; }
+  isPaymentCollected(status:string|null|undefined):boolean { return ['PAYMENT SUCCESSFUL','PAID','CAPTURED'].includes((status??'').toUpperCase()); }
+  refundStatusLabel(status:string):string { return ({'Refund review required':'Refund under review','Refund required':'Refund due','Refund in progress':'Refund in progress','Refunded':'Refund completed'} as Record<string,string>)[status]??status; }
   statusClass(status:string|null|undefined):string{const value=(status??'').toUpperCase();return value.includes('FAIL')||value.includes('CANCEL')?'danger':value.includes('PENDING')||value.includes('HELD')?'warning':'success';} isCancelled(status:string|null|undefined):boolean{return (status??'').toUpperCase()==='CANCELLED'||(status??'').toUpperCase()==='CANCELED';}
   requestClass(status:string|null|undefined):string{const value=(status??'').toUpperCase();return value.includes('REJECT')||value.includes('FAIL')?'danger':value.includes('PENDING')||value==='REQUESTED'?'warning':'success';}
   returnStatus(status:string):string{return ({REQUESTED:'Return requested',APPROVED:'Approved',RECEIVED:'Return received',COMPLETED:'Return completed',REJECTED:'Rejected'} as Record<string,string>)[status.toUpperCase()]??status;}

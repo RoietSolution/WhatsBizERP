@@ -2,6 +2,28 @@ namespace WhatsBiz.Application.Features.Storefront;
 
 public static class StorefrontOrderPresentation
 {
+    public static string DeliveryGroupStatus(string status)=>status?.ToUpperInvariant() switch
+    {
+        "PENDING"=>"Confirmed",
+        "PREPARING"=>"Preparing",
+        "READY_FOR_DISPATCH"=>"Packed",
+        "OUT_FOR_DELIVERY"=>"Out for delivery",
+        "DELIVERED"=>"Delivered",
+        "DELIVERY_FAILED"=>"Delivery attention required",
+        "CANCELLED"=>"Cancelled",
+        _=>"Delivery status unavailable"
+    };
+
+    public static string? RefundStatusLabel(string? status)=>status?.ToUpperInvariant() switch
+    {
+        "REVIEW_REQUIRED"=>"Refund review required",
+        "REFUND_REQUIRED"=>"Refund required",
+        "REFUND_PENDING"=>"Refund in progress",
+        "REFUNDED"=>"Refunded",
+        "NO_REFUND_REQUIRED"=>"No refund due",
+        _=>null
+    };
+
     public static bool CanPrintShippingLabel(string invoiceStatus, string? paymentStatus, string? paymentMethod, out string reason)
         => CanPrintShippingLabel(invoiceStatus, paymentStatus, paymentMethod, null, out reason);
 
@@ -50,6 +72,11 @@ public static class StorefrontOrderPresentation
         (_, _, "PENDING" or "PENDING_VERIFICATION", var method) when method is not "COD" => "Payment Pending",
         ("DELIVERED", _, _, _) => "Delivered",
         ("DELIVERY_FAILED", _, _, _) => "Delivery Failed",
+        ("PARTIALLY_DELIVERED", _, _, _) => "Partially Delivered",
+        ("PARTIALLY_CANCELLED", _, _, _) => "Partially Cancelled",
+        ("PARTIALLY_DISPATCHED", _, _, _) => "Partially Dispatched",
+        ("DELIVERY_ATTENTION", _, _, _) => "Delivery Attention Required",
+        ("PREPARING", _, _, _) => "Preparing",
         ("CANCELLED", _, _, _) => "Cancelled",
         ("PICKED_UP", _, _, _) or ("OUT_FOR_DELIVERY", _, _, _) => "Out for Delivery",
         ("READY_FOR_PICKUP", _, _, _) => "Packed",

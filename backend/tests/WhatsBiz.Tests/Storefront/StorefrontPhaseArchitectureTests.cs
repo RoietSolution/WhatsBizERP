@@ -59,18 +59,22 @@ public sealed class StorefrontPhaseArchitectureTests
     public void CartServiceabilityGuardsAgainstAddressAndQuoteRaces()
     {
         var cart = Read("frontend/KhataDhari.Customer/src/app/pages/cart.page.ts");
-        cart.Should().Contain("if(next===this.pincode)return")
-            .And.Contain("requestedPincode===this.pincode")
+        cart.Should().Contain("deliverySignature(this.cart.storeKey(),this.cart.lines(),next)")
+            .And.Contain("deliveryInFlight?.signature===signature")
+            .And.Contain("signature!==this.deliverySignature(this.cart.storeKey(),this.cart.lines(),this.pincode)")
+            .And.Contain("this.invalidateDelivery()")
             .And.Contain("Unable to check delivery availability. Please try again.")
             .And.Contain("sessionStorage")
-            .And.Contain("storeKey,pincode,verified:true,quote");
+            .And.Contain("verified:true,verifiedAtUtc:Date.now(),quote");
     }
 
     [Fact]
     public void CartAndWishlistStorageIsOwnedByStoreAndCustomer()
     {
         var cart = Read("frontend/KhataDhari.Customer/src/app/cart/cart.service.ts");
-        cart.Should().Contain("storageKey(storeKey, customerId)")
+        cart.Should().Contain("private storageKey(storeKey: string, customerId: string)")
+            .And.Contain("khata-dhari-cart:${storeKey}:${customerId || 'guest'}")
+            .And.Contain("this.storageKey(storeKey, nextCustomer)")
             .And.Contain("customerId || 'guest'")
             .And.Contain("switchCustomer(customerId: string | null)")
             .And.Contain("adoptedGuest");
@@ -86,8 +90,9 @@ public sealed class StorefrontPhaseArchitectureTests
     {
         var shell = Read("frontend/KhataDhari.Customer/src/app/store-shell.ts");
         shell.Should().Contain("this.cart.switchCustomer(customerId)")
-            .And.Contain("this.wishlist.switchCustomer(key, customerId)")
-            .And.Contain("this.session.restore(storeKey); this.cart.useStore(storeKey)");
+            .And.Contain("this.wishlist.switchCustomer(key, customerId)");
+        shell.Replace(" ", "").Replace("\r", "").Replace("\n", "")
+            .Should().Contain("this.session.restore(storeKey);this.cart.useStore(storeKey)");
         var session = Read("frontend/KhataDhari.Customer/src/app/customer-session.service.ts");
         session.Should().Contain("this.customer.set(null)").And.Contain("this.active.set(false)");
         var auth = Read("frontend/KhataDhari.Customer/src/app/customer-auth.service.ts");
@@ -120,8 +125,9 @@ public sealed class StorefrontPhaseArchitectureTests
         var shell = Read("frontend/KhataDhari.Customer/src/app/store-shell.ts");
         shell.Should().Contain("const customerId = this.session.customerId()")
             .And.Contain("this.cart.switchCustomer(customerId)")
-            .And.Contain("this.wishlist.switchCustomer(key, customerId)")
-            .And.Contain("this.session.restore(storeKey); this.cart.useStore(storeKey)");
+            .And.Contain("this.wishlist.switchCustomer(key, customerId)");
+        shell.Replace(" ", "").Replace("\r", "").Replace("\n", "")
+            .Should().Contain("this.session.restore(storeKey);this.cart.useStore(storeKey)");
     }
     [Fact]
     public void ProfileMediaReplacementDoesNotViolateCustomerUniqueness()
@@ -157,7 +163,9 @@ public sealed class StorefrontPhaseArchitectureTests
         activity.Should().Contain("sessionStorage")
             .And.Contain("STORE_VISIT")
             .And.Contain("PRODUCT_VIEW")
-            .And.Contain("this.recorded");
+            .And.Contain("lastSearch")
+            .And.Contain("queued")
+            .And.Contain("hasConsent(storeKey)");
         Read("backend/src/WhatsBiz.Api/Controllers/StoreController.cs")
             .Should().Contain("[HttpPost(\"activity\")]")
             .And.Contain("activity.RecordAsync");
@@ -176,7 +184,8 @@ public sealed class StorefrontPhaseArchitectureTests
         page.Should().Contain("hasMeaningfulHtml")
             .And.Contain("returnPolicyLabel")
             .And.Contain("gallery-stage")
-            .And.Contain("grid-template-rows:300px 66px")
+            .And.Contain("aspect-ratio:var(--gallery-ratio,1)")
+            .And.Contain(".gallery-thumbnails{flex-direction:row")
             .And.NotContain("{{item.returnWindowDays}}-day return policy");
     }
 

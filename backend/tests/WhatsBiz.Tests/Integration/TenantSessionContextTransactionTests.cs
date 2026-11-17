@@ -10,7 +10,7 @@ namespace WhatsBiz.Tests.Integration;
 [Collection("SQL EF compatibility")]
 public sealed class TenantSessionContextTransactionTests
 {
-    [Theory]
+    [WhatsBiz.Tests.Integration.SqlIntegrationTheory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task TenantContextCommandEnlistsInTheCurrentEfTransaction(bool useTransaction)

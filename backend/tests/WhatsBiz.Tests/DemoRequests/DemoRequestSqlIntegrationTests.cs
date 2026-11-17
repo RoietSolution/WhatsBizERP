@@ -13,7 +13,7 @@ public sealed class DemoRequestSqlIntegrationTests
 {
     private static string ConnectionString => SqlIntegrationDatabase.ConnectionString;
 
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task SqlPersistenceReferenceAndRapidDuplicateProtectionWorkTogether()
     {
         await using (var gate = new SqlConnection(ConnectionString))

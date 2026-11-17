@@ -1,10 +1,10 @@
 import { InjectionToken } from '@angular/core';
-import { AvailabilityAnnouncement, AvailabilityRequest, CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer, StorefrontPaymentReturn, StorefrontReturnRequest } from '../models/storefront.models';
+import { AvailabilityAnnouncement, AvailabilityRequest, CartLine, CartQuote, Category, CheckoutCustomer, CheckoutResult, CustomerAddress, CustomerAddressInput, CustomerOrder, Product, ProductCatalogFilters, ProductPage, ProductReview, ProductReviewSummary, Store, StorefrontOffer, StorefrontPaymentReturn, StorefrontReturnRequest } from '../models/storefront.models';
 
 export interface StorefrontDataProvider {
   getStore(storeKey: string): Promise<Store | null>;
   getCategories(storeKey: string): Promise<Category[]>;
-  getProducts(storeKey: string, page?: number, pageSize?: number, categoryId?: string): Promise<ProductPage>;
+  getProducts(storeKey: string, page?: number, pageSize?: number, categoryId?: string, filters?: ProductCatalogFilters): Promise<ProductPage>;
   getAvailabilityAnnouncements(storeKey:string): Promise<AvailabilityAnnouncement[]>;
   getProduct(storeKey: string, productId: string): Promise<Product | null>;
   getOffer(storeKey: string, offerId: string): Promise<StorefrontOffer | null>;

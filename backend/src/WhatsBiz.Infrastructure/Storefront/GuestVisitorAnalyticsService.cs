@@ -152,12 +152,21 @@ END;
         if (from >= until || until - from > TimeSpan.FromDays(93)) throw new ArgumentException("Choose a date range of up to 93 days.");
         await using var c = new SqlConnection(ConnectionString); await c.OpenAsync(token);
         var ids = new List<Guid>();
-        await using (var q = new SqlCommand("SELECT TenantId FROM core.Tenants WHERE IsActive=1", c))
-        await using (var r = await q.ExecuteReaderAsync(token)) while (await r.ReadAsync(token)) ids.Add(r.GetGuid(0));
-        var enabled = new List<Guid>();
-        foreach (var id in ids)
-            if ((!tenantId.HasValue || tenantId == id) && await features.IsEnabledAsync(id, FeatureKey, token) && await PolicyReady(id, token)) enabled.Add(id);
-        return await ReportAsync(enabled, from, until, token);
+        await using (var q = new SqlCommand("SELECT TenantId FROM core.Tenants WHERE IsActive=1 AND (@tenant IS NULL OR TenantId=@tenant)", c))
+        {
+            q.Parameters.Add("@tenant",SqlDbType.UniqueIdentifier).Value=(object?)tenantId??DBNull.Value;
+            await using var r = await q.ExecuteReaderAsync(token); while (await r.ReadAsync(token)) ids.Add(r.GetGuid(0));
+        }
+        var featureEnabled = await features.GetEnabledTenantIdsAsync(FeatureKey, ids, token);
+        var reviewedPolicies = await ReviewedPolicyTenantIdsAsync(featureEnabled, token);
+        var enabled = featureEnabled.Where(reviewedPolicies.Contains).ToArray();
+        var summary = await ReportAsync(enabled, from, until, token);
+        var availability = new GuestAnalyticsOwnerAvailability(ids.Count,featureEnabled.Count,reviewedPolicies.Count,enabled.Length,
+            CollectionEnabled,RetentionCleanupEnabled,retentionHealth.IsHealthy,
+            tenantId.HasValue?ids.Contains(tenantId.Value):null,
+            tenantId.HasValue?featureEnabled.Contains(tenantId.Value):null,
+            tenantId.HasValue?reviewedPolicies.Contains(tenantId.Value):null);
+        return summary with { Availability = availability };
     }
 
     public async Task<IReadOnlyList<GuestAnalyticsTenantOption>> OwnerFiltersAsync(CancellationToken token)
@@ -220,6 +229,14 @@ SELECT TOP(10) e.ProductId,p.ProductName,COUNT_BIG(1) FROM commerce.AnalyticsEve
     }
 
     private static async Task ReadMap(SqlDataReader r,Dictionary<string,long> map,CancellationToken token){await r.NextResultAsync(token);while(await r.ReadAsync(token))map[r.GetString(0)]=r.GetInt64(1);}
+    private async Task<IReadOnlyCollection<Guid>> ReviewedPolicyTenantIdsAsync(IReadOnlyCollection<Guid> tenantIds,CancellationToken token)
+    {
+        if(tenantIds.Count==0)return [];
+        await using var c=new SqlConnection(ConnectionString);await c.OpenAsync(token);
+        await using var q=new SqlCommand("SELECT TenantId FROM commerce.GuestVisitorAnalyticsPolicies WHERE RetentionDays BETWEEN 1 AND 365 AND PolicyReviewedAtUtc IS NOT NULL AND TenantId IN (SELECT TRY_CONVERT(uniqueidentifier,value) FROM STRING_SPLIT(@ids,','))",c);
+        q.Parameters.Add("@ids",SqlDbType.NVarChar,-1).Value=string.Join(',',tenantIds);
+        var result=new List<Guid>();await using var r=await q.ExecuteReaderAsync(token);while(await r.ReadAsync(token))result.Add(r.GetGuid(0));return result;
+    }
     private async Task<bool> PolicyReady(Guid tenant,CancellationToken token){await using var c=new SqlConnection(ConnectionString);await c.OpenAsync(token);await using var q=new SqlCommand("SELECT CONVERT(bit,CASE WHEN RetentionDays BETWEEN 1 AND 365 AND PolicyReviewedAtUtc IS NOT NULL THEN 1 ELSE 0 END) FROM commerce.GuestVisitorAnalyticsPolicies WHERE TenantId=@tenant",c);q.Parameters.Add("@tenant",SqlDbType.UniqueIdentifier).Value=tenant;return await q.ExecuteScalarAsync(token) is true;}
     private async Task<Guid?> ResolveTenantAsync(string key,CancellationToken token){if(string.IsNullOrWhiteSpace(key)||key.Length>100)return null;await using var c=new SqlConnection(ConnectionString);await c.OpenAsync(token);await using var q=new SqlCommand("SELECT TenantId FROM core.Tenants WHERE TenantKey=@key AND IsActive=1",c);q.Parameters.Add("@key",SqlDbType.NVarChar,100).Value=key.Trim().ToUpperInvariant();return await q.ExecuteScalarAsync(token) is Guid id?id:null;}
     private void EnsureOwner(){if(!currentUser.Roles.Contains("ApplicationOwner",StringComparer.Ordinal))throw new UnauthorizedAccessException("Application Owner access required.");}

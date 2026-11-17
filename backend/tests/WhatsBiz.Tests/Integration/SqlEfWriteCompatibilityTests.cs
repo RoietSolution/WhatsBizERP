@@ -18,7 +18,7 @@ namespace WhatsBiz.Tests.Integration;
 [Collection("SQL EF compatibility")]
 public sealed class SqlEfWriteCompatibilityTests
 {
-    [Fact]
+    [WhatsBiz.Tests.Integration.SqlIntegrationFact]
     public async Task IdentityProductCustomerAndStorefrontWritesWorkWithPublishedTriggers()
     {
         var connectionString = SqlIntegrationDatabase.ConnectionString;

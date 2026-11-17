@@ -45,6 +45,7 @@ public static class FeatureKeys
     public const string CityMarketplace = "CITY_MARKETPLACE";
     public const string MultiChannelOrderIntake = "MULTI_CHANNEL_ORDER_INTAKE";
     public const string GuestVisitorAnalytics = "GUEST_VISITOR_ANALYTICS";
+    public const string MarketplaceCheckout = "MARKETPLACE_CHECKOUT";
     public static bool RequiresFreshEvaluation(string key) => new[] { StorefrontScheduledSelling, StorefrontPopupCampaigns, StorefrontNotifications }.Contains(key, StringComparer.OrdinalIgnoreCase);
 
     public static readonly IReadOnlyCollection<string> All =
@@ -54,5 +55,5 @@ public static class FeatureKeys
          CommerceProductSearch, CommerceCollections, CommerceOrders, CommerceAnalytics,
          MetaWhatsAppIntegration, WebhookDiagnostics, AdvancedWarehouse, AiAssistant, Integrations, CustomerReferralRewards, DeliveryManagement, CustomerDemand, StorefrontFeedback, StorefrontCustomerBlacklist,
          StorefrontScheduledSelling, StorefrontPopupCampaigns, StorefrontNotifications,
-         PartnerSellerManagement, PartnerCommissions, PartnerSettlements, CityMarketplace, MultiChannelOrderIntake, GuestVisitorAnalytics];
+         PartnerSellerManagement, PartnerCommissions, PartnerSettlements, CityMarketplace, MultiChannelOrderIntake, GuestVisitorAnalytics, MarketplaceCheckout];
 }

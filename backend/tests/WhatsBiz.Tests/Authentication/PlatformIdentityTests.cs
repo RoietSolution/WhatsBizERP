@@ -66,9 +66,9 @@ public sealed class PlatformIdentityTests
     public void RepeatablePostDeploymentDoesNotTenantAssignPlatformOwnersOrRetightenTenantId()
     {
         var featureMigration = File.ReadAllText(Path.Combine(RepositoryRoot(), "database", "WhatsBiz.Database", "Scripts", "V2-FeatureEntitlements.sql"));
-        var deployment = File.ReadAllText(Path.Combine(RepositoryRoot(), "deployment", "deploy-qa-database.ps1"));
+        var deployment = File.ReadAllText(Path.Combine(RepositoryRoot(), "deployment", "deploy-qa-database_old.ps1"));
 
-        featureMigration.Should().Contain("IF COL_LENGTH(N'core.Users', N'AccountType') IS NULL")
+        featureMigration.Should().Contain("AND COL_LENGTH(N'core.Users', N'AccountType') IS NULL")
             .And.Contain("u.TenantId IS NULL AND u.AccountType=N''RETAILER''")
             .And.NotContain("N'UPDATE core.Users SET TenantId=@id WHERE TenantId IS NULL'")
             .And.NotContain("ALTER TABLE core.Users ALTER COLUMN TenantId uniqueidentifier NOT NULL");

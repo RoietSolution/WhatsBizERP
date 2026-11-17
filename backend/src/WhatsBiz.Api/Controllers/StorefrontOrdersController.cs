@@ -13,7 +13,7 @@ public sealed record RetailerStorefrontOrderDto(Guid Id, string OrderNumber, Dat
     string? CustomerMobile, int ItemCount, decimal Total, string PaymentMethod, string PaymentStatus, string Status,
     string? DeliveryStatus, string? DeliveryAgent, Guid? DeliveryId, decimal DeliveryCharge, decimal PromotionDiscount, string? PromotionName,
     string? CancellationRequestStatus, string? CancellationReason, string RefundStatus, decimal RefundAmount, DateTimeOffset? RefundedAt, decimal RefundableAmount,
-    Guid? RefundId, string? RefundAttemptStatus);
+    Guid? RefundId, string? RefundAttemptStatus, string OrderType = "STANDARD");
 
 public sealed record StorefrontShippingLabelDto(
     Guid Id, string OrderNumber, DateTimeOffset OrderDate, string CustomerName, string? CustomerMobile,
@@ -77,7 +77,7 @@ public sealed class StorefrontOrdersController(IConfiguration configuration, ICu
               CASE WHEN d.DeliveryStatus=N'UNASSIGNED' AND d.ReadyAt IS NOT NULL THEN N'READY_FOR_PICKUP' ELSE d.DeliveryStatus END,a.DisplayName,d.OrderDeliveryId,i.DeliveryCharge,i.PromotionDiscountAmount,i.AppliedPromotionName,
               req.Status,req.Reason,COALESCE(refund.RefundStatus,reversal.RefundStatus),
               COALESCE(refund.RefundAmount,reversal.RefundRequiredAmount),refund.RefundedAt,app.Amount,
-              refund.RefundId,attempt.Status
+              refund.RefundId,attempt.Status,i.OrderType
             FROM sales.SalesInvoices i
             LEFT JOIN integration.WhatsAppCommerceOrders w ON w.TenantId=i.TenantId AND w.InvoiceId=i.InvoiceId AND w.SourceChannel=N'STOREFRONT'
             JOIN sales.Customers c ON c.TenantId=i.TenantId AND c.CustomerId=i.CustomerId
@@ -124,7 +124,7 @@ public sealed class StorefrontOrdersController(IConfiguration configuration, ICu
                 reader.IsDBNull(16)?null:reader.GetString(16),reader.IsDBNull(17)?null:reader.GetString(17),
                 reader.IsDBNull(18)?"NONE":reader.GetString(18),reader.IsDBNull(19)?0:reader.GetDecimal(19),
                 reader.IsDBNull(20)?null:reader.GetDateTimeOffset(20),reader.IsDBNull(21)?0:Math.Min(reader.GetDecimal(6),reader.GetDecimal(21)),
-                reader.IsDBNull(22)?null:reader.GetGuid(22),reader.IsDBNull(23)?null:reader.GetString(23)));
+                reader.IsDBNull(22)?null:reader.GetGuid(22),reader.IsDBNull(23)?null:reader.GetString(23),reader.GetString(24)));
         }
         return Ok(rows);
     }

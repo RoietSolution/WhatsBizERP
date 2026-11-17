@@ -1,0 +1,100 @@
+<section class="retailer-shopify-import-panel" aria-label="Retailer Shopify product import">
+  <p class="intro">Preview and import this retailer’s Shopify products. Product publication is controlled by KhataDhari. Product CSV quantities are never reconciled as inventory.</p>
+  <div class="source-row">
+    <mat-form-field appearance="outline">
+      <mat-label>Shopify Source Store / Supplier Name</mat-label>
+      <input matInput [ngModel]="sourceStore()" (ngModelChange)="setSourceStore($event)" (blur)="loadMappingForCurrentSource()" placeholder="Store name, supplier@example.com or myshop.myshopify.com" autocomplete="organization">
+    </mat-form-field>
+    <label class="file-picker">Shopify CSV or XLSX
+      <input type="file" accept=".csv,.xlsx,text/csv" (change)="selectFile($event)">
+    </label>
+  </div>
+  @if(file()){<p class="file-name">{{file()!.name}} · {{file()!.size | number}} bytes</p>}
+
+  <details class="mapping-section" open>
+    <summary>Import Field Mappings</summary>
+    <p>Choose a detected header or enter a custom source column. For GuturGo, Supplier Product Cost already includes packaging and shipping; <strong>Variant Price is not used for pricing or cost calculations</strong>. ERP Selling Price and Variant Compare At Price map directly to ERP Selling Price and MRP.</p>
+    @if(headersBusy()){<p class="mapping-note" role="status">Reading columns from the uploaded file…</p>}
+    @if(duplicateHeaders().length){<p class="warning" role="status">Duplicate source headers detected: {{duplicateHeaders().join(', ')}}. A selected duplicated header will be rejected as ambiguous.</p>}
+    <datalist id="retailer-shopify-source-headers"><option *ngFor="let header of sourceHeaders()" [value]="header"></option></datalist>
+    @for(group of fieldMappingGroups;track group.key){
+      <h4 class="mapping-group-title">{{group.label}}</h4>
+      <div class="mapping-grid">
+        @for(field of fieldMappingRows;track field.key){
+          @if(field.group===group.key){
+            <label class="mapping-control"><span>{{field.label}} @if(field.required){<b aria-label="required">*</b>}</span>
+              <input type="search" [ngModel]="fieldMappings[field.key]" (ngModelChange)="setFieldMapping(field.key,$event)" [attr.list]="sourceHeaders().length?'retailer-shopify-source-headers':null" [attr.aria-required]="field.required" [placeholder]="field.required?'Shopify column header':'Optional source column'" autocomplete="off">
+              @if(fieldMappings[field.key] && sourceHeaders().length && !hasSourceHeader(fieldMappings[field.key])){<small class="mapping-warning">{{field.required?'Required column is missing; preview will fail.':'Optional column is absent and will be ignored.'}}</small>}
+            </label>
+          }
+        }
+      </div>
+    }
+    <p class="mapping-note">Supplier product, packaging and shipping costs remain separate from retail pricing. Missing or blank costs never overwrite existing values; explicit zero is valid. Shipping is an estimate only. Existing-product cost updates are opt-in. Shopify publication/status and inventory columns are ignored.</p>
+    <div class="mapping-actions"><button mat-stroked-button type="button" (click)="resetFieldMappings()">Reset to Default Mappings</button><button mat-stroked-button type="button" (click)="saveImportMapping()">Save Import Mapping</button></div>
+  </details>
+
+  <div class="toolbar">
+    <button mat-stroked-button type="button" (click)="previewFile()" [disabled]="busy() || headersBusy() || !file() || !sourceStore().trim()">{{busy()?'Working…':'Preview import'}}</button>
+  </div>
+  @if(error()){<div class="error" role="alert">{{error()}}</div>}
+  @if(notice()){<div class="notice" role="status">{{notice()}}</div>}
+  @if(preview(); as p){
+    @if(mappingDirty()){<p class="stale-warning" role="status" aria-live="polite">{{busy()?'Refreshing validation and preview totals…':'Mappings or update options changed. Preview again before importing.'}}</p>}
+    <section class="summary" aria-label="Import preview totals"><strong>{{p.total}} products</strong><span>{{p.newCount}} new</span><span>{{p.updateCount}} updates</span><span>{{p.unchangedCount}} unchanged</span><span>{{p.invalidCount}} invalid</span><span>{{p.sharedSupplierSkuCount ?? p.duplicateSkuCount}} shared supplier SKUs</span></section>
+    @if(p.alreadyImported){<p class="warning">This exact source file was already imported for this store. Commit is disabled.</p>}
+    <div class="defaults-grid">
+      <mat-form-field appearance="outline"><mat-label>Default unit</mat-label><mat-select [ngModel]="unitId" (ngModelChange)="setUnit($event)"><mat-option [value]="''">Select unit</mat-option>@for(u of p.units;track u.unitId){<mat-option [value]="u.unitId">{{u.unitName}} ({{u.shortName}})</mat-option>}</mat-select></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Default brand (optional)</mat-label><mat-select [ngModel]="defaultBrandId" (ngModelChange)="setDefaultBrand($event)"><mat-option [value]="''">Use vendor mapping</mat-option>@for(b of p.brands;track b.brandId){<mat-option [value]="b.brandId">{{b.brandName}}</mat-option>}</mat-select></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Default GST % (optional)</mat-label><input matInput type="number" min="0" max="100" [ngModel]="defaultGstPercentage" (ngModelChange)="setDefaultGst($event)"></mat-form-field>
+    </div>
+    <div class="supplier-cost-treatment">
+      <label for="supplier-cost-treatment">Supplier cost treatment</label>
+      <select id="supplier-cost-treatment" [ngModel]="supplierCostTreatment" (ngModelChange)="setSupplierCostTreatment($event)">
+        <option value="INCLUSIVE">Supplier Product Cost includes packaging and shipping</option>
+        <option value="EXCLUSIVE">Supplier Product Cost excludes packaging and shipping</option>
+      </select>
+      <small>{{supplierCostTreatment === 'INCLUSIVE' ? 'Total Supplier Cost uses Supplier Product Cost only; packaging and shipping remain separate expense details.' : 'Total Supplier Cost adds Supplier Product Cost, Packaging Cost and Shipping Cost once when all are available.'}}</small>
+    </div>
+    <fieldset class="options-panel"><legend>Allow updates to existing products</legend>
+      <label><input type="checkbox" [ngModel]="updateFields.productName" (ngModelChange)="setUpdateField('productName',$event)"> Product name</label>
+      <label><input type="checkbox" [ngModel]="updateFields.description" (ngModelChange)="setUpdateField('description',$event)"> Description</label>
+      <label><input type="checkbox" [ngModel]="updateFields.images" (ngModelChange)="setUpdateField('images',$event)"> Product images</label>
+      <label><input type="checkbox" [ngModel]="updateFields.category" (ngModelChange)="setUpdateField('category',$event)"> Category</label>
+      <label><input type="checkbox" [ngModel]="updateFields.brand" (ngModelChange)="setUpdateField('brand',$event)"> Brand</label>
+      <label><input type="checkbox" [ngModel]="updateFields.unit" (ngModelChange)="setUpdateField('unit',$event)"> Unit</label>
+      <label><input type="checkbox" [ngModel]="updateFields.sellingPrice" (ngModelChange)="setUpdateField('sellingPrice',$event)"> ERP Selling Price</label>
+      <label><input type="checkbox" [ngModel]="updateFields.mrp" (ngModelChange)="setUpdateField('mrp',$event)"> ERP MRP</label>
+      <label><input type="checkbox" [ngModel]="updateFields.productCost" (ngModelChange)="setUpdateField('productCost',$event)"> Product cost</label>
+      <label><input type="checkbox" [ngModel]="updateFields.packagingCost" (ngModelChange)="setUpdateField('packagingCost',$event)"> Packaging cost</label>
+      <label><input type="checkbox" [ngModel]="updateFields.shippingCost" (ngModelChange)="setUpdateField('shippingCost',$event)"> Shipping cost (estimate)</label>
+      <label><input type="checkbox" [ngModel]="updateFields.gst" (ngModelChange)="setUpdateField('gst',$event)"> GST percentage</label>
+      <label><input type="checkbox" [ngModel]="updateFields.weight" (ngModelChange)="setUpdateField('weight',$event)"> Weight</label>
+      <label class="activate-new"><input type="checkbox" [ngModel]="activateNew" (ngModelChange)="setActivateNew($event)"> Activate newly created ERP products</label>
+    </fieldset>
+      <div class="table-wrap"><table><thead><tr><th>{{supplierCostTreatment === 'INCLUSIVE' ? 'Supplier Product Cost (Inclusive of Packaging & Shipping)' : 'Supplier Product Cost'}}</th><th>Imported packaging cost</th><th>Imported shipping estimate</th><th>Imported total cost</th><th>Effective total cost</th><th>Imported profit / loss</th><th>Effective profit / loss</th><th>Imported margin</th><th>Effective margin</th><th>Image</th><th>Product / SKU</th><th>Imported ERP Selling Price</th><th>Imported ERP MRP</th><th>Category</th><th>Brand / Vendor</th><th>Action / warnings</th></tr></thead><tbody>
+      @for(row of p.items;track row.rowNumber){
+        <tr>
+          <td>{{row.supplierProductCost ?? '—'}}<small>Source: {{row.productCostSourceColumn || 'Unmapped'}}</small><small>ERP effective: {{row.effectiveSupplierProductCost ?? 'Unknown'}}</small></td>
+          <td>{{row.packagingCost ?? '—'}}<small>Source: {{row.packagingCostSourceColumn || 'Unmapped'}}</small><small>ERP effective: {{row.effectivePackagingCost ?? 'Unknown'}}</small></td>
+          <td>{{row.shippingCost ?? '—'}}<small>Estimate · Source: {{row.shippingCostSourceColumn || 'Unmapped'}}</small><small>ERP effective: {{row.effectiveShippingCost ?? 'Unknown'}}</small></td>
+          <td>{{row.importedTotalSupplierCost ?? 'Incomplete'}}</td>
+          <td>{{row.estimatedTotalSupplierCost ?? 'Incomplete'}}</td>
+          <td [class.loss-value]="row.importedProfitLoss < 0">{{row.importedProfitLoss ?? 'Incomplete'}}<small>Imported price less imported total</small></td>
+          <td [class.loss-value]="row.estimatedProfitLoss < 0">{{row.estimatedProfitLoss ?? 'Incomplete'}}<small>Effective price less effective total</small></td>
+          <td>{{row.importedMarginPercentage == null ? '—' : row.importedMarginPercentage + '%'}}</td>
+          <td>{{row.estimatedMarginPercentage == null ? '—' : row.estimatedMarginPercentage + '%'}}</td>
+          <td><div class="image-preview">@if(row.primaryImage){<img [src]="row.primaryImage" [alt]="row.title || 'Shopify product image'" loading="lazy" referrerpolicy="no-referrer">}@else{<span>No image</span>}</div><small>{{row.imageCount}} image(s) @if(row.additionalImageCount){· {{row.additionalImageCount}} additional}</small></td>
+          <td><strong>{{row.title || 'Missing title'}}</strong><small>Supplier SKU: {{row.sku || 'Missing SKU'}} · Handle: {{row.handle}}</small><small>ERP internal SKU: {{row.internalProductCode || 'Not assigned'}}</small><small>{{row.descriptionHtml || ''}}</small></td>
+          <td>{{row.importedSellingPrice ?? row.erpSellingPrice ?? row.sellingPrice ?? 'Invalid'}}<small>Source: {{fieldMappings['sellingPrice']}}</small><small>Effective ERP after selected update rules: {{row.effectiveSellingPrice ?? 'Unknown'}}</small></td>
+          <td>{{row.importedMrp ?? row.erpMrp ?? row.mrp ?? '—'}}<small>Source: {{fieldMappings['mrp']}}</small><small>Effective ERP after selected update rules: {{row.effectiveMrp ?? 'Unknown'}}</small></td>
+          <td><select [value]="categoryByType[normalizeKey(row.type || '')] || row.selectedCategoryId || ''" (change)="setCategoryMapping(row.type || '',$any($event.target).value)" aria-label="Category mapping"><option value="">Map category…</option>@for(c of p.categories;track c.productCategoryId){<option [value]="c.productCategoryId" [selected]="c.productCategoryId === (categoryByType[normalizeKey(row.type || '')] || row.selectedCategoryId || '')">{{c.displayName}} · {{c.categoryCode}}</option>}</select><small>{{row.categorySourceColumn || 'Category'}}: {{row.type || 'No category source value'}}</small><small>Automatic binding: {{row.categoryBindingStatus}}</small><small>Manual selection applies to every row with this category value.</small></td>
+          <td><select [ngModel]="brandByVendor[normalizeKey(row.vendor || '')] || row.matchedBrandId || ''" (ngModelChange)="setBrandMapping(row.vendor || '',$event)" aria-label="Brand mapping"><option value="">Map brand…</option>@for(b of p.brands;track b.brandId){<option [value]="b.brandId">{{b.brandName}}</option>}</select><small>{{row.vendor || 'No vendor source value'}}</small></td>
+          <td><span class="status" [class.invalid]="row.status==='INVALID'">{{row.status}}</span>@if(row.fieldChanges?.length){<small>Will update: {{row.fieldChanges.join(', ')}}</small>}@for(e of row.errors;track e){<small class="error-text">{{e}}</small>}@for(w of row.warnings;track w){<small class="warning">{{w}}</small>}</td>
+        </tr>
+      }
+    </tbody></table></div>
+    <div class="notice">Shopify Published and Status fields are ignored. Variant Inventory Qty is ignored. A repeated source file remains idempotent. Changes to field or category mappings require a fresh preview.</div>
+    <div class="confirm-row"><button mat-flat-button color="primary" type="button" (click)="commit()" [disabled]="busy() || mappingDirty() || !preview() || preview().alreadyImported || preview().invalidCount>0 || !unitId">{{busy()?'Importing…':'Confirm Import'}}</button></div>
+  }
+</section>

@@ -140,6 +140,18 @@ public sealed class DeploymentConfigurationTests
             "AccessKey", "SecretKey", "SigningKey", "\"Password\":", "AccessToken", "AppSecret", "VerifyToken");
     }
 
+    [Fact]
+    public void QaConfigurationKeepsMarketplaceCheckoutGloballyDisabledAndAllowsBothHostedClients()
+    {
+        var qaSettingsPath = Path.Combine(RepositoryRoot(), "backend", "src", "WhatsBiz.Api", "appsettings.QA.json");
+        using var document = JsonDocument.Parse(File.ReadAllText(qaSettingsPath));
+        document.RootElement.GetProperty("GlobalFeatures").GetProperty("DisabledFeatures")
+            .EnumerateArray().Select(x => x.GetString()).Should().Contain("MARKETPLACE_CHECKOUT");
+
+        var qaEnvironment = File.ReadAllText(Path.Combine(RepositoryRoot(), "deployment", "qa.env.example"));
+        qaEnvironment.Should().Contain("Cors__AllowedOriginsCsv=https://qa.khatadhari.com,https://qa-shop.khatadhari.com");
+    }
+
     private static string RepositoryRoot([CallerFilePath] string sourceFile = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, "../../../../"));
 }

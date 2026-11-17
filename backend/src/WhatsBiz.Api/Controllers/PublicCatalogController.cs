@@ -101,12 +101,14 @@ public sealed class MarketplaceCityMediaOwnerController(PublicMarketplaceService
 {
     private const long MaxUploadBytes=5*1024*1024;
     [HttpPost("{kind}"),PlatformAuthorize,HasPermission(Permissions.Features.Manage),RequestSizeLimit(MaxUploadBytes)]
-    public async Task<IActionResult> Upload(Guid cityId,string kind,[FromForm]IFormFile file,CancellationToken ct)
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> Upload(Guid cityId,string kind,IFormFile file,CancellationToken ct)
     {if(kind is not ("logo" or "banner"))return BadRequest(new{message="Choose logo or banner media."});if(file is null||file.Length is <=0 or >MaxUploadBytes)return BadRequest(new{message="Choose a JPEG, PNG or WebP image up to 5 MB."});await using var stream=file.OpenReadStream();await marketplace.UploadCityMedia(cityId,kind,file.FileName,stream,ct);return NoContent();}
     [HttpDelete("{kind}"),PlatformAuthorize,HasPermission(Permissions.Features.Manage)]
     public async Task<IActionResult> Remove(Guid cityId,string kind,CancellationToken ct){if(kind is not ("logo" or "banner"))return BadRequest(new{message="Choose logo or banner media."});await marketplace.RemoveCityMedia(cityId,kind,ct);return NoContent();}
     [HttpPost("categories/{categoryToken}"),PlatformAuthorize,HasPermission(Permissions.Features.Manage),RequestSizeLimit(MaxUploadBytes)]
-    public async Task<IActionResult> UploadCategory(Guid cityId,string categoryToken,[FromForm]IFormFile file,CancellationToken ct){if(file is null||file.Length is <=0 or >MaxUploadBytes)return BadRequest(new{message="Choose an image up to 5 MB."});await using var stream=file.OpenReadStream();await marketplace.UploadCityCategoryMedia(cityId,categoryToken,file.FileName,stream,ct);return NoContent();}
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadCategory(Guid cityId,string categoryToken,IFormFile file,CancellationToken ct){if(file is null||file.Length is <=0 or >MaxUploadBytes)return BadRequest(new{message="Choose an image up to 5 MB."});await using var stream=file.OpenReadStream();await marketplace.UploadCityCategoryMedia(cityId,categoryToken,file.FileName,stream,ct);return NoContent();}
     [HttpDelete("categories/{categoryToken}"),PlatformAuthorize,HasPermission(Permissions.Features.Manage)]
     public async Task<IActionResult> RemoveCategory(Guid cityId,string categoryToken,CancellationToken ct){await marketplace.RemoveCityCategoryMedia(cityId,categoryToken,ct);return NoContent();}
 }
@@ -217,8 +219,8 @@ public sealed class PublicCatalogOwnerController(PublicCatalogService catalog,Ap
     [HttpPut("business-types")]
     public async Task<IActionResult> BusinessType(BusinessTypeInput input,[FromServices] BusinessTypeCatalogService types,CancellationToken ct){await types.Save(input,ct);return Ok(await types.List(true,ct));}
     [HttpGet("products")]
-    public Task<object> Queue([FromQuery] Guid? tenant,[FromQuery] string? status,[FromQuery] DateTimeOffset? since,[FromQuery] DateTimeOffset? until,[FromQuery] int page=1,CancellationToken ct=default)
-        => catalog.Queue(tenant,status,since,until,page,ct);
+    public Task<object> Queue([FromQuery] Guid? tenant,[FromQuery] string? status,[FromQuery] DateTimeOffset? since,[FromQuery] DateTimeOffset? until,[FromQuery] string? category,[FromQuery] int page=1,CancellationToken ct=default)
+        => catalog.Queue(tenant,status,since,until,category,page,ct);
     [HttpGet("tenants/{tenant:guid}/products/{product:guid}")]
     public Task<object> Details(Guid tenant,Guid product,CancellationToken ct) => catalog.Details(tenant,product,ct);
     [HttpPost("tenants/{tenant:guid}/products/{product:guid}")]

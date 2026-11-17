@@ -10,9 +10,11 @@ public sealed class TenantCapacityArchitectureTests
     public void V37DefinesSafeGenericLimitsAndConcurrencyBackstops()
     {
         var sql=File.ReadAllText(Path.Combine(Root,"database","WhatsBiz.Database","Scripts","V37-TenantResourceCapacity.sql"));
+        var userTrigger=File.ReadAllText(Path.Combine(Root,"database","WhatsBiz.Database","Triggers","TR_Users_ResourceCapacity.sql"));
         sql.Should().Contain("core.TenantResourceLimits").And.Contain("ResourceType IN(N'USERS',N'BRANCHES')").And.Contain("LimitValue IS NULL OR LimitValue>=1");
         sql.Should().Contain("PRIMARY KEY(TenantId,ResourceType)").And.Contain("FK_TenantResourceLimits_Tenants");
-        sql.Should().Contain("TR_Users_ResourceCapacity").And.Contain("TR_Branches_ResourceCapacity").And.Contain("WITH(UPDLOCK,HOLDLOCK)");
+        userTrigger.Should().Contain("TR_Users_ResourceCapacity").And.Contain("WITH(UPDLOCK,HOLDLOCK)");
+        sql.Should().Contain("TR_Branches_ResourceCapacity").And.Contain("WITH(UPDLOCK,HOLDLOCK)");
         sql.Should().NotContain("INSERT core.TenantResourceLimits");
     }
 

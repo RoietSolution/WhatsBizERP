@@ -26,12 +26,14 @@ describe('ProductFormComponent manufacturer codes', () => {
       'deleteProductImage',
       'createBrand',
       'createUnit',
+      'pricingPreview',
     ]);
     const features = jasmine.createSpyObj<FeatureService>('FeatureService', ['load']);
     features.load.and.returnValue(of(null));
     api.categories.and.returnValue(of([]));
     api.brands.and.returnValue(of([]));
     api.units.and.returnValue(of([]));
+    api.pricingPreview.and.returnValue(of({ sellingPrice: 0, gstAmount: 0, customerTotal: 0, gstPricingType: 'EXCLUSIVE' }));
     api.nextCode.and.returnValue(of('P-TEST'));
     const route = {
       snapshot: {

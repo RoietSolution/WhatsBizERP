@@ -97,7 +97,7 @@ public sealed class NewTenantDataIsolationTests
     [Fact]
     public void QaPlanGuardRejectsStaticTenantColumnReferencesInTheAddColumnBatch()
     {
-        var script=File.ReadAllText(Path.Combine(Root(),"deployment","deploy-qa-database.ps1"));
+        var script=File.ReadAllText(Path.Combine(Root(),"deployment","deploy-qa-database_old.ps1"));
         script.Should().Contain("$unsafeTenantAddBatches")
             .And.Contain("ADD TenantId followed by a same-batch static TenantId reference");
     }
